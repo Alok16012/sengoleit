@@ -89,6 +89,9 @@ export default function CenterForm() {
 
       // Create auth user for center login
       if (!isEdit && payload.email && plainPassword) {
+        // Save admin session before signUp (signUp may replace the active session)
+        const { data: { session: adminSession } } = await supabase.auth.getSession()
+
         const { data: authData, error: authErr } = await supabase.auth.signUp({
           email: payload.email,
           password: plainPassword,
@@ -99,6 +102,14 @@ export default function CenterForm() {
           await supabase.from('profiles').upsert({
             id: authData.user.id,
             role: payload.center_type === 'super_center' ? 'super_center' : 'center'
+          })
+        }
+
+        // Restore admin session in case signUp replaced it
+        if (adminSession?.access_token) {
+          await supabase.auth.setSession({
+            access_token: adminSession.access_token,
+            refresh_token: adminSession.refresh_token,
           })
         }
       }
