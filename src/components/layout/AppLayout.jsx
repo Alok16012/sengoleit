@@ -4,9 +4,13 @@ import Sidebar from './Sidebar'
 import { Search, Bell } from 'lucide-react'
 
 function TopBar() {
-  const { profile } = useAuth()
-  const role = profile?.role || 'admin'
-  const name = profile?.full_name || (role === 'admin' ? 'Admin User' : 'Center User')
+  const { profile, user } = useAuth()
+  const role = profile?.role || user?.user_metadata?.role || 'admin'
+  const name = profile?.full_name ||
+    (role === 'admin' ? 'Admin User' :
+     role === 'super_center' ? 'Super Center' :
+     role === 'center' ? 'Center User' :
+     user?.email || 'User')
 
   return (
     <div className="h-20 flex items-center justify-between px-8 border-b border-gray-100 bg-white">
@@ -28,7 +32,9 @@ function TopBar() {
         <div className="flex items-center space-x-3 pl-4 border-l border-gray-200">
           <div className="flex flex-col items-end mr-1">
             <span className="text-sm font-bold text-gray-900">{name}</span>
-            <span className="text-[10px] font-medium text-gray-400 capitalize">{role}</span>
+            <span className="text-[10px] font-medium text-gray-400 capitalize">
+              {role === 'super_center' ? 'Super Center' : role === 'admin' ? 'Admin' : role}
+            </span>
           </div>
           <div className="h-10 w-10 bg-[#933d18] rounded-xl flex items-center justify-center border border-[#933d18]/20 shadow-sm">
             <span className="text-white font-bold text-sm">{name[0]?.toUpperCase()}</span>
