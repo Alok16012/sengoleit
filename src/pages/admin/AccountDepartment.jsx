@@ -28,8 +28,8 @@ export default function AccountDepartment() {
     setLoading(true)
     const [appr, rech, ctr] = await Promise.all([
       supabase.from('centers').select('*').eq('approval_status', 'pending').order('created_at', { ascending: false }),
-      supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type)').order('created_at', { ascending: false }),
-      supabase.from('centers').select('*, states(state_name)').not('approval_status', 'eq', 'pending').order('created_at', { ascending: false }),
+      supabase.from('recharge_requests').select('*').order('created_at', { ascending: false }),
+      supabase.from('centers').select('*').not('approval_status', 'eq', 'pending').order('created_at', { ascending: false }),
     ])
     setApprovals(appr.data || [])
     setRecharges(rech.data || [])

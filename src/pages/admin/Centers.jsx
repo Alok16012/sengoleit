@@ -23,11 +23,12 @@ export default function Centers() {
 
   async function fetchData() {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('centers')
-      .select('*, states(state_name), districts(district_name), super:super_center_id(center_name)')
+      .select('*')
       .eq('center_type', 'center')
       .order('created_at', { ascending: false })
+    if (error) console.error('Centers fetch error:', error)
     setData(data || [])
     setLoading(false)
   }

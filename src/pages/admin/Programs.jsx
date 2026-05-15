@@ -17,10 +17,11 @@ export default function Programs() {
 
   async function fetchData() {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('programs')
-      .select('*, universities(university_name), departments(name), programme_types(programme_type_name)')
+      .select('*')
       .order('created_at', { ascending: false })
+    if (error) console.error('Programs fetch error:', error)
     setData(data || [])
     setLoading(false)
   }

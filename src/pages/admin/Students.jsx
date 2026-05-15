@@ -20,10 +20,11 @@ export default function Students() {
 
   async function fetchData() {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, centers(center_name), programs(program_name), academic_sessions(session_name)')
+      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, center_id, programme_id, session_id')
       .order('created_at', { ascending: false })
+    if (error) console.error('Students fetch error:', error)
     setData(data || [])
     setLoading(false)
   }
