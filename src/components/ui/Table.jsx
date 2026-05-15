@@ -1,6 +1,6 @@
 export function Table({ children }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
       <table className="min-w-full">{children}</table>
     </div>
   )

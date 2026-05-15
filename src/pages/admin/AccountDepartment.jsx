@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, IndianRupee, Building2, RefreshCw } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, IndianRupee, Building2, RefreshCw, Eye, EyeOff } from 'lucide-react'
 
 const TABS = [
   { key: 'approvals', label: 'Pending Approvals' },
@@ -22,6 +22,7 @@ export default function AccountDepartment() {
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectNotes, setRejectNotes] = useState('')
   const [approvedModal, setApprovedModal] = useState(null)
+  const [visiblePasswords, setVisiblePasswords] = useState({})
 
   useEffect(() => { fetchAll() }, [])
 
@@ -248,6 +249,7 @@ export default function AccountDepartment() {
                   <Th>Center Name</Th>
                   <Th>Type</Th>
                   <Th>Code</Th>
+                  <Th>Password</Th>
                   <Th>State</Th>
                   <Th>Virtual Balance</Th>
                   <Th>KYC</Th>
@@ -259,7 +261,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {centers.length === 0 ? (
-                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No centers</Td></Tr>
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No centers</Td></Tr>
                 ) : centers.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -273,6 +275,21 @@ export default function AccountDepartment() {
                       </span>
                     </Td>
                     <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
+                    <Td>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs text-gray-800">
+                          {visiblePasswords[c.id] ? (c.login_password || '—') : (c.login_password ? '••••••••' : '—')}
+                        </span>
+                        {c.login_password && (
+                          <button
+                            onClick={() => setVisiblePasswords(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
+                            className="text-gray-400 hover:text-[#933d18] transition-colors"
+                          >
+                            {visiblePasswords[c.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                        )}
+                      </div>
+                    </Td>
                     <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
                     <Td>
                       <span className="font-bold text-emerald-700">₹{Number(c.virtual_balance || 0).toLocaleString()}</span>
