@@ -82,6 +82,9 @@ export default function CenterForm() {
       delete payload.id; delete payload.created_at; delete payload.updated_at
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id', 'super_center_id']
       fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
+      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'virtual_balance']
+      numericFields.forEach(k => { if (payload[k] === '' || payload[k] === null) delete payload[k]; else if (payload[k] !== undefined) payload[k] = Number(payload[k]) })
+      Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
       const { error: err } = isEdit
         ? await supabase.from('centers').update(payload).eq('id', id)
         : await supabase.from('centers').insert(payload)
