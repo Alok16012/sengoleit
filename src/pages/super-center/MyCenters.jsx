@@ -4,9 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
-import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
 
 export default function MyCenters() {
   const { user } = useAuth()
@@ -81,12 +80,11 @@ export default function MyCenters() {
               <Th>Virtual Balance</Th>
               <Th>Approval</Th>
               <Th>Status</Th>
-              <Th>Actions</Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No centers created yet</Td></Tr>
+              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No centers created yet</Td></Tr>
             ) : filtered.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -108,11 +106,6 @@ export default function MyCenters() {
                   </span>
                 </Td>
                 <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
-                <Td>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/super-center/centers/edit/${c.id}`)}>
-                    <Edit size={14} />
-                  </Button>
-                </Td>
               </Tr>
             ))}
           </Tbody>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { Users, Building2, Wallet, Clock, PlusCircle, UserPlus } from 'lucide-react'
+import { Users, Building2, Wallet, Clock, PlusCircle } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 
@@ -65,9 +65,6 @@ export default function SuperCenterDashboard() {
             <div className="flex gap-2">
               <Button size="sm" onClick={() => navigate('/super-center/centers/new')}>
                 <Building2 size={14} /> New Center
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => navigate('/super-center/students/new')}>
-                <UserPlus size={14} /> Add Student
               </Button>
             </div>
           )}

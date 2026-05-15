@@ -6,7 +6,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit } from 'lucide-react'
+import { Search, Edit } from 'lucide-react'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Reviewing', 'Document Verified', 'Account Section', 'Admitted', 'Rejected']
 
@@ -50,7 +50,6 @@ export default function SuperCenterStudents() {
       <PageHeader
         title="Students"
         subtitle={`${data.length} students`}
-        action={{ label: <><Plus size={15} /> Add Student</>, onClick: () => navigate('/super-center/students/new') }}
       />
 
       <div className="flex flex-wrap gap-3 mb-4">

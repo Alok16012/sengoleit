@@ -1,5 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 import {
   University, BookOpen, Building2, Users, FolderOpen,
   Award, CalendarDays, MapPin, LogOut,
@@ -41,10 +43,18 @@ const studentLinks = [
 ]
 
 export default function Sidebar() {
-  const { profile, signOut } = useAuth()
+  const { profile, user, signOut } = useAuth()
   const navigate = useNavigate()
+  const [centerName, setCenterName] = useState('')
 
   const role = profile?.role || 'admin'
+
+  useEffect(() => {
+    if ((role === 'super_center' || role === 'center') && user?.email) {
+      supabase.from('centers').select('center_name').eq('email', user.email).single()
+        .then(({ data }) => { if (data) setCenterName(data.center_name) })
+    }
+  }, [role, user?.email])
   const links =
     role === 'admin' ? adminLinks :
     role === 'super_center' ? superCenterLinks :
@@ -72,8 +82,12 @@ export default function Sidebar() {
             onError={e => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '<span style="color:white;font-weight:900;font-size:1.1rem">S</span>' }} />
         </div>
         <div>
-          <h1 className="text-base font-black text-gray-900 leading-tight">Sengol</h1>
-          <span className="text-[10px] font-bold text-[#933d18] uppercase tracking-[0.2em]">University</span>
+          <h1 className="text-base font-black text-gray-900 leading-tight truncate max-w-[160px]">
+            {role === 'super_center' || role === 'center' ? (centerName || 'My Portal') : 'Sengol'}
+          </h1>
+          <span className="text-[10px] font-bold text-[#933d18] uppercase tracking-[0.2em]">
+            {role === 'super_center' ? 'Super Center' : role === 'center' ? 'Center' : 'University'}
+          </span>
         </div>
       </div>
 
