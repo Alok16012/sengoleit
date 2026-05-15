@@ -83,6 +83,13 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
+  async function handleDeleteCenter(id, name) {
+    if (!confirm(`"${name}" ko permanently delete karna chahte ho?`)) return
+    const { error } = await supabase.from('centers').delete().eq('id', id)
+    if (error) { alert('Delete failed: ' + error.message); return }
+    fetchAll()
+  }
+
   const pendingCount = approvals.length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
 
@@ -247,6 +254,7 @@ export default function AccountDepartment() {
                   <Th>Approval</Th>
                   <Th>Status</Th>
                   <Th>Activate/Deactivate</Th>
+                  <Th>Delete</Th>
                 </tr>
               </Thead>
               <Tbody>
@@ -286,6 +294,14 @@ export default function AccountDepartment() {
                         }`}
                       >
                         {c.status === 'Active' ? <><ToggleRight size={14} /> Deactivate</> : <><ToggleLeft size={14} /> Activate</>}
+                      </button>
+                    </Td>
+                    <Td>
+                      <button
+                        onClick={() => handleDeleteCenter(c.id, c.center_name)}
+                        className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all"
+                      >
+                        <XCircle size={14} /> Delete
                       </button>
                     </Td>
                   </Tr>

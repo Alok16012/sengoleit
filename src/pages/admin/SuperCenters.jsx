@@ -33,9 +33,10 @@ export default function SuperCenters() {
     setLoading(false)
   }
 
-  async function handleDelete(id) {
-    if (!confirm('Delete this super center?')) return
-    await supabase.from('centers').delete().eq('id', id)
+  async function handleDelete(id, name) {
+    if (!confirm(`"${name}" ko delete karna chahte ho? Ye wapas nahi aayega.`)) return
+    const { error } = await supabase.from('centers').delete().eq('id', id)
+    if (error) { alert('Delete failed: ' + error.message); return }
     fetchData()
   }
 
@@ -109,7 +110,7 @@ export default function SuperCenters() {
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/super-centers/edit/${c.id}`)}>
                       <Edit size={14} />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id)}>
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id, c.center_name)}>
                       <Trash2 size={14} className="text-red-500" />
                     </Button>
                   </div>
