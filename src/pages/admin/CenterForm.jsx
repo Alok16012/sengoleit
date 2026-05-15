@@ -39,6 +39,7 @@ export default function CenterForm() {
   const [orgDistricts, setOrgDistricts] = useState([])
   const [countries, setCountries] = useState([])
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -75,13 +76,21 @@ export default function CenterForm() {
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
-    const payload = { ...form }
-    delete payload.id; delete payload.created_at; delete payload.updated_at
-    const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id', 'super_center_id']
-    fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
-    if (isEdit) await supabase.from('centers').update(payload).eq('id', id)
-    else await supabase.from('centers').insert(payload)
-    navigate(form.center_type === 'super_center' ? '/admin/super-centers' : '/admin/centers')
+    setError(null)
+    try {
+      const payload = { ...form }
+      delete payload.id; delete payload.created_at; delete payload.updated_at
+      const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id', 'super_center_id']
+      fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
+      const { error: err } = isEdit
+        ? await supabase.from('centers').update(payload).eq('id', id)
+        : await supabase.from('centers').insert(payload)
+      if (err) throw err
+      navigate(form.center_type === 'super_center' ? '/admin/super-centers' : '/admin/centers')
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.')
+      setLoading(false)
+    }
   }
 
   const availableSuperCenters = allCenters.filter(c => c.id !== id && c.center_type === 'super_center')
@@ -274,6 +283,11 @@ export default function CenterForm() {
           </div>
         </FormSection>
 
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+            {error}
+          </div>
+        )}
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={loading}>{loading ? 'Saving...' : isEdit ? 'Update Center' : 'Add Center'}</Button>
           <Button type="button" variant="outline" onClick={() => navigate(backTo)}>Cancel</Button>
