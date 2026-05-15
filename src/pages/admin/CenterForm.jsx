@@ -88,7 +88,7 @@ export default function CenterForm() {
   const backTo = form.center_type === 'super_center' ? '/admin/super-centers' : '/admin/centers'
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-4xl pb-20">
       <PageHeader title={isEdit ? 'Edit Center' : 'Add Center'} backTo={backTo} />
 
       <form onSubmit={handleSubmit} className="space-y-5">
@@ -276,7 +276,7 @@ export default function CenterForm() {
 
         <div className="flex gap-3 pt-2">
           <Button type="submit" disabled={loading}>{loading ? 'Saving...' : isEdit ? 'Update Center' : 'Add Center'}</Button>
-          <Button type="button" variant="outline" onClick={() => navigate('/admin/centers')}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={() => navigate(backTo)}>Cancel</Button>
         </div>
       </form>
     </div>

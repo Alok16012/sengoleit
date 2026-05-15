@@ -145,7 +145,7 @@ export default function StudentForm() {
   )
 
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-6 max-w-4xl pb-20">
       <PageHeader title={isEdit ? 'Edit Student' : 'Add Student'} backTo="/admin/students" />
 
       <form onSubmit={handleSubmit} className="space-y-5">
