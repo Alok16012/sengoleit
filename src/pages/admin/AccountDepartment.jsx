@@ -39,8 +39,18 @@ export default function AccountDepartment() {
     setLoading(false)
   }
 
+  async function generateNextCenterCode() {
+    const { data } = await supabase.from('centers').select('center_code').not('center_code', 'is', null)
+    const nums = (data || [])
+      .map(c => c.center_code?.match(/^SIU(\d+)$/)?.[1])
+      .filter(Boolean)
+      .map(Number)
+    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
+    return `SIU${String(next).padStart(3, '0')}`
+  }
+
   async function handleApprove(center) {
-    const centerCode = center.center_code || `${center.center_type === 'super_center' ? 'SC' : 'CTR'}${Date.now().toString().slice(-6)}`
+    const centerCode = center.center_code || await generateNextCenterCode()
     await supabase.from('centers').update({
       approval_status: 'approved',
       status: 'Active',

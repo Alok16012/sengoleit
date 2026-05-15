@@ -151,7 +151,7 @@ export default function CenterForm() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Center Name *" value={form.center_name} onChange={set('center_name')} required />
-            <Input label="Center Code" placeholder="CTR001" value={form.center_code} onChange={set('center_code')} />
+            <Input label="Center Code" placeholder="SIU001 (auto on approval)" value={form.center_code} onChange={set('center_code')} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Email (Login ID)" type="email" value={form.email} onChange={set('email')} />
