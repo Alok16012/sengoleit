@@ -47,7 +47,7 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const [centerName, setCenterName] = useState('')
 
-  const role = profile?.role || 'admin'
+  const role = profile?.role || user?.user_metadata?.role || 'admin'
 
   useEffect(() => {
     if ((role === 'super_center' || role === 'center') && user?.email) {

@@ -19,7 +19,10 @@ export default function Login() {
       const { data, error: err } = await signIn(email, password)
       if (err) throw err
       const role = data?.user?.user_metadata?.role
-      role === 'center' ? navigate('/center/dashboard') : navigate('/dashboard')
+      if (role === 'super_center') navigate('/super-center/dashboard')
+      else if (role === 'center') navigate('/center/dashboard')
+      else if (role === 'student') navigate('/student/dashboard')
+      else navigate('/dashboard')
     } catch (err) {
       setError(err.message)
     } finally {
