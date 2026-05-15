@@ -35,7 +35,7 @@ export default function Login() {
       if (err) throw err
       navigate('/dashboard')
     } catch (err) {
-      setError('Demo login failed. Please run admin_user_setup.sql in Supabase first.')
+      setError(err.message || 'Demo login failed.')
     } finally {
       setLoading(false)
     }
