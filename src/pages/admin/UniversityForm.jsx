@@ -48,10 +48,17 @@ export default function UniversityForm() {
     setLoading(true)
     const payload = { ...form }
     delete payload.id; delete payload.created_at; delete payload.updated_at
+    // Remove empty FK fields and empty strings for non-text columns
     const empties = ['country_id', 'state_id', 'district_id']
     empties.forEach(k => { if (!payload[k]) delete payload[k] })
-    if (isEdit) await supabase.from('universities').update(payload).eq('id', id)
-    else await supabase.from('universities').insert(payload)
+    if (!payload.establishment_year) delete payload.establishment_year
+    else payload.establishment_year = Number(payload.establishment_year)
+    // Remove all empty strings
+    Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+    const { error: err } = isEdit
+      ? await supabase.from('universities').update(payload).eq('id', id)
+      : await supabase.from('universities').insert(payload)
+    if (err) { alert('Error: ' + err.message); setLoading(false); return }
     navigate('/admin/universities')
   }
 

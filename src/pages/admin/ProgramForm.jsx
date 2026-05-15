@@ -56,8 +56,14 @@ export default function ProgramForm() {
     delete payload.id; delete payload.created_at; delete payload.updated_at
     const nullFields = ['university_id', 'department_id', 'programme_type_id', 'mode_id', 'mode_of_study_id']
     nullFields.forEach(f => { if (!payload[f]) delete payload[f] })
-    if (isEdit) await supabase.from('programs').update(payload).eq('id', id)
-    else await supabase.from('programs').insert(payload)
+    // Convert numeric fields, remove empty strings
+    const numericFields = ['duration', 'fees_per_year', 'total_seats', 'admission_intake']
+    numericFields.forEach(f => { if (payload[f] === '' || payload[f] === null) delete payload[f]; else if (payload[f]) payload[f] = Number(payload[f]) })
+    Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+    const { error: err } = isEdit
+      ? await supabase.from('programs').update(payload).eq('id', id)
+      : await supabase.from('programs').insert(payload)
+    if (err) { alert('Error: ' + err.message); setLoading(false); return }
     navigate('/admin/programs')
   }
 

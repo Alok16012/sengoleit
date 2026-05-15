@@ -35,8 +35,11 @@ export default function SessionForm() {
     delete payload.id; delete payload.created_at; delete payload.updated_at
     if (!payload.start_date) delete payload.start_date
     if (!payload.end_date) delete payload.end_date
-    if (isEdit) await supabase.from('academic_sessions').update(payload).eq('id', id)
-    else await supabase.from('academic_sessions').insert(payload)
+    Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+    const { error: err } = isEdit
+      ? await supabase.from('academic_sessions').update(payload).eq('id', id)
+      : await supabase.from('academic_sessions').insert(payload)
+    if (err) { alert('Error: ' + err.message); setLoading(false); return }
     navigate('/admin/sessions')
   }
 

@@ -37,8 +37,11 @@ export default function SchemeForm() {
     const payload = { ...form }
     delete payload.id; delete payload.created_at; delete payload.updated_at
     if (!payload.university_id) delete payload.university_id
-    if (isEdit) await supabase.from('schemes').update(payload).eq('id', id)
-    else await supabase.from('schemes').insert(payload)
+    Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+    const { error: err } = isEdit
+      ? await supabase.from('schemes').update(payload).eq('id', id)
+      : await supabase.from('schemes').insert(payload)
+    if (err) { alert('Error: ' + err.message); setLoading(false); return }
     navigate('/admin/schemes')
   }
 
