@@ -1,0 +1,123 @@
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
+import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
+import PageHeader from '../../components/ui/PageHeader'
+import Button from '../../components/ui/Button'
+import Badge from '../../components/ui/Badge'
+import { Edit, Trash2, Plus, Search } from 'lucide-react'
+
+const APPROVAL_COLORS = {
+  pending: 'bg-amber-50 text-amber-700 border border-amber-200',
+  approved: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  rejected: 'bg-red-50 text-red-700 border border-red-200',
+}
+
+export default function SuperCenters() {
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const navigate = useNavigate()
+
+  useEffect(() => { fetchData() }, [])
+
+  async function fetchData() {
+    setLoading(true)
+    const { data } = await supabase
+      .from('centers')
+      .select('*, states(state_name), districts(district_name)')
+      .eq('center_type', 'super_center')
+      .order('created_at', { ascending: false })
+    setData(data || [])
+    setLoading(false)
+  }
+
+  async function handleDelete(id) {
+    if (!confirm('Delete this super center?')) return
+    await supabase.from('centers').delete().eq('id', id)
+    fetchData()
+  }
+
+  const filtered = data.filter(c =>
+    `${c.center_name} ${c.center_code} ${c.contact_person} ${c.phone}`.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="p-6">
+      <PageHeader
+        title="Super Centers"
+        subtitle={`${data.length} super centers`}
+        action={{ label: <><Plus size={15} /> Add Super Center</>, onClick: () => navigate('/admin/super-centers/new') }}
+      />
+
+      <div className="mb-4 relative max-w-sm">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
+          placeholder="Search super centers..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
+      ) : (
+        <Table>
+          <Thead>
+            <tr>
+              <Th>#</Th>
+              <Th>Super Center Name</Th>
+              <Th>Code</Th>
+              <Th>Contact Person</Th>
+              <Th>State</Th>
+              <Th>Phone</Th>
+              <Th>Virtual Balance</Th>
+              <Th>Approval</Th>
+              <Th>Status</Th>
+              <Th>Actions</Th>
+            </tr>
+          </Thead>
+          <Tbody>
+            {filtered.length === 0 ? (
+              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No super centers found</Td></Tr>
+            ) : filtered.map((c, i) => (
+              <Tr key={c.id}>
+                <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                <Td>
+                  <p className="font-semibold text-gray-900">{c.center_name}</p>
+                  {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
+                </Td>
+                <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
+                <Td className="text-gray-500">{c.contact_person || '—'}</Td>
+                <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
+                <Td className="text-gray-500">{c.phone || '—'}</Td>
+                <Td>
+                  <span className="font-semibold text-emerald-700">
+                    ₹{Number(c.virtual_balance || 0).toLocaleString()}
+                  </span>
+                </Td>
+                <Td>
+                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full capitalize ${APPROVAL_COLORS[c.approval_status] || APPROVAL_COLORS.pending}`}>
+                    {c.approval_status || 'Pending'}
+                  </span>
+                </Td>
+                <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
+                <Td>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/super-centers/edit/${c.id}`)}>
+                      <Edit size={14} />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id)}>
+                      <Trash2 size={14} className="text-red-500" />
+                    </Button>
+                  </div>
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      )}
+    </div>
+  )
+}
