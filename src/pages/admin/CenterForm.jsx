@@ -9,7 +9,7 @@ import { Building2, User, MapPin, Briefcase, CreditCard, GraduationCap, ShieldCh
 
 const emptyForm = {
   center_type: 'super_center',
-  center_name: '', center_code: '', email: '', phone: '',
+  center_name: '', center_code: '', email: '', phone: '', login_password: '',
   super_center_id: '',
   contact_person: '', father_mother_name: '', date_of_birth: '', gender: '', nationality: 'Indian',
   aadhar_no: '', pan_no: '',
@@ -79,12 +79,30 @@ export default function CenterForm() {
     setError(null)
     try {
       const payload = { ...form }
+      const plainPassword = payload.login_password
       delete payload.id; delete payload.created_at; delete payload.updated_at
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id', 'super_center_id']
       fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
       const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'virtual_balance']
       numericFields.forEach(k => { if (payload[k] === '' || payload[k] === null) delete payload[k]; else if (payload[k] !== undefined) payload[k] = Number(payload[k]) })
       Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+
+      // Create auth user for center login
+      if (!isEdit && payload.email && plainPassword) {
+        const { data: authData, error: authErr } = await supabase.auth.signUp({
+          email: payload.email,
+          password: plainPassword,
+          options: { data: { role: payload.center_type === 'super_center' ? 'super_center' : 'center' } }
+        })
+        if (authErr && !authErr.message.includes('already registered')) throw authErr
+        if (authData?.user) {
+          await supabase.from('profiles').upsert({
+            id: authData.user.id,
+            role: payload.center_type === 'super_center' ? 'super_center' : 'center'
+          })
+        }
+      }
+
       const { error: err } = isEdit
         ? await supabase.from('centers').update(payload).eq('id', id)
         : await supabase.from('centers').insert(payload)
@@ -125,9 +143,12 @@ export default function CenterForm() {
             <Input label="Center Code" placeholder="CTR001" value={form.center_code} onChange={set('center_code')} />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Email" type="email" value={form.email} onChange={set('email')} />
+            <Input label="Email (Login ID)" type="email" value={form.email} onChange={set('email')} />
             <Input label="Phone" type="tel" value={form.phone} onChange={set('phone')} />
           </div>
+          {!isEdit && (
+            <Input label="Login Password *" type="text" placeholder="Set password for center portal login" value={form.login_password} onChange={set('login_password')} />
+          )}
           <Select label="Super Center (Parent Center)" value={form.super_center_id} onChange={set('super_center_id')}>
             <option value="">— None (Independent Center) —</option>
             {availableSuperCenters.map(c => (

@@ -297,7 +297,7 @@ export default function AccountDepartment() {
       )}
 
       {/* Approval Success Modal */}
-      <Modal isOpen={!!approvedModal} onClose={() => setApprovedModal(null)} title="✅ Center Approved Successfully">
+      <Modal isOpen={!!approvedModal} onClose={() => setApprovedModal(null)} title="Center Approved Successfully">
         <div className="space-y-4">
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
             <div className="flex justify-between items-center">
@@ -305,24 +305,29 @@ export default function AccountDepartment() {
               <span className="font-bold text-gray-900">{approvedModal?.center_name}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Center ID (Code)</span>
-              <span className="font-mono font-bold text-[#933d18] text-lg">{approvedModal?.center_code}</span>
+              <span className="text-sm text-gray-500">Center Code (ID)</span>
+              <span className="font-mono font-bold text-[#933d18] text-lg tracking-widest">{approvedModal?.center_code}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">Type</span>
               <span className="font-medium text-gray-700">{approvedModal?.center_type === 'super_center' ? 'Super Center' : 'Center'}</span>
             </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-bold text-blue-700 uppercase tracking-wider">Login Credentials</p>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Login Email</span>
-              <span className="font-medium text-gray-700">{approvedModal?.email || '—'}</span>
+              <span className="text-sm text-gray-500">Login ID (Email)</span>
+              <span className="font-mono font-bold text-gray-900">{approvedModal?.email || '—'}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-500">Status</span>
-              <span className="font-bold text-emerald-600">Active ✓</span>
+              <span className="text-sm text-gray-500">Password</span>
+              <span className="font-mono font-bold text-gray-900">{approvedModal?.login_password || '(Set by center at registration)'}</span>
             </div>
           </div>
+
           <p className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3">
-            Share the <strong>Center Code</strong> and <strong>login email</strong> with the center. They can register at the portal using their email to access their dashboard.
+            Ye credentials center ko share karo. Woh portal pe login karke apna dashboard access kar sakte hain.
           </p>
           <Button onClick={() => setApprovedModal(null)} className="w-full justify-center">Done</Button>
         </div>
