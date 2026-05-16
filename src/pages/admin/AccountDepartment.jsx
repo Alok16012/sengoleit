@@ -49,29 +49,42 @@ export default function AccountDepartment() {
     await supabase.from('centers').update({ generated_password: newPass }).eq('id', centerId)
 
     // 2. Update OR create Supabase Auth user so login works
-    if (supabaseAdmin && center?.email) {
-      const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
-      const authUser = listData?.users?.find(u => u.email === center.email)
-      if (authUser) {
-        // User exists — update their password
-        await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password: newPass })
-      } else {
-        // No auth user — create one with email already confirmed
-        const { data: newUser } = await supabaseAdmin.auth.admin.createUser({
-          email: center.email,
-          password: newPass,
-          email_confirm: true,
-          user_metadata: { role: center.center_type === 'super_center' ? 'super_center' : 'center' }
+    if (!supabaseAdmin) {
+      alert('Service key nahi mila — VITE_SUPABASE_SERVICE_KEY check karo. Password sirf DB mein save hua, login kaam nahi karega.')
+      setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
+      fetchAll()
+      return
+    }
+
+    if (!center?.email) {
+      alert('Center ka email nahi hai — login create nahi ho sakta.')
+      return
+    }
+
+    const { data: listData, error: listErr } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+    if (listErr) { alert('Auth user list fetch failed: ' + listErr.message); return }
+
+    const authUser = listData?.users?.find(u => u.email === center.email)
+    if (authUser) {
+      const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password: newPass })
+      if (updErr) { alert('Password update failed: ' + updErr.message); return }
+    } else {
+      const { data: newUserData, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+        email: center.email,
+        password: newPass,
+        email_confirm: true,
+        user_metadata: { role: center.center_type === 'super_center' ? 'super_center' : 'center' }
+      })
+      if (createErr) { alert('Auth user create failed: ' + createErr.message); return }
+      if (newUserData?.user) {
+        await supabase.from('profiles').upsert({
+          id: newUserData.user.id,
+          role: center.center_type === 'super_center' ? 'super_center' : 'center'
         })
-        if (newUser?.user) {
-          await supabase.from('profiles').upsert({
-            id: newUser.user.id,
-            role: center.center_type === 'super_center' ? 'super_center' : 'center'
-          })
-        }
       }
     }
 
+    alert(`✓ Password set ho gaya! Ab ${center.email} se login ho sakta hai.`)
     setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
     fetchAll()
   }
