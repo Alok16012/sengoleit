@@ -91,6 +91,14 @@ export default function StudentForm() {
       setCenters(cents.data || [])
       setSessions(sess.data || [])
       setStudyModes(modes.data || [])
+
+      // Auto-fill center for non-admin roles
+      if (!isAdmin && user?.email && !isEdit) {
+        supabase.from('centers').select('id, center_name').eq('email', user.email).single()
+          .then(({ data: cd }) => {
+            if (cd) setForm(f => ({ ...f, center_id: cd.id, center_name: cd.center_name }))
+          })
+      }
     })
     if (isEdit) {
       supabase.from('students').select('*').eq('id', id).single()
@@ -200,11 +208,22 @@ export default function StudentForm() {
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Center Name" value={form.center_id} onChange={set('center_id')}>
-              <option value="">Select Center</option>
-              {centers.map(c => <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>)}
-            </Select>
-            <Input label="Center Name (manual)" placeholder="Auto-filled or type" value={form.center_name} onChange={set('center_name')} />
+            {isAdmin ? (
+              <Select label="Center Name" value={form.center_id} onChange={set('center_id')}>
+                <option value="">Select Center</option>
+                {centers.map(c => <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>)}
+              </Select>
+            ) : (
+              <Input
+                label="Center Name"
+                value={form.center_name || ''}
+                readOnly
+                className="bg-gray-50 text-gray-500 cursor-not-allowed"
+              />
+            )}
+            {isAdmin && (
+              <Input label="Center Name (manual)" placeholder="Auto-filled or type" value={form.center_name} onChange={set('center_name')} />
+            )}
           </div>
         </FormSection>
 
