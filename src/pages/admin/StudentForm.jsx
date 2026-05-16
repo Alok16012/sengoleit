@@ -6,7 +6,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
-import { ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye } from 'lucide-react'
+import { ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, ChevronDown, CheckCircle2 } from 'lucide-react'
 
 function AddressBlock({ prefix, label, form, onChange, setForm, states, districts }) {
   const selectedState = states.find(s => s.state_name === form[`${prefix}_state`])
@@ -15,8 +15,8 @@ function AddressBlock({ prefix, label, form, onChange, setForm, states, district
     : districts
 
   return (
-    <>
-      <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
+    <div className="bg-gray-50/60 rounded-xl p-4 space-y-4 border border-gray-100">
+      <p className="text-xs font-black text-[#933d18] uppercase tracking-widest">{label}</p>
       <div className="grid grid-cols-2 gap-4">
         <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} />
         <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} />
@@ -45,52 +45,75 @@ function AddressBlock({ prefix, label, form, onChange, setForm, states, district
           <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} />
         )}
       </div>
-    </>
+    </div>
   )
 }
 
-function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading }) {
+function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading, isOpen, onToggle }) {
   const levelBoards = boards.filter(b => b.type === 'All' || b.type === boardType)
   const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
   const total = parseFloat(form[`${prefix}_total_marks`]) || 0
   const percentage = obtained > 0 && total > 0 ? ((obtained / total) * 100).toFixed(2) : ''
   const marksheetKey = `${prefix}_marksheet_url`
+  const isFilled = !!(form[`${prefix}_institute_name`] || form[`${prefix}_board_university`] || form[`${prefix}_passing_year`])
+
   return (
-    <>
-      <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
-      <div className="grid grid-cols-3 gap-4">
-        <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={onChange(`${prefix}_institute_name`)} />
-        {levelBoards.length > 0 ? (
-          <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)}>
-            <option value="">Select Board</option>
-            {levelBoards.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-          </Select>
-        ) : (
-          <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} />
-        )}
-        <Input label="Passing Year" type="number" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} />
-      </div>
-      <div className="grid grid-cols-4 gap-4">
-        <Input label="Obtained Marks" type="number" value={form[`${prefix}_obtained_marks`]} onChange={onChange(`${prefix}_obtained_marks`)} />
-        <Input label="Total Marks" type="number" value={form[`${prefix}_total_marks`]} onChange={onChange(`${prefix}_total_marks`)} />
-        <Input
-          label="Percentage (%)"
-          value={percentage ? `${percentage}%` : ''}
-          readOnly
-          placeholder="Auto-calculated"
-          className="bg-gray-50 text-[#933d18] font-semibold cursor-not-allowed"
-        />
-        <FileField
-          label="Marksheet"
-          fieldKey={marksheetKey}
-          accept="image/*,application/pdf"
-          isImage={false}
-          value={form[marksheetKey]}
-          onUpload={onUpload}
-          isUploading={!!uploading[marksheetKey]}
-        />
-      </div>
-    </>
+    <div className={`border rounded-xl overflow-hidden transition-all ${isOpen ? 'border-[#933d18]/30 shadow-sm' : 'border-gray-200'}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`w-full flex items-center justify-between px-5 py-3.5 transition-colors ${isOpen ? 'bg-[#933d18]/5' : 'bg-gray-50 hover:bg-gray-100'}`}
+      >
+        <div className="flex items-center gap-3">
+          {isFilled
+            ? <CheckCircle2 size={15} className="text-green-500 shrink-0" />
+            : <div className="w-[15px] h-[15px] rounded-full border-2 border-gray-300 shrink-0" />
+          }
+          <span className={`text-sm font-bold ${isOpen ? 'text-[#933d18]' : 'text-gray-700'}`}>{label}</span>
+          {isFilled && !isOpen && (
+            <span className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold tracking-wide">FILLED</span>
+          )}
+        </div>
+        <ChevronDown size={15} className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180 text-[#933d18]' : 'text-gray-400'}`} />
+      </button>
+
+      {isOpen && (
+        <div className="p-5 space-y-4 border-t border-[#933d18]/10">
+          <div className="grid grid-cols-3 gap-4">
+            <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={onChange(`${prefix}_institute_name`)} />
+            {levelBoards.length > 0 ? (
+              <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)}>
+                <option value="">Select Board</option>
+                {levelBoards.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+              </Select>
+            ) : (
+              <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} />
+            )}
+            <Input label="Passing Year" type="number" placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} />
+          </div>
+          <div className="grid grid-cols-4 gap-4">
+            <Input label="Obtained Marks" type="number" value={form[`${prefix}_obtained_marks`]} onChange={onChange(`${prefix}_obtained_marks`)} />
+            <Input label="Total Marks" type="number" value={form[`${prefix}_total_marks`]} onChange={onChange(`${prefix}_total_marks`)} />
+            <Input
+              label="Percentage (%)"
+              value={percentage ? `${percentage}%` : ''}
+              readOnly
+              placeholder="Auto-calculated"
+              className="bg-[#933d18]/5 text-[#933d18] font-bold cursor-not-allowed"
+            />
+            <FileField
+              label="Marksheet"
+              fieldKey={marksheetKey}
+              accept="image/*,application/pdf"
+              isImage={false}
+              value={form[marksheetKey]}
+              onUpload={onUpload}
+              isUploading={!!uploading[marksheetKey]}
+            />
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -98,77 +121,65 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUpload
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-semibold text-gray-600 ml-0.5">{label}</label>
-      <div className="flex items-center gap-3 flex-wrap">
-        <label className={`cursor-pointer flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-medium transition-all
-          ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-gray-200 text-gray-600 hover:border-[#933d18] hover:text-[#933d18] bg-white'}`}>
-          <Upload size={14} />
-          {isUploading ? 'Uploading...' : value ? 'Change' : 'Choose File'}
+      <div className="flex items-center gap-2 flex-wrap">
+        <label className={`cursor-pointer flex items-center gap-2 px-3 py-2 border rounded-xl text-xs font-semibold transition-all
+          ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-[#933d18]/30 text-[#933d18] hover:bg-[#933d18]/5 bg-white'}`}>
+          <Upload size={12} />
+          {isUploading ? 'Uploading...' : value ? 'Change' : 'Upload'}
           <input type="file" accept={accept} className="hidden" disabled={isUploading}
             onChange={e => e.target.files[0] && onUpload(fieldKey, e.target.files[0])} />
         </label>
         {value && isImage && (
-          <img src={value} alt={label} className="h-14 w-14 object-cover rounded-xl border border-gray-200 shadow-sm" />
+          <img src={value} alt={label} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
         )}
         {value && !isImage && (
           <a href={value} target="_blank" rel="noreferrer"
-            className="flex items-center gap-1.5 text-xs font-semibold text-[#933d18] hover:underline">
-            <Eye size={13} /> View File
+            className="flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
+            <Eye size={12} /> View
           </a>
         )}
-        {!value && <span className="text-xs text-gray-400 italic">No file chosen</span>}
+        {!value && <span className="text-xs text-gray-400 italic">No file</span>}
       </div>
     </div>
   )
 }
 
 const emptyForm = {
-  // Basic Entry
   date_of_submission: new Date().toISOString().split('T')[0],
-  date_of_admission: '',
-  entry_type: 'Regular',
+  date_of_admission: '', entry_type: 'Regular',
   session_id: '', mode_id: '', university_id: '',
   center_id: '', center_name: '',
-  // Program Information
   department_id: '', programme_id: '', course_code: '',
   semester_year: '', academic_year: '',
   enrollment_no: '', admission_number: '', registration_no: '',
   status: 'Pending', remarks: '',
-  // Personal Information
   student_name: '', date_of_birth: '', profession: '', gender: '', email: '',
   mobile_no: '', whatsapp_no: '', nationality: 'Indian',
   caste: '', religion: '', blood_group: '', mother_tongue: '',
   physically_handicapped: 'No', aadhar_link_mobile: '', aadhar_no: '',
   identification_marks: '', scholarship_applied: 'None', pan_no: '',
-  // Family Details
   fathers_name: '', fathers_occupation: '',
   mothers_name: '', mothers_occupation: '',
   guardian_name: '', guardian_occupation: '', guardian_relation: '',
   guardian_email: '', guardian_mobile: '',
-  // Student Permanent Address
   student_perm_village_town: '', student_perm_landmark: '',
   student_perm_post_office: '', student_perm_city: '',
   student_perm_state: '', student_perm_district: '', student_perm_pin_code: '',
-  // Student Present Address
   student_pres_village_town: '', student_pres_landmark: '',
   student_pres_post_office: '', student_pres_city: '',
   student_pres_state: '', student_pres_district: '', student_pres_pin_code: '',
-  // Guardian Present Address
   guardian_pres_village_town: '', guardian_pres_landmark: '',
   guardian_pres_post_office: '', guardian_pres_city: '',
   guardian_pres_state: '', guardian_pres_district: '', guardian_pres_pin_code: '',
-  // Guardian Permanent Address
   guardian_perm_village_town: '', guardian_perm_landmark: '',
   guardian_perm_post_office: '', guardian_perm_city: '',
   guardian_perm_state: '', guardian_perm_district: '', guardian_perm_pin_code: '',
-  // Education
   tenth_institute_name: '', tenth_board_university: '', tenth_passing_year: '', tenth_obtained_marks: '', tenth_total_marks: '',
   twelfth_institute_name: '', twelfth_board_university: '', twelfth_passing_year: '', twelfth_obtained_marks: '', twelfth_total_marks: '',
   ug_institute_name: '', ug_board_university: '', ug_passing_year: '', ug_obtained_marks: '', ug_total_marks: '',
   pg_institute_name: '', pg_board_university: '', pg_passing_year: '', pg_obtained_marks: '', pg_total_marks: '',
   diploma_institute_name: '', diploma_board_university: '', diploma_passing_year: '', diploma_obtained_marks: '', diploma_total_marks: '',
-  // Documents
   photo_url: '', aadhar_url: '', signature_url: '', declaration_url: '',
-  // Education Marksheets
   tenth_marksheet_url: '', twelfth_marksheet_url: '', ug_marksheet_url: '', pg_marksheet_url: '', diploma_marksheet_url: '',
 }
 
@@ -177,6 +188,16 @@ const CASTE_OPTIONS = ['General', 'OBC', 'SC', 'ST', 'Minorities', 'Others']
 const SCHOLARSHIP_OPTIONS = ['None', 'Scholarship-1', 'Scholarship-2', 'Scholarship-3', 'Scholarship-4']
 const STATUS_OPTIONS = ['Pending', 'Reviewing', 'Document Verified', 'Account Section', 'Rejected', 'Admitted']
 
+const NAV_SECTIONS = [
+  { id: 'sec-basic', label: 'Basic Entry', icon: <ClipboardList size={13} /> },
+  { id: 'sec-program', label: 'Program Info', icon: <BookOpen size={13} /> },
+  { id: 'sec-personal', label: 'Personal Info', icon: <User size={13} /> },
+  { id: 'sec-family', label: 'Family Info', icon: <Users size={13} /> },
+  { id: 'sec-contact', label: 'Contact', icon: <MapPin size={13} /> },
+  { id: 'sec-education', label: 'Education', icon: <FileText size={13} /> },
+  { id: 'sec-documents', label: 'Documents', icon: <Upload size={13} /> },
+]
+
 export default function StudentForm() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -184,6 +205,7 @@ export default function StudentForm() {
   const role = profile?.role || user?.user_metadata?.role || 'admin'
   const isAdmin = role === 'admin'
   const isEdit = Boolean(id)
+
   const [form, setForm] = useState(emptyForm)
   const [universities, setUniversities] = useState([])
   const [programs, setPrograms] = useState([])
@@ -197,6 +219,10 @@ export default function StudentForm() {
   const [districts, setDistricts] = useState([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState({})
+  const [openEdu, setOpenEdu] = useState({ tenth: true, twelfth: false, ug: false, pg: false, diploma: false })
+  const [activeNav, setActiveNav] = useState('sec-basic')
+
+  const toggleEdu = (key) => setOpenEdu(prev => ({ ...prev, [key]: !prev[key] }))
 
   useEffect(() => {
     Promise.all([
@@ -222,7 +248,6 @@ export default function StudentForm() {
       setStates(sts.data || [])
       setDistricts(dists.data || [])
 
-      // Auto-fill center for non-admin roles
       if (!isAdmin && user?.email && !isEdit) {
         supabase.from('centers').select('id, center_name').eq('email', user.email).single()
           .then(({ data: cd }) => {
@@ -236,20 +261,34 @@ export default function StudentForm() {
     }
   }, [id])
 
+  // Scroll spy
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) setActiveNav(entry.target.id)
+        })
+      },
+      { rootMargin: '-20% 0px -70% 0px' }
+    )
+    NAV_SECTIONS.forEach(s => {
+      const el = document.getElementById(s.id)
+      if (el) observer.observe(el)
+    })
+    return () => observer.disconnect()
+  }, [])
+
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
 
-  // When department changes, reset programme and course_code
   const handleDepartmentChange = (e) => {
     setForm(f => ({ ...f, department_id: e.target.value, programme_id: '', course_code: '', semester_year: '' }))
   }
 
-  // When program is selected, auto-fill course_code and reset semester_year
   const handleProgramChange = (e) => {
     const prog = programs.find(p => p.id === e.target.value)
     setForm(f => ({ ...f, programme_id: e.target.value, course_code: prog?.course_code || '', semester_year: '' }))
   }
 
-  // When session changes, auto-fill academic_year from session_name
   const handleSessionChange = (e) => {
     const sess = sessions.find(s => s.id === e.target.value)
     setForm(f => ({
@@ -270,9 +309,8 @@ export default function StudentForm() {
     : programs
 
   const selectedProgram = programs.find(p => p.id === form.programme_id)
-  const progSemYear = selectedProgram?.semester_year // 'Semester' | 'Year' | ''
+  const progSemYear = selectedProgram?.semester_year
 
-  // Parse duration: use duration field first, fallback to parsing complete_duration string
   const parseDuration = (prog) => {
     if (!prog) return 0
     if (prog.duration) return Number(prog.duration)
@@ -290,7 +328,6 @@ export default function StudentForm() {
     return n + (s[(v - 20) % 10] || s[v] || s[0])
   }
 
-  // Year-based: show "1st Year … Nth Year"; Semester-based: show "1st Semester … Nth Semester"
   const semesterOptions = progDuration > 0
     ? progSemYear === 'Year'
       ? Array.from({ length: progDuration }, (_, i) => `${ordinal(i + 1)} Year`)
@@ -326,242 +363,309 @@ export default function StudentForm() {
     else { alert('Error: ' + error.message); setLoading(false) }
   }
 
+  const scrollTo = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
-    <div className="p-6 max-w-4xl pb-20">
+    <div className="p-4 lg:p-6 pb-20">
       <PageHeader title={isEdit ? 'Edit Student' : 'Add Student'} backTo="/admin/students" />
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="flex gap-6 items-start mt-4">
 
-        {/* 1. Basic Entry */}
-        <FormSection title="Basic Entry" icon={<ClipboardList size={16} />}>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Date of Submission" type="date" value={form.date_of_submission} onChange={set('date_of_submission')} min={sessionMinDate || undefined} max={sessionMaxDate || undefined} />
-            <Input label="Date of Admission" type="date" value={form.date_of_admission} onChange={set('date_of_admission')} min={sessionMinDate || undefined} max={sessionMaxDate || undefined} />
-            <Select label="Entry Type" value={form.entry_type} onChange={set('entry_type')}>
-              <option value="Regular">Regular</option>
-              <option value="Lateral">Lateral</option>
-              <option value="External">External</option>
-            </Select>
+        {/* Sticky sidebar navigation — visible on large screens */}
+        <div className="hidden xl:block w-44 shrink-0">
+          <div className="sticky top-6 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sections</p>
+            </div>
+            <div className="p-2">
+              {NAV_SECTIONS.map(s => (
+                <button key={s.id} type="button"
+                  onClick={() => scrollTo(s.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-left font-semibold transition-all
+                    ${activeNav === s.id ? 'bg-[#933d18] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}>
+                  <span className="shrink-0">{s.icon}</span>
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Select label="Session" value={form.session_id} onChange={handleSessionChange}>
-              <option value="">Select Session</option>
-              {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
-            </Select>
-            <Select label="Mode" value={form.mode_id} onChange={set('mode_id')}>
-              <option value="">Select Mode</option>
-              {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
-            </Select>
-            <Select label="University" value={form.university_id} onChange={set('university_id')}>
-              <option value="">Select University</option>
-              {universities.map(u => <option key={u.id} value={u.id}>{u.university_name}</option>)}
-            </Select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {isAdmin ? (
-              <Select label="Center Name" value={form.center_id} onChange={set('center_id')}>
-                <option value="">Select Center</option>
-                {centers.map(c => <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>)}
-              </Select>
-            ) : (
-              <Input
-                label="Center Name"
-                value={form.center_name || ''}
-                readOnly
-                className="bg-gray-50 text-gray-500 cursor-not-allowed"
-              />
-            )}
-            {isAdmin && (
-              <Input label="Center Name (manual)" placeholder="Auto-filled or type" value={form.center_name} onChange={set('center_name')} />
-            )}
-          </div>
-        </FormSection>
-
-        {/* 2. Program Information */}
-        <FormSection title="Program Information" icon={<BookOpen size={16} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <Select label="Department" value={form.department_id} onChange={handleDepartmentChange}>
-              <option value="">Select Department</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </Select>
-            <Select label="Program Name" value={form.programme_id} onChange={handleProgramChange}>
-              <option value="">Select Program</option>
-              {filteredPrograms.map(p => <option key={p.id} value={p.id}>{p.program_name}</option>)}
-            </Select>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Course Code" value={form.course_code} onChange={set('course_code')} />
-            <Select label="Semester / Year" value={form.semester_year} onChange={set('semester_year')}>
-              <option value="">Select</option>
-              {semesterOptions
-                ? semesterOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)
-                : <>
-                    {['1st','2nd','3rd','4th','5th','6th','7th','8th'].map(s => (
-                      <option key={s} value={s + ' Semester'}>{s} Semester</option>
-                    ))}
-                    {['1st Year','2nd Year','3rd Year','4th Year'].map(y => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </>
-              }
-            </Select>
-            <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input
-              label="Enrollment No"
-              placeholder={isAdmin ? 'Auto-generate if blank' : '—'}
-              value={form.enrollment_no}
-              onChange={set('enrollment_no')}
-              readOnly={!isAdmin}
-              className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
-            />
-            <Input
-              label="Admission Number"
-              placeholder={isAdmin ? '' : '—'}
-              value={form.admission_number}
-              onChange={set('admission_number')}
-              readOnly={!isAdmin}
-              className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
-            />
-            <Input
-              label="Registration No"
-              placeholder={isAdmin ? '' : '—'}
-              value={form.registration_no}
-              onChange={set('registration_no')}
-              readOnly={!isAdmin}
-              className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Status"
-              value={form.status}
-              onChange={set('status')}
-              disabled={!isAdmin}
-              className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
-            >
-              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-            </Select>
-            <Textarea label="Remarks" value={form.remarks} onChange={set('remarks')} />
-          </div>
-        </FormSection>
-
-        {/* 3. Personal Information */}
-        <FormSection title="Personal Information" icon={<User size={16} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Student Name *" value={form.student_name} onChange={set('student_name')} required />
-            <Input label="Date of Birth" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Select label="Profession" value={form.profession} onChange={set('profession')}>
-              <option value="">Select</option>
-              {PROFESSION_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-            </Select>
-            <Select label="Gender / Sex" value={form.gender} onChange={set('gender')}>
-              <option value="">Select</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Others">Others</option>
-            </Select>
-            <Input label="Email Id" type="email" value={form.email} onChange={set('email')} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Mobile No" type="tel" value={form.mobile_no} onChange={set('mobile_no')} />
-            <Input label="WhatsApp No" type="tel" value={form.whatsapp_no} onChange={set('whatsapp_no')} />
-            {countries.length > 0 ? (
-              <Select label="Nationality" value={form.nationality} onChange={set('nationality')}>
-                <option value="">Select Country</option>
-                {countries.map(c => <option key={c.id} value={c.country_name}>{c.country_name}</option>)}
-              </Select>
-            ) : (
-              <Input label="Nationality" value={form.nationality} onChange={set('nationality')} />
-            )}
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Select label="Caste" value={form.caste} onChange={set('caste')}>
-              <option value="">Select</option>
-              {CASTE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-            </Select>
-            <Input label="Religion" value={form.religion} onChange={set('religion')} />
-            <Input label="Blood Group" placeholder="A+, B-, O+" value={form.blood_group} onChange={set('blood_group')} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Mother Tongue" value={form.mother_tongue} onChange={set('mother_tongue')} />
-            <Select label="Physically Handicapped" value={form.physically_handicapped} onChange={set('physically_handicapped')}>
-              <option value="No">No</option>
-              <option value="Yes">Yes</option>
-            </Select>
-            <Input label="Aadhar Link Mobile" type="tel" value={form.aadhar_link_mobile} onChange={set('aadhar_link_mobile')} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Aadhar No" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} />
-            <Input label="PAN No" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} />
-            <Select label="Scholarship Applied" value={form.scholarship_applied} onChange={set('scholarship_applied')}>
-              {SCHOLARSHIP_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-            </Select>
-          </div>
-          <Input label="Identification Marks" placeholder="Any visible identification marks..." value={form.identification_marks} onChange={set('identification_marks')} />
-        </FormSection>
-
-        {/* 4. Additional / Family Information */}
-        <FormSection title="Additional Information" icon={<Users size={16} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Father's Name" value={form.fathers_name} onChange={set('fathers_name')} />
-            <Input label="Father's Occupation" value={form.fathers_occupation} onChange={set('fathers_occupation')} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Mother's Name" value={form.mothers_name} onChange={set('mothers_name')} />
-            <Input label="Mother's Occupation" value={form.mothers_occupation} onChange={set('mothers_occupation')} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Guardian's Name" value={form.guardian_name} onChange={set('guardian_name')} />
-            <Input label="Guardian's Occupation" value={form.guardian_occupation} onChange={set('guardian_occupation')} />
-            <Input label="Relation" placeholder="e.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Guardian Email Id" type="email" value={form.guardian_email} onChange={set('guardian_email')} />
-            <Input label="Guardian Mobile No" type="tel" value={form.guardian_mobile} onChange={set('guardian_mobile')} />
-          </div>
-        </FormSection>
-
-        {/* 5. Contact Information */}
-        <FormSection title="Contact Information" icon={<MapPin size={16} />}>
-          <AddressBlock prefix="student_perm" label="Student Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
-          <AddressBlock prefix="student_pres" label="Student Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
-          <AddressBlock prefix="guardian_pres" label="Guardian Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
-          <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
-        </FormSection>
-
-        {/* 6. Education Qualification */}
-        <FormSection title="Education Qualification" icon={<BookOpen size={16} />}>
-          <EduRow prefix="tenth" label="10th" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
-          <EduRow prefix="twelfth" label="12th" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
-          <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
-          <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
-          <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
-        </FormSection>
-
-        {/* 7. Documents */}
-        <FormSection title="Documents" icon={<Upload size={16} />}>
-          <div className="grid grid-cols-2 gap-6">
-            <FileField label="Student Photo" fieldKey="photo_url" accept="image/*" isImage
-              value={form.photo_url} onUpload={handleFileUpload} isUploading={!!uploading.photo_url} />
-            <FileField label="Aadhar Card" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false}
-              value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} />
-            <FileField label="Signature" fieldKey="signature_url" accept="image/*" isImage
-              value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} />
-            <FileField label="Declaration" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false}
-              value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} />
-          </div>
-        </FormSection>
-
-        <div className="flex gap-3 pt-2 pb-8">
-          <Button type="submit" disabled={loading}>{loading ? 'Saving...' : isEdit ? 'Update Student' : 'Submit'}</Button>
-          <Button type="button" variant="outline" onClick={() => navigate('/admin/students')}>Cancel</Button>
         </div>
-      </form>
+
+        {/* Main form */}
+        <form onSubmit={handleSubmit} className="flex-1 space-y-5 min-w-0">
+
+          {/* 1. Basic Entry */}
+          <div id="sec-basic">
+            <FormSection title="Basic Entry" icon={<ClipboardList size={16} />}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input label="Date of Submission" type="date" value={form.date_of_submission} onChange={set('date_of_submission')} min={sessionMinDate || undefined} max={sessionMaxDate || undefined} />
+                <Input label="Date of Admission" type="date" value={form.date_of_admission} onChange={set('date_of_admission')} min={sessionMinDate || undefined} max={sessionMaxDate || undefined} />
+                <Select label="Entry Type" value={form.entry_type} onChange={set('entry_type')}>
+                  <option value="Regular">Regular</option>
+                  <option value="Lateral">Lateral</option>
+                  <option value="External">External</option>
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Select label="Session" value={form.session_id} onChange={handleSessionChange}>
+                  <option value="">Select Session</option>
+                  {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
+                </Select>
+                <Select label="Mode" value={form.mode_id} onChange={set('mode_id')}>
+                  <option value="">Select Mode</option>
+                  {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
+                </Select>
+                <Select label="University" value={form.university_id} onChange={set('university_id')}>
+                  <option value="">Select University</option>
+                  {universities.map(u => <option key={u.id} value={u.id}>{u.university_name}</option>)}
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {isAdmin ? (
+                  <Select label="Center Name" value={form.center_id} onChange={set('center_id')}>
+                    <option value="">Select Center</option>
+                    {centers.map(c => <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>)}
+                  </Select>
+                ) : (
+                  <Input label="Center Name" value={form.center_name || ''} readOnly className="bg-gray-50 text-gray-500 cursor-not-allowed" />
+                )}
+                {isAdmin && (
+                  <Input label="Center Name (manual)" placeholder="Auto-filled or type" value={form.center_name} onChange={set('center_name')} />
+                )}
+              </div>
+            </FormSection>
+          </div>
+
+          {/* 2. Program Information */}
+          <div id="sec-program">
+            <FormSection title="Program Information" icon={<BookOpen size={16} />}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Select label="Department" value={form.department_id} onChange={handleDepartmentChange}>
+                  <option value="">Select Department</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </Select>
+                <Select label="Program Name" value={form.programme_id} onChange={handleProgramChange}>
+                  <option value="">Select Program</option>
+                  {filteredPrograms.map(p => <option key={p.id} value={p.id}>{p.program_name}</option>)}
+                </Select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input label="Course Code" value={form.course_code} onChange={set('course_code')} />
+                <Select label="Semester / Year" value={form.semester_year} onChange={set('semester_year')}>
+                  <option value="">Select</option>
+                  {semesterOptions
+                    ? semesterOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)
+                    : <>
+                        {['1st','2nd','3rd','4th','5th','6th','7th','8th'].map(s => (
+                          <option key={s} value={s + ' Semester'}>{s} Semester</option>
+                        ))}
+                        {['1st Year','2nd Year','3rd Year','4th Year'].map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </>
+                  }
+                </Select>
+                <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input
+                  label="Enrollment No"
+                  placeholder={isAdmin ? 'Auto-generate if blank' : '—'}
+                  value={form.enrollment_no}
+                  onChange={set('enrollment_no')}
+                  readOnly={!isAdmin}
+                  className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
+                />
+                <Input
+                  label="Admission Number"
+                  placeholder={isAdmin ? '' : '—'}
+                  value={form.admission_number}
+                  onChange={set('admission_number')}
+                  readOnly={!isAdmin}
+                  className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
+                />
+                <Input
+                  label="Registration No"
+                  placeholder={isAdmin ? '' : '—'}
+                  value={form.registration_no}
+                  onChange={set('registration_no')}
+                  readOnly={!isAdmin}
+                  className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Select
+                  label="Status"
+                  value={form.status}
+                  onChange={set('status')}
+                  disabled={!isAdmin}
+                  className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
+                >
+                  {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
+                <Textarea label="Remarks" value={form.remarks} onChange={set('remarks')} />
+              </div>
+            </FormSection>
+          </div>
+
+          {/* 3. Personal Information */}
+          <div id="sec-personal">
+            <FormSection title="Personal Information" icon={<User size={16} />}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input label="Student Name *" value={form.student_name} onChange={set('student_name')} required />
+                <Input label="Date of Birth" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Select label="Profession" value={form.profession} onChange={set('profession')}>
+                  <option value="">Select</option>
+                  {PROFESSION_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                </Select>
+                <Select label="Gender / Sex" value={form.gender} onChange={set('gender')}>
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Others">Others</option>
+                </Select>
+                <Input label="Email Id" type="email" value={form.email} onChange={set('email')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input label="Mobile No" type="tel" value={form.mobile_no} onChange={set('mobile_no')} />
+                <Input label="WhatsApp No" type="tel" value={form.whatsapp_no} onChange={set('whatsapp_no')} />
+                {countries.length > 0 ? (
+                  <Select label="Nationality" value={form.nationality} onChange={set('nationality')}>
+                    <option value="">Select Country</option>
+                    {countries.map(c => <option key={c.id} value={c.country_name}>{c.country_name}</option>)}
+                  </Select>
+                ) : (
+                  <Input label="Nationality" value={form.nationality} onChange={set('nationality')} />
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Select label="Caste" value={form.caste} onChange={set('caste')}>
+                  <option value="">Select</option>
+                  {CASTE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                </Select>
+                <Input label="Religion" value={form.religion} onChange={set('religion')} />
+                <Input label="Blood Group" placeholder="A+, B-, O+" value={form.blood_group} onChange={set('blood_group')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input label="Mother Tongue" value={form.mother_tongue} onChange={set('mother_tongue')} />
+                <Select label="Physically Handicapped" value={form.physically_handicapped} onChange={set('physically_handicapped')}>
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </Select>
+                <Input label="Aadhar Link Mobile" type="tel" value={form.aadhar_link_mobile} onChange={set('aadhar_link_mobile')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input label="Aadhar No" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} />
+                <Input label="PAN No" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} />
+                <Select label="Scholarship Applied" value={form.scholarship_applied} onChange={set('scholarship_applied')}>
+                  {SCHOLARSHIP_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </div>
+              <Input label="Identification Marks" placeholder="Any visible identification marks..." value={form.identification_marks} onChange={set('identification_marks')} />
+            </FormSection>
+          </div>
+
+          {/* 4. Family Information */}
+          <div id="sec-family">
+            <FormSection title="Family Information" icon={<Users size={16} />}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input label="Father's Name" value={form.fathers_name} onChange={set('fathers_name')} />
+                <Input label="Father's Occupation" value={form.fathers_occupation} onChange={set('fathers_occupation')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input label="Mother's Name" value={form.mothers_name} onChange={set('mothers_name')} />
+                <Input label="Mother's Occupation" value={form.mothers_occupation} onChange={set('mothers_occupation')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input label="Guardian's Name" value={form.guardian_name} onChange={set('guardian_name')} />
+                <Input label="Guardian's Occupation" value={form.guardian_occupation} onChange={set('guardian_occupation')} />
+                <Input label="Relation" placeholder="e.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input label="Guardian Email Id" type="email" value={form.guardian_email} onChange={set('guardian_email')} />
+                <Input label="Guardian Mobile No" type="tel" value={form.guardian_mobile} onChange={set('guardian_mobile')} />
+              </div>
+            </FormSection>
+          </div>
+
+          {/* 5. Contact Information */}
+          <div id="sec-contact">
+            <FormSection title="Contact Information" icon={<MapPin size={16} />}>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <AddressBlock prefix="student_perm" label="Student Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+                <AddressBlock prefix="student_pres" label="Student Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+                <AddressBlock prefix="guardian_pres" label="Guardian Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+                <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+              </div>
+            </FormSection>
+          </div>
+
+          {/* 6. Education Qualification */}
+          <div id="sec-education">
+            <FormSection title="Education Qualification" icon={<FileText size={16} />}
+              subtitle="Click on each level to expand and fill details">
+              <div className="space-y-2">
+                <EduRow prefix="tenth" label="10th / SSC / Matric" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.tenth} onToggle={() => toggleEdu('tenth')} />
+                <EduRow prefix="twelfth" label="12th / HSC / Intermediate" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.twelfth} onToggle={() => toggleEdu('twelfth')} />
+                <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.ug} onToggle={() => toggleEdu('ug')} />
+                <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.pg} onToggle={() => toggleEdu('pg')} />
+                <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.diploma} onToggle={() => toggleEdu('diploma')} />
+              </div>
+            </FormSection>
+          </div>
+
+          {/* 7. Documents */}
+          <div id="sec-documents">
+            <FormSection title="Documents" icon={<Upload size={16} />}
+              subtitle="Upload student photo, Aadhar, signature and declaration">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3 items-center">
+                  {form.photo_url
+                    ? <img src={form.photo_url} alt="Photo" className="h-24 w-24 object-cover rounded-xl border-2 border-[#933d18]/20 shadow" />
+                    : <div className="h-24 w-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-white">
+                        <User size={28} className="text-gray-300" />
+                      </div>
+                  }
+                  <FileField label="Student Photo" fieldKey="photo_url" accept="image/*" isImage value={form.photo_url} onUpload={handleFileUpload} isUploading={!!uploading.photo_url} />
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3 items-center">
+                  {form.signature_url
+                    ? <img src={form.signature_url} alt="Signature" className="h-24 w-24 object-contain rounded-xl border-2 border-[#933d18]/20 shadow bg-white" />
+                    : <div className="h-24 w-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-white">
+                        <FileText size={28} className="text-gray-300" />
+                      </div>
+                  }
+                  <FileField label="Signature" fieldKey="signature_url" accept="image/*" isImage value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} />
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
+                  <p className="text-xs font-semibold text-gray-500">Aadhar Card</p>
+                  <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} />
+                  {form.aadhar_url && (
+                    <a href={form.aadhar_url} target="_blank" rel="noreferrer" className="text-xs text-[#933d18] underline">View Aadhar</a>
+                  )}
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
+                  <p className="text-xs font-semibold text-gray-500">Declaration Form</p>
+                  <FileField label="" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false} value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} />
+                  {form.declaration_url && (
+                    <a href={form.declaration_url} target="_blank" rel="noreferrer" className="text-xs text-[#933d18] underline">View Declaration</a>
+                  )}
+                </div>
+              </div>
+            </FormSection>
+          </div>
+
+          <div className="flex gap-3 pt-2 pb-8">
+            <Button type="submit" disabled={loading}>{loading ? 'Saving...' : isEdit ? 'Update Student' : 'Submit Application'}</Button>
+            <Button type="button" variant="outline" onClick={() => navigate('/admin/students')}>Cancel</Button>
+          </div>
+
+        </form>
+      </div>
     </div>
   )
 }
