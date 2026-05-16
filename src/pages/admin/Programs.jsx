@@ -7,6 +7,13 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search } from 'lucide-react'
 
+const calcSemesters = (p) => {
+  if (!p.duration) return p.semester_year || '—'
+  if (p.semester_year === 'Year') return `${p.duration * 2} Semester`
+  if (p.semester_year === 'Semester') return `${p.duration} Semester`
+  return `${p.duration} Semester`
+}
+
 const stripOnline = (val) => {
   if (!val) return '—'
   return val.split(',').map(s => s.trim()).filter(s => s.toLowerCase() !== 'online').join(', ') || '—'
@@ -104,7 +111,7 @@ export default function Programs() {
                 <Td className="text-gray-500 text-xs whitespace-nowrap">
                   {p.complete_duration || (p.duration ? `${p.duration} Sem` : '—')}
                 </Td>
-                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.semester_year || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{calcSemesters(p)}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.seats_limit || '—'}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">
                   {p.fees_per_year ? `₹${Number(p.fees_per_year).toLocaleString()}` : '—'}
