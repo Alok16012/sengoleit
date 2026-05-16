@@ -19,6 +19,7 @@ const adminLinks = [
   { to: '/admin/sessions', icon: CalendarDays, label: 'Sessions' },
   { to: '/admin/departments', icon: FolderOpen, label: 'Departments' },
   { to: '/admin/programs', icon: BookOpen, label: 'Programs' },
+  { to: '/admin/boards', icon: ScrollText, label: 'Boards & Univ.' },
   { to: '/admin/schemes', icon: Award, label: 'Schemes' },
   { to: '/admin/super-centers', icon: Star, label: 'Super Centers' },
   { to: '/admin/centers', icon: Building2, label: 'Centers' },

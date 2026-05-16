@@ -74,6 +74,7 @@ export default function StudentForm() {
   const [centers, setCenters] = useState([])
   const [sessions, setSessions] = useState([])
   const [studyModes, setStudyModes] = useState([])
+  const [boards, setBoards] = useState([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -84,13 +85,15 @@ export default function StudentForm() {
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
       supabase.from('academic_sessions').select('id, session_name').order('session_name'),
       supabase.from('study_modes').select('id, mode_name').order('mode_name'),
-    ]).then(([unis, progs, depts, cents, sess, modes]) => {
+      supabase.from('boards').select('id, name, type').order('name'),
+    ]).then(([unis, progs, depts, cents, sess, modes, bds]) => {
       setUniversities(unis.data || [])
       setPrograms(progs.data || [])
       setDepartments(depts.data || [])
       setCenters(cents.data || [])
       setSessions(sess.data || [])
       setStudyModes(modes.data || [])
+      setBoards(bds.data || [])
 
       // Auto-fill center for non-admin roles
       if (!isAdmin && user?.email && !isEdit) {
@@ -159,20 +162,42 @@ export default function StudentForm() {
     </>
   )
 
-  const EduRow = ({ prefix, label }) => (
-    <>
-      <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
-      <div className="grid grid-cols-3 gap-4">
-        <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={set(`${prefix}_institute_name`)} />
-        <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={set(`${prefix}_board_university`)} />
-        <Input label="Passing Year" type="number" value={form[`${prefix}_passing_year`]} onChange={set(`${prefix}_passing_year`)} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Input label="Obtained Marks" type="number" value={form[`${prefix}_obtained_marks`]} onChange={set(`${prefix}_obtained_marks`)} />
-        <Input label="Total Marks" type="number" value={form[`${prefix}_total_marks`]} onChange={set(`${prefix}_total_marks`)} />
-      </div>
-    </>
-  )
+  const EduRow = ({ prefix, label, boardType }) => {
+    const levelBoards = boards.filter(b => b.type === 'All' || b.type === boardType)
+    const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
+    const total = parseFloat(form[`${prefix}_total_marks`]) || 0
+    const percentage = obtained > 0 && total > 0
+      ? ((obtained / total) * 100).toFixed(2)
+      : ''
+    return (
+      <>
+        <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
+        <div className="grid grid-cols-3 gap-4">
+          <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={set(`${prefix}_institute_name`)} />
+          {levelBoards.length > 0 ? (
+            <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={set(`${prefix}_board_university`)}>
+              <option value="">Select Board</option>
+              {levelBoards.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+            </Select>
+          ) : (
+            <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={set(`${prefix}_board_university`)} />
+          )}
+          <Input label="Passing Year" type="number" value={form[`${prefix}_passing_year`]} onChange={set(`${prefix}_passing_year`)} />
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <Input label="Obtained Marks" type="number" value={form[`${prefix}_obtained_marks`]} onChange={set(`${prefix}_obtained_marks`)} />
+          <Input label="Total Marks" type="number" value={form[`${prefix}_total_marks`]} onChange={set(`${prefix}_total_marks`)} />
+          <Input
+            label="Percentage (%)"
+            value={percentage ? `${percentage}%` : ''}
+            readOnly
+            placeholder="Auto-calculated"
+            className="bg-gray-50 text-[#933d18] font-semibold cursor-not-allowed"
+          />
+        </div>
+      </>
+    )
+  }
 
   return (
     <div className="p-6 max-w-4xl pb-20">
@@ -375,11 +400,11 @@ export default function StudentForm() {
 
         {/* 6. Education Qualification */}
         <FormSection title="Education Qualification" icon={<BookOpen size={16} />}>
-          <EduRow prefix="tenth" label="10th" />
-          <EduRow prefix="twelfth" label="12th" />
-          <EduRow prefix="ug" label="UG (Graduation)" />
-          <EduRow prefix="pg" label="PG (Post Graduation)" />
-          <EduRow prefix="diploma" label="Diploma / Polytechnic" />
+          <EduRow prefix="tenth" label="10th" boardType="10th" />
+          <EduRow prefix="twelfth" label="12th" boardType="12th" />
+          <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" />
+          <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" />
+          <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" />
         </FormSection>
 
         <div className="flex gap-3 pt-2 pb-8">

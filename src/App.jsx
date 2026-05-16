@@ -23,6 +23,7 @@ import Sessions from './pages/admin/Sessions'
 import SessionForm from './pages/admin/SessionForm'
 import Location from './pages/admin/Location'
 import AccountDepartment from './pages/admin/AccountDepartment'
+import Boards from './pages/admin/Boards'
 
 // Super Center portal
 import SuperCenterDashboard from './pages/super-center/SuperCenterDashboard'
@@ -101,6 +102,7 @@ export default function App() {
 
             <Route path="/admin/location" element={<Location />} />
             <Route path="/admin/account-department" element={<AccountDepartment />} />
+            <Route path="/admin/boards" element={<Boards />} />
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />
