@@ -8,7 +8,12 @@ import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye } from 'lucide-react'
 
-function AddressBlock({ prefix, label, form, onChange }) {
+function AddressBlock({ prefix, label, form, onChange, setForm, states, districts }) {
+  const selectedState = states.find(s => s.state_name === form[`${prefix}_state`])
+  const filteredDistricts = selectedState
+    ? districts.filter(d => d.state_id === selectedState.id)
+    : districts
+
   return (
     <>
       <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
@@ -22,8 +27,23 @@ function AddressBlock({ prefix, label, form, onChange }) {
         <Input label="PIN Code" value={form[`${prefix}_pin_code`]} onChange={onChange(`${prefix}_pin_code`)} />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Input label="State" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} />
-        <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} />
+        {states.length > 0 ? (
+          <Select label="State" value={form[`${prefix}_state`] || ''}
+            onChange={e => setForm(f => ({ ...f, [`${prefix}_state`]: e.target.value, [`${prefix}_district`]: '' }))}>
+            <option value="">Select State</option>
+            {states.map(s => <option key={s.id} value={s.state_name}>{s.state_name}</option>)}
+          </Select>
+        ) : (
+          <Input label="State" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} />
+        )}
+        {filteredDistricts.length > 0 ? (
+          <Select label="District" value={form[`${prefix}_district`] || ''} onChange={onChange(`${prefix}_district`)}>
+            <option value="">Select District</option>
+            {filteredDistricts.map(d => <option key={d.id} value={d.district_name}>{d.district_name}</option>)}
+          </Select>
+        ) : (
+          <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} />
+        )}
       </div>
     </>
   )
@@ -172,6 +192,9 @@ export default function StudentForm() {
   const [sessions, setSessions] = useState([])
   const [studyModes, setStudyModes] = useState([])
   const [boards, setBoards] = useState([])
+  const [countries, setCountries] = useState([])
+  const [states, setStates] = useState([])
+  const [districts, setDistricts] = useState([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState({})
 
@@ -184,7 +207,10 @@ export default function StudentForm() {
       supabase.from('academic_sessions').select('id, session_name, start_date, end_date, academic_year').order('session_name'),
       supabase.from('study_modes').select('id, mode_name').order('mode_name'),
       supabase.from('boards').select('id, name, type').order('name'),
-    ]).then(([unis, progs, depts, cents, sess, modes, bds]) => {
+      supabase.from('countries').select('id, country_name').order('country_name'),
+      supabase.from('states').select('id, state_name, country_id').order('state_name'),
+      supabase.from('districts').select('id, district_name, state_id').order('district_name'),
+    ]).then(([unis, progs, depts, cents, sess, modes, bds, ctrs, sts, dists]) => {
       setUniversities(unis.data || [])
       setPrograms(progs.data || [])
       setDepartments(depts.data || [])
@@ -192,6 +218,9 @@ export default function StudentForm() {
       setSessions(sess.data || [])
       setStudyModes(modes.data || [])
       setBoards(bds.data || [])
+      setCountries(ctrs.data || [])
+      setStates(sts.data || [])
+      setDistricts(dists.data || [])
 
       // Auto-fill center for non-admin roles
       if (!isAdmin && user?.email && !isEdit) {
@@ -441,7 +470,14 @@ export default function StudentForm() {
           <div className="grid grid-cols-3 gap-4">
             <Input label="Mobile No" type="tel" value={form.mobile_no} onChange={set('mobile_no')} />
             <Input label="WhatsApp No" type="tel" value={form.whatsapp_no} onChange={set('whatsapp_no')} />
-            <Input label="Nationality" value={form.nationality} onChange={set('nationality')} />
+            {countries.length > 0 ? (
+              <Select label="Nationality" value={form.nationality} onChange={set('nationality')}>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.country_name}>{c.country_name}</option>)}
+              </Select>
+            ) : (
+              <Input label="Nationality" value={form.nationality} onChange={set('nationality')} />
+            )}
           </div>
           <div className="grid grid-cols-3 gap-4">
             <Select label="Caste" value={form.caste} onChange={set('caste')}>
@@ -492,10 +528,10 @@ export default function StudentForm() {
 
         {/* 5. Contact Information */}
         <FormSection title="Contact Information" icon={<MapPin size={16} />}>
-          <AddressBlock prefix="student_perm" label="Student Permanent Address" form={form} onChange={set} />
-          <AddressBlock prefix="student_pres" label="Student Present Address" form={form} onChange={set} />
-          <AddressBlock prefix="guardian_pres" label="Guardian Present Address" form={form} onChange={set} />
-          <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address" form={form} onChange={set} />
+          <AddressBlock prefix="student_perm" label="Student Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+          <AddressBlock prefix="student_pres" label="Student Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+          <AddressBlock prefix="guardian_pres" label="Guardian Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+          <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
         </FormSection>
 
         {/* 6. Education Qualification */}
