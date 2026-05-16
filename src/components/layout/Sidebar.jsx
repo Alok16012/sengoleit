@@ -8,7 +8,8 @@ import {
   LayoutDashboard, Wallet, Star, Settings,
   UserPlus, FileText, Truck, FileCheck, UserCheck,
   Clock, CheckCircle, XCircle, ClipboardList, CreditCard,
-  GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag
+  GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag,
+  ChevronDown, ChevronRight
 } from 'lucide-react'
 
 const adminLinks = [
@@ -93,6 +94,10 @@ export default function Sidebar() {
   const [centerName, setCenterName] = useState('')
 
   const role = profile?.role || user?.user_metadata?.role || 'admin'
+  const [collapsed, setCollapsed] = useState({})
+
+  const toggleGroup = (group) =>
+    setCollapsed(prev => ({ ...prev, [group]: !prev[group] }))
 
   useEffect(() => {
     if ((role === 'super_center' || role === 'center') && user?.email) {
@@ -141,37 +146,51 @@ export default function Sidebar() {
       <div className="flex-1 px-3 py-4 overflow-y-auto">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">{roleLabel}</p>
         <nav>
-          {navGroups.map((section, idx) => (
-            <div key={idx}>
-              {section.group && (
-                <p className="text-[9px] font-extrabold text-[#933d18]/60 uppercase tracking-[0.18em] px-3 pt-4 pb-1.5">
-                  {section.group}
-                </p>
-              )}
-              <div className="space-y-0.5">
-                {section.items.map(({ to, icon: Icon, label }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    className={({ isActive }) =>
-                      `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-150 gap-3 ${
-                        isActive
-                          ? 'bg-[#933d18] text-white shadow-sm'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`
-                    }
+          {navGroups.map((section, idx) => {
+            const isCollapsed = section.group ? !!collapsed[section.group] : false
+            return (
+              <div key={idx}>
+                {section.group && (
+                  <button
+                    onClick={() => toggleGroup(section.group)}
+                    className="w-full flex items-center justify-between px-3 pt-4 pb-1.5 group"
                   >
-                    {({ isActive }) => (
-                      <>
-                        <Icon size={16} className={isActive ? 'text-white/80' : 'text-gray-400'} />
-                        {label}
-                      </>
-                    )}
-                  </NavLink>
-                ))}
+                    <span className="text-[9px] font-extrabold text-[#933d18]/60 uppercase tracking-[0.18em] group-hover:text-[#933d18]/90 transition-colors">
+                      {section.group}
+                    </span>
+                    {isCollapsed
+                      ? <ChevronRight size={12} className="text-[#933d18]/40 group-hover:text-[#933d18]/80 transition-colors" />
+                      : <ChevronDown size={12} className="text-[#933d18]/40 group-hover:text-[#933d18]/80 transition-colors" />
+                    }
+                  </button>
+                )}
+                {!isCollapsed && (
+                  <div className="space-y-0.5">
+                    {section.items.map(({ to, icon: Icon, label }) => (
+                      <NavLink
+                        key={to}
+                        to={to}
+                        className={({ isActive }) =>
+                          `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-150 gap-3 ${
+                            isActive
+                              ? 'bg-[#933d18] text-white shadow-sm'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          }`
+                        }
+                      >
+                        {({ isActive }) => (
+                          <>
+                            <Icon size={16} className={isActive ? 'text-white/80' : 'text-gray-400'} />
+                            {label}
+                          </>
+                        )}
+                      </NavLink>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </nav>
       </div>
 
