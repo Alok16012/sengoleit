@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
@@ -62,6 +63,9 @@ const STATUS_OPTIONS = ['Pending', 'Reviewing', 'Document Verified', 'Account Se
 export default function StudentForm() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { profile, user } = useAuth()
+  const role = profile?.role || user?.user_metadata?.role || 'admin'
+  const isAdmin = role === 'admin'
   const isEdit = Boolean(id)
   const [form, setForm] = useState(emptyForm)
   const [universities, setUniversities] = useState([])
@@ -232,9 +236,30 @@ export default function StudentForm() {
             <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} />
           </div>
           <div className="grid grid-cols-3 gap-4">
-            <Input label="Enrollment No" placeholder="Auto-generate if blank" value={form.enrollment_no} onChange={set('enrollment_no')} />
-            <Input label="Admission Number" value={form.admission_number} onChange={set('admission_number')} />
-            <Input label="Registration No" value={form.registration_no} onChange={set('registration_no')} />
+            <Input
+              label="Enrollment No"
+              placeholder={isAdmin ? 'Auto-generate if blank' : '—'}
+              value={form.enrollment_no}
+              onChange={set('enrollment_no')}
+              readOnly={!isAdmin}
+              className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
+            />
+            <Input
+              label="Admission Number"
+              placeholder={isAdmin ? '' : '—'}
+              value={form.admission_number}
+              onChange={set('admission_number')}
+              readOnly={!isAdmin}
+              className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
+            />
+            <Input
+              label="Registration No"
+              placeholder={isAdmin ? '' : '—'}
+              value={form.registration_no}
+              onChange={set('registration_no')}
+              readOnly={!isAdmin}
+              className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
+            />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Select label="Status" value={form.status} onChange={set('status')}>
