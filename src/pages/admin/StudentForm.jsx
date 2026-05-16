@@ -8,6 +8,62 @@ import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { ClipboardList, User, Users, MapPin, BookOpen, FileText } from 'lucide-react'
 
+function AddressBlock({ prefix, label, form, onChange }) {
+  return (
+    <>
+      <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
+      <div className="grid grid-cols-2 gap-4">
+        <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} />
+        <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Input label="Post Office" value={form[`${prefix}_post_office`]} onChange={onChange(`${prefix}_post_office`)} />
+        <Input label="City" value={form[`${prefix}_city`]} onChange={onChange(`${prefix}_city`)} />
+        <Input label="PIN Code" value={form[`${prefix}_pin_code`]} onChange={onChange(`${prefix}_pin_code`)} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Input label="State" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} />
+        <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} />
+      </div>
+    </>
+  )
+}
+
+function EduRow({ prefix, label, boardType, boards, form, onChange }) {
+  const levelBoards = boards.filter(b => b.type === 'All' || b.type === boardType)
+  const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
+  const total = parseFloat(form[`${prefix}_total_marks`]) || 0
+  const percentage = obtained > 0 && total > 0 ? ((obtained / total) * 100).toFixed(2) : ''
+  return (
+    <>
+      <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
+      <div className="grid grid-cols-3 gap-4">
+        <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={onChange(`${prefix}_institute_name`)} />
+        {levelBoards.length > 0 ? (
+          <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)}>
+            <option value="">Select Board</option>
+            {levelBoards.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+          </Select>
+        ) : (
+          <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} />
+        )}
+        <Input label="Passing Year" type="number" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} />
+      </div>
+      <div className="grid grid-cols-3 gap-4">
+        <Input label="Obtained Marks" type="number" value={form[`${prefix}_obtained_marks`]} onChange={onChange(`${prefix}_obtained_marks`)} />
+        <Input label="Total Marks" type="number" value={form[`${prefix}_total_marks`]} onChange={onChange(`${prefix}_total_marks`)} />
+        <Input
+          label="Percentage (%)"
+          value={percentage ? `${percentage}%` : ''}
+          readOnly
+          placeholder="Auto-calculated"
+          className="bg-gray-50 text-[#933d18] font-semibold cursor-not-allowed"
+        />
+      </div>
+    </>
+  )
+}
+
 const emptyForm = {
   // Basic Entry
   date_of_submission: new Date().toISOString().split('T')[0],
@@ -143,61 +199,6 @@ export default function StudentForm() {
     else { alert('Error: ' + error.message); setLoading(false) }
   }
 
-  const AddressBlock = ({ prefix, label }) => (
-    <>
-      <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
-      <div className="grid grid-cols-2 gap-4">
-        <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={set(`${prefix}_village_town`)} />
-        <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={set(`${prefix}_landmark`)} />
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        <Input label="Post Office" value={form[`${prefix}_post_office`]} onChange={set(`${prefix}_post_office`)} />
-        <Input label="City" value={form[`${prefix}_city`]} onChange={set(`${prefix}_city`)} />
-        <Input label="PIN Code" value={form[`${prefix}_pin_code`]} onChange={set(`${prefix}_pin_code`)} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <Input label="State" value={form[`${prefix}_state`]} onChange={set(`${prefix}_state`)} />
-        <Input label="District" value={form[`${prefix}_district`]} onChange={set(`${prefix}_district`)} />
-      </div>
-    </>
-  )
-
-  const EduRow = ({ prefix, label, boardType }) => {
-    const levelBoards = boards.filter(b => b.type === 'All' || b.type === boardType)
-    const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
-    const total = parseFloat(form[`${prefix}_total_marks`]) || 0
-    const percentage = obtained > 0 && total > 0
-      ? ((obtained / total) * 100).toFixed(2)
-      : ''
-    return (
-      <>
-        <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
-        <div className="grid grid-cols-3 gap-4">
-          <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={set(`${prefix}_institute_name`)} />
-          {levelBoards.length > 0 ? (
-            <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={set(`${prefix}_board_university`)}>
-              <option value="">Select Board</option>
-              {levelBoards.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
-            </Select>
-          ) : (
-            <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={set(`${prefix}_board_university`)} />
-          )}
-          <Input label="Passing Year" type="number" value={form[`${prefix}_passing_year`]} onChange={set(`${prefix}_passing_year`)} />
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <Input label="Obtained Marks" type="number" value={form[`${prefix}_obtained_marks`]} onChange={set(`${prefix}_obtained_marks`)} />
-          <Input label="Total Marks" type="number" value={form[`${prefix}_total_marks`]} onChange={set(`${prefix}_total_marks`)} />
-          <Input
-            label="Percentage (%)"
-            value={percentage ? `${percentage}%` : ''}
-            readOnly
-            placeholder="Auto-calculated"
-            className="bg-gray-50 text-[#933d18] font-semibold cursor-not-allowed"
-          />
-        </div>
-      </>
-    )
-  }
 
   return (
     <div className="p-6 max-w-4xl pb-20">
@@ -392,19 +393,19 @@ export default function StudentForm() {
 
         {/* 5. Contact Information */}
         <FormSection title="Contact Information" icon={<MapPin size={16} />}>
-          <AddressBlock prefix="student_perm" label="Student Permanent Address" />
-          <AddressBlock prefix="student_pres" label="Student Present Address" />
-          <AddressBlock prefix="guardian_pres" label="Guardian Present Address" />
-          <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address" />
+          <AddressBlock prefix="student_perm" label="Student Permanent Address" form={form} onChange={set} />
+          <AddressBlock prefix="student_pres" label="Student Present Address" form={form} onChange={set} />
+          <AddressBlock prefix="guardian_pres" label="Guardian Present Address" form={form} onChange={set} />
+          <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address" form={form} onChange={set} />
         </FormSection>
 
         {/* 6. Education Qualification */}
         <FormSection title="Education Qualification" icon={<BookOpen size={16} />}>
-          <EduRow prefix="tenth" label="10th" boardType="10th" />
-          <EduRow prefix="twelfth" label="12th" boardType="12th" />
-          <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" />
-          <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" />
-          <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" />
+          <EduRow prefix="tenth" label="10th" boardType="10th" boards={boards} form={form} onChange={set} />
+          <EduRow prefix="twelfth" label="12th" boardType="12th" boards={boards} form={form} onChange={set} />
+          <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} />
+          <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} />
+          <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} />
         </FormSection>
 
         <div className="flex gap-3 pt-2 pb-8">
