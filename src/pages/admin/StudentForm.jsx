@@ -9,9 +9,16 @@ import FormSection from '../../components/ui/FormSection'
 import { ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, ChevronDown, CheckCircle2 } from 'lucide-react'
 
 function AddressBlock({ prefix, label, form, onChange, setForm, states, districts }) {
-  const selectedState = states.find(s => s.state_name === form[`${prefix}_state`])
-  const filteredDistricts = selectedState
-    ? districts.filter(d => d.state_id === selectedState.id)
+  // Deduplicate states by name for the dropdown (DB may have duplicate entries)
+  const uniqueStates = states.filter((s, i, arr) => arr.findIndex(x => x.state_name === s.state_name) === i)
+
+  // Collect ALL IDs for the selected state name (handles duplicates with different UUIDs)
+  const selectedStateIds = states
+    .filter(s => s.state_name === form[`${prefix}_state`])
+    .map(s => s.id)
+
+  const filteredDistricts = selectedStateIds.length > 0
+    ? districts.filter(d => selectedStateIds.includes(d.state_id))
     : districts
 
   return (
@@ -27,11 +34,11 @@ function AddressBlock({ prefix, label, form, onChange, setForm, states, district
         <Input label="PIN Code" value={form[`${prefix}_pin_code`]} onChange={onChange(`${prefix}_pin_code`)} />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        {states.length > 0 ? (
+        {uniqueStates.length > 0 ? (
           <Select label="State" value={form[`${prefix}_state`] || ''}
             onChange={e => setForm(f => ({ ...f, [`${prefix}_state`]: e.target.value, [`${prefix}_district`]: '' }))}>
             <option value="">Select State</option>
-            {states.map(s => <option key={s.id} value={s.state_name}>{s.state_name}</option>)}
+            {uniqueStates.map(s => <option key={s.id} value={s.state_name}>{s.state_name}</option>)}
           </Select>
         ) : (
           <Input label="State" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} />
