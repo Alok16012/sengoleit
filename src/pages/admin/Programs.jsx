@@ -19,7 +19,7 @@ export default function Programs() {
     setLoading(true)
     const { data, error } = await supabase
       .from('programs')
-      .select('*')
+      .select(`*, universities(university_name), departments(name), programme_types(programme_type_name), study_modes(mode_name), modes_of_study(mode_name)`)
       .order('created_at', { ascending: false })
     if (error) console.error('Programs fetch error:', error)
     setData(data || [])
@@ -33,7 +33,8 @@ export default function Programs() {
   }
 
   const filtered = data.filter(p =>
-    `${p.program_name} ${p.course_code} ${p.stream}`.toLowerCase().includes(search.toLowerCase())
+    `${p.program_name} ${p.course_code} ${p.short_name} ${p.stream} ${p.eligibility}`
+      .toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -62,30 +63,51 @@ export default function Programs() {
             <tr>
               <Th>#</Th>
               <Th>Program Name</Th>
+              <Th>Course Code</Th>
+              <Th>Short Name</Th>
+              <Th>Specialisation</Th>
               <Th>University</Th>
               <Th>Department</Th>
-              <Th>Type</Th>
+              <Th>Program Type</Th>
+              <Th>Mode</Th>
+              <Th>Mode of Study</Th>
               <Th>Duration</Th>
+              <Th>Sem / Year</Th>
+              <Th>Seats</Th>
               <Th>Fees/Year</Th>
+              <Th>Fees/Sem</Th>
+              <Th>Eligibility</Th>
               <Th>Status</Th>
               <Th>Actions</Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No programs found</Td></Tr>
+              <Tr><Td colSpan={18} className="text-center text-gray-400 py-12">No programs found</Td></Tr>
             ) : filtered.map((p, i) => (
               <Tr key={p.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                <Td>
-                  <p className="font-semibold text-gray-900">{p.program_name}</p>
-                  {p.course_code && <p className="text-xs text-gray-400 mt-0.5">{p.course_code}{p.stream ? ` · ${p.stream}` : ''}</p>}
+                <Td><p className="font-semibold text-gray-900 whitespace-nowrap">{p.program_name}</p></Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.course_code || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.short_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.stream || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.universities?.university_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.departments?.name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.programme_types?.programme_type_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.study_modes?.mode_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.modes_of_study?.mode_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">
+                  {p.complete_duration || (p.duration ? `${p.duration} Sem` : '—')}
                 </Td>
-                <Td className="text-gray-500 text-xs">{p.universities?.university_name || '—'}</Td>
-                <Td className="text-gray-500">{p.departments?.name || '—'}</Td>
-                <Td className="text-gray-500">{p.programme_types?.programme_type_name || '—'}</Td>
-                <Td className="text-gray-500">{p.complete_duration || (p.duration ? `${p.duration} Sem` : '—')}</Td>
-                <Td className="text-gray-500">{p.fees_per_year ? `₹${Number(p.fees_per_year).toLocaleString()}` : '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.semester_year || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.seats_limit || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">
+                  {p.fees_per_year ? `₹${Number(p.fees_per_year).toLocaleString()}` : '—'}
+                </Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">
+                  {p.fees_per_semester ? `₹${Number(p.fees_per_semester).toLocaleString()}` : '—'}
+                </Td>
+                <Td className="text-gray-500 text-xs max-w-[160px] truncate">{p.eligibility || '—'}</Td>
                 <Td><Badge status={p.status?.toLowerCase()}>{p.status || 'Active'}</Badge></Td>
                 <Td>
                   <div className="flex gap-1">
