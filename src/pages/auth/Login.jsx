@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { Mail, Lock, Zap } from 'lucide-react'
+import { Mail, Lock } from 'lucide-react'
 
 export default function Login() {
-  const { signIn, signInMock, isConfigured } = useAuth()
+  const { signIn, isConfigured } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -25,20 +25,6 @@ export default function Login() {
       else navigate('/dashboard')
     } catch (err) {
       setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDemo = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const { data, error: err } = await signIn('admin@sengol.com', 'Admin@123456')
-      if (err) throw err
-      navigate('/dashboard')
-    } catch (err) {
-      setError(err.message || 'Demo login failed.')
     } finally {
       setLoading(false)
     }
@@ -155,15 +141,6 @@ export default function Login() {
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
 
-            <button
-              type="button"
-              onClick={handleDemo}
-              disabled={loading}
-              className="w-full h-12 rounded-2xl font-bold bg-white text-[#933d18] border-2 border-[#933d18]/20 hover:bg-[#933d18]/5 hover:border-[#933d18] transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              <Zap size={16} />
-              Demo Login (Admin)
-            </button>
           </form>
 
           <p className="text-center text-sm text-gray-400 mt-8">
