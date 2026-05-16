@@ -32,7 +32,6 @@ const reportItems = (base) => [
   { to: `${base}/reports/hold`, icon: ClipboardList, label: 'Hold Student List' },
   { to: `${base}/reports/approved`, icon: CheckCircle, label: 'Approved Student List' },
   { to: `${base}/reports/rejected`, icon: XCircle, label: 'Rejected Student List' },
-  { to: `${base}/students`, icon: Users, label: 'Registered Student List' },
   { to: `${base}/reports/document-summary`, icon: FileText, label: 'Document Summary' },
   { to: `${base}/reports/payment-summary`, icon: CreditCard, label: 'Payment Summary' },
   { to: `${base}/balance`, icon: Wallet, label: 'Wallet Summary' },
@@ -51,7 +50,8 @@ const superCenterNavGroups = [
   {
     group: 'Entry',
     items: [
-      { to: '/super-center/students/new', icon: UserPlus, label: 'Student Entry' },
+      { to: '/super-center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
+      { to: '/super-center/students', icon: Users, label: 'Registered Student List', end: true },
       { to: '/super-center/balance', icon: Wallet, label: 'Payment Deposit' },
       { to: '/super-center/documents', icon: FileText, label: 'Student Documents' },
       { to: '/super-center/courier', icon: Truck, label: 'Courier Entry' },
@@ -70,7 +70,8 @@ const centerNavGroups = [
   {
     group: 'Entry',
     items: [
-      { to: '/center/students/new', icon: UserPlus, label: 'Student Entry' },
+      { to: '/center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
+      { to: '/center/students', icon: Users, label: 'Registered Student List', end: true },
       { to: '/center/balance', icon: Wallet, label: 'Payment Deposit' },
       { to: '/center/documents', icon: FileText, label: 'Student Documents' },
       { to: '/center/courier', icon: Truck, label: 'Courier Entry' },
@@ -167,10 +168,11 @@ export default function Sidebar() {
                 )}
                 {!isCollapsed && (
                   <div className="space-y-0.5">
-                    {section.items.map(({ to, icon: Icon, label }) => (
+                    {section.items.map(({ to, icon: Icon, label, end }) => (
                       <NavLink
                         key={to}
                         to={to}
+                        end={end}
                         className={({ isActive }) =>
                           `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-150 gap-3 ${
                             isActive
