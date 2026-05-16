@@ -75,7 +75,7 @@ export default function StudentForm() {
   useEffect(() => {
     Promise.all([
       supabase.from('universities').select('id, university_name').order('university_name'),
-      supabase.from('programs').select('id, program_name, course_code').order('program_name'),
+      supabase.from('programs').select('id, program_name, course_code, department_id, semester_year').order('program_name'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
       supabase.from('academic_sessions').select('id, session_name').order('session_name'),
@@ -95,6 +95,24 @@ export default function StudentForm() {
   }, [id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+
+  // When department changes, reset programme and course_code
+  const handleDepartmentChange = (e) => {
+    setForm(f => ({ ...f, department_id: e.target.value, programme_id: '', course_code: '', semester_year: '' }))
+  }
+
+  // When program is selected, auto-fill course_code and reset semester_year
+  const handleProgramChange = (e) => {
+    const prog = programs.find(p => p.id === e.target.value)
+    setForm(f => ({ ...f, programme_id: e.target.value, course_code: prog?.course_code || '', semester_year: '' }))
+  }
+
+  const filteredPrograms = form.department_id
+    ? programs.filter(p => p.department_id === form.department_id)
+    : programs
+
+  const selectedProgram = programs.find(p => p.id === form.programme_id)
+  const progSemYear = selectedProgram?.semester_year // 'Semester' | 'Year' | ''
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -187,25 +205,29 @@ export default function StudentForm() {
         {/* 2. Program Information */}
         <FormSection title="Program Information" icon={<BookOpen size={16} />}>
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Department" value={form.department_id} onChange={set('department_id')}>
+            <Select label="Department" value={form.department_id} onChange={handleDepartmentChange}>
               <option value="">Select Department</option>
               {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </Select>
-            <Select label="Program Name" value={form.programme_id} onChange={set('programme_id')}>
+            <Select label="Program Name" value={form.programme_id} onChange={handleProgramChange}>
               <option value="">Select Program</option>
-              {programs.map(p => <option key={p.id} value={p.id}>{p.program_name}{p.course_code ? ` (${p.course_code})` : ''}</option>)}
+              {filteredPrograms.map(p => <option key={p.id} value={p.id}>{p.program_name}</option>)}
             </Select>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <Input label="Course Code" value={form.course_code} onChange={set('course_code')} />
             <Select label="Semester / Year" value={form.semester_year} onChange={set('semester_year')}>
               <option value="">Select</option>
-              {['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'].map(s => (
-                <option key={s} value={s + ' Semester'}>{s} Semester</option>
-              ))}
-              {['1st Year', '2nd Year', '3rd Year', '4th Year'].map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
+              {(!progSemYear || progSemYear === 'Semester') && (
+                ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'].map(s => (
+                  <option key={s} value={s + ' Semester'}>{s} Semester</option>
+                ))
+              )}
+              {(!progSemYear || progSemYear === 'Year') && (
+                ['1st Year', '2nd Year', '3rd Year', '4th Year'].map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))
+              )}
             </Select>
             <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} />
           </div>
