@@ -136,7 +136,7 @@ export default function StudentForm() {
   useEffect(() => {
     Promise.all([
       supabase.from('universities').select('id, university_name').order('university_name'),
-      supabase.from('programs').select('id, program_name, course_code, department_id, semester_year, duration').order('program_name'),
+      supabase.from('programs').select('id, program_name, course_code, department_id, semester_year, duration, complete_duration').order('program_name'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
       supabase.from('academic_sessions').select('id, session_name').order('session_name'),
@@ -190,9 +190,18 @@ export default function StudentForm() {
 
   const selectedProgram = programs.find(p => p.id === form.programme_id)
   const progSemYear = selectedProgram?.semester_year // 'Semester' | 'Year' | ''
-  const progDuration = Number(selectedProgram?.duration) || 0
-  const totalSemesters = progSemYear === 'Year' ? progDuration * 2 : progDuration
-  const totalYears = progSemYear === 'Year' ? progDuration : 0
+
+  // Parse duration: use duration field first, fallback to parsing complete_duration string
+  const parseDuration = (prog) => {
+    if (!prog) return 0
+    if (prog.duration) return Number(prog.duration)
+    if (prog.complete_duration) {
+      const match = prog.complete_duration.match(/\d+/)
+      return match ? Number(match[0]) : 0
+    }
+    return 0
+  }
+  const progDuration = parseDuration(selectedProgram)
 
   const ordinal = (n) => {
     const s = ['th', 'st', 'nd', 'rd']
@@ -200,11 +209,12 @@ export default function StudentForm() {
     return n + (s[(v - 20) % 10] || s[v] || s[0])
   }
 
-  const semesterOptions = progSemYear === 'Year'
-    ? Array.from({ length: totalYears }, (_, i) => `${ordinal(i + 1)} Year`)
-    : totalSemesters > 0
-      ? Array.from({ length: totalSemesters }, (_, i) => `${ordinal(i + 1)} Semester`)
-      : null
+  // Year-based: show "1st Year … Nth Year"; Semester-based: show "1st Semester … Nth Semester"
+  const semesterOptions = progDuration > 0
+    ? progSemYear === 'Year'
+      ? Array.from({ length: progDuration }, (_, i) => `${ordinal(i + 1)} Year`)
+      : Array.from({ length: progSemYear === 'Semester' ? progDuration : progDuration * 2 }, (_, i) => `${ordinal(i + 1)} Semester`)
+    : null
 
   async function handleSubmit(e) {
     e.preventDefault()
