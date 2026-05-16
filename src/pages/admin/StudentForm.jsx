@@ -248,6 +248,11 @@ export default function StudentForm() {
       setStates(sts.data || [])
       setDistricts(dists.data || [])
 
+      // Auto-fill university if only one exists
+      if (!isEdit && unis.data?.length === 1) {
+        setForm(f => ({ ...f, university_id: unis.data[0].id }))
+      }
+
       if (!isAdmin && user?.email && !isEdit) {
         supabase.from('centers').select('id, center_name').eq('email', user.email).single()
           .then(({ data: cd }) => {
@@ -291,11 +296,12 @@ export default function StudentForm() {
 
   const handleSessionChange = (e) => {
     const sess = sessions.find(s => s.id === e.target.value)
+    const today = new Date().toISOString().split('T')[0]
     setForm(f => ({
       ...f,
       session_id: e.target.value,
       academic_year: sess?.academic_year || sess?.session_name || f.academic_year,
-      date_of_submission: '',
+      date_of_submission: today,
       date_of_admission: '',
     }))
   }
@@ -433,17 +439,9 @@ export default function StudentForm() {
           {/* 1. Basic Entry */}
           <div id="sec-basic">
             <FormSection title="Basic Entry" icon={<ClipboardList size={16} />}>
+              {/* Row 1: Session first, then Mode and Entry Type */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Date of Submission" type="date" value={form.date_of_submission} onChange={set('date_of_submission')} min={sessionMinDate || undefined} max={sessionMaxDate || undefined} />
-                <Input label="Date of Admission" type="date" value={form.date_of_admission} onChange={set('date_of_admission')} min={sessionMinDate || undefined} max={sessionMaxDate || undefined} />
-                <Select label="Entry Type" value={form.entry_type} onChange={set('entry_type')}>
-                  <option value="Regular">Regular</option>
-                  <option value="Lateral">Lateral</option>
-                  <option value="External">External</option>
-                </Select>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Select label="Session" value={form.session_id} onChange={handleSessionChange}>
+                <Select label="Session *" value={form.session_id} onChange={handleSessionChange}>
                   <option value="">Select Session</option>
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
                 </Select>
@@ -451,11 +449,39 @@ export default function StudentForm() {
                   <option value="">Select Mode</option>
                   {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
                 </Select>
-                <Select label="University" value={form.university_id} onChange={set('university_id')}>
-                  <option value="">Select University</option>
-                  {universities.map(u => <option key={u.id} value={u.id}>{u.university_name}</option>)}
+                <Select label="Entry Type" value={form.entry_type} onChange={set('entry_type')}>
+                  <option value="Regular">Regular</option>
+                  <option value="Lateral">Lateral</option>
+                  <option value="External">External</option>
                 </Select>
               </div>
+              {/* Row 2: Dates auto-fill from session; University fixed */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Input
+                  label="Date of Submission"
+                  type="date"
+                  value={form.date_of_submission}
+                  onChange={set('date_of_submission')}
+                  min={sessionMinDate || undefined}
+                  max={sessionMaxDate || undefined}
+                  hint="Auto-fills when session is selected"
+                />
+                <Input
+                  label="Date of Admission"
+                  type="date"
+                  value={form.date_of_admission}
+                  onChange={set('date_of_admission')}
+                  min={sessionMinDate || undefined}
+                  max={sessionMaxDate || undefined}
+                />
+                <Input
+                  label="University"
+                  value={universities.find(u => u.id === form.university_id)?.university_name || ''}
+                  readOnly
+                  className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed"
+                />
+              </div>
+              {/* Row 3: Center */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {isAdmin ? (
                   <Select label="Center Name" value={form.center_id} onChange={set('center_id')}>
