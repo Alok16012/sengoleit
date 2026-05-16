@@ -288,9 +288,9 @@ export default function AccountDepartment() {
                     <Td>
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-xs text-gray-800">
-                          {visiblePasswords[c.id] ? (c.login_password || '—') : (c.login_password ? '••••••••' : '—')}
+                          {visiblePasswords[c.id] ? (c.generated_password || '—') : (c.generated_password ? '••••••••' : '—')}
                         </span>
-                        {c.login_password && (
+                        {c.generated_password && (
                           <button
                             onClick={() => setVisiblePasswords(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
                             className="text-gray-400 hover:text-[#933d18] transition-colors"
@@ -365,7 +365,7 @@ export default function AccountDepartment() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-500">Password</span>
-              <span className="font-mono font-bold text-gray-900">{approvedModal?.login_password || '(Set by center at registration)'}</span>
+              <span className="font-mono font-bold text-gray-900">{approvedModal?.generated_password || '(Set by center at registration)'}</span>
             </div>
           </div>
 

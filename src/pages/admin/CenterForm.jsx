@@ -9,7 +9,7 @@ import { Building2, User, MapPin, Briefcase, CreditCard, GraduationCap, ShieldCh
 
 const emptyForm = {
   center_type: 'super_center',
-  center_name: '', center_code: '', email: '', phone: '', login_password: '',
+  center_name: '', center_code: '', email: '', phone: '', generated_password: '',
   super_center_id: '',
   contact_person: '', father_mother_name: '', date_of_birth: '', gender: '', nationality: 'Indian',
   aadhar_no: '', pan_no: '',
@@ -79,7 +79,7 @@ export default function CenterForm() {
     setError(null)
     try {
       const payload = { ...form }
-      const plainPassword = payload.login_password
+      const plainPassword = payload.generated_password
       delete payload.id; delete payload.created_at; delete payload.updated_at
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id', 'super_center_id']
       fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
@@ -158,7 +158,7 @@ export default function CenterForm() {
             <Input label="Phone" type="tel" value={form.phone} onChange={set('phone')} />
           </div>
           {!isEdit && (
-            <Input label="Login Password *" type="text" placeholder="Set password for center portal login" value={form.login_password} onChange={set('login_password')} />
+            <Input label="Login Password *" type="text" placeholder="Set password for center portal login" value={form.generated_password} onChange={set('generated_password')} />
           )}
           <Select label="Super Center (Parent Center)" value={form.super_center_id} onChange={set('super_center_id')}>
             <option value="">— None (Independent Center) —</option>
