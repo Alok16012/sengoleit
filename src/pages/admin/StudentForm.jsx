@@ -153,7 +153,7 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUpload
 
 const emptyForm = {
   date_of_submission: new Date().toISOString().split('T')[0],
-  date_of_admission: '', entry_type: 'Regular', submitted_by: '',
+  date_of_admission: '', entry_type: 'Regular',
   session_id: '', mode_id: '', university_id: '',
   center_id: '', center_name: '',
   department_id: '', programme_id: '', course_code: '',
@@ -264,7 +264,7 @@ export default function StudentForm() {
       if (!isAdmin && user?.email && !isEdit) {
         supabase.from('centers').select('id, center_name').eq('email', user.email).single()
           .then(({ data: cd }) => {
-            if (cd) setForm(f => ({ ...f, center_id: cd.id, center_name: cd.center_name, submitted_by: role }))
+            if (cd) setForm(f => ({ ...f, center_id: cd.id, center_name: cd.center_name }))
           })
       }
     })

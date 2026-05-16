@@ -5,7 +5,8 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, IndianRupee, Building2, RefreshCw, Eye, EyeOff, Pencil, Save } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download } from 'lucide-react'
+import { generateStudentPDF } from '../../utils/generateStudentPDF'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
@@ -24,8 +25,11 @@ export default function AccountDepartment() {
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectNotes, setRejectNotes] = useState('')
   const [approvedModal, setApprovedModal] = useState(null)
-  const [studentActionModal, setStudentActionModal] = useState(null) // { student, type: 'approve'|'reject' }
+  const [studentActionModal, setStudentActionModal] = useState(null)
   const [studentRemarks, setStudentRemarks] = useState('')
+  const [viewStudent, setViewStudent] = useState(null)
+  const [viewLoading, setViewLoading] = useState(false)
+  const [downloading, setDownloading] = useState(null)
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({}) // { [id]: newPasswordValue }
 
@@ -141,6 +145,28 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
+  async function handleViewStudent(studentId) {
+    setViewLoading(true)
+    const { data } = await supabase
+      .from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
+      .eq('id', studentId)
+      .single()
+    setViewStudent(data)
+    setViewLoading(false)
+  }
+
+  async function handleDownloadPDF(studentId) {
+    setDownloading(studentId)
+    const { data: s } = await supabase
+      .from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
+      .eq('id', studentId)
+      .single()
+    if (s) generateStudentPDF(s, s.programs?.program_name, s.academic_sessions?.session_name, s.centers?.center_name)
+    setDownloading(null)
+  }
+
   async function handleStudentApprove(student) {
     setStudentActionModal({ student, type: 'approve' })
     setStudentRemarks('')
@@ -151,6 +177,16 @@ export default function AccountDepartment() {
     setStudentRemarks('')
   }
 
+  async function generateEnrollmentNumber() {
+    const { count } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+      .not('enrollment_no', 'is', null)
+      .neq('enrollment_no', '')
+    const year = new Date().getFullYear()
+    return `ENR-${year}-${String((count || 0) + 1).padStart(5, '0')}`
+  }
+
   async function confirmStudentAction() {
     const { student, type } = studentActionModal
     if (type === 'reject' && !studentRemarks.trim()) {
@@ -158,16 +194,16 @@ export default function AccountDepartment() {
       return
     }
     if (type === 'approve') {
+      const enrollNo = await generateEnrollmentNumber()
       await supabase.from('students').update({
         status: 'Approved',
+        enrollment_no: enrollNo,
         remarks: studentRemarks || null,
-        account_approved_at: new Date().toISOString(),
       }).eq('id', student.id)
     } else {
       await supabase.from('students').update({
         status: 'Rejected',
         remarks: studentRemarks,
-        account_approved_at: new Date().toISOString(),
       }).eq('id', student.id)
     }
     setStudentActionModal(null)
@@ -237,6 +273,7 @@ export default function AccountDepartment() {
                   <Th>Admission No</Th>
                   <Th>Doc Verified On</Th>
                   <Th>Remarks</Th>
+                  <Th>View</Th>
                   <Th>Actions</Th>
                 </tr>
               </Thead>
@@ -259,6 +296,16 @@ export default function AccountDepartment() {
                     <Td className="font-mono text-xs text-[#933d18] font-bold">{s.admission_number || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{s.doc_verified_at ? new Date(s.doc_verified_at).toLocaleDateString('en-IN') : '—'}</Td>
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
+                    <Td>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => handleViewStudent(s.id)} title="View full form & documents">
+                          <Eye size={13} className="text-[#933d18]" />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleDownloadPDF(s.id)} disabled={downloading === s.id} title="Download PDF">
+                          <Download size={13} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-400'} />
+                        </Button>
+                      </div>
+                    </Td>
                     <Td>
                       <div className="flex gap-1">
                         <Button size="sm" variant="success" onClick={() => handleStudentApprove(s)}>
@@ -539,6 +586,156 @@ export default function AccountDepartment() {
           </p>
           <Button onClick={() => setApprovedModal(null)} className="w-full justify-center">Done</Button>
         </div>
+      </Modal>
+
+      {/* View Student Modal */}
+      <Modal isOpen={!!viewStudent || viewLoading} onClose={() => setViewStudent(null)} title="Student Full Details">
+        {viewLoading ? (
+          <div className="flex items-center justify-center py-12 text-gray-400">Loading...</div>
+        ) : viewStudent ? (
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            {/* Header */}
+            <div className="flex gap-4 items-start bg-gray-50 rounded-xl p-4 border border-gray-100">
+              {viewStudent.photo_url
+                ? <img src={viewStudent.photo_url} alt="Photo" className="w-20 h-24 object-cover rounded-xl border-2 border-[#933d18]/20 shrink-0" />
+                : <div className="w-20 h-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-white shrink-0 text-xs text-gray-400 text-center px-1">No Photo</div>
+              }
+              <div>
+                <p className="text-lg font-black text-gray-900">{viewStudent.student_name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">{viewStudent.gender} • {viewStudent.mobile_no}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span className="text-xs bg-[#933d18]/10 text-[#933d18] font-bold px-2 py-1 rounded-lg">{viewStudent.programs?.program_name || '—'}</span>
+                  <span className="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-1 rounded-lg">{viewStudent.academic_sessions?.session_name || '—'}</span>
+                  <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded-lg">Admission: {viewStudent.admission_number || '—'}</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Center: {viewStudent.centers?.center_name || '—'} {viewStudent.centers?.center_code ? `(${viewStudent.centers.center_code})` : ''}</p>
+              </div>
+            </div>
+
+            {/* Program Details */}
+            <div className="bg-white border border-gray-100 rounded-xl p-3">
+              <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-2">Program Details</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                {[
+                  ['Department', viewStudent.departments?.name || viewStudent.department_id],
+                  ['Program', viewStudent.programs?.program_name],
+                  ['Course Code', viewStudent.course_code],
+                  ['Semester/Year', viewStudent.semester_year],
+                  ['Mode', viewStudent.study_modes?.mode_name || viewStudent.mode_id],
+                  ['Entry Type', viewStudent.entry_type],
+                  ['Academic Year', viewStudent.academic_year],
+                  ['Submission Date', viewStudent.date_of_submission],
+                ].map(([label, val]) => (
+                  <div key={label} className="flex gap-2 text-xs py-0.5">
+                    <span className="text-gray-400 w-28 shrink-0">{label}</span>
+                    <span className="font-medium text-gray-800">: {val || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Personal Info */}
+            <div className="bg-white border border-gray-100 rounded-xl p-3">
+              <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-2">Personal Information</p>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                {[
+                  ['Date of Birth', viewStudent.date_of_birth],
+                  ['Aadhar No', viewStudent.aadhar_no],
+                  ['Email', viewStudent.email],
+                  ['WhatsApp', viewStudent.whatsapp_no],
+                  ['Caste', viewStudent.caste],
+                  ['Religion', viewStudent.religion],
+                  ['Father\'s Name', viewStudent.fathers_name],
+                  ['Mother\'s Name', viewStudent.mothers_name],
+                ].map(([label, val]) => (
+                  <div key={label} className="flex gap-2 text-xs py-0.5">
+                    <span className="text-gray-400 w-28 shrink-0">{label}</span>
+                    <span className="font-medium text-gray-800">: {val || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Documents */}
+            <div className="bg-white border border-gray-100 rounded-xl p-3">
+              <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Uploaded Documents</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Student Photo', url: viewStudent.photo_url, isImg: true },
+                  { label: 'Signature', url: viewStudent.signature_url, isImg: true },
+                  { label: 'Aadhar Card', url: viewStudent.aadhar_url },
+                  { label: 'Declaration Form', url: viewStudent.declaration_url },
+                  { label: '10th Marksheet', url: viewStudent.tenth_marksheet_url },
+                  { label: '12th Marksheet', url: viewStudent.twelfth_marksheet_url },
+                  { label: 'UG Marksheet', url: viewStudent.ug_marksheet_url },
+                  { label: 'PG Marksheet', url: viewStudent.pg_marksheet_url },
+                  { label: 'Diploma Marksheet', url: viewStudent.diploma_marksheet_url },
+                ].map(doc => (
+                  <div key={doc.label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${doc.url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full ${doc.url ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                      <span className="text-xs font-medium text-gray-700">{doc.label}</span>
+                    </div>
+                    {doc.url ? (
+                      <a href={doc.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#933d18] hover:underline flex items-center gap-1">
+                        <Eye size={11} /> View
+                      </a>
+                    ) : (
+                      <span className="text-xs text-gray-400">Not uploaded</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Education */}
+            {(viewStudent.tenth_institute_name || viewStudent.twelfth_institute_name || viewStudent.ug_institute_name) && (
+              <div className="bg-white border border-gray-100 rounded-xl p-3">
+                <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-2">Education</p>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left py-1 text-gray-400 font-semibold">Level</th>
+                      <th className="text-left py-1 text-gray-400 font-semibold">Institute</th>
+                      <th className="text-left py-1 text-gray-400 font-semibold">Year</th>
+                      <th className="text-left py-1 text-gray-400 font-semibold">%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      { level: '10th', inst: viewStudent.tenth_institute_name, year: viewStudent.tenth_passing_year, obt: viewStudent.tenth_obtained_marks, tot: viewStudent.tenth_total_marks },
+                      { level: '12th', inst: viewStudent.twelfth_institute_name, year: viewStudent.twelfth_passing_year, obt: viewStudent.twelfth_obtained_marks, tot: viewStudent.twelfth_total_marks },
+                      { level: 'UG', inst: viewStudent.ug_institute_name, year: viewStudent.ug_passing_year, obt: viewStudent.ug_obtained_marks, tot: viewStudent.ug_total_marks },
+                      { level: 'PG', inst: viewStudent.pg_institute_name, year: viewStudent.pg_passing_year, obt: viewStudent.pg_obtained_marks, tot: viewStudent.pg_total_marks },
+                    ].filter(e => e.inst).map(e => (
+                      <tr key={e.level} className="border-b border-gray-50">
+                        <td className="py-1.5 font-bold text-[#933d18]">{e.level}</td>
+                        <td className="py-1.5 text-gray-700">{e.inst}</td>
+                        <td className="py-1.5 text-gray-500">{e.year || '—'}</td>
+                        <td className="py-1.5 font-bold text-emerald-700">
+                          {e.obt && e.tot ? ((parseFloat(e.obt) / parseFloat(e.tot)) * 100).toFixed(1) + '%' : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-1 border-t border-gray-100 sticky bottom-0 bg-white pb-1">
+              <Button variant="success" onClick={() => { setViewStudent(null); handleStudentApprove(viewStudent) }}>
+                <CheckCircle size={14} /> Approve
+              </Button>
+              <Button variant="danger" onClick={() => { setViewStudent(null); handleStudentReject(viewStudent) }}>
+                <XCircle size={14} /> Reject
+              </Button>
+              <Button variant="ghost" onClick={() => handleDownloadPDF(viewStudent.id)} disabled={downloading === viewStudent.id}>
+                <Download size={14} /> PDF
+              </Button>
+              <Button variant="outline" onClick={() => setViewStudent(null)}>Close</Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
 
       {/* Student Action Modal */}

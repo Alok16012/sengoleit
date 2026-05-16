@@ -24,7 +24,7 @@ export default function Students() {
     setDownloading(studentId)
     const { data: s } = await supabase
       .from('students')
-      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
       .eq('id', studentId)
       .single()
     if (s) generateStudentPDF(s, s.programs?.program_name, s.academic_sessions?.session_name, s.centers?.center_name)
