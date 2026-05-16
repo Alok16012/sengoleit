@@ -7,7 +7,8 @@ import {
   Award, CalendarDays, MapPin, LogOut,
   LayoutDashboard, Wallet, Star, Settings,
   UserPlus, FileText, Truck, FileCheck, UserCheck,
-  ListFilter, BarChart2
+  Clock, CheckCircle, XCircle, ClipboardList, CreditCard,
+  GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag
 } from 'lucide-react'
 
 const adminLinks = [
@@ -22,6 +23,25 @@ const adminLinks = [
   { to: '/admin/centers', icon: Building2, label: 'Centers' },
   { to: '/admin/students', icon: Users, label: 'Students' },
   { to: '/admin/account-department', icon: Wallet, label: 'Account Dept.' },
+]
+
+const reportItems = (base) => [
+  { to: `${base}/reports/pending`, icon: Clock, label: 'Pending Student List' },
+  { to: `${base}/reports/hold`, icon: ClipboardList, label: 'Hold Student List' },
+  { to: `${base}/reports/approved`, icon: CheckCircle, label: 'Approved Student List' },
+  { to: `${base}/reports/rejected`, icon: XCircle, label: 'Rejected Student List' },
+  { to: `${base}/students`, icon: Users, label: 'Registered Student List' },
+  { to: `${base}/reports/document-summary`, icon: FileText, label: 'Document Summary' },
+  { to: `${base}/reports/payment-summary`, icon: CreditCard, label: 'Payment Summary' },
+  { to: `${base}/balance`, icon: Wallet, label: 'Wallet Summary' },
+  { to: `${base}/reports/courier-summary`, icon: Truck, label: 'Center Courier Summary' },
+  { to: `${base}/reports/university-courier`, icon: Truck, label: 'University Courier' },
+  { to: `${base}/reports/course-fee`, icon: GraduationCap, label: 'Center Course Fee' },
+  { to: `${base}/reports/syllabus`, icon: ScrollText, label: 'Syllabus' },
+  { to: `${base}/reports/credentials`, icon: BadgeCheck, label: 'Credentials' },
+  { to: `${base}/reports/progress`, icon: TrendingUp, label: 'Student Progress' },
+  { to: `${base}/reports/wallet-coupon`, icon: Ticket, label: 'Wallet Coupon' },
+  { to: `${base}/reports/admission-coupon`, icon: Tag, label: 'Admission Coupon' },
 ]
 
 const superCenterNavGroups = [
@@ -39,11 +59,7 @@ const superCenterNavGroups = [
   },
   {
     group: 'Reports',
-    items: [
-      { to: '/super-center/students', icon: Users, label: 'Student List' },
-      { to: '/super-center/centers', icon: Building2, label: 'My Centers' },
-      { to: '/super-center/programs', icon: BookOpen, label: 'Programs' },
-    ],
+    items: reportItems('/super-center'),
   },
 ]
 
@@ -62,10 +78,7 @@ const centerNavGroups = [
   },
   {
     group: 'Reports',
-    items: [
-      { to: '/center/students', icon: Users, label: 'Student List' },
-      { to: '/center/programs', icon: BookOpen, label: 'Programs' },
-    ],
+    items: reportItems('/center'),
   },
   { items: [{ to: '/center/settings', icon: Settings, label: 'Settings' }] },
 ]

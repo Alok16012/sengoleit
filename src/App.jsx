@@ -119,6 +119,22 @@ export default function App() {
             <Route path="/super-center/answersheet" element={<ComingSoon title="Student Answersheet" description="Answersheet submission and tracking" />} />
             <Route path="/super-center/supplementary" element={<ComingSoon title="Supplementary Student" description="Supplementary exam registration" />} />
 
+            {/* Super Center report routes */}
+            <Route path="/super-center/reports/pending" element={<ComingSoon title="Pending Student List" description="Students with pending approval" />} />
+            <Route path="/super-center/reports/hold" element={<ComingSoon title="Hold Student List" description="Students placed on hold" />} />
+            <Route path="/super-center/reports/approved" element={<ComingSoon title="Approved Student List" description="Students approved for enrollment" />} />
+            <Route path="/super-center/reports/rejected" element={<ComingSoon title="Rejected Student List" description="Students whose applications were rejected" />} />
+            <Route path="/super-center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
+            <Route path="/super-center/reports/payment-summary" element={<ComingSoon title="Payment Summary" description="Summary of student fee payments" />} />
+            <Route path="/super-center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
+            <Route path="/super-center/reports/university-courier" element={<ComingSoon title="University Courier" description="Courier dispatches to university" />} />
+            <Route path="/super-center/reports/course-fee" element={<ComingSoon title="Center Course Fee" description="Course fee structure per center" />} />
+            <Route path="/super-center/reports/syllabus" element={<ComingSoon title="Syllabus" description="Program syllabus and curriculum" />} />
+            <Route path="/super-center/reports/credentials" element={<ComingSoon title="Credentials" description="Student credentials and certificates" />} />
+            <Route path="/super-center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
+            <Route path="/super-center/reports/wallet-coupon" element={<ComingSoon title="Wallet Coupon" description="Wallet coupon management" />} />
+            <Route path="/super-center/reports/admission-coupon" element={<ComingSoon title="Admission Coupon" description="Admission coupon management" />} />
+
             {/* Center portal */}
             <Route path="/center/dashboard" element={<CenterDashboard />} />
             <Route path="/center/students" element={<CenterStudents />} />
@@ -131,6 +147,22 @@ export default function App() {
             <Route path="/center/courier" element={<ComingSoon title="Courier Entry" description="Log courier dispatch entries" />} />
             <Route path="/center/answersheet" element={<ComingSoon title="Student Answersheet" description="Answersheet submission and tracking" />} />
             <Route path="/center/supplementary" element={<ComingSoon title="Supplementary Student" description="Supplementary exam registration" />} />
+
+            {/* Center report routes */}
+            <Route path="/center/reports/pending" element={<ComingSoon title="Pending Student List" description="Students with pending approval" />} />
+            <Route path="/center/reports/hold" element={<ComingSoon title="Hold Student List" description="Students placed on hold" />} />
+            <Route path="/center/reports/approved" element={<ComingSoon title="Approved Student List" description="Students approved for enrollment" />} />
+            <Route path="/center/reports/rejected" element={<ComingSoon title="Rejected Student List" description="Students whose applications were rejected" />} />
+            <Route path="/center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
+            <Route path="/center/reports/payment-summary" element={<ComingSoon title="Payment Summary" description="Summary of student fee payments" />} />
+            <Route path="/center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
+            <Route path="/center/reports/university-courier" element={<ComingSoon title="University Courier" description="Courier dispatches to university" />} />
+            <Route path="/center/reports/course-fee" element={<ComingSoon title="Center Course Fee" description="Course fee structure per center" />} />
+            <Route path="/center/reports/syllabus" element={<ComingSoon title="Syllabus" description="Program syllabus and curriculum" />} />
+            <Route path="/center/reports/credentials" element={<ComingSoon title="Credentials" description="Student credentials and certificates" />} />
+            <Route path="/center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
+            <Route path="/center/reports/wallet-coupon" element={<ComingSoon title="Wallet Coupon" description="Wallet coupon management" />} />
+            <Route path="/center/reports/admission-coupon" element={<ComingSoon title="Admission Coupon" description="Admission coupon management" />} />
 
             {/* Student portal */}
             <Route path="/student/dashboard" element={<StudentDashboard />} />
