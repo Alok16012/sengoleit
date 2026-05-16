@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
+import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
@@ -152,7 +153,8 @@ export default function AccountDepartment() {
       .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
       .eq('id', studentId)
       .single()
-    setViewStudent(data)
+    const resolved = await resolveStudentDocUrls(data)
+    setViewStudent(resolved)
     setViewLoading(false)
   }
 
@@ -163,7 +165,10 @@ export default function AccountDepartment() {
       .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
       .eq('id', studentId)
       .single()
-    if (s) generateStudentPDF(s, s.programs?.program_name, s.academic_sessions?.session_name, s.centers?.center_name)
+    if (s) {
+      const resolved = await resolveStudentDocUrls(s)
+      generateStudentPDF(resolved, resolved.programs?.program_name, resolved.academic_sessions?.session_name, resolved.centers?.center_name)
+    }
     setDownloading(null)
   }
 
