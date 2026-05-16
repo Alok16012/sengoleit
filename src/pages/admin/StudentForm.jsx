@@ -6,7 +6,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
-import { ClipboardList, User, Users, MapPin, BookOpen, FileText } from 'lucide-react'
+import { ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye } from 'lucide-react'
 
 function AddressBlock({ prefix, label, form, onChange }) {
   return (
@@ -64,6 +64,33 @@ function EduRow({ prefix, label, boardType, boards, form, onChange }) {
   )
 }
 
+function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUploading }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold text-gray-600 ml-0.5">{label}</label>
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className={`cursor-pointer flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-medium transition-all
+          ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-gray-200 text-gray-600 hover:border-[#933d18] hover:text-[#933d18] bg-white'}`}>
+          <Upload size={14} />
+          {isUploading ? 'Uploading...' : value ? 'Change' : 'Choose File'}
+          <input type="file" accept={accept} className="hidden" disabled={isUploading}
+            onChange={e => e.target.files[0] && onUpload(fieldKey, e.target.files[0])} />
+        </label>
+        {value && isImage && (
+          <img src={value} alt={label} className="h-14 w-14 object-cover rounded-xl border border-gray-200 shadow-sm" />
+        )}
+        {value && !isImage && (
+          <a href={value} target="_blank" rel="noreferrer"
+            className="flex items-center gap-1.5 text-xs font-semibold text-[#933d18] hover:underline">
+            <Eye size={13} /> View File
+          </a>
+        )}
+        {!value && <span className="text-xs text-gray-400 italic">No file chosen</span>}
+      </div>
+    </div>
+  )
+}
+
 const emptyForm = {
   // Basic Entry
   date_of_submission: new Date().toISOString().split('T')[0],
@@ -109,6 +136,8 @@ const emptyForm = {
   ug_institute_name: '', ug_board_university: '', ug_passing_year: '', ug_obtained_marks: '', ug_total_marks: '',
   pg_institute_name: '', pg_board_university: '', pg_passing_year: '', pg_obtained_marks: '', pg_total_marks: '',
   diploma_institute_name: '', diploma_board_university: '', diploma_passing_year: '', diploma_obtained_marks: '', diploma_total_marks: '',
+  // Documents
+  photo_url: '', aadhar_url: '', signature_url: '', marksheet_url: '', declaration_url: '',
 }
 
 const PROFESSION_OPTIONS = ['Student', 'Private Service', 'Govt. Service', 'Self Employed', 'Others']
@@ -132,6 +161,7 @@ export default function StudentForm() {
   const [studyModes, setStudyModes] = useState([])
   const [boards, setBoards] = useState([])
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState({})
 
   useEffect(() => {
     Promise.all([
@@ -225,6 +255,21 @@ export default function StudentForm() {
       ? Array.from({ length: progDuration }, (_, i) => `${ordinal(i + 1)} Year`)
       : Array.from({ length: progSemYear === 'Semester' ? progDuration : progDuration * 2 }, (_, i) => `${ordinal(i + 1)} Semester`)
     : null
+
+  async function handleFileUpload(fieldKey, file) {
+    setUploading(u => ({ ...u, [fieldKey]: true }))
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${Date.now()}_${fieldKey}.${ext}`
+      const { error } = await supabase.storage.from('student-docs').upload(path, file, { upsert: true })
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('student-docs').getPublicUrl(path)
+      setForm(f => ({ ...f, [fieldKey]: publicUrl }))
+    } catch (err) {
+      alert('Upload failed: ' + err.message)
+    }
+    setUploading(u => ({ ...u, [fieldKey]: false }))
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -448,6 +493,22 @@ export default function StudentForm() {
           <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} />
           <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} />
           <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} />
+        </FormSection>
+
+        {/* 7. Documents */}
+        <FormSection title="Documents" icon={<Upload size={16} />}>
+          <div className="grid grid-cols-2 gap-6">
+            <FileField label="Student Photo" fieldKey="photo_url" accept="image/*" isImage
+              value={form.photo_url} onUpload={handleFileUpload} isUploading={!!uploading.photo_url} />
+            <FileField label="Aadhar Card" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false}
+              value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} />
+            <FileField label="Signature" fieldKey="signature_url" accept="image/*" isImage
+              value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} />
+            <FileField label="Marksheet" fieldKey="marksheet_url" accept="image/*,application/pdf" isImage={false}
+              value={form.marksheet_url} onUpload={handleFileUpload} isUploading={!!uploading.marksheet_url} />
+            <FileField label="Declaration" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false}
+              value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} />
+          </div>
         </FormSection>
 
         <div className="flex gap-3 pt-2 pb-8">
