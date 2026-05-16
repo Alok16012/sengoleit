@@ -265,9 +265,7 @@ export default function StudentForm() {
             </Select>
             <Select label="Mode" value={form.mode_id} onChange={set('mode_id')}>
               <option value="">Select Mode</option>
-              {studyModes
-                .filter(m => m.mode_name.toLowerCase().includes('regular') || m.mode_name.toLowerCase().includes('external'))
-                .map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
+              {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
             </Select>
             <Select label="University" value={form.university_id} onChange={set('university_id')}>
               <option value="">Select University</option>

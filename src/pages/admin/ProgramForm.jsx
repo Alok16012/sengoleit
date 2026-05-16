@@ -102,17 +102,13 @@ export default function ProgramForm() {
             </Select>
             <Select label="Mode" value={form.mode_id} onChange={set('mode_id')}>
               <option value="">Select Mode</option>
-              {studyModes
-                .filter(m => m.mode_name.toLowerCase().includes('regular') || m.mode_name.toLowerCase().includes('external'))
-                .map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
+              {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Select label="Mode of Study" value={form.mode_of_study_id} onChange={set('mode_of_study_id')}>
               <option value="">Select Mode of Study</option>
-              {modesOfStudy
-                .filter(m => m.mode_name.toLowerCase().includes('regular') || m.mode_name.toLowerCase().includes('external'))
-                .map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
+              {modesOfStudy.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
             </Select>
             <Select label="Status" value={form.status} onChange={set('status')}>
               <option value="Active">Active</option>
