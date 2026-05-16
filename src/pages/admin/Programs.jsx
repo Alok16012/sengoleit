@@ -7,6 +7,11 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search } from 'lucide-react'
 
+const stripOnline = (val) => {
+  if (!val) return '—'
+  return val.split(',').map(s => s.trim()).filter(s => s.toLowerCase() !== 'online').join(', ') || '—'
+}
+
 export default function Programs() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -94,8 +99,8 @@ export default function Programs() {
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.universities?.university_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.departments?.name || '—'}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.programme_types?.programme_type_name || '—'}</Td>
-                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.study_modes?.mode_name || '—'}</Td>
-                <Td className="text-gray-500 text-xs whitespace-nowrap">{p.modes_of_study?.mode_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{stripOnline(p.study_modes?.mode_name)}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{stripOnline(p.modes_of_study?.mode_name)}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">
                   {p.complete_duration || (p.duration ? `${p.duration} Sem` : '—')}
                 </Td>
