@@ -262,7 +262,13 @@ export default function StudentForm() {
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Status" value={form.status} onChange={set('status')}>
+            <Select
+              label="Status"
+              value={form.status}
+              onChange={set('status')}
+              disabled={!isAdmin}
+              className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
+            >
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </Select>
             <Textarea label="Remarks" value={form.remarks} onChange={set('remarks')} />
