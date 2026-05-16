@@ -136,7 +136,7 @@ export default function StudentForm() {
   useEffect(() => {
     Promise.all([
       supabase.from('universities').select('id, university_name').order('university_name'),
-      supabase.from('programs').select('id, program_name, course_code, department_id, semester_year').order('program_name'),
+      supabase.from('programs').select('id, program_name, course_code, department_id, semester_year, duration').order('program_name'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
       supabase.from('academic_sessions').select('id, session_name').order('session_name'),
@@ -178,12 +178,33 @@ export default function StudentForm() {
     setForm(f => ({ ...f, programme_id: e.target.value, course_code: prog?.course_code || '', semester_year: '' }))
   }
 
+  // When session changes, auto-fill academic_year from session_name
+  const handleSessionChange = (e) => {
+    const sess = sessions.find(s => s.id === e.target.value)
+    setForm(f => ({ ...f, session_id: e.target.value, academic_year: sess?.session_name || f.academic_year }))
+  }
+
   const filteredPrograms = form.department_id
     ? programs.filter(p => p.department_id === form.department_id)
     : programs
 
   const selectedProgram = programs.find(p => p.id === form.programme_id)
   const progSemYear = selectedProgram?.semester_year // 'Semester' | 'Year' | ''
+  const progDuration = Number(selectedProgram?.duration) || 0
+  const totalSemesters = progSemYear === 'Year' ? progDuration * 2 : progDuration
+  const totalYears = progSemYear === 'Year' ? progDuration : 0
+
+  const ordinal = (n) => {
+    const s = ['th', 'st', 'nd', 'rd']
+    const v = n % 100
+    return n + (s[(v - 20) % 10] || s[v] || s[0])
+  }
+
+  const semesterOptions = progSemYear === 'Year'
+    ? Array.from({ length: totalYears }, (_, i) => `${ordinal(i + 1)} Year`)
+    : totalSemesters > 0
+      ? Array.from({ length: totalSemesters }, (_, i) => `${ordinal(i + 1)} Semester`)
+      : null
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -218,7 +239,7 @@ export default function StudentForm() {
             </Select>
           </div>
           <div className="grid grid-cols-3 gap-4">
-            <Select label="Session" value={form.session_id} onChange={set('session_id')}>
+            <Select label="Session" value={form.session_id} onChange={handleSessionChange}>
               <option value="">Select Session</option>
               {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
             </Select>
@@ -269,16 +290,17 @@ export default function StudentForm() {
             <Input label="Course Code" value={form.course_code} onChange={set('course_code')} />
             <Select label="Semester / Year" value={form.semester_year} onChange={set('semester_year')}>
               <option value="">Select</option>
-              {(!progSemYear || progSemYear === 'Semester') && (
-                ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th'].map(s => (
-                  <option key={s} value={s + ' Semester'}>{s} Semester</option>
-                ))
-              )}
-              {(!progSemYear || progSemYear === 'Year') && (
-                ['1st Year', '2nd Year', '3rd Year', '4th Year'].map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))
-              )}
+              {semesterOptions
+                ? semesterOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)
+                : <>
+                    {['1st','2nd','3rd','4th','5th','6th','7th','8th'].map(s => (
+                      <option key={s} value={s + ' Semester'}>{s} Semester</option>
+                    ))}
+                    {['1st Year','2nd Year','3rd Year','4th Year'].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </>
+              }
             </Select>
             <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} />
           </div>
