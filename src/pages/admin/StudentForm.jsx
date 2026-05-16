@@ -139,7 +139,7 @@ export default function StudentForm() {
       supabase.from('programs').select('id, program_name, course_code, department_id, semester_year, duration, complete_duration').order('program_name'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
-      supabase.from('academic_sessions').select('id, session_name').order('session_name'),
+      supabase.from('academic_sessions').select('id, session_name, start_date, end_date, academic_year').order('session_name'),
       supabase.from('study_modes').select('id, mode_name').order('mode_name'),
       supabase.from('boards').select('id, name, type').order('name'),
     ]).then(([unis, progs, depts, cents, sess, modes, bds]) => {
@@ -181,8 +181,18 @@ export default function StudentForm() {
   // When session changes, auto-fill academic_year from session_name
   const handleSessionChange = (e) => {
     const sess = sessions.find(s => s.id === e.target.value)
-    setForm(f => ({ ...f, session_id: e.target.value, academic_year: sess?.session_name || f.academic_year }))
+    setForm(f => ({
+      ...f,
+      session_id: e.target.value,
+      academic_year: sess?.academic_year || sess?.session_name || f.academic_year,
+      date_of_submission: '',
+      date_of_admission: '',
+    }))
   }
+
+  const selectedSession = sessions.find(s => s.id === form.session_id)
+  const sessionMinDate = selectedSession?.start_date || ''
+  const sessionMaxDate = selectedSession?.end_date || ''
 
   const filteredPrograms = form.department_id
     ? programs.filter(p => p.department_id === form.department_id)
@@ -240,8 +250,8 @@ export default function StudentForm() {
         {/* 1. Basic Entry */}
         <FormSection title="Basic Entry" icon={<ClipboardList size={16} />}>
           <div className="grid grid-cols-3 gap-4">
-            <Input label="Date of Submission" type="date" value={form.date_of_submission} onChange={set('date_of_submission')} />
-            <Input label="Date of Admission" type="date" value={form.date_of_admission} onChange={set('date_of_admission')} />
+            <Input label="Date of Submission" type="date" value={form.date_of_submission} onChange={set('date_of_submission')} min={sessionMinDate || undefined} max={sessionMaxDate || undefined} />
+            <Input label="Date of Admission" type="date" value={form.date_of_admission} onChange={set('date_of_admission')} min={sessionMinDate || undefined} max={sessionMaxDate || undefined} />
             <Select label="Entry Type" value={form.entry_type} onChange={set('entry_type')}>
               <option value="Regular">Regular</option>
               <option value="Lateral">Lateral</option>
