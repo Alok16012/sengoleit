@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
@@ -41,9 +41,22 @@ export default function AccountDepartment() {
   }
 
   async function savePassword(centerId) {
-    const newPass = editingPassword[centerId]
-    if (!newPass?.trim()) return
-    await supabase.from('centers').update({ generated_password: newPass.trim() }).eq('id', centerId)
+    const newPass = editingPassword[centerId]?.trim()
+    if (!newPass) return
+    const center = centers.find(c => c.id === centerId)
+
+    // 1. Save to centers table (for display)
+    await supabase.from('centers').update({ generated_password: newPass }).eq('id', centerId)
+
+    // 2. Update Supabase Auth password so login actually works
+    if (supabaseAdmin && center?.email) {
+      const { data: { users } } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+      const authUser = users?.find(u => u.email === center.email)
+      if (authUser) {
+        await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password: newPass })
+      }
+    }
+
     setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
     fetchAll()
   }
