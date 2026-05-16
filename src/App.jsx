@@ -38,6 +38,7 @@ import CenterSettings from './pages/center/CenterSettings'
 // Shared
 import ProgramsView from './pages/shared/ProgramsView'
 import BalanceView from './pages/shared/BalanceView'
+import ComingSoon from './pages/shared/ComingSoon'
 
 // Student
 import StudentDashboard from './pages/student/StudentDashboard'
@@ -112,6 +113,12 @@ export default function App() {
             <Route path="/super-center/programs" element={<ProgramsView />} />
             <Route path="/super-center/balance" element={<BalanceView />} />
 
+            {/* Super Center new entry routes */}
+            <Route path="/super-center/documents" element={<ComingSoon title="Student Documents" description="Student document upload and management" />} />
+            <Route path="/super-center/courier" element={<ComingSoon title="Courier Entry" description="Log courier dispatch entries" />} />
+            <Route path="/super-center/answersheet" element={<ComingSoon title="Student Answersheet" description="Answersheet submission and tracking" />} />
+            <Route path="/super-center/supplementary" element={<ComingSoon title="Supplementary Student" description="Supplementary exam registration" />} />
+
             {/* Center portal */}
             <Route path="/center/dashboard" element={<CenterDashboard />} />
             <Route path="/center/students" element={<CenterStudents />} />
@@ -120,6 +127,10 @@ export default function App() {
             <Route path="/center/programs" element={<ProgramsView />} />
             <Route path="/center/balance" element={<BalanceView />} />
             <Route path="/center/settings" element={<CenterSettings />} />
+            <Route path="/center/documents" element={<ComingSoon title="Student Documents" description="Student document upload and management" />} />
+            <Route path="/center/courier" element={<ComingSoon title="Courier Entry" description="Log courier dispatch entries" />} />
+            <Route path="/center/answersheet" element={<ComingSoon title="Student Answersheet" description="Answersheet submission and tracking" />} />
+            <Route path="/center/supplementary" element={<ComingSoon title="Supplementary Student" description="Supplementary exam registration" />} />
 
             {/* Student portal */}
             <Route path="/student/dashboard" element={<StudentDashboard />} />

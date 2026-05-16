@@ -2,9 +2,18 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { Users, Building2, Wallet, Clock, PlusCircle } from 'lucide-react'
+import { Users, Building2, Wallet, Clock, UserPlus, FileText, Truck, FileCheck, UserCheck } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
+
+const QUICK_ACTIONS = [
+  { label: 'Student Entry', icon: UserPlus, color: 'bg-emerald-500', hover: 'hover:bg-emerald-600', to: '/super-center/students/new' },
+  { label: 'Payment Deposit Entry', icon: Wallet, color: 'bg-[#933d18]', hover: 'hover:bg-[#7a3213]', to: '/super-center/balance' },
+  { label: 'Student Documents', icon: FileText, color: 'bg-red-500', hover: 'hover:bg-red-600', to: '/super-center/documents' },
+  { label: 'Courier Entry', icon: Truck, color: 'bg-teal-600', hover: 'hover:bg-teal-700', to: '/super-center/courier' },
+  { label: 'Student Answersheet', icon: FileCheck, color: 'bg-amber-500', hover: 'hover:bg-amber-600', to: '/super-center/answersheet' },
+  { label: 'New Center', icon: Building2, color: 'bg-indigo-500', hover: 'hover:bg-indigo-600', to: '/super-center/centers/new' },
+]
 
 function StatCard({ label, value, icon: Icon, color, sub }) {
   return (
@@ -61,12 +70,10 @@ export default function SuperCenterDashboard() {
               </div>
             )}
           </div>
-          {center?.approval_status === 'approved' && (
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => navigate('/super-center/centers/new')}>
-                <Building2 size={14} /> New Center
-              </Button>
-            </div>
+              {center?.approval_status === 'approved' && (
+            <Button size="sm" onClick={() => navigate('/super-center/centers/new')}>
+              <Building2 size={14} /> New Center
+            </Button>
           )}
         </div>
       </div>
@@ -82,6 +89,22 @@ export default function SuperCenterDashboard() {
         <div className="bg-red-50 border border-red-200 rounded-2xl p-5 mb-6">
           <p className="font-semibold text-red-800">Application Rejected</p>
           {center.approval_notes && <p className="text-sm text-red-600 mt-1">Reason: {center.approval_notes}</p>}
+        </div>
+      )}
+
+      {/* Quick Action Cards */}
+      {center?.approval_status === 'approved' && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+          {QUICK_ACTIONS.map(({ label, icon: Icon, color, hover, to }) => (
+            <button
+              key={to}
+              onClick={() => navigate(to)}
+              className={`${color} ${hover} text-white rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all active:scale-[0.98] text-left`}
+            >
+              <span className="text-sm font-bold leading-snug max-w-[120px]">{label}</span>
+              <Icon size={32} className="text-white/70 flex-shrink-0" />
+            </button>
+          ))}
         </div>
       )}
 

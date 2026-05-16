@@ -5,7 +5,9 @@ import { supabase } from '../../lib/supabase'
 import {
   University, BookOpen, Building2, Users, FolderOpen,
   Award, CalendarDays, MapPin, LogOut,
-  LayoutDashboard, Wallet, Star, ClipboardCheck, Settings, PlusCircle
+  LayoutDashboard, Wallet, Star, Settings,
+  UserPlus, FileText, Truck, FileCheck, UserCheck,
+  ListFilter, BarChart2
 } from 'lucide-react'
 
 const adminLinks = [
@@ -22,24 +24,54 @@ const adminLinks = [
   { to: '/admin/account-department', icon: Wallet, label: 'Account Dept.' },
 ]
 
-const superCenterLinks = [
-  { to: '/super-center/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/super-center/centers', icon: Building2, label: 'My Centers' },
-  { to: '/super-center/students', icon: Users, label: 'Students' },
-  { to: '/super-center/programs', icon: BookOpen, label: 'Programs' },
-  { to: '/super-center/balance', icon: Wallet, label: 'Virtual Balance' },
+const superCenterNavGroups = [
+  { items: [{ to: '/super-center/dashboard', icon: LayoutDashboard, label: 'Dashboard' }] },
+  {
+    group: 'Entry',
+    items: [
+      { to: '/super-center/students/new', icon: UserPlus, label: 'Student Entry' },
+      { to: '/super-center/balance', icon: Wallet, label: 'Payment Deposit' },
+      { to: '/super-center/documents', icon: FileText, label: 'Student Documents' },
+      { to: '/super-center/courier', icon: Truck, label: 'Courier Entry' },
+      { to: '/super-center/answersheet', icon: FileCheck, label: 'Student Answersheet' },
+      { to: '/super-center/supplementary', icon: UserCheck, label: 'Supplementary Student' },
+    ],
+  },
+  {
+    group: 'Reports',
+    items: [
+      { to: '/super-center/students', icon: Users, label: 'Student List' },
+      { to: '/super-center/centers', icon: Building2, label: 'My Centers' },
+      { to: '/super-center/programs', icon: BookOpen, label: 'Programs' },
+    ],
+  },
 ]
 
-const centerLinks = [
-  { to: '/center/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/center/students', icon: Users, label: 'Students' },
-  { to: '/center/programs', icon: BookOpen, label: 'Programs' },
-  { to: '/center/balance', icon: Wallet, label: 'Virtual Balance' },
-  { to: '/center/settings', icon: Settings, label: 'Settings' },
+const centerNavGroups = [
+  { items: [{ to: '/center/dashboard', icon: LayoutDashboard, label: 'Dashboard' }] },
+  {
+    group: 'Entry',
+    items: [
+      { to: '/center/students/new', icon: UserPlus, label: 'Student Entry' },
+      { to: '/center/balance', icon: Wallet, label: 'Payment Deposit' },
+      { to: '/center/documents', icon: FileText, label: 'Student Documents' },
+      { to: '/center/courier', icon: Truck, label: 'Courier Entry' },
+      { to: '/center/answersheet', icon: FileCheck, label: 'Student Answersheet' },
+      { to: '/center/supplementary', icon: UserCheck, label: 'Supplementary Student' },
+    ],
+  },
+  {
+    group: 'Reports',
+    items: [
+      { to: '/center/students', icon: Users, label: 'Student List' },
+      { to: '/center/programs', icon: BookOpen, label: 'Programs' },
+    ],
+  },
+  { items: [{ to: '/center/settings', icon: Settings, label: 'Settings' }] },
 ]
 
-const studentLinks = [
-  { to: '/student/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+const studentNavGroups = [
+  { items: [{ to: '/student/dashboard', icon: LayoutDashboard, label: 'Dashboard' }] },
 ]
 
 export default function Sidebar() {
@@ -55,11 +87,12 @@ export default function Sidebar() {
         .then(({ data }) => { if (data) setCenterName(data.center_name) })
     }
   }, [role, user?.email])
-  const links =
-    role === 'admin' ? adminLinks :
-    role === 'super_center' ? superCenterLinks :
-    role === 'center' ? centerLinks :
-    studentLinks
+
+  const navGroups =
+    role === 'admin' ? [{ items: adminLinks }] :
+    role === 'super_center' ? superCenterNavGroups :
+    role === 'center' ? centerNavGroups :
+    studentNavGroups
 
   const roleLabel =
     role === 'admin' ? 'Administration' :
@@ -94,26 +127,37 @@ export default function Sidebar() {
       {/* Nav */}
       <div className="flex-1 px-3 py-4 overflow-y-auto">
         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 mb-2">{roleLabel}</p>
-        <nav className="space-y-0.5">
-          {links.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-150 gap-3 ${
-                  isActive
-                    ? 'bg-[#933d18] text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon size={16} className={isActive ? 'text-white/80' : 'text-gray-400'} />
-                  {label}
-                </>
+        <nav>
+          {navGroups.map((section, idx) => (
+            <div key={idx}>
+              {section.group && (
+                <p className="text-[9px] font-extrabold text-[#933d18]/60 uppercase tracking-[0.18em] px-3 pt-4 pb-1.5">
+                  {section.group}
+                </p>
               )}
-            </NavLink>
+              <div className="space-y-0.5">
+                {section.items.map(({ to, icon: Icon, label }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-150 gap-3 ${
+                        isActive
+                          ? 'bg-[#933d18] text-white shadow-sm'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Icon size={16} className={isActive ? 'text-white/80' : 'text-gray-400'} />
+                        {label}
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
       </div>
