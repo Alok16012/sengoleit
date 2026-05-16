@@ -29,11 +29,12 @@ function AddressBlock({ prefix, label, form, onChange }) {
   )
 }
 
-function EduRow({ prefix, label, boardType, boards, form, onChange }) {
+function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading }) {
   const levelBoards = boards.filter(b => b.type === 'All' || b.type === boardType)
   const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
   const total = parseFloat(form[`${prefix}_total_marks`]) || 0
   const percentage = obtained > 0 && total > 0 ? ((obtained / total) * 100).toFixed(2) : ''
+  const marksheetKey = `${prefix}_marksheet_url`
   return (
     <>
       <p className="text-xs font-black text-[#933d18]/70 uppercase tracking-widest mt-3 -mb-1">{label}</p>
@@ -49,7 +50,7 @@ function EduRow({ prefix, label, boardType, boards, form, onChange }) {
         )}
         <Input label="Passing Year" type="number" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         <Input label="Obtained Marks" type="number" value={form[`${prefix}_obtained_marks`]} onChange={onChange(`${prefix}_obtained_marks`)} />
         <Input label="Total Marks" type="number" value={form[`${prefix}_total_marks`]} onChange={onChange(`${prefix}_total_marks`)} />
         <Input
@@ -58,6 +59,15 @@ function EduRow({ prefix, label, boardType, boards, form, onChange }) {
           readOnly
           placeholder="Auto-calculated"
           className="bg-gray-50 text-[#933d18] font-semibold cursor-not-allowed"
+        />
+        <FileField
+          label="Marksheet"
+          fieldKey={marksheetKey}
+          accept="image/*,application/pdf"
+          isImage={false}
+          value={form[marksheetKey]}
+          onUpload={onUpload}
+          isUploading={!!uploading[marksheetKey]}
         />
       </div>
     </>
@@ -137,7 +147,9 @@ const emptyForm = {
   pg_institute_name: '', pg_board_university: '', pg_passing_year: '', pg_obtained_marks: '', pg_total_marks: '',
   diploma_institute_name: '', diploma_board_university: '', diploma_passing_year: '', diploma_obtained_marks: '', diploma_total_marks: '',
   // Documents
-  photo_url: '', aadhar_url: '', signature_url: '', marksheet_url: '', declaration_url: '',
+  photo_url: '', aadhar_url: '', signature_url: '', declaration_url: '',
+  // Education Marksheets
+  tenth_marksheet_url: '', twelfth_marksheet_url: '', ug_marksheet_url: '', pg_marksheet_url: '', diploma_marksheet_url: '',
 }
 
 const PROFESSION_OPTIONS = ['Student', 'Private Service', 'Govt. Service', 'Self Employed', 'Others']
@@ -488,11 +500,11 @@ export default function StudentForm() {
 
         {/* 6. Education Qualification */}
         <FormSection title="Education Qualification" icon={<BookOpen size={16} />}>
-          <EduRow prefix="tenth" label="10th" boardType="10th" boards={boards} form={form} onChange={set} />
-          <EduRow prefix="twelfth" label="12th" boardType="12th" boards={boards} form={form} onChange={set} />
-          <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} />
-          <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} />
-          <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} />
+          <EduRow prefix="tenth" label="10th" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
+          <EduRow prefix="twelfth" label="12th" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
+          <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
+          <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
+          <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} />
         </FormSection>
 
         {/* 7. Documents */}
@@ -504,8 +516,6 @@ export default function StudentForm() {
               value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} />
             <FileField label="Signature" fieldKey="signature_url" accept="image/*" isImage
               value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} />
-            <FileField label="Marksheet" fieldKey="marksheet_url" accept="image/*,application/pdf" isImage={false}
-              value={form.marksheet_url} onUpload={handleFileUpload} isUploading={!!uploading.marksheet_url} />
             <FileField label="Declaration" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false}
               value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} />
           </div>
