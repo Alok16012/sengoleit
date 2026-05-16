@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, IndianRupee, Building2, RefreshCw, Eye, EyeOff } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, IndianRupee, Building2, RefreshCw, Eye, EyeOff, Pencil, Save } from 'lucide-react'
 
 const TABS = [
   { key: 'approvals', label: 'Pending Approvals' },
@@ -23,6 +23,7 @@ export default function AccountDepartment() {
   const [rejectNotes, setRejectNotes] = useState('')
   const [approvedModal, setApprovedModal] = useState(null)
   const [visiblePasswords, setVisiblePasswords] = useState({})
+  const [editingPassword, setEditingPassword] = useState({}) // { [id]: newPasswordValue }
 
   useEffect(() => { fetchAll() }, [])
 
@@ -37,6 +38,14 @@ export default function AccountDepartment() {
     setRecharges(rech.data || [])
     setCenters(ctr.data || [])
     setLoading(false)
+  }
+
+  async function savePassword(centerId) {
+    const newPass = editingPassword[centerId]
+    if (!newPass?.trim()) return
+    await supabase.from('centers').update({ generated_password: newPass.trim() }).eq('id', centerId)
+    setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
+    fetchAll()
   }
 
   async function generateNextCenterCode() {
@@ -286,19 +295,42 @@ export default function AccountDepartment() {
                     </Td>
                     <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
                     <Td>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-xs text-gray-800">
-                          {visiblePasswords[c.id] ? (c.generated_password || '—') : (c.generated_password ? '••••••••' : '—')}
-                        </span>
-                        {c.generated_password && (
-                          <button
-                            onClick={() => setVisiblePasswords(prev => ({ ...prev, [c.id]: !prev[c.id] }))}
-                            className="text-gray-400 hover:text-[#933d18] transition-colors"
-                          >
-                            {visiblePasswords[c.id] ? <EyeOff size={13} /> : <Eye size={13} />}
+                      {editingPassword.hasOwnProperty(c.id) ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            autoFocus
+                            type="text"
+                            value={editingPassword[c.id]}
+                            onChange={e => setEditingPassword(prev => ({ ...prev, [c.id]: e.target.value }))}
+                            onKeyDown={e => { if (e.key === 'Enter') savePassword(c.id); if (e.key === 'Escape') setEditingPassword(prev => { const n = { ...prev }; delete n[c.id]; return n }) }}
+                            className="border border-[#933d18]/40 rounded-lg px-2 py-1 text-xs w-28 focus:outline-none focus:border-[#933d18]"
+                            placeholder="New password"
+                          />
+                          <button onClick={() => savePassword(c.id)} className="text-emerald-600 hover:text-emerald-700">
+                            <Save size={13} />
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-gray-800">
+                            {c.generated_password
+                              ? (visiblePasswords[c.id] ? c.generated_password : '••••••••')
+                              : <span className="text-gray-300 text-xs">not set</span>}
+                          </span>
+                          {c.generated_password && (
+                            <button onClick={() => setVisiblePasswords(prev => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-gray-400 hover:text-[#933d18] transition-colors">
+                              {visiblePasswords[c.id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setEditingPassword(prev => ({ ...prev, [c.id]: c.generated_password || '' }))}
+                            className="text-gray-300 hover:text-[#933d18] transition-colors"
+                            title="Set / Edit password"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        </div>
+                      )}
                     </Td>
                     <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
                     <Td>
