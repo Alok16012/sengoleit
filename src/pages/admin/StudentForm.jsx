@@ -153,7 +153,7 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUpload
 
 const emptyForm = {
   date_of_submission: new Date().toISOString().split('T')[0],
-  date_of_admission: '', entry_type: 'Regular',
+  date_of_admission: '', entry_type: 'Regular', submitted_by: '',
   session_id: '', mode_id: '', university_id: '',
   center_id: '', center_name: '',
   department_id: '', programme_id: '', course_code: '',
@@ -212,6 +212,7 @@ export default function StudentForm() {
   const role = profile?.role || user?.user_metadata?.role || 'admin'
   const isAdmin = role === 'admin'
   const isEdit = Boolean(id)
+  const backPath = role === 'center' ? '/center/students' : role === 'super_center' ? '/super-center/students' : '/admin/students'
 
   const [form, setForm] = useState(emptyForm)
   const [universities, setUniversities] = useState([])
@@ -263,7 +264,7 @@ export default function StudentForm() {
       if (!isAdmin && user?.email && !isEdit) {
         supabase.from('centers').select('id, center_name').eq('email', user.email).single()
           .then(({ data: cd }) => {
-            if (cd) setForm(f => ({ ...f, center_id: cd.id, center_name: cd.center_name }))
+            if (cd) setForm(f => ({ ...f, center_id: cd.id, center_name: cd.center_name, submitted_by: role }))
           })
       }
     })
@@ -366,13 +367,14 @@ export default function StudentForm() {
     e.preventDefault()
     setLoading(true)
     const payload = { ...form }
+    if (!isAdmin && !isEdit) payload.status = 'Pending'
     delete payload.id; delete payload.created_at; delete payload.updated_at
     const fkFields = ['university_id', 'session_id', 'programme_id', 'department_id', 'mode_id', 'center_id']
     fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
     const { error } = isEdit
       ? await supabase.from('students').update(payload).eq('id', id)
       : await supabase.from('students').insert(payload)
-    if (!error) navigate('/admin/students')
+    if (!error) navigate(backPath)
     else { alert('Error: ' + error.message); setLoading(false) }
   }
 
@@ -384,7 +386,7 @@ export default function StudentForm() {
 
   return (
     <div className="p-4 lg:p-6 pb-20">
-      <PageHeader title={isEdit ? 'Edit Student' : 'Add Student'} backTo="/admin/students" />
+      <PageHeader title={isEdit ? 'Edit Student' : 'Add Student'} backTo={backPath} />
 
       {/* Horizontal step navigator — sticky */}
       <div className="sticky top-0 z-20 mt-4 mb-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden">
@@ -728,7 +730,7 @@ export default function StudentForm() {
 
           <div className="flex gap-3 pt-2 pb-8">
             <Button type="submit" disabled={loading}>{loading ? 'Saving...' : isEdit ? 'Update Student' : 'Submit Application'}</Button>
-            <Button type="button" variant="outline" onClick={() => navigate('/admin/students')}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => navigate(backPath)}>Cancel</Button>
           </div>
 
         </form>

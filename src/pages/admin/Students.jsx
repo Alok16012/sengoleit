@@ -5,18 +5,31 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit } from 'lucide-react'
+import { Plus, Search, Edit, Download } from 'lucide-react'
+import { generateStudentPDF } from '../../utils/generateStudentPDF'
 
-const STATUS_FILTERS = ['All', 'Pending', 'Reviewing', 'Document Verified', 'Account Section', 'Admitted', 'Rejected']
+const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
 
 export default function Students() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
+  const [downloading, setDownloading] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => { fetchData() }, [])
+
+  async function handleDownload(studentId) {
+    setDownloading(studentId)
+    const { data: s } = await supabase
+      .from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .eq('id', studentId)
+      .single()
+    if (s) generateStudentPDF(s, s.programs?.program_name, s.academic_sessions?.session_name, s.centers?.center_name)
+    setDownloading(null)
+  }
 
   async function fetchData() {
     setLoading(true)
@@ -106,9 +119,14 @@ export default function Students() {
                 <Td className="text-gray-500 text-xs">{s.entry_type || '—'}</Td>
                 <Td><Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge></Td>
                 <Td>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/edit/${s.id}`)}>
-                    <Edit size={14} />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/edit/${s.id}`)}>
+                      <Edit size={14} />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleDownload(s.id)} disabled={downloading === s.id} title="Download PDF">
+                      <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
+                    </Button>
+                  </div>
                 </Td>
               </Tr>
             ))}

@@ -8,20 +8,24 @@ import Modal from '../../components/ui/Modal'
 import { CheckCircle, XCircle, ToggleLeft, ToggleRight, IndianRupee, Building2, RefreshCw, Eye, EyeOff, Pencil, Save } from 'lucide-react'
 
 const TABS = [
+  { key: 'students', label: 'Student Applications' },
   { key: 'approvals', label: 'Pending Approvals' },
   { key: 'recharges', label: 'Recharge Requests' },
   { key: 'centers', label: 'Centers Management' },
 ]
 
 export default function AccountDepartment() {
-  const [tab, setTab] = useState('approvals')
+  const [tab, setTab] = useState('students')
   const [approvals, setApprovals] = useState([])
   const [recharges, setRecharges] = useState([])
   const [centers, setCenters] = useState([])
+  const [holdStudents, setHoldStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectNotes, setRejectNotes] = useState('')
   const [approvedModal, setApprovedModal] = useState(null)
+  const [studentActionModal, setStudentActionModal] = useState(null) // { student, type: 'approve'|'reject' }
+  const [studentRemarks, setStudentRemarks] = useState('')
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({}) // { [id]: newPasswordValue }
 
@@ -29,14 +33,16 @@ export default function AccountDepartment() {
 
   async function fetchAll() {
     setLoading(true)
-    const [appr, rech, ctr] = await Promise.all([
+    const [appr, rech, ctr, holdStu] = await Promise.all([
       supabase.from('centers').select('*').eq('approval_status', 'pending').order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*').order('created_at', { ascending: false }),
       supabase.from('centers').select('*').not('approval_status', 'eq', 'pending').order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').order('created_at', { ascending: false }),
     ])
     setApprovals(appr.data || [])
     setRecharges(rech.data || [])
     setCenters(ctr.data || [])
+    setHoldStudents(holdStu.data || [])
     setLoading(false)
   }
 
@@ -135,6 +141,40 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
+  async function handleStudentApprove(student) {
+    setStudentActionModal({ student, type: 'approve' })
+    setStudentRemarks('')
+  }
+
+  async function handleStudentReject(student) {
+    setStudentActionModal({ student, type: 'reject' })
+    setStudentRemarks('')
+  }
+
+  async function confirmStudentAction() {
+    const { student, type } = studentActionModal
+    if (type === 'reject' && !studentRemarks.trim()) {
+      alert('Rejection ka reason likhna zaroori hai')
+      return
+    }
+    if (type === 'approve') {
+      await supabase.from('students').update({
+        status: 'Approved',
+        remarks: studentRemarks || null,
+        account_approved_at: new Date().toISOString(),
+      }).eq('id', student.id)
+    } else {
+      await supabase.from('students').update({
+        status: 'Rejected',
+        remarks: studentRemarks,
+        account_approved_at: new Date().toISOString(),
+      }).eq('id', student.id)
+    }
+    setStudentActionModal(null)
+    setStudentRemarks('')
+    fetchAll()
+  }
+
   async function toggleCenterStatus(center) {
     const newStatus = center.status === 'Active' ? 'Inactive' : 'Active'
     await supabase.from('centers').update({ status: newStatus }).eq('id', center.id)
@@ -150,6 +190,7 @@ export default function AccountDepartment() {
 
   const pendingCount = approvals.length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
+  const holdCount = holdStudents.length
 
   return (
     <div className="p-6">
@@ -166,6 +207,9 @@ export default function AccountDepartment() {
             }`}
           >
             {t.label}
+            {t.key === 'students' && holdCount > 0 && (
+              <span className="ml-2 bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{holdCount}</span>
+            )}
             {t.key === 'approvals' && pendingCount > 0 && (
               <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
             )}
@@ -180,6 +224,57 @@ export default function AccountDepartment() {
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
         <>
+          {/* STUDENT APPLICATIONS TAB */}
+          {tab === 'students' && (
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>Student Name</Th>
+                  <Th>Program</Th>
+                  <Th>Session</Th>
+                  <Th>Center</Th>
+                  <Th>Admission No</Th>
+                  <Th>Doc Verified On</Th>
+                  <Th>Remarks</Th>
+                  <Th>Actions</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {holdStudents.length === 0 ? (
+                  <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No student applications pending in Account Dept.</Td></Tr>
+                ) : holdStudents.map((s, i) => (
+                  <Tr key={s.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td>
+                      <p className="font-semibold text-gray-900">{s.student_name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{s.gender} • {s.mobile_no || '—'}</p>
+                    </Td>
+                    <Td className="text-gray-500 text-xs max-w-[140px] truncate">{s.programs?.program_name || '—'}</Td>
+                    <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
+                    <Td>
+                      <p className="text-sm font-medium text-gray-700">{s.centers?.center_name || '—'}</p>
+                      {s.centers?.center_code && <p className="text-xs text-gray-400">{s.centers.center_code}</p>}
+                    </Td>
+                    <Td className="font-mono text-xs text-[#933d18] font-bold">{s.admission_number || '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{s.doc_verified_at ? new Date(s.doc_verified_at).toLocaleDateString('en-IN') : '—'}</Td>
+                    <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
+                    <Td>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="success" onClick={() => handleStudentApprove(s)}>
+                          <CheckCircle size={13} /> Approve
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => handleStudentReject(s)}>
+                          <XCircle size={13} /> Reject
+                        </Button>
+                      </div>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          )}
+
           {/* APPROVALS TAB */}
           {tab === 'approvals' && (
             <Table>
@@ -443,6 +538,47 @@ export default function AccountDepartment() {
             Ye credentials center ko share karo. Woh portal pe login karke apna dashboard access kar sakte hain.
           </p>
           <Button onClick={() => setApprovedModal(null)} className="w-full justify-center">Done</Button>
+        </div>
+      </Modal>
+
+      {/* Student Action Modal */}
+      <Modal
+        isOpen={!!studentActionModal}
+        onClose={() => setStudentActionModal(null)}
+        title={studentActionModal?.type === 'approve' ? 'Approve Student Application' : 'Reject Student Application'}
+      >
+        <div className="space-y-4">
+          <div className={`border rounded-xl p-4 ${studentActionModal?.type === 'approve' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+            <p className="font-semibold text-gray-900">{studentActionModal?.student?.student_name}</p>
+            <p className="text-xs text-gray-500 mt-1">{studentActionModal?.student?.programs?.program_name}</p>
+            <p className="text-xs font-mono text-[#933d18] mt-1">Admission No: {studentActionModal?.student?.admission_number || '—'}</p>
+          </div>
+          {studentActionModal?.type === 'approve' && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+              Approve karne par student ka <strong>Enrollment Number</strong> aur <strong>Admission Number</strong> center/super center ko visible ho jayega.
+            </div>
+          )}
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">
+              Remarks {studentActionModal?.type === 'reject' && <span className="text-red-500">*</span>}
+            </label>
+            <textarea
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#933d18] resize-none"
+              rows={3}
+              placeholder={studentActionModal?.type === 'reject' ? 'Rejection ka karan likhein (required)...' : 'Any additional notes (optional)...'}
+              value={studentRemarks}
+              onChange={e => setStudentRemarks(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant={studentActionModal?.type === 'approve' ? 'success' : 'danger'}
+              onClick={confirmStudentAction}
+            >
+              {studentActionModal?.type === 'approve' ? 'Confirm Approve' : 'Confirm Reject'}
+            </Button>
+            <Button variant="outline" onClick={() => setStudentActionModal(null)}>Cancel</Button>
+          </div>
         </div>
       </Modal>
 

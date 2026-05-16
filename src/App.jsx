@@ -23,6 +23,7 @@ import Sessions from './pages/admin/Sessions'
 import SessionForm from './pages/admin/SessionForm'
 import Location from './pages/admin/Location'
 import AccountDepartment from './pages/admin/AccountDepartment'
+import DocumentDepartment from './pages/admin/DocumentDepartment'
 import Boards from './pages/admin/Boards'
 
 // Super Center portal
@@ -39,6 +40,7 @@ import CenterSettings from './pages/center/CenterSettings'
 // Shared
 import ProgramsView from './pages/shared/ProgramsView'
 import BalanceView from './pages/shared/BalanceView'
+import StudentListReport from './pages/shared/StudentListReport'
 import ComingSoon from './pages/shared/ComingSoon'
 
 // Student
@@ -102,6 +104,7 @@ export default function App() {
 
             <Route path="/admin/location" element={<Location />} />
             <Route path="/admin/account-department" element={<AccountDepartment />} />
+            <Route path="/admin/document-department" element={<DocumentDepartment />} />
             <Route path="/admin/boards" element={<Boards />} />
 
             {/* Super Center portal */}
@@ -122,10 +125,10 @@ export default function App() {
             <Route path="/super-center/supplementary" element={<ComingSoon title="Supplementary Student" description="Supplementary exam registration" />} />
 
             {/* Super Center report routes */}
-            <Route path="/super-center/reports/pending" element={<ComingSoon title="Pending Student List" description="Students with pending approval" />} />
-            <Route path="/super-center/reports/hold" element={<ComingSoon title="Hold Student List" description="Students placed on hold" />} />
-            <Route path="/super-center/reports/approved" element={<ComingSoon title="Approved Student List" description="Students approved for enrollment" />} />
-            <Route path="/super-center/reports/rejected" element={<ComingSoon title="Rejected Student List" description="Students whose applications were rejected" />} />
+            <Route path="/super-center/reports/pending" element={<StudentListReport status="Pending" />} />
+            <Route path="/super-center/reports/hold" element={<StudentListReport status="Hold" />} />
+            <Route path="/super-center/reports/approved" element={<StudentListReport status="Approved" />} />
+            <Route path="/super-center/reports/rejected" element={<StudentListReport status="Rejected" />} />
             <Route path="/super-center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
             <Route path="/super-center/reports/payment-summary" element={<ComingSoon title="Payment Summary" description="Summary of student fee payments" />} />
             <Route path="/super-center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
@@ -151,10 +154,10 @@ export default function App() {
             <Route path="/center/supplementary" element={<ComingSoon title="Supplementary Student" description="Supplementary exam registration" />} />
 
             {/* Center report routes */}
-            <Route path="/center/reports/pending" element={<ComingSoon title="Pending Student List" description="Students with pending approval" />} />
-            <Route path="/center/reports/hold" element={<ComingSoon title="Hold Student List" description="Students placed on hold" />} />
-            <Route path="/center/reports/approved" element={<ComingSoon title="Approved Student List" description="Students approved for enrollment" />} />
-            <Route path="/center/reports/rejected" element={<ComingSoon title="Rejected Student List" description="Students whose applications were rejected" />} />
+            <Route path="/center/reports/pending" element={<StudentListReport status="Pending" />} />
+            <Route path="/center/reports/hold" element={<StudentListReport status="Hold" />} />
+            <Route path="/center/reports/approved" element={<StudentListReport status="Approved" />} />
+            <Route path="/center/reports/rejected" element={<StudentListReport status="Rejected" />} />
             <Route path="/center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
             <Route path="/center/reports/payment-summary" element={<ComingSoon title="Payment Summary" description="Summary of student fee payments" />} />
             <Route path="/center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
