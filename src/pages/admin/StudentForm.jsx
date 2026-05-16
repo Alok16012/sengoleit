@@ -367,34 +367,68 @@ export default function StudentForm() {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  const activeIndex = NAV_SECTIONS.findIndex(s => s.id === activeNav)
+
   return (
     <div className="p-4 lg:p-6 pb-20">
       <PageHeader title={isEdit ? 'Edit Student' : 'Add Student'} backTo="/admin/students" />
 
-      <div className="flex gap-6 items-start mt-4">
-
-        {/* Sticky sidebar navigation — visible on large screens */}
-        <div className="hidden xl:block w-44 shrink-0">
-          <div className="sticky top-6 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sections</p>
-            </div>
-            <div className="p-2">
-              {NAV_SECTIONS.map(s => (
-                <button key={s.id} type="button"
-                  onClick={() => scrollTo(s.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-left font-semibold transition-all
-                    ${activeNav === s.id ? 'bg-[#933d18] text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}>
-                  <span className="shrink-0">{s.icon}</span>
-                  {s.label}
-                </button>
-              ))}
-            </div>
+      {/* Horizontal step navigator — sticky */}
+      <div className="sticky top-0 z-20 mt-4 mb-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden">
+        <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="flex items-stretch min-w-max">
+            {NAV_SECTIONS.map((s, i) => {
+              const isActive = activeNav === s.id
+              const isPast = i < activeIndex
+              return (
+                <div key={s.id} className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => scrollTo(s.id)}
+                    className={`relative flex items-center gap-2.5 px-5 py-3.5 transition-all group
+                      ${isActive
+                        ? 'bg-[#933d18] text-white'
+                        : isPast
+                          ? 'bg-[#933d18]/8 text-[#933d18]/70 hover:bg-[#933d18]/12'
+                          : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                      }`}
+                  >
+                    {/* Step circle */}
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 transition-all
+                      ${isActive
+                        ? 'bg-white/20 text-white'
+                        : isPast
+                          ? 'bg-[#933d18]/20 text-[#933d18]'
+                          : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'
+                      }`}>
+                      {isPast ? <CheckCircle2 size={13} /> : i + 1}
+                    </div>
+                    {/* Icon + label */}
+                    <div className="flex flex-col items-start">
+                      <div className="flex items-center gap-1.5">
+                        <span className={isActive ? 'text-white/80' : isPast ? 'text-[#933d18]/60' : 'text-gray-300'}>{s.icon}</span>
+                        <span className={`text-xs font-bold whitespace-nowrap leading-tight
+                          ${isActive ? 'text-white' : isPast ? 'text-[#933d18]/80' : 'text-gray-500'}`}>
+                          {s.label}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Active bottom bar */}
+                    {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/40 rounded-full" />}
+                  </button>
+                  {/* Connector */}
+                  {i < NAV_SECTIONS.length - 1 && (
+                    <div className={`w-px self-stretch my-2 transition-colors ${isPast ? 'bg-[#933d18]/20' : 'bg-gray-200'}`} />
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
+      </div>
 
         {/* Main form */}
-        <form onSubmit={handleSubmit} className="flex-1 space-y-5 min-w-0">
+        <form onSubmit={handleSubmit} className="space-y-5">
 
           {/* 1. Basic Entry */}
           <div id="sec-basic">
@@ -595,7 +629,7 @@ export default function StudentForm() {
           {/* 5. Contact Information */}
           <div id="sec-contact">
             <FormSection title="Contact Information" icon={<MapPin size={16} />}>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <AddressBlock prefix="student_perm" label="Student Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
                 <AddressBlock prefix="student_pres" label="Student Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
                 <AddressBlock prefix="guardian_pres" label="Guardian Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
@@ -665,7 +699,6 @@ export default function StudentForm() {
           </div>
 
         </form>
-      </div>
     </div>
   )
 }
