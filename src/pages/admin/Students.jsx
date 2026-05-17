@@ -39,7 +39,7 @@ export default function Students() {
     setLoading(true)
     const { data, error } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, center_id, programme_id, session_id')
+      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, center_id, programme_id, session_id, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
       .order('created_at', { ascending: false })
     if (error) console.error('Students fetch error:', error)
     setData(data || [])
