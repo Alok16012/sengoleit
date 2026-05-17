@@ -55,20 +55,20 @@ export default function FeeManagement() {
   const [viewStruct, setViewStruct] = useState(null)
 
   // editor state
-  const [programs, setPrograms]         = useState([])
-  const [departments, setDepartments]   = useState([])
+  const [programs, setPrograms]             = useState([])
+  const [departments, setDepartments]       = useState([])
   const [programmeTypes, setProgrammeTypes] = useState([])
-  const [sessions, setSessions]         = useState([])
-  const [deptId, setDeptId]             = useState('')
-  const [typeId, setTypeId]             = useState('')
-  const [progId, setProgId]             = useState('')
-  const [sessId, setSessId]             = useState('')
-  const [totalSems, setTotalSems]       = useState(4)
-  const [structId, setStructId]         = useState(null)
-  const [items, setItems]               = useState([])
-  const [loading, setLoading]           = useState(false)
-  const [saving, setSaving]             = useState(false)
-  const [saved, setSaved]               = useState(false)
+  const [sessions, setSessions]             = useState([])
+  const [deptId, setDeptId]                 = useState('')
+  const [typeId, setTypeId]                 = useState('')
+  const [selectedProgIds, setSelectedProgIds] = useState(new Set())
+  const [selectedSessIds, setSelectedSessIds] = useState(new Set())
+  const [totalSems, setTotalSems]           = useState(4)
+  const [isEditMode, setIsEditMode]         = useState(false)
+  const [items, setItems]                   = useState([])
+  const [loading, setLoading]               = useState(false)
+  const [saving, setSaving]                 = useState(false)
+  const [saved, setSaved]                   = useState(false)
 
   useEffect(() => {
     fetchMaster()
@@ -103,46 +103,49 @@ export default function FeeManagement() {
       const prog = programs.find(p => p.id === struct.program_id)
       setDeptId(prog?.department_id || '')
       setTypeId(prog?.programme_type_id || '')
-      setProgId(struct.program_id)
-      setSessId(struct.session_id || '')
+      setSelectedProgIds(new Set([struct.program_id]))
+      setSelectedSessIds(struct.session_id ? new Set([struct.session_id]) : new Set())
       setTotalSems(struct.total_semesters || 4)
-      setStructId(struct.id)
+      setIsEditMode(true)
       const sorted = [...(struct.fee_items || [])].sort((a, b) => a.sort_order - b.sort_order)
       setItems(sorted.map(i => ({ ...i, _key: uid() })))
       setSaved(true)
     } else {
-      setDeptId(''); setTypeId(''); setProgId(''); setSessId(''); setTotalSems(4)
-      setStructId(null); setItems(keyed(DEFAULTS)); setSaved(false)
+      setDeptId(''); setTypeId('')
+      setSelectedProgIds(new Set()); setSelectedSessIds(new Set())
+      setTotalSems(4); setIsEditMode(false); setItems(keyed(DEFAULTS)); setSaved(false)
     }
     setTab('editor')
   }
 
+  // Auto-load when exactly 1 program is selected (fresh, not edit mode)
   useEffect(() => {
-    if (tab !== 'editor' || !progId) return
-    if (!structId) {
-      const prog = programs.find(p => p.id === progId)
-      const autoSems = prog?.duration
-        ? (prog.semester_year === 'Year' ? prog.duration * 2 : prog.duration)
-        : 4
-      setTotalSems(autoSems)
-      load(autoSems)
-    }
-  }, [progId, sessId])
+    if (tab !== 'editor' || isEditMode) return
+    if (selectedProgIds.size !== 1) return
+    const pid = [...selectedProgIds][0]
+    const sid = selectedSessIds.size === 1 ? [...selectedSessIds][0] : null
+    const prog = programs.find(p => p.id === pid)
+    const autoSems = prog?.duration
+      ? (prog.semester_year === 'Year' ? prog.duration * 2 : prog.duration)
+      : 4
+    setTotalSems(autoSems)
+    loadSingle(pid, sid, autoSems)
+  }, [selectedProgIds, selectedSessIds])
 
-  async function load(defaultSems = 4) {
+  async function loadSingle(pid, sid, defaultSems = 4) {
     setLoading(true); setSaved(false)
     let q = supabase.from('fee_structures')
       .select('*, fee_items(id, label, category, amount, sort_order)')
-      .eq('program_id', progId)
-    q = sessId ? q.eq('session_id', sessId) : q.is('session_id', null)
+      .eq('program_id', pid)
+    q = sid ? q.eq('session_id', sid) : q.is('session_id', null)
     const { data } = await q.maybeSingle()
     if (data) {
-      setStructId(data.id); setTotalSems(data.total_semesters || defaultSems)
+      setTotalSems(data.total_semesters || defaultSems)
       const sorted = [...(data.fee_items || [])].sort((a, b) => a.sort_order - b.sort_order)
       setItems(sorted.map(i => ({ ...i, _key: uid() })))
       setSaved(true)
     } else {
-      setStructId(null); setTotalSems(defaultSems); setItems(keyed(DEFAULTS))
+      setTotalSems(defaultSems); setItems(keyed(DEFAULTS))
     }
     setLoading(false)
   }
@@ -152,30 +155,45 @@ export default function FeeManagement() {
   const del = key => setItems(p => p.filter(i => i._key !== key))
 
   async function handleSave() {
-    if (!progId) return
+    if (selectedProgIds.size === 0) return
     setSaving(true); setSaved(false)
-    let sid = structId
-    if (!sid) {
-      const { data } = await supabase.from('fee_structures').insert({
-        program_id: progId, session_id: sessId || null, total_semesters: totalSems,
-      }).select('id').single()
-      sid = data?.id
-    } else {
-      await supabase.from('fee_structures').update({ session_id: sessId || null, total_semesters: totalSems }).eq('id', sid)
-    }
-    if (!sid) { setSaving(false); return }
-    await supabase.from('fee_items').delete().eq('fee_structure_id', sid)
+
+    const progList = [...selectedProgIds]
+    const sessList = selectedSessIds.size > 0 ? [...selectedSessIds] : [null]
     const valid = items.filter(i => i.label.trim())
-    if (valid.length) {
-      await supabase.from('fee_items').insert(
-        valid.map((i, idx) => ({
-          fee_structure_id: sid, label: i.label.trim(),
-          category: i.category, amount: parseFloat(i.amount) || 0, sort_order: idx,
-        }))
-      )
+
+    for (const pid of progList) {
+      for (const rawSid of sessList) {
+        // Upsert fee_structure
+        let q = supabase.from('fee_structures').select('id').eq('program_id', pid)
+        q = rawSid ? q.eq('session_id', rawSid) : q.is('session_id', null)
+        const { data: existing } = await q.maybeSingle()
+
+        let fid = existing?.id
+        if (fid) {
+          await supabase.from('fee_structures').update({ total_semesters: totalSems }).eq('id', fid)
+        } else {
+          const { data } = await supabase.from('fee_structures').insert({
+            program_id: pid, session_id: rawSid || null, total_semesters: totalSems,
+          }).select('id').single()
+          fid = data?.id
+        }
+        if (!fid) continue
+
+        await supabase.from('fee_items').delete().eq('fee_structure_id', fid)
+        if (valid.length) {
+          await supabase.from('fee_items').insert(
+            valid.map((i, idx) => ({
+              fee_structure_id: fid, label: i.label.trim(),
+              category: i.category, amount: parseFloat(i.amount) || 0, sort_order: idx,
+            }))
+          )
+        }
+      }
     }
-    setStructId(sid); setSaving(false); setSaved(true)
-    fetchMaster() // refresh master list
+
+    setSaving(false); setSaved(true)
+    fetchMaster()
   }
 
   /* ── cascading filter logic ── */
@@ -198,7 +216,9 @@ export default function FeeManagement() {
   const perSem1         = dividePerSem + multiply1PerSem                    // Sem 1 recurring
   const perSem          = dividePerSem + multiply1PerSem + multiply2PerSem  // Sem 2+ recurring
   const grandTotal      = entryTotal + divideTotal + multiply1PerSem * totalSems + multiply2PerSem * Math.max(totalSems - 1, 0)
-  const progName        = programs.find(p => p.id === progId)?.program_name || ''
+  const progName = selectedProgIds.size === 1
+    ? (programs.find(p => p.id === [...selectedProgIds][0])?.program_name || '')
+    : selectedProgIds.size > 1 ? `${selectedProgIds.size} programs selected` : ''
 
   return (
     <div className="p-6">
@@ -210,7 +230,7 @@ export default function FeeManagement() {
           { key: 'master', label: 'Fee Master', icon: <List size={14} /> },
           { key: 'editor', label: 'Add / Edit Fee', icon: <Plus size={14} /> },
         ].map(t => (
-          <button key={t.key} onClick={() => { setTab(t.key); if (t.key === 'editor' && !progId) { setItems(keyed(DEFAULTS)); setSaved(false) } }}
+          <button key={t.key} onClick={() => { setTab(t.key); if (t.key === 'editor' && selectedProgIds.size === 0) { setItems(keyed(DEFAULTS)); setSaved(false) } }}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t.key ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             {t.icon} {t.label}
             {t.key === 'master' && masterList.length > 0 && (
@@ -333,13 +353,13 @@ export default function FeeManagement() {
         <>
           {/* Cascading Selectors */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6 shadow-sm">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Select Program</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Select Programs & Sessions</p>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
               <SearchableDropdown
                 label="Step 1 — Department"
                 placeholder="Search & select department"
                 value={deptId}
-                onChange={v => { setDeptId(v); setTypeId(''); setProgId(''); setStructId(null); setSaved(false) }}
+                onChange={v => { setDeptId(v); setTypeId(''); setSelectedProgIds(new Set()); setIsEditMode(false); setSaved(false) }}
                 options={departments}
                 getLabel={d => d.name}
               />
@@ -347,27 +367,44 @@ export default function FeeManagement() {
                 label="Step 2 — Program Type"
                 placeholder={deptId ? 'Search & select type' : 'Select department first'}
                 value={typeId}
-                onChange={v => { setTypeId(v); setProgId(''); setStructId(null); setSaved(false) }}
+                onChange={v => { setTypeId(v); setSelectedProgIds(new Set()); setIsEditMode(false); setSaved(false) }}
                 options={availableTypes}
                 getLabel={t => t.programme_type_name}
                 disabled={!deptId}
               />
-              <SearchableDropdown
-                label="Step 3 — Program Name"
-                placeholder={typeId ? 'Search & select program' : 'Select program type first'}
-                value={progId}
-                onChange={v => { setProgId(v); setStructId(null); setSaved(false) }}
+              <MultiCheckDropdown
+                label="Step 3 — Programs"
+                placeholder={typeId ? 'Select programs' : 'Select type first'}
+                selectedIds={selectedProgIds}
+                onChange={v => { setSelectedProgIds(v); setIsEditMode(false); setSaved(false) }}
                 options={filteredProgs}
                 getLabel={p => p.program_name}
                 disabled={!typeId}
               />
+              <MultiCheckDropdown
+                label="Sessions"
+                placeholder="All Sessions (no filter)"
+                selectedIds={selectedSessIds}
+                onChange={v => { setSelectedSessIds(v); setIsEditMode(false); setSaved(false) }}
+                options={sessions}
+                getLabel={s => s.session_name}
+              />
             </div>
             <div className="flex flex-wrap gap-3 items-center border-t border-gray-100 pt-4">
-              <select className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] bg-white"
-                value={sessId} onChange={e => { setSessId(e.target.value); setStructId(null); setSaved(false) }}>
-                <option value="">All Sessions</option>
-                {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
-              </select>
+              {selectedProgIds.size > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                  <span className="bg-[#933d18]/10 text-[#933d18] font-bold px-2.5 py-1 rounded-full">
+                    {selectedProgIds.size} program{selectedProgIds.size > 1 ? 's' : ''}
+                  </span>
+                  {selectedSessIds.size > 0 && (
+                    <><span className="text-gray-300">×</span>
+                    <span className="bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1 rounded-full">
+                      {selectedSessIds.size} session{selectedSessIds.size > 1 ? 's' : ''}
+                    </span>
+                    <span className="text-gray-400">= {selectedProgIds.size * selectedSessIds.size} structures</span></>
+                  )}
+                </div>
+              )}
               <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2.5">
                 <span className="text-sm text-gray-500 whitespace-nowrap">Total Semesters</span>
                 <select className="text-sm font-black text-[#933d18] focus:outline-none bg-transparent"
@@ -375,19 +412,19 @@ export default function FeeManagement() {
                   {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
-              {progId && (
+              {selectedProgIds.size > 0 && (
                 <Button onClick={handleSave} disabled={saving}>
                   <Save size={14} />
-                  {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save'}
+                  {saving ? 'Saving...' : saved ? '✓ Saved' : `Save${selectedProgIds.size > 1 || selectedSessIds.size > 1 ? ' All' : ''}`}
                 </Button>
               )}
             </div>
           </div>
 
-          {!progId ? (
+          {selectedProgIds.size === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-gray-300">
               <GraduationCap size={52} className="mb-3" />
-              <p className="text-base font-semibold text-gray-400">Select a program to configure fees</p>
+              <p className="text-base font-semibold text-gray-400">Select at least one program to configure fees</p>
             </div>
           ) : loading ? (
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
@@ -519,6 +556,105 @@ export default function FeeManagement() {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function MultiCheckDropdown({ label, placeholder, selectedIds, onChange, options, getLabel, disabled }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function onOut(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onOut)
+    return () => document.removeEventListener('mousedown', onOut)
+  }, [])
+
+  const filtered = options.filter(o => getLabel(o).toLowerCase().includes(search.toLowerCase()))
+  const count = selectedIds.size
+  const allSelected = count === options.length && options.length > 0
+
+  const toggle = (id) => {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(next)
+  }
+
+  const toggleAll = () => {
+    onChange(allSelected ? new Set() : new Set(options.map(o => o.id)))
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">{label}</p>
+      <button type="button" disabled={disabled} onClick={() => !disabled && setOpen(o => !o)}
+        className={`w-full flex items-center justify-between gap-2 border rounded-xl px-3 py-2.5 text-sm text-left transition-all
+          ${disabled ? 'bg-gray-50 text-gray-300 cursor-not-allowed border-gray-100'
+            : open ? 'border-[#933d18] ring-2 ring-[#933d18]/15 bg-white'
+            : 'bg-white border-gray-200 hover:border-[#933d18]'}`}>
+        <span className={`truncate flex-1 ${count && !disabled ? 'text-gray-900 font-semibold' : 'text-gray-400'}`}>
+          {count ? `${count} selected` : placeholder}
+        </span>
+        {count > 0 && (
+          <span className="bg-[#933d18] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">{count}</span>
+        )}
+        <ChevronDown size={14} className={`shrink-0 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-40 top-full mt-1.5 left-0 right-0 min-w-[220px] bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-gray-100 bg-gray-50">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input autoFocus
+                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-[#933d18]"
+                placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+          </div>
+          {options.length > 0 && (
+            <div className="px-2 pt-1.5 pb-1 border-b border-gray-100">
+              <button type="button" onClick={toggleAll}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-bold text-[#933d18] hover:bg-[#933d18]/5 rounded-lg transition-colors">
+                <Checkbox checked={allSelected} indeterminate={count > 0 && !allSelected} />
+                Select All ({options.length})
+              </button>
+            </div>
+          )}
+          <div className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-4 text-xs text-gray-400 text-center">No results</p>
+            ) : filtered.map(o => (
+              <button type="button" key={o.id} onClick={() => toggle(o.id)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors border-b border-gray-50 last:border-0
+                  ${selectedIds.has(o.id) ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}`}>
+                <Checkbox checked={selectedIds.has(o.id)} />
+                <span className={selectedIds.has(o.id) ? 'text-gray-900 font-semibold text-xs' : 'text-gray-700 text-xs'}>
+                  {getLabel(o)}
+                </span>
+              </button>
+            ))}
+          </div>
+          {count > 0 && (
+            <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+              <span className="text-xs text-gray-500">{count} selected</span>
+              <button type="button" onClick={() => onChange(new Set())}
+                className="text-xs text-red-500 hover:text-red-700 font-semibold">Clear</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Checkbox({ checked, indeterminate }) {
+  return (
+    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors
+      ${checked ? 'bg-[#933d18] border-[#933d18]' : indeterminate ? 'bg-[#933d18]/20 border-[#933d18]' : 'border-gray-300 bg-white'}`}>
+      {checked && <svg width="9" height="7" viewBox="0 0 9 7" fill="none"><path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+      {!checked && indeterminate && <div className="w-2 h-0.5 bg-[#933d18] rounded-full" />}
     </div>
   )
 }
