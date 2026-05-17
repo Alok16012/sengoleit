@@ -24,6 +24,7 @@ import SessionForm from './pages/admin/SessionForm'
 import Location from './pages/admin/Location'
 import AccountDepartment from './pages/admin/AccountDepartment'
 import DocumentDepartment from './pages/admin/DocumentDepartment'
+import FeeManagement from './pages/admin/FeeManagement'
 import Boards from './pages/admin/Boards'
 
 // Super Center portal
@@ -105,6 +106,7 @@ export default function App() {
             <Route path="/admin/location" element={<Location />} />
             <Route path="/admin/account-department" element={<AccountDepartment />} />
             <Route path="/admin/document-department" element={<DocumentDepartment />} />
+            <Route path="/admin/fee-management" element={<FeeManagement />} />
             <Route path="/admin/boards" element={<Boards />} />
 
             {/* Super Center portal */}
