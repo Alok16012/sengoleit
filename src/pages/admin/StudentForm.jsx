@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, ChevronDown, CheckCircle2 } from 'lucide-react'
 
-function AddressBlock({ prefix, label, form, onChange, setForm, states, districts }) {
+function AddressBlock({ prefix, label, form, onChange, setForm, states, districts, sameAsOptions }) {
   // Deduplicate states by name for the dropdown (DB may have duplicate entries)
   const uniqueStates = states.filter((s, i, arr) => arr.findIndex(x => x.state_name === s.state_name) === i)
 
@@ -23,7 +23,17 @@ function AddressBlock({ prefix, label, form, onChange, setForm, states, district
 
   return (
     <div className="bg-gray-50/60 rounded-xl p-4 space-y-4 border border-gray-100">
-      <p className="text-xs font-black text-[#933d18] uppercase tracking-widest">{label}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-black text-[#933d18] uppercase tracking-widest">{label}</p>
+        {sameAsOptions && sameAsOptions.map(opt => (
+          <label key={opt.label} className="flex items-center gap-1.5 cursor-pointer group select-none">
+            <input type="checkbox" checked={opt.checked}
+              onChange={e => { if (e.target.checked) opt.onCopy(); opt.onToggle(e.target.checked) }}
+              className="w-3.5 h-3.5 accent-[#933d18] cursor-pointer rounded" />
+            <span className="text-[11px] font-semibold text-[#933d18] group-hover:underline">{opt.label}</span>
+          </label>
+        ))}
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} />
         <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} />
@@ -292,6 +302,17 @@ export default function StudentForm() {
   }, [])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+
+  const ADDR_KEYS = ['village_town', 'landmark', 'post_office', 'city', 'pin_code', 'state', 'district']
+  const copyAddress = (from, to) => setForm(f => {
+    const next = { ...f }
+    ADDR_KEYS.forEach(k => { next[`${to}_${k}`] = f[`${from}_${k}`] || '' })
+    return next
+  })
+
+  const [pressSameAsPerm, setPressSameAsPerm]           = useState(false)
+  const [guardianPresSameAsStudent, setGuardianPresSameAsStudent] = useState(false)
+  const [guardianPermSameAsPres, setGuardianPermSameAsPres]   = useState(false)
 
   const handleDepartmentChange = (e) => {
     setForm(f => ({ ...f, department_id: e.target.value, programme_id: '', course_code: '', semester_year: '' }))
@@ -678,10 +699,40 @@ export default function StudentForm() {
           <div id="sec-contact">
             <FormSection title="Contact Information" icon={<MapPin size={16} />}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <AddressBlock prefix="student_perm" label="Student Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
-                <AddressBlock prefix="student_pres" label="Student Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
-                <AddressBlock prefix="guardian_pres" label="Guardian Present Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
-                <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address" form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+                <AddressBlock prefix="student_perm" label="Student Permanent Address"
+                  form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
+                <AddressBlock prefix="student_pres" label="Student Present Address"
+                  form={form} onChange={set} setForm={setForm} states={states} districts={districts}
+                  sameAsOptions={[{
+                    label: 'Same as Permanent Address',
+                    checked: pressSameAsPerm,
+                    onCopy: () => copyAddress('student_perm', 'student_pres'),
+                    onToggle: v => setPressSameAsPerm(v),
+                  }]} />
+                <AddressBlock prefix="guardian_pres" label="Guardian Present Address"
+                  form={form} onChange={set} setForm={setForm} states={states} districts={districts}
+                  sameAsOptions={[{
+                    label: "Same as Student's Present Address",
+                    checked: guardianPresSameAsStudent,
+                    onCopy: () => copyAddress('student_pres', 'guardian_pres'),
+                    onToggle: v => setGuardianPresSameAsStudent(v),
+                  }]} />
+                <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address"
+                  form={form} onChange={set} setForm={setForm} states={states} districts={districts}
+                  sameAsOptions={[
+                    {
+                      label: 'Same as Guardian Present Address',
+                      checked: guardianPermSameAsPres,
+                      onCopy: () => copyAddress('guardian_pres', 'guardian_perm'),
+                      onToggle: v => setGuardianPermSameAsPres(v),
+                    },
+                    {
+                      label: "Same as Student's Permanent Address",
+                      checked: false,
+                      onCopy: () => copyAddress('student_perm', 'guardian_perm'),
+                      onToggle: () => {},
+                    },
+                  ]} />
               </div>
             </FormSection>
           </div>
