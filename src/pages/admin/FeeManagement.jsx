@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, GraduationCap, Pencil, List } from 'lucide-react'
+import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X } from 'lucide-react'
+import { generateFeePDF } from '../../utils/generateFeePDF'
 
 // category types:
 //  'entry'    = one-time (Prospectus etc.)
@@ -48,6 +49,7 @@ export default function FeeManagement() {
   const [tab, setTab]           = useState('master')   // 'master' | 'editor'
   const [masterList, setMasterList] = useState([])
   const [masterLoading, setMasterLoading] = useState(true)
+  const [viewStruct, setViewStruct] = useState(null)
 
   // editor state
   const [programs, setPrograms]   = useState([])
@@ -77,6 +79,12 @@ export default function FeeManagement() {
       .order('created_at', { ascending: false })
     setMasterList(data || [])
     setMasterLoading(false)
+  }
+
+  async function handleDeleteStruct(id) {
+    if (!confirm('Delete this fee structure? This cannot be undone.')) return
+    await supabase.from('fee_structures').delete().eq('id', id)
+    fetchMaster()
   }
 
   function openEditor(struct = null) {
@@ -211,7 +219,7 @@ export default function FeeManagement() {
                     <th className="text-right text-white font-semibold px-4 py-3">Entry Fees</th>
                     <th className="text-right text-white font-semibold px-4 py-3">Per Sem</th>
                     <th className="text-right text-white font-semibold px-4 py-3">Grand Total</th>
-                    <th className="text-center text-white font-semibold px-4 py-3">Action</th>
+                    <th className="text-center text-white font-semibold px-4 py-3 whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -242,12 +250,24 @@ export default function FeeManagement() {
                           <span className="font-black text-gray-900">₹{fmt(t.grandTotal)}</span>
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => openEditor(struct)}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors mx-auto"
-                          >
-                            <Pencil size={12} /> Edit
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button onClick={() => setViewStruct(struct)} title="View"
+                              className="flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Eye size={12} /> View
+                            </button>
+                            <button onClick={() => generateFeePDF(struct)} title="Download PDF"
+                              className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Download size={12} /> PDF
+                            </button>
+                            <button onClick={() => openEditor(struct)} title="Edit"
+                              className="flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Pencil size={12} /> Edit
+                            </button>
+                            <button onClick={() => handleDeleteStruct(struct.id)} title="Delete"
+                              className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -273,6 +293,9 @@ export default function FeeManagement() {
           </>
         )
       )}
+
+      {/* ══════════════ VIEW MODAL ══════════════ */}
+      {viewStruct && <FeeViewModal struct={viewStruct} onClose={() => setViewStruct(null)} onPDF={() => generateFeePDF(viewStruct)} />}
 
       {/* ══════════════ EDITOR TAB ══════════════ */}
       {tab === 'editor' && (
@@ -426,6 +449,124 @@ export default function FeeManagement() {
           )}
         </>
       )}
+    </div>
+  )
+}
+
+function FeeViewModal({ struct, onClose, onPDF }) {
+  const sems       = struct.total_semesters || 4
+  const feeItems   = struct.fee_items || []
+  const entryItems    = feeItems.filter(i => i.category === 'entry')
+  const divideItems   = feeItems.filter(i => i.category === 'divide')
+  const multiplyItems = feeItems.filter(i => i.category === 'multiply')
+
+  const entryTotal    = entryItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const divideTotal   = divideItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const dividePerSem  = divideTotal / (sems || 1)
+  const multiplyPerSem = multiplyItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const perSem        = dividePerSem + multiplyPerSem
+  const grandTotal    = entryTotal + divideTotal + multiplyPerSem * sems
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-black text-gray-900 text-base">{struct.programs?.program_name}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {struct.academic_sessions?.session_name || 'All Sessions'} &nbsp;•&nbsp; {sems} Semesters
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onPDF}
+              className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl transition-colors">
+              <Download size={14} /> Download PDF
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Fee Structure Table */}
+        <div className="overflow-auto flex-1 p-4">
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#933d18]">
+                    <th className="text-left text-white font-semibold px-4 py-2.5 whitespace-nowrap">Fee Component</th>
+                    <th className="text-center text-white font-semibold px-3 py-2.5">Type</th>
+                    <th className="text-right text-white font-semibold px-3 py-2.5 whitespace-nowrap">Entry</th>
+                    {Array.from({ length: sems }, (_, i) => (
+                      <th key={i} className="text-right text-white font-semibold px-3 py-2.5 whitespace-nowrap">Sem {i + 1}</th>
+                    ))}
+                    <th className="text-right text-white font-semibold px-4 py-2.5 whitespace-nowrap">Course Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entryItems.filter(i => i.label).map((item, idx) => (
+                    <tr key={idx} className={idx % 2 === 0 ? 'bg-amber-50/40' : 'bg-white'}>
+                      <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                      <td className="px-3 py-2 text-center"><span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded text-[10px]">One-time</span></td>
+                      <td className="px-3 py-2 text-right font-semibold text-amber-700">{parseFloat(item.amount) > 0 ? `₹${fmt(parseFloat(item.amount))}` : '—'}</td>
+                      {Array.from({ length: sems }, (_, i) => <td key={i} className="px-3 py-2 text-right text-gray-300">—</td>)}
+                      <td className="px-4 py-2 text-right font-bold text-gray-800">{parseFloat(item.amount) > 0 ? `₹${fmt(parseFloat(item.amount))}` : '—'}</td>
+                    </tr>
+                  ))}
+                  {divideItems.filter(i => i.label).map((item, idx) => {
+                    const total = parseFloat(item.amount) || 0
+                    const ps    = sems > 0 ? total / sems : 0
+                    return (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-[#933d18]/5' : 'bg-white'}>
+                        <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                        <td className="px-3 py-2 text-center"><span className="bg-[#933d18]/10 text-[#933d18] font-bold px-2 py-0.5 rounded text-[10px]">÷{sems}</span></td>
+                        <td className="px-3 py-2 text-right text-gray-300">—</td>
+                        {Array.from({ length: sems }, (_, i) => <td key={i} className="px-3 py-2 text-right font-semibold text-[#933d18]">{ps > 0 ? `₹${fmt(ps)}` : '—'}</td>)}
+                        <td className="px-4 py-2 text-right font-bold text-gray-800">{total > 0 ? `₹${fmt(total)}` : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                  {multiplyItems.filter(i => i.label).map((item, idx) => {
+                    const ps = parseFloat(item.amount) || 0
+                    return (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-indigo-50/40' : 'bg-white'}>
+                        <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                        <td className="px-3 py-2 text-center"><span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px]">×{sems}</span></td>
+                        <td className="px-3 py-2 text-right text-gray-300">—</td>
+                        {Array.from({ length: sems }, (_, i) => <td key={i} className="px-3 py-2 text-right font-semibold text-indigo-700">{ps > 0 ? `₹${fmt(ps)}` : '—'}</td>)}
+                        <td className="px-4 py-2 text-right font-bold text-gray-800">{ps > 0 ? `₹${fmt(ps * sems)}` : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-800">
+                    <td className="px-4 py-3 font-black text-white">TOTAL</td>
+                    <td className="px-3 py-3"></td>
+                    <td className="px-3 py-3 text-right font-black text-amber-300">{entryTotal > 0 ? `₹${fmt(entryTotal)}` : '—'}</td>
+                    {Array.from({ length: sems }, (_, i) => {
+                      const semAmt = i === 0 ? entryTotal + perSem : perSem
+                      return <td key={i} className="px-3 py-3 text-right font-black text-white">₹{fmt(semAmt)}</td>
+                    })}
+                    <td className="px-4 py-3 text-right font-black text-emerald-400">₹{fmt(grandTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Summary bar */}
+          <div className="flex flex-wrap gap-5 mt-3 px-1 text-xs">
+            <span className="text-gray-500">Entry: <strong className="text-amber-700">₹{fmt(entryTotal)}</strong></span>
+            <span className="text-gray-500">Univ. Fee/sem: <strong className="text-[#933d18]">₹{fmt(dividePerSem)}</strong></span>
+            <span className="text-gray-500">Other/sem: <strong className="text-indigo-700">₹{fmt(multiplyPerSem)}</strong></span>
+            <span className="text-gray-500">Per Sem: <strong className="text-gray-900">₹{fmt(perSem)}</strong></span>
+            <span className="text-gray-500">Grand Total: <strong className="text-[#933d18] text-sm">₹{fmt(grandTotal)}</strong></span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
