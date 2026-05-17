@@ -374,11 +374,12 @@ export default function FeeManagement() {
               />
               <MultiCheckDropdown
                 label="Step 3 — Programs"
-                placeholder={typeId ? 'Select programs' : 'Select type first'}
+                placeholder={typeId ? 'Search by name or short name' : 'Select type first'}
                 selectedIds={selectedProgIds}
                 onChange={v => { setSelectedProgIds(v); setIsEditMode(false); setSaved(false) }}
                 options={filteredProgs}
                 getLabel={p => p.program_name}
+                getSubLabel={p => p.short_name}
                 disabled={!typeId}
               />
               <MultiCheckDropdown
@@ -560,7 +561,7 @@ export default function FeeManagement() {
   )
 }
 
-function MultiCheckDropdown({ label, placeholder, selectedIds, onChange, options, getLabel, disabled }) {
+function MultiCheckDropdown({ label, placeholder, selectedIds, onChange, options, getLabel, getSubLabel, disabled }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef(null)
@@ -571,7 +572,11 @@ function MultiCheckDropdown({ label, placeholder, selectedIds, onChange, options
     return () => document.removeEventListener('mousedown', onOut)
   }, [])
 
-  const filtered = options.filter(o => getLabel(o).toLowerCase().includes(search.toLowerCase()))
+  const q = search.toLowerCase()
+  const filtered = options.filter(o =>
+    getLabel(o).toLowerCase().includes(q) ||
+    (getSubLabel && getSubLabel(o)?.toLowerCase().includes(q))
+  )
   const count = selectedIds.size
   const allSelected = count === options.length && options.length > 0
 
@@ -630,8 +635,15 @@ function MultiCheckDropdown({ label, placeholder, selectedIds, onChange, options
                 className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors border-b border-gray-50 last:border-0
                   ${selectedIds.has(o.id) ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}`}>
                 <Checkbox checked={selectedIds.has(o.id)} />
-                <span className={selectedIds.has(o.id) ? 'text-gray-900 font-semibold text-xs' : 'text-gray-700 text-xs'}>
-                  {getLabel(o)}
+                <span className="flex-1 text-left">
+                  <span className={selectedIds.has(o.id) ? 'text-gray-900 font-semibold text-xs' : 'text-gray-700 text-xs'}>
+                    {getLabel(o)}
+                  </span>
+                  {getSubLabel && getSubLabel(o) && (
+                    <span className="ml-1.5 text-[10px] font-bold text-[#933d18] bg-[#933d18]/8 px-1.5 py-0.5 rounded">
+                      {getSubLabel(o)}
+                    </span>
+                  )}
                 </span>
               </button>
             ))}
