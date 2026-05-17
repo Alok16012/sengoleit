@@ -8,7 +8,7 @@ import FormSection from '../../components/ui/FormSection'
 import { BookOpen, Settings, IndianRupee, FileText } from 'lucide-react'
 
 const emptyForm = {
-  program_name: '', course_code: '', short_name: '',
+  program_name: '', course_code: '', enrollment_code: '', short_name: '',
   university_id: '', department_id: '', programme_type_id: '', mode_id: '', mode_of_study_id: '',
   stream: '', duration: '', complete_duration: '', semester_year: '',
   seats_limit: '', fees_per_year: '', fees_per_semester: '',
@@ -78,9 +78,10 @@ export default function ProgramForm() {
             <Input label="Program Name *" placeholder="e.g. B.Tech in Computer Science" value={form.program_name} onChange={set('program_name')} required />
             <Input label="Short Name" placeholder="e.g. B.Tech" value={form.short_name} onChange={set('short_name')} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Course Code" placeholder="e.g. SET 101" value={form.course_code} onChange={set('course_code')} />
-            <Input label="Specialisation" placeholder="e.g. Computer Science, Agriculture" value={form.stream} onChange={set('stream')} />
+          <div className="grid grid-cols-3 gap-4">
+            <Input label="Course Code" placeholder="e.g. SET101" value={form.course_code} onChange={set('course_code')} />
+            <Input label="Enrollment Code *" placeholder="e.g. PUCCC" value={form.enrollment_code} onChange={set('enrollment_code')} />
+            <Input label="Specialisation" placeholder="e.g. Computer Science" value={form.stream} onChange={set('stream')} />
           </div>
         </FormSection>
 

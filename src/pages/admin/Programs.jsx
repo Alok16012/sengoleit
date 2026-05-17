@@ -76,6 +76,7 @@ export default function Programs() {
               <Th>#</Th>
               <Th>Program Name</Th>
               <Th>Course Code</Th>
+              <Th>Enrollment Code</Th>
               <Th>Short Name</Th>
               <Th>Specialisation</Th>
               <Th>University</Th>
@@ -101,6 +102,11 @@ export default function Programs() {
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td><p className="font-semibold text-gray-900 whitespace-nowrap">{p.program_name}</p></Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.course_code || '—'}</Td>
+                <Td>
+                  {p.enrollment_code
+                    ? <span className="font-mono text-xs font-bold text-[#933d18] bg-[#933d18]/8 px-2 py-0.5 rounded">{p.enrollment_code}</span>
+                    : <span className="text-gray-300 text-xs">—</span>}
+                </Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.short_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.stream || '—'}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.universities?.university_name || '—'}</Td>

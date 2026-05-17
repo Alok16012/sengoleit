@@ -42,7 +42,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*').eq('approval_status', 'pending').order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*').order('created_at', { ascending: false }),
       supabase.from('centers').select('*').not('approval_status', 'eq', 'pending').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, programs(program_name, enrollment_code), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').order('created_at', { ascending: false }),
     ])
     setApprovals(appr.data || [])
     setRecharges(rech.data || [])
@@ -182,14 +182,23 @@ export default function AccountDepartment() {
     setStudentRemarks('')
   }
 
-  async function generateEnrollmentNumber() {
-    const { count } = await supabase
-      .from('students')
+  async function generateEnrollmentNumber(student) {
+    const enrollCode = student.programs?.enrollment_code || 'GEN'
+    const sessName   = student.academic_sessions?.session_name || ''
+    const yearMatch  = sessName.match(/(\d{4})/)
+    const yy         = yearMatch ? yearMatch[1].slice(-2) : String(new Date().getFullYear()).slice(-2)
+    const prefix     = `EN${yy}${enrollCode}`
+
+    // Count enrollments for same program + session to keep sequence per-program
+    let q = supabase.from('students')
       .select('*', { count: 'exact', head: true })
       .not('enrollment_no', 'is', null)
       .neq('enrollment_no', '')
-    const year = new Date().getFullYear()
-    return `ENR-${year}-${String((count || 0) + 1).padStart(5, '0')}`
+    if (student.programme_id) q = q.eq('programme_id', student.programme_id)
+    if (student.session_id)   q = q.eq('session_id', student.session_id)
+    const { count } = await q
+
+    return `${prefix}${String((count || 0) + 1).padStart(4, '0')}`
   }
 
   async function confirmStudentAction() {
@@ -199,7 +208,7 @@ export default function AccountDepartment() {
       return
     }
     if (type === 'approve') {
-      const enrollNo = await generateEnrollmentNumber()
+      const enrollNo = await generateEnrollmentNumber(student)
       await supabase.from('students').update({
         status: 'Approved',
         enrollment_no: enrollNo,
