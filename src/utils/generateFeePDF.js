@@ -14,17 +14,19 @@ const fmt = n => {
 
 function calcTotals(feeItems, totalSems) {
   const sems = totalSems || 1
-  let entryTotal = 0, divideTotal = 0, multiplyPerSem = 0
+  let entryTotal = 0, divideTotal = 0, multiplyPerSem = 0, multiply2PerSem = 0
   ;(feeItems || []).forEach(i => {
     const a = parseFloat(i.amount) || 0
-    if (i.category === 'entry')    entryTotal     += a
-    if (i.category === 'divide')   divideTotal    += a
-    if (i.category === 'multiply') multiplyPerSem += a
+    if (i.category === 'entry')     entryTotal      += a
+    if (i.category === 'divide')    divideTotal     += a
+    if (i.category === 'multiply')  multiplyPerSem  += a
+    if (i.category === 'multiply2') multiply2PerSem += a
   })
   const dividePerSem = divideTotal / sems
-  const perSem       = dividePerSem + multiplyPerSem
-  const grandTotal   = entryTotal + divideTotal + multiplyPerSem * sems
-  return { entryTotal, divideTotal, dividePerSem, multiplyPerSem, perSem, grandTotal }
+  const perSem1      = dividePerSem + multiplyPerSem
+  const perSem       = dividePerSem + multiplyPerSem + multiply2PerSem
+  const grandTotal   = entryTotal + divideTotal + multiplyPerSem * sems + multiply2PerSem * Math.max(sems - 1, 0)
+  return { entryTotal, divideTotal, dividePerSem, multiplyPerSem, multiply2PerSem, perSem1, perSem, grandTotal }
 }
 
 export function generateFeePDF(struct) {
@@ -32,11 +34,12 @@ export function generateFeePDF(struct) {
   const sems      = total_semesters || 4
   const progName  = programs?.program_name || '—'
   const sessName  = academic_sessions?.session_name || 'All Sessions'
-  const { entryTotal, divideTotal, dividePerSem, multiplyPerSem, perSem, grandTotal } = calcTotals(fee_items, sems)
+  const { entryTotal, divideTotal, dividePerSem, multiplyPerSem, multiply2PerSem, perSem1, perSem, grandTotal } = calcTotals(fee_items, sems)
 
   const entryItems    = (fee_items || []).filter(i => i.category === 'entry')
   const divideItems   = (fee_items || []).filter(i => i.category === 'divide')
   const multiplyItems = (fee_items || []).filter(i => i.category === 'multiply')
+  const multiply2Items = (fee_items || []).filter(i => i.category === 'multiply2')
 
   /* ── semester header cells ── */
   const semHeaders = Array.from({ length: sems }, (_, i) =>
@@ -60,6 +63,11 @@ export function generateFeePDF(struct) {
       semCells  = Array.from({ length: sems }, () =>
         `<td style="padding:5px 8px;text-align:right;font-weight:600;color:#933d18;font-size:9px;">${ps > 0 ? '₹' + fmt(ps) : '—'}</td>`).join('')
       totalCell = `<td style="padding:5px 8px;text-align:right;font-weight:700;color:#111;font-size:9px;">₹${fmt(a)}</td>`
+    } else if (item.category === 'multiply2') {
+      semCells = `<td style="padding:5px 8px;text-align:right;color:#d1d5db;font-size:9px;">—</td>`
+        + Array.from({ length: sems - 1 }, () =>
+          `<td style="padding:5px 8px;text-align:right;font-weight:600;color:#7c3aed;font-size:9px;">${a > 0 ? '₹' + fmt(a) : '—'}</td>`).join('')
+      totalCell = `<td style="padding:5px 8px;text-align:right;font-weight:700;color:#111;font-size:9px;">${a > 0 ? '₹' + fmt(a * Math.max(sems - 1, 0)) : '—'}</td>`
     } else {
       semCells  = Array.from({ length: sems }, () =>
         `<td style="padding:5px 8px;text-align:right;font-weight:600;color:#4338ca;font-size:9px;">${a > 0 ? '₹' + fmt(a) : '—'}</td>`).join('')
@@ -70,7 +78,9 @@ export function generateFeePDF(struct) {
       ? `<span style="background:#fef3c7;color:#92400e;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;">One-time</span>`
       : item.category === 'divide'
         ? `<span style="background:#fef9f6;color:#933d18;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;">÷${sems}</span>`
-        : `<span style="background:#eef2ff;color:#4338ca;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;">×${sems}</span>`
+        : item.category === 'multiply2'
+          ? `<span style="background:#f3e8ff;color:#7c3aed;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;">Sem 2+</span>`
+          : `<span style="background:#eef2ff;color:#4338ca;font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;">×${sems}</span>`
 
     const rowBg = bgLight ? 'background:#f9fafb;' : 'background:#ffffff;'
     return `<tr style="${rowBg}border-bottom:1px solid #f3f4f6;">
@@ -84,14 +94,14 @@ export function generateFeePDF(struct) {
 
   /* ── semester totals row ── */
   const semTotalCells = Array.from({ length: sems }, (_, i) => {
-    const amt = i === 0 ? entryTotal + perSem : perSem
+    const amt = i === 0 ? entryTotal + perSem1 : perSem
     return `<td style="padding:6px 8px;text-align:right;font-weight:900;color:white;font-size:9.5px;white-space:nowrap;">₹${fmt(amt)}</td>`
   }).join('')
 
   /* ── summary row (sem-wise cumulative) ── */
   const cumulRows = Array.from({ length: sems }, (_, i) => {
-    const semPay  = i === 0 ? entryTotal + perSem : perSem
-    const cumul   = entryTotal + perSem * (i + 1)
+    const semPay  = i === 0 ? entryTotal + perSem1 : perSem
+    const cumul   = entryTotal + perSem1 + perSem * i
     const isFirst = i === 0
     return `<tr style="${isFirst ? 'background:#fef9f6;' : ''}border-bottom:1px solid #f3f4f6;">
       <td style="padding:5px 10px;font-size:9.5px;font-weight:700;color:#111;">Semester ${i + 1}${isFirst ? ' *' : ''}</td>
@@ -104,6 +114,7 @@ export function generateFeePDF(struct) {
     ...entryItems.map((item, i) => feeRow(item, i, i % 2 === 0)),
     ...divideItems.map((item, i) => feeRow(item, i, i % 2 !== 0)),
     ...multiplyItems.map((item, i) => feeRow(item, i, i % 2 === 0)),
+    ...multiply2Items.map((item, i) => feeRow(item, i, i % 2 !== 0)),
   ].join('')
 
   const html = `<!DOCTYPE html>
@@ -247,8 +258,10 @@ export function generateFeePDF(struct) {
             <table style="width:100%;">
               <tr><td style="font-size:9px;color:#555;padding:3px 0;">One-time Entry Fees</td><td style="font-size:9px;font-weight:700;color:#d97706;text-align:right;padding:3px 0;">₹${fmt(entryTotal)}</td></tr>
               <tr><td style="font-size:9px;color:#555;padding:3px 0;">University Fee (Total Course)</td><td style="font-size:9px;font-weight:700;color:#933d18;text-align:right;padding:3px 0;">₹${fmt(divideTotal)}</td></tr>
-              <tr><td style="font-size:9px;color:#555;padding:3px 0;">Other Sem Fees (×${sems} sems)</td><td style="font-size:9px;font-weight:700;color:#4338ca;text-align:right;padding:3px 0;">₹${fmt(multiplyPerSem * sems)}</td></tr>
-              <tr style="border-top:1.5px solid #e5e7eb;"><td style="font-size:10px;font-weight:700;color:#111;padding:5px 0 0;">Per Semester Amount</td><td style="font-size:10px;font-weight:900;color:#059669;text-align:right;padding:5px 0 0;">₹${fmt(perSem)}</td></tr>
+              <tr><td style="font-size:9px;color:#555;padding:3px 0;">Per Sem Fees (×${sems} sems)</td><td style="font-size:9px;font-weight:700;color:#4338ca;text-align:right;padding:3px 0;">₹${fmt(multiplyPerSem * sems)}</td></tr>
+              <tr><td style="font-size:9px;color:#555;padding:3px 0;">Reg. Fee from Sem 2 (×${Math.max(sems-1,0)} sems)</td><td style="font-size:9px;font-weight:700;color:#7c3aed;text-align:right;padding:3px 0;">₹${fmt(multiply2PerSem * Math.max(sems-1,0))}</td></tr>
+              <tr style="border-top:1.5px solid #e5e7eb;"><td style="font-size:10px;font-weight:700;color:#111;padding:5px 0 0;">Sem 1 Amount</td><td style="font-size:10px;font-weight:900;color:#059669;text-align:right;padding:5px 0 0;">₹${fmt(entryTotal + perSem1)}</td></tr>
+              <tr><td style="font-size:10px;font-weight:700;color:#111;padding:2px 0 0;">Sem 2+ Amount</td><td style="font-size:10px;font-weight:900;color:#7c3aed;text-align:right;padding:2px 0 0;">₹${fmt(perSem)}</td></tr>
               <tr style="border-top:1.5px solid #e5e7eb;"><td style="font-size:11px;font-weight:900;color:#111;padding:5px 0 0;">Grand Total</td><td style="font-size:13px;font-weight:900;color:#933d18;text-align:right;padding:5px 0 0;">₹${fmt(grandTotal)}</td></tr>
             </table>
           </div>

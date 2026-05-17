@@ -6,17 +6,18 @@ import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, Chev
 import { generateFeePDF } from '../../utils/generateFeePDF'
 
 // category types:
-//  'entry'    = one-time (Prospectus etc.)
-//  'divide'   = enter TOTAL, per-sem = total ÷ sems  (University Fee)
-//  'multiply' = enter PER-SEM, total = per-sem × sems (Exam, Form etc.)
+//  'entry'     = one-time (Prospectus etc.)
+//  'divide'    = enter TOTAL, per-sem = total ÷ sems  (University Fee)
+//  'multiply'  = enter PER-SEM, charged every sem (Exam, Form etc.)
+//  'multiply2' = enter PER-SEM, charged from Sem 2 onwards (Re-Registration etc.)
 
 const DEFAULTS = [
-  { label: 'Prospectus Fee',       category: 'entry',    amount: 0 },
-  { label: 'Enrollment Fee',       category: 'entry',    amount: 0 },
-  { label: 'University Fee',       category: 'divide',   amount: 0 },
-  { label: 'Form Fee',             category: 'multiply', amount: 0 },
-  { label: 'Exam Fee',             category: 'multiply', amount: 0 },
-  { label: 'Re-Registration Fee',  category: 'multiply', amount: 0 },
+  { label: 'Prospectus Fee',       category: 'entry',     amount: 0 },
+  { label: 'Enrollment Fee',       category: 'entry',     amount: 0 },
+  { label: 'University Fee',       category: 'divide',    amount: 0 },
+  { label: 'Form Fee',             category: 'multiply',  amount: 0 },
+  { label: 'Exam Fee',             category: 'multiply',  amount: 0 },
+  { label: 'Re-Registration Fee',  category: 'multiply2', amount: 0 },
 ]
 
 let _k = 0
@@ -29,17 +30,19 @@ const fmt   = n => (n % 1 === 0 ? n.toLocaleString() : n.toFixed(2))
 ───────────────────────────────────────── */
 function calcTotals(feeItems, totalSems) {
   const sems = totalSems || 1
-  let entryTotal = 0, divideTotal = 0, multiplyPerSem = 0
+  let entryTotal = 0, divideTotal = 0, multiplyPerSem = 0, multiply2PerSem = 0
   ;(feeItems || []).forEach(i => {
     const a = parseFloat(i.amount) || 0
-    if (i.category === 'entry')    entryTotal    += a
-    if (i.category === 'divide')   divideTotal   += a
-    if (i.category === 'multiply') multiplyPerSem += a
+    if (i.category === 'entry')     entryTotal      += a
+    if (i.category === 'divide')    divideTotal     += a
+    if (i.category === 'multiply')  multiplyPerSem  += a
+    if (i.category === 'multiply2') multiply2PerSem += a
   })
-  const dividePerSem  = divideTotal / sems
-  const perSem        = dividePerSem + multiplyPerSem
-  const grandTotal    = entryTotal + divideTotal + multiplyPerSem * sems
-  return { entryTotal, divideTotal, dividePerSem, multiplyPerSem, perSem, grandTotal }
+  const dividePerSem = divideTotal / sems
+  const perSem1      = dividePerSem + multiplyPerSem                    // Sem 1 recurring
+  const perSem       = dividePerSem + multiplyPerSem + multiply2PerSem  // Sem 2+ recurring
+  const grandTotal   = entryTotal + divideTotal + multiplyPerSem * sems + multiply2PerSem * Math.max(sems - 1, 0)
+  return { entryTotal, divideTotal, dividePerSem, multiplyPerSem, multiply2PerSem, perSem1, perSem, grandTotal }
 }
 
 /* ═══════════════════════════════════════
@@ -73,7 +76,7 @@ export default function FeeManagement() {
       .then(({ data }) => setDepartments(data || []))
     supabase.from('programme_types').select('id, programme_type_name').order('programme_type_name')
       .then(({ data }) => setProgrammeTypes(data || []))
-    supabase.from('programs').select('id, program_name, department_id, programme_type_id').order('program_name')
+    supabase.from('programs').select('id, program_name, department_id, programme_type_id, duration, semester_year').order('program_name')
       .then(({ data }) => setPrograms(data || []))
     supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false })
       .then(({ data }) => setSessions(data || []))
@@ -116,10 +119,17 @@ export default function FeeManagement() {
 
   useEffect(() => {
     if (tab !== 'editor' || !progId) return
-    if (!structId) load()
+    if (!structId) {
+      const prog = programs.find(p => p.id === progId)
+      const autoSems = prog?.duration
+        ? (prog.semester_year === 'Year' ? prog.duration * 2 : prog.duration)
+        : 4
+      setTotalSems(autoSems)
+      load(autoSems)
+    }
   }, [progId, sessId])
 
-  async function load() {
+  async function load(defaultSems = 4) {
     setLoading(true); setSaved(false)
     let q = supabase.from('fee_structures')
       .select('*, fee_items(id, label, category, amount, sort_order)')
@@ -127,12 +137,12 @@ export default function FeeManagement() {
     q = sessId ? q.eq('session_id', sessId) : q.is('session_id', null)
     const { data } = await q.maybeSingle()
     if (data) {
-      setStructId(data.id); setTotalSems(data.total_semesters || 4)
+      setStructId(data.id); setTotalSems(data.total_semesters || defaultSems)
       const sorted = [...(data.fee_items || [])].sort((a, b) => a.sort_order - b.sort_order)
       setItems(sorted.map(i => ({ ...i, _key: uid() })))
       setSaved(true)
     } else {
-      setStructId(null); setTotalSems(4); setItems(keyed(DEFAULTS))
+      setStructId(null); setTotalSems(defaultSems); setItems(keyed(DEFAULTS))
     }
     setLoading(false)
   }
@@ -175,16 +185,20 @@ export default function FeeManagement() {
   const filteredProgs  = typeId ? progsByDept.filter(p => p.programme_type_id === typeId) : progsByDept
 
   /* ── editor derived totals ── */
-  const entryItems    = items.filter(i => i.category === 'entry')
-  const divideItems   = items.filter(i => i.category === 'divide')
-  const multiplyItems = items.filter(i => i.category === 'multiply')
-  const entryTotal    = entryItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-  const dividePerSem  = divideItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0) / (totalSems || 1)
-  const divideTotal   = divideItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-  const multiplyPerSem = multiplyItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-  const perSem        = dividePerSem + multiplyPerSem
-  const grandTotal    = entryTotal + divideTotal + multiplyPerSem * totalSems
-  const progName      = programs.find(p => p.id === progId)?.program_name || ''
+  const entryItems     = items.filter(i => i.category === 'entry')
+  const divideItems    = items.filter(i => i.category === 'divide')
+  const multiply1Items = items.filter(i => i.category === 'multiply')
+  const multiply2Items = items.filter(i => i.category === 'multiply2')
+  const allMultiplyItems = [...multiply1Items, ...multiply2Items]
+  const entryTotal      = entryItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const divideTotal     = divideItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const dividePerSem    = divideTotal / (totalSems || 1)
+  const multiply1PerSem = multiply1Items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const multiply2PerSem = multiply2Items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const perSem1         = dividePerSem + multiply1PerSem                    // Sem 1 recurring
+  const perSem          = dividePerSem + multiply1PerSem + multiply2PerSem  // Sem 2+ recurring
+  const grandTotal      = entryTotal + divideTotal + multiply1PerSem * totalSems + multiply2PerSem * Math.max(totalSems - 1, 0)
+  const progName        = programs.find(p => p.id === progId)?.program_name || ''
 
   return (
     <div className="p-6">
@@ -398,12 +412,12 @@ export default function FeeManagement() {
                   colRight="Total Amount" showPerSem totalSems={totalSems} />
 
                 <FeeCol title="Per Semester Fees" badge="× sems"
-                  hint={`Enter per-sem → × ${totalSems} = total`}
+                  hint={`Per-sem amount (toggle Sem 2+ for reg. fees)`}
                   headerCls="bg-indigo-600" footerCls="bg-indigo-50 border-indigo-100"
                   textCls="text-indigo-700" addCls="text-indigo-600 border-indigo-300 hover:bg-indigo-50"
-                  items={multiplyItems} totalLabel="Per Sem Total" total={multiplyPerSem}
+                  items={allMultiplyItems} totalLabel="Per Sem (Sem 2+)" total={multiply1PerSem + multiply2PerSem}
                   onAdd={() => add('multiply')} onUpd={upd} onDel={del}
-                  colRight="Per Sem Amount" showTotal totalSems={totalSems} />
+                  colRight="Per Sem Amount" showTotal showToggle totalSems={totalSems} />
               </div>
 
               {/* Fee Structure Table */}
@@ -453,7 +467,7 @@ export default function FeeManagement() {
                           </tr>
                         )
                       })}
-                      {multiplyItems.filter(i => i.label).map((item, idx) => {
+                      {multiply1Items.filter(i => i.label).map((item, idx) => {
                         const ps = parseFloat(item.amount) || 0
                         return (
                           <tr key={item._key} className={idx % 2 === 0 ? 'bg-indigo-50/40' : 'bg-white'}>
@@ -465,6 +479,19 @@ export default function FeeManagement() {
                           </tr>
                         )
                       })}
+                      {multiply2Items.filter(i => i.label).map((item, idx) => {
+                        const ps = parseFloat(item.amount) || 0
+                        return (
+                          <tr key={item._key} className={idx % 2 === 0 ? 'bg-purple-50/40' : 'bg-white'}>
+                            <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                            <td className="px-3 py-2 text-center"><span className="bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded text-[10px]">Sem 2+</span></td>
+                            <td className="px-3 py-2 text-right text-gray-300">—</td>
+                            <td className="px-3 py-2 text-right text-gray-300">—</td>
+                            {Array.from({ length: totalSems - 1 }, (_, i) => <td key={i} className="px-3 py-2 text-right font-semibold text-purple-700">{ps > 0 ? `₹${fmt(ps)}` : '—'}</td>)}
+                            <td className="px-4 py-2 text-right font-bold text-gray-800">{ps > 0 ? `₹${fmt(ps * Math.max(totalSems - 1, 0))}` : '—'}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                     <tfoot>
                       <tr className="bg-gray-800 border-t-2 border-gray-700">
@@ -472,7 +499,7 @@ export default function FeeManagement() {
                         <td className="px-3 py-3"></td>
                         <td className="px-3 py-3 text-right font-black text-amber-300">{entryTotal > 0 ? `₹${fmt(entryTotal)}` : '—'}</td>
                         {Array.from({ length: totalSems }, (_, i) => {
-                          const semAmt = i === 0 ? entryTotal + perSem : perSem
+                          const semAmt = i === 0 ? entryTotal + perSem1 : perSem
                           return <td key={i} className="px-3 py-3 text-right font-black text-white">₹{fmt(semAmt)}</td>
                         })}
                         <td className="px-4 py-3 text-right font-black text-emerald-400">₹{fmt(grandTotal)}</td>
@@ -483,8 +510,8 @@ export default function FeeManagement() {
                 <div className="flex flex-wrap gap-6 px-5 py-3 bg-gray-50 border-t border-gray-100 text-xs">
                   <span className="text-gray-500">Entry: <strong className="text-amber-700">₹{fmt(entryTotal)}</strong></span>
                   <span className="text-gray-500">Univ. Fee/sem: <strong className="text-[#933d18]">₹{fmt(dividePerSem)}</strong></span>
-                  <span className="text-gray-500">Other/sem: <strong className="text-indigo-700">₹{fmt(multiplyPerSem)}</strong></span>
-                  <span className="text-gray-500">Per Sem Total: <strong className="text-gray-900">₹{fmt(perSem)}</strong></span>
+                  <span className="text-gray-500">Sem 1: <strong className="text-indigo-700">₹{fmt(entryTotal + perSem1)}</strong></span>
+                  <span className="text-gray-500">Sem 2+: <strong className="text-purple-700">₹{fmt(perSem)}</strong></span>
                   <span className="text-gray-500">Grand Total: <strong className="text-[#933d18] text-sm">₹{fmt(grandTotal)}</strong></span>
                 </div>
               </div>
@@ -573,14 +600,17 @@ function FeeViewModal({ struct, onClose, onPDF }) {
   const feeItems   = struct.fee_items || []
   const entryItems    = feeItems.filter(i => i.category === 'entry')
   const divideItems   = feeItems.filter(i => i.category === 'divide')
-  const multiplyItems = feeItems.filter(i => i.category === 'multiply')
+  const multiply1Items = feeItems.filter(i => i.category === 'multiply')
+  const multiply2Items = feeItems.filter(i => i.category === 'multiply2')
 
-  const entryTotal    = entryItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-  const divideTotal   = divideItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-  const dividePerSem  = divideTotal / (sems || 1)
-  const multiplyPerSem = multiplyItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
-  const perSem        = dividePerSem + multiplyPerSem
-  const grandTotal    = entryTotal + divideTotal + multiplyPerSem * sems
+  const entryTotal      = entryItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const divideTotal     = divideItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const dividePerSem    = divideTotal / (sems || 1)
+  const multiply1PerSem = multiply1Items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const multiply2PerSem = multiply2Items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const perSem1         = dividePerSem + multiply1PerSem
+  const perSem          = dividePerSem + multiply1PerSem + multiply2PerSem
+  const grandTotal      = entryTotal + divideTotal + multiply1PerSem * sems + multiply2PerSem * Math.max(sems - 1, 0)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -643,7 +673,7 @@ function FeeViewModal({ struct, onClose, onPDF }) {
                       </tr>
                     )
                   })}
-                  {multiplyItems.filter(i => i.label).map((item, idx) => {
+                  {multiply1Items.filter(i => i.label).map((item, idx) => {
                     const ps = parseFloat(item.amount) || 0
                     return (
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-indigo-50/40' : 'bg-white'}>
@@ -655,6 +685,19 @@ function FeeViewModal({ struct, onClose, onPDF }) {
                       </tr>
                     )
                   })}
+                  {multiply2Items.filter(i => i.label).map((item, idx) => {
+                    const ps = parseFloat(item.amount) || 0
+                    return (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-purple-50/40' : 'bg-white'}>
+                        <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                        <td className="px-3 py-2 text-center"><span className="bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded text-[10px]">Sem 2+</span></td>
+                        <td className="px-3 py-2 text-right text-gray-300">—</td>
+                        <td className="px-3 py-2 text-right text-gray-300">—</td>
+                        {Array.from({ length: sems - 1 }, (_, i) => <td key={i} className="px-3 py-2 text-right font-semibold text-purple-700">{ps > 0 ? `₹${fmt(ps)}` : '—'}</td>)}
+                        <td className="px-4 py-2 text-right font-bold text-gray-800">{ps > 0 ? `₹${fmt(ps * Math.max(sems - 1, 0))}` : '—'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-800">
@@ -662,7 +705,7 @@ function FeeViewModal({ struct, onClose, onPDF }) {
                     <td className="px-3 py-3"></td>
                     <td className="px-3 py-3 text-right font-black text-amber-300">{entryTotal > 0 ? `₹${fmt(entryTotal)}` : '—'}</td>
                     {Array.from({ length: sems }, (_, i) => {
-                      const semAmt = i === 0 ? entryTotal + perSem : perSem
+                      const semAmt = i === 0 ? entryTotal + perSem1 : perSem
                       return <td key={i} className="px-3 py-3 text-right font-black text-white">₹{fmt(semAmt)}</td>
                     })}
                     <td className="px-4 py-3 text-right font-black text-emerald-400">₹{fmt(grandTotal)}</td>
@@ -676,8 +719,8 @@ function FeeViewModal({ struct, onClose, onPDF }) {
           <div className="flex flex-wrap gap-5 mt-3 px-1 text-xs">
             <span className="text-gray-500">Entry: <strong className="text-amber-700">₹{fmt(entryTotal)}</strong></span>
             <span className="text-gray-500">Univ. Fee/sem: <strong className="text-[#933d18]">₹{fmt(dividePerSem)}</strong></span>
-            <span className="text-gray-500">Other/sem: <strong className="text-indigo-700">₹{fmt(multiplyPerSem)}</strong></span>
-            <span className="text-gray-500">Per Sem: <strong className="text-gray-900">₹{fmt(perSem)}</strong></span>
+            <span className="text-gray-500">Sem 1: <strong className="text-indigo-700">₹{fmt(entryTotal + perSem1)}</strong></span>
+            <span className="text-gray-500">Sem 2+: <strong className="text-purple-700">₹{fmt(perSem)}</strong></span>
             <span className="text-gray-500">Grand Total: <strong className="text-[#933d18] text-sm">₹{fmt(grandTotal)}</strong></span>
           </div>
         </div>
@@ -686,7 +729,7 @@ function FeeViewModal({ struct, onClose, onPDF }) {
   )
 }
 
-function FeeCol({ title, badge, hint, headerCls, footerCls, textCls, addCls, items, totalLabel, total, onAdd, onUpd, onDel, colRight, showPerSem, showTotal, totalSems }) {
+function FeeCol({ title, badge, hint, headerCls, footerCls, textCls, addCls, items, totalLabel, total, onAdd, onUpd, onDel, colRight, showPerSem, showTotal, showToggle, totalSems }) {
   return (
     <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden flex flex-col">
       <div className={`${headerCls} px-4 py-3`}>
@@ -704,8 +747,10 @@ function FeeCol({ title, badge, hint, headerCls, footerCls, textCls, addCls, ite
           <span className="w-4"></span>
         </div>
         {items.map(item => {
-          const amt = parseFloat(item.amount) || 0
-          const derived = showPerSem ? (totalSems > 0 ? amt / totalSems : 0) : showTotal ? amt * totalSems : null
+          const amt      = parseFloat(item.amount) || 0
+          const isSem2   = item.category === 'multiply2'
+          const multiplier = isSem2 ? Math.max(totalSems - 1, 0) : totalSems
+          const derived  = showPerSem ? (totalSems > 0 ? amt / totalSems : 0) : showTotal ? amt * multiplier : null
           return (
             <div key={item._key} className="flex items-center gap-2">
               <input className="flex-1 border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#933d18]"
@@ -717,8 +762,18 @@ function FeeCol({ title, badge, hint, headerCls, footerCls, textCls, addCls, ite
               </div>
               {derived !== null && (
                 <div className="w-20 text-right shrink-0">
-                  <span className={`text-xs font-bold ${textCls}`}>{derived > 0 ? `₹${fmt(derived)}` : '—'}</span>
+                  <span className={`text-xs font-bold ${isSem2 ? 'text-purple-600' : textCls}`}>{derived > 0 ? `₹${fmt(derived)}` : '—'}</span>
                 </div>
+              )}
+              {showToggle && (
+                <button type="button" title={isSem2 ? 'Click to charge all sems' : 'Click to start from Sem 2'}
+                  onClick={() => onUpd(item._key, 'category', isSem2 ? 'multiply' : 'multiply2')}
+                  className={`shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded border transition-colors
+                    ${isSem2
+                      ? 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200'
+                      : 'bg-indigo-100 text-indigo-600 border-indigo-200 hover:bg-indigo-200'}`}>
+                  {isSem2 ? 'Sem 2+' : 'All'}
+                </button>
               )}
               <button onClick={() => onDel(item._key)} className="text-red-300 hover:text-red-500 shrink-0 w-4"><Trash2 size={13} /></button>
             </div>
