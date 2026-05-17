@@ -363,11 +363,24 @@ export default function StudentForm() {
     setUploading(u => ({ ...u, [fieldKey]: false }))
   }
 
+  async function generateRegistrationNumber() {
+    const yy = String(new Date().getFullYear()).slice(-2)
+    const prefix = `SIU${yy}R`
+    const { count } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+      .like('registration_no', `${prefix}%`)
+    return `${prefix}${1001 + (count || 0)}`
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
     const payload = { ...form }
     if (!isAdmin && !isEdit) payload.status = 'Pending'
+    if (!isEdit && !payload.registration_no) {
+      payload.registration_no = await generateRegistrationNumber()
+    }
     delete payload.id; delete payload.created_at; delete payload.updated_at
     const fkFields = ['university_id', 'session_id', 'programme_id', 'department_id', 'mode_id', 'center_id']
     fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
