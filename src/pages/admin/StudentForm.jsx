@@ -71,6 +71,7 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
   const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
   const total = parseFloat(form[`${prefix}_total_marks`]) || 0
   const percentage = obtained > 0 && total > 0 ? ((obtained / total) * 100).toFixed(2) : ''
+  const marksError = obtained > 0 && total > 0 && obtained > total ? `Cannot exceed Total Marks (${total})` : ''
   const marksheetKey = `${prefix}_marksheet_url`
   const isFilled = !!(form[`${prefix}_institute_name`] || form[`${prefix}_board_university`] || form[`${prefix}_passing_year`])
 
@@ -109,8 +110,14 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
             <Input label="Passing Year" type="number" placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} />
           </div>
           <div className="grid grid-cols-4 gap-4">
-            <Input label="Obtained Marks" type="number" value={form[`${prefix}_obtained_marks`]} onChange={onChange(`${prefix}_obtained_marks`)} />
-            <Input label="Total Marks" type="number" value={form[`${prefix}_total_marks`]} onChange={onChange(`${prefix}_total_marks`)} />
+            <Input label="Obtained Marks" type="number" min="0"
+              max={total > 0 ? total : undefined}
+              value={form[`${prefix}_obtained_marks`]}
+              onChange={onChange(`${prefix}_obtained_marks`)}
+              error={marksError} />
+            <Input label="Total Marks" type="number" min="0"
+              value={form[`${prefix}_total_marks`]}
+              onChange={onChange(`${prefix}_total_marks`)} />
             <Input
               label="Percentage (%)"
               value={percentage ? `${percentage}%` : ''}
@@ -396,6 +403,16 @@ export default function StudentForm() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    // Validate marks: obtained cannot exceed total for any education level
+    const eduPrefixes = ['tenth', 'twelfth', 'ug', 'pg', 'diploma']
+    for (const pfx of eduPrefixes) {
+      const obt = parseFloat(form[`${pfx}_obtained_marks`]) || 0
+      const tot = parseFloat(form[`${pfx}_total_marks`]) || 0
+      if (obt > 0 && tot > 0 && obt > tot) {
+        alert(`Obtained marks cannot exceed Total marks. Please check the marks for ${pfx.toUpperCase()} qualification.`)
+        return
+      }
+    }
     setLoading(true)
     const payload = { ...form }
     if (!isAdmin && !isEdit) payload.status = 'Pending'
