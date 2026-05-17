@@ -44,10 +44,17 @@ export default function Programs() {
     fetchData()
   }
 
-  const filtered = data.filter(p =>
-    `${p.program_name} ${p.course_code} ${p.short_name} ${p.stream} ${p.eligibility}`
-      .toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = data.filter(p => {
+    const haystack = [
+      p.program_name, p.course_code, p.enrollment_code, p.short_name,
+      p.stream, p.eligibility, p.status, p.complete_duration,
+      p.universities?.university_name, p.departments?.name,
+      p.programme_types?.programme_type_name,
+      p.study_modes?.mode_name, p.modes_of_study?.mode_name,
+      p.fees_per_year, p.fees_per_semester, p.seats_limit,
+    ].filter(Boolean).join(' ').toLowerCase()
+    return haystack.includes(search.toLowerCase())
+  })
 
   return (
     <div className="p-6">
