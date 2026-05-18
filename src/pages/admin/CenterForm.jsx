@@ -320,7 +320,7 @@ export default function CenterForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
         {/* STEP 0: Center Identity */}
         {step === 0 && (

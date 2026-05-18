@@ -609,7 +609,7 @@ export default function StudentForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
         {/* STEP 0: Basic Entry */}
         {step === 0 && (

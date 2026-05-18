@@ -8,7 +8,7 @@ export default function FormSection({ title, icon, children, subtitle }) {
           {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
         </div>
       </div>
-      <div className="p-6 space-y-4">{children}</div>
+      <div className="p-6 flex flex-col gap-4">{children}</div>
     </div>
   )
 }
