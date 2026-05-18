@@ -50,6 +50,13 @@ const reportItems = (base) => [
 const superCenterNavGroups = [
   { items: [{ to: '/super-center/dashboard', icon: LayoutDashboard, label: 'Dashboard' }] },
   {
+    group: 'Centers',
+    items: [
+      { to: '/super-center/center-applications', icon: Building2, label: 'Center Applications' },
+      { to: '/super-center/centers', icon: Building2, label: 'My Centers' },
+    ],
+  },
+  {
     group: 'Entry',
     items: [
       { to: '/super-center/students/new', icon: UserPlus, label: 'Student Entry', end: true },

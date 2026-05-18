@@ -30,6 +30,7 @@ import Boards from './pages/admin/Boards'
 
 // Super Center portal
 import SuperCenterDashboard from './pages/super-center/SuperCenterDashboard'
+import CenterApplications from './pages/super-center/CenterApplications'
 import MyCenters from './pages/super-center/MyCenters'
 import SubCenterForm from './pages/super-center/SubCenterForm'
 import SuperCenterStudents from './pages/super-center/SuperCenterStudents'
@@ -38,6 +39,9 @@ import SuperCenterStudents from './pages/super-center/SuperCenterStudents'
 import CenterDashboard from './pages/center/CenterDashboard'
 import CenterStudents from './pages/center/CenterStudents'
 import CenterSettings from './pages/center/CenterSettings'
+
+// Public
+import CenterRegistrationForm from './pages/public/CenterRegistrationForm'
 
 // Shared
 import ProgramsView from './pages/shared/ProgramsView'
@@ -76,6 +80,9 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+
+          {/* Public routes — no auth required */}
+          <Route path="/apply/:superCenterCode" element={<CenterRegistrationForm />} />
 
           {/* Student portal — separate auth (enrollment no + password) */}
           <Route path="/student/login" element={<StudentLogin />} />
@@ -137,6 +144,7 @@ export default function App() {
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />
+            <Route path="/super-center/center-applications" element={<CenterApplications />} />
             <Route path="/super-center/centers" element={<MyCenters />} />
             <Route path="/super-center/centers/new" element={<SubCenterForm />} />
             <Route path="/super-center/centers/edit/:id" element={<SubCenterForm />} />

@@ -13,6 +13,7 @@ const TABS = [
   { key: 'students', label: 'Student Applications' },
   { key: 'approvals', label: 'Pending Approvals' },
   { key: 'recharges', label: 'Recharge Requests' },
+  { key: 'center_apps', label: 'Center Applications' },
   { key: 'centers', label: 'Centers Management' },
 ]
 
@@ -32,9 +33,94 @@ export default function AccountDepartment() {
   const [viewLoading, setViewLoading] = useState(false)
   const [downloading, setDownloading] = useState(null)
   const [visiblePasswords, setVisiblePasswords] = useState({})
-  const [editingPassword, setEditingPassword] = useState({}) // { [id]: newPasswordValue }
+  const [editingPassword, setEditingPassword] = useState({})
+  const [centerApps, setCenterApps] = useState([])
+  const [caApproveModal, setCAApproveModal] = useState(null)
+  const [caAccRemarks, setCAAccRemarks] = useState('')
+  const [caSaving, setCASaving] = useState(false)
+  const [caSuccess, setCASuccess] = useState(null)
 
   useEffect(() => { fetchAll() }, [])
+  useEffect(() => { if (tab === 'center_apps') fetchCenterApps() }, [tab])
+
+  async function fetchCenterApps() {
+    const { data } = await supabase.from('center_applications')
+      .select('*').eq('status', 'doc_verified').order('created_at', { ascending: false })
+    setCenterApps(data || [])
+  }
+
+  async function handleCAApprove() {
+    if (!caApproveModal) return
+    setCASaving(true)
+    const app = caApproveModal
+
+    const centerCode = await generateNextCenterCode()
+    const newPassword = `Sg@${Math.random().toString(36).slice(-6).toUpperCase()}`
+
+    const { data: newCenter, error: cErr } = await supabase.from('centers').insert({
+      center_name: app.organization_name || app.full_name,
+      contact_person: app.full_name,
+      email: app.email,
+      phone: app.phone,
+      center_code: centerCode,
+      center_type: 'center',
+      approval_status: 'approved',
+      status: 'Active',
+      virtual_balance: 0,
+      generated_password: newPassword,
+      super_center_id: app.super_center_id,
+    }).select().single()
+
+    if (cErr) { alert('Failed to create center: ' + cErr.message); setCASaving(false); return }
+
+    const adminSession = (await supabase.auth.getSession()).data.session
+    const { data: authUser } = await supabase.auth.signUp({
+      email: app.email,
+      password: newPassword,
+      options: { data: { role: 'center' } },
+    })
+    if (authUser?.user) {
+      await supabase.from('profiles').upsert({ id: authUser.user.id, role: 'center' })
+    }
+    if (adminSession?.access_token) {
+      await supabase.auth.setSession({ access_token: adminSession.access_token, refresh_token: adminSession.refresh_token })
+    }
+
+    const univFee = Math.round(parseFloat(app.university_fee) || 0)
+    const scFee   = Math.round(parseFloat(app.super_center_fee) || 0)
+
+    const newCenterCoupons = Array.from({ length: univFee }, () => ({
+      center_id: newCenter.id,
+      face_value: 1,
+      application_id: app.id,
+    }))
+    const scCoupons = Array.from({ length: scFee }, () => ({
+      center_id: app.super_center_id,
+      face_value: 1,
+      application_id: app.id,
+    }))
+    if (newCenterCoupons.length) await supabase.from('coupons').insert(newCenterCoupons)
+    if (scCoupons.length)        await supabase.from('coupons').insert(scCoupons)
+
+    await supabase.from('center_applications').update({
+      status: 'approved',
+      generated_center_id: newCenter.id,
+      acc_remarks: caAccRemarks || null,
+      acc_verified_at: new Date().toISOString(),
+    }).eq('id', app.id)
+
+    setCASaving(false)
+    setCAApproveModal(null)
+    setCAAccRemarks('')
+    setCASuccess({ center: newCenter, password: newPassword, univCoupons: univFee, scCoupons: scFee })
+    fetchCenterApps()
+  }
+
+  async function handleCAReject(appId) {
+    if (!confirm('Reject this center application?')) return
+    await supabase.from('center_applications').update({ status: 'rejected' }).eq('id', appId)
+    fetchCenterApps()
+  }
 
   async function fetchAll() {
     setLoading(true)
@@ -241,6 +327,7 @@ export default function AccountDepartment() {
   const pendingCount = approvals.length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
   const holdCount = holdStudents.length
+  const pendingCenterApps = centerApps.length
 
   return (
     <div className="p-6">
@@ -265,6 +352,9 @@ export default function AccountDepartment() {
             )}
             {t.key === 'recharges' && pendingRecharges > 0 && (
               <span className="ml-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingRecharges}</span>
+            )}
+            {t.key === 'center_apps' && pendingCenterApps > 0 && (
+              <span className="ml-2 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCenterApps}</span>
             )}
           </button>
         ))}
@@ -446,6 +536,59 @@ export default function AccountDepartment() {
                           </Button>
                         </div>
                       )}
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          )}
+
+          {/* CENTER APPLICATIONS TAB */}
+          {tab === 'center_apps' && (
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>Organization / Applicant</Th>
+                  <Th>Contact</Th>
+                  <Th>Amount Paid</Th>
+                  <Th>Univ. Fee</Th>
+                  <Th>SC Fee</Th>
+                  <Th>SC Remarks</Th>
+                  <Th>Doc Remarks</Th>
+                  <Th>Submitted</Th>
+                  <Th>Actions</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {centerApps.length === 0 ? (
+                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No center applications pending account verification.</Td></Tr>
+                ) : centerApps.map((a, i) => (
+                  <Tr key={a.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td>
+                      <p className="font-semibold text-gray-900">{a.organization_name || '—'}</p>
+                      <p className="text-xs text-gray-400">{a.full_name}</p>
+                    </Td>
+                    <Td>
+                      <p className="text-sm text-gray-700">{a.phone}</p>
+                      <p className="text-xs text-gray-400">{a.email}</p>
+                    </Td>
+                    <Td className="font-bold text-gray-900">₹{Number(a.amount_paid || 0).toLocaleString()}</Td>
+                    <Td className="font-semibold text-emerald-700">₹{Number(a.university_fee || 0).toLocaleString()}</Td>
+                    <Td className="font-semibold text-blue-700">₹{Number(a.super_center_fee || 0).toLocaleString()}</Td>
+                    <Td className="text-gray-500 text-xs max-w-[100px] truncate">{a.sc_remarks || '—'}</Td>
+                    <Td className="text-gray-500 text-xs max-w-[100px] truncate">{a.doc_remarks || '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{a.created_at ? new Date(a.created_at).toLocaleDateString('en-IN') : '—'}</Td>
+                    <Td>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="success" onClick={() => { setCAApproveModal(a); setCAAccRemarks('') }}>
+                          <CheckCircle size={13} /> Approve
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => handleCAReject(a.id)}>
+                          <XCircle size={13} />
+                        </Button>
+                      </div>
                     </Td>
                   </Tr>
                 ))}
@@ -791,6 +934,65 @@ export default function AccountDepartment() {
             <Button variant="outline" onClick={() => setStudentActionModal(null)}>Cancel</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Center App Approve Modal */}
+      <Modal isOpen={!!caApproveModal} onClose={() => setCAApproveModal(null)} title="Approve Center Application">
+        <div className="space-y-4">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <p className="font-semibold text-gray-900">{caApproveModal?.organization_name}</p>
+            <p className="text-xs text-gray-500 mt-1">{caApproveModal?.full_name} · {caApproveModal?.email}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-400">Amount Paid</p>
+              <p className="font-bold text-gray-900">₹{Number(caApproveModal?.amount_paid || 0).toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-gray-400">Fee Split</p>
+              <p className="font-bold text-emerald-700">Univ: ₹{caApproveModal?.university_fee} · SC: ₹{caApproveModal?.super_center_fee}</p>
+            </div>
+          </div>
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+            Approving will: <strong>create center account</strong> → generate <strong>{caApproveModal?.university_fee} coupons</strong> for new center + <strong>{caApproveModal?.super_center_fee} coupons</strong> for super center.
+          </div>
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Account Dept. Remarks</label>
+            <textarea className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#933d18] resize-none"
+              rows={2} placeholder="Optional remarks..."
+              value={caAccRemarks} onChange={e => setCAAccRemarks(e.target.value)} />
+          </div>
+          <div className="flex gap-3">
+            <Button variant="success" onClick={handleCAApprove} disabled={caSaving}>{caSaving ? 'Processing...' : 'Approve & Generate Credentials'}</Button>
+            <Button variant="outline" onClick={() => setCAApproveModal(null)}>Cancel</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Center App Success Modal */}
+      <Modal isOpen={!!caSuccess} onClose={() => setCASuccess(null)} title="Center Created Successfully!">
+        {caSuccess && (
+          <div className="space-y-4">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between"><span className="text-sm text-gray-500">Center Name</span><span className="font-bold text-gray-900">{caSuccess.center?.center_name}</span></div>
+              <div className="flex justify-between"><span className="text-sm text-gray-500">Center Code</span><span className="font-mono font-black text-[#933d18] text-lg">{caSuccess.center?.center_code}</span></div>
+              <div className="flex justify-between"><span className="text-sm text-gray-500">Login Email</span><span className="font-mono text-gray-800">{caSuccess.center?.email}</span></div>
+              <div className="flex justify-between"><span className="text-sm text-gray-500">Password</span><span className="font-mono font-bold text-gray-800">{caSuccess.password}</span></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+                <p className="text-2xl font-black text-blue-700">{caSuccess.univCoupons}</p>
+                <p className="text-xs text-blue-500 font-semibold mt-0.5">Coupons → New Center</p>
+              </div>
+              <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-center">
+                <p className="text-2xl font-black text-purple-700">{caSuccess.scCoupons}</p>
+                <p className="text-xs text-purple-500 font-semibold mt-0.5">Coupons → Super Center</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">Share these credentials with the center. They can login at <span className="font-bold text-[#933d18]">/login</span></p>
+            <Button onClick={() => setCASuccess(null)} className="w-full justify-center">Done</Button>
+          </div>
+        )}
       </Modal>
 
       {/* Reject Modal */}
