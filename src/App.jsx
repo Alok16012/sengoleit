@@ -43,6 +43,7 @@ import CenterSettings from './pages/center/CenterSettings'
 import ProgramsView from './pages/shared/ProgramsView'
 import BalanceView from './pages/shared/BalanceView'
 import StudentListReport from './pages/shared/StudentListReport'
+import CourseFeeView from './pages/shared/CourseFeeView'
 import ComingSoon from './pages/shared/ComingSoon'
 
 // Student
@@ -153,7 +154,7 @@ export default function App() {
             <Route path="/super-center/reports/payment-summary" element={<ComingSoon title="Payment Summary" description="Summary of student fee payments" />} />
             <Route path="/super-center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
             <Route path="/super-center/reports/university-courier" element={<ComingSoon title="University Courier" description="Courier dispatches to university" />} />
-            <Route path="/super-center/reports/course-fee" element={<ComingSoon title="Center Course Fee" description="Course fee structure per center" />} />
+            <Route path="/super-center/reports/course-fee" element={<CourseFeeView />} />
             <Route path="/super-center/reports/syllabus" element={<ComingSoon title="Syllabus" description="Program syllabus and curriculum" />} />
             <Route path="/super-center/reports/credentials" element={<ComingSoon title="Credentials" description="Student credentials and certificates" />} />
             <Route path="/super-center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
@@ -182,7 +183,7 @@ export default function App() {
             <Route path="/center/reports/payment-summary" element={<ComingSoon title="Payment Summary" description="Summary of student fee payments" />} />
             <Route path="/center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
             <Route path="/center/reports/university-courier" element={<ComingSoon title="University Courier" description="Courier dispatches to university" />} />
-            <Route path="/center/reports/course-fee" element={<ComingSoon title="Center Course Fee" description="Course fee structure per center" />} />
+            <Route path="/center/reports/course-fee" element={<CourseFeeView />} />
             <Route path="/center/reports/syllabus" element={<ComingSoon title="Syllabus" description="Program syllabus and curriculum" />} />
             <Route path="/center/reports/credentials" element={<ComingSoon title="Credentials" description="Student credentials and certificates" />} />
             <Route path="/center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
