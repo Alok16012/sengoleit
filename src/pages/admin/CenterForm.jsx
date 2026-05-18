@@ -27,11 +27,15 @@ const emptyForm = {
   super_center_id: '',
   contact_person: '', father_mother_name: '', date_of_birth: '', gender: '', nationality: 'Indian',
   aadhar_no: '', pan_no: '',
+  permanent_address: '', current_address: '', contact_mobile: '', contact_email: '',
+  current_occupation: '', previous_experience_admissions: '',
   address_line1: '', landmark: '', post_office: '', city: '',
   country_id: '', state_id: '', district_id: '', pincode: '',
   organization_name: '', org_type: '', org_address: '', org_post_office: '', org_city: '',
   org_country_id: '', org_state_id: '', org_district_id: '', org_pincode: '',
   registration_number: '', gst_pan: '',
+  facility_reception_desk: false, facility_waiting_area: false, facility_meeting_room: false,
+  photos_attached: false, rent_agreement_attached: '',
   premises_type: 'Owned', office_area_sqft: '', student_capacity: '', revenue_share_percentage: '50',
   bank_account_holder: '', bank_account_number: '', ifsc_code: '', bank_branch: '',
   edu_10th_institute: '', edu_10th_board: '', edu_10th_year: '',
@@ -107,6 +111,12 @@ export default function CenterForm() {
   const [error, setError] = useState(null)
   const [step, setStep] = useState(0)
   const [stepError, setStepError] = useState('')
+  const [sameAddress, setSameAddress] = useState(false)
+
+  const handleSameAddress = (checked) => {
+    setSameAddress(checked)
+    if (checked) setForm(f => ({ ...f, permanent_address: f.current_address }))
+  }
 
   useEffect(() => {
     Promise.all([
@@ -372,6 +382,28 @@ export default function CenterForm() {
               <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} required />
               <Input label="PAN No *" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} required />
             </div>
+
+            {/* Contact Details */}
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Contact Details</p>
+            <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
+              <Input label="Permanent Address *" value={form.permanent_address} onChange={set('permanent_address')} />
+              <div className="pb-2.5 flex flex-col items-center gap-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Same</span>
+                <input type="checkbox" checked={sameAddress} onChange={e => handleSameAddress(e.target.checked)}
+                  className="w-4 h-4 accent-[#933d18] cursor-pointer" />
+              </div>
+              <Input label="Current Address *" value={form.current_address}
+                onChange={e => { setSameAddress(false); set('current_address')(e) }} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Mobile Number *" type="tel" value={form.contact_mobile} onChange={set('contact_mobile')} required />
+              <Input label="Email Address" type="email" value={form.contact_email} onChange={set('contact_email')} />
+            </div>
+
+            {/* Professional Details */}
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Professional Details</p>
+            <Input label="Current Occupation" value={form.current_occupation} onChange={set('current_occupation')} />
+            <Input label="Previous Experience in Admissions (if any)" value={form.previous_experience_admissions} onChange={set('previous_experience_admissions')} />
           </FormSection>
         )}
 
@@ -414,7 +446,8 @@ export default function CenterForm() {
                 <option value="Education Consultancy">Education Consultancy</option>
                 <option value="Institute">Institute</option>
                 <option value="NGO">NGO</option>
-                <option value="Other">Other</option>
+                <option value="Pvt. Ltd">Pvt. Ltd</option>
+                <option value="Others">Others</option>
               </Select>
             </div>
             <Textarea label="Organization Address *" value={form.org_address} onChange={set('org_address')} required />
@@ -447,6 +480,60 @@ export default function CenterForm() {
               <Input label="Student Capacity" type="number" value={form.student_capacity} onChange={set('student_capacity')} />
             </div>
             <Input label="Revenue Share %" type="number" placeholder="50" value={form.revenue_share_percentage} onChange={set('revenue_share_percentage')} />
+
+            {/* Facilities Available */}
+            <div>
+              <p className="text-xs font-bold text-gray-500 mb-2">Facilities Available</p>
+              <div className="flex flex-wrap gap-5">
+                {[
+                  ['facility_reception_desk', 'Reception Desk'],
+                  ['facility_waiting_area', 'Waiting Area'],
+                  ['facility_meeting_room', 'Meeting Room'],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={!!form[key]}
+                      onChange={e => setForm(f => ({ ...f, [key]: e.target.checked }))}
+                      className="w-4 h-4 accent-[#933d18]" />
+                    <span className="text-sm text-gray-700">{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Photographs + Rent Agreement */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-bold text-gray-500 mb-2">Photographs Attached</p>
+                <div className="flex items-center gap-5">
+                  {[['true', 'Yes'], ['false', 'No']].map(([val, label]) => (
+                    <label key={val} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="photos_attached_cf" value={val}
+                        checked={String(!!form.photos_attached) === val}
+                        onChange={() => setForm(f => ({ ...f, photos_attached: val === 'true' }))}
+                        className="accent-[#933d18]" />
+                      <span className="text-sm text-gray-700">{label}</span>
+                    </label>
+                  ))}
+                </div>
+                {form.photos_attached && (
+                  <p className="text-[11px] text-[#933d18] mt-1.5">Please upload premises photos in the Documents step</p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-500 mb-2">Rent Agreement / Ownership Proof</p>
+                <div className="flex items-center gap-5">
+                  {['Attached', 'Not Attached'].map(v => (
+                    <label key={v} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" name="rent_agreement_cf" value={v}
+                        checked={form.rent_agreement_attached === v}
+                        onChange={() => setForm(f => ({ ...f, rent_agreement_attached: v }))}
+                        className="accent-[#933d18]" />
+                      <span className="text-sm text-gray-700">{v}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
           </FormSection>
         )}
 
