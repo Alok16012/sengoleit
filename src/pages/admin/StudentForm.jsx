@@ -6,17 +6,14 @@ import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
-import { ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, ChevronDown, CheckCircle2 } from 'lucide-react'
+import {
+  ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye,
+  ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft
+} from 'lucide-react'
 
-function AddressBlock({ prefix, label, form, onChange, setForm, states, districts, sameAsOptions }) {
-  // Deduplicate states by name for the dropdown (DB may have duplicate entries)
+function AddressBlock({ prefix, label, form, onChange, setForm, states, districts, sameAsOptions, readOnly }) {
   const uniqueStates = states.filter((s, i, arr) => arr.findIndex(x => x.state_name === s.state_name) === i)
-
-  // Collect ALL IDs for the selected state name (handles duplicates with different UUIDs)
-  const selectedStateIds = states
-    .filter(s => s.state_name === form[`${prefix}_state`])
-    .map(s => s.id)
-
+  const selectedStateIds = states.filter(s => s.state_name === form[`${prefix}_state`]).map(s => s.id)
   const filteredDistricts = selectedStateIds.length > 0
     ? districts.filter(d => selectedStateIds.includes(d.state_id))
     : districts
@@ -25,7 +22,7 @@ function AddressBlock({ prefix, label, form, onChange, setForm, states, district
     <div className="bg-gray-50/60 rounded-xl p-4 space-y-4 border border-gray-100">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-black text-[#933d18] uppercase tracking-widest">{label}</p>
-        {sameAsOptions && sameAsOptions.map(opt => (
+        {!readOnly && sameAsOptions && sameAsOptions.map(opt => (
           <label key={opt.label} className="flex items-center gap-1.5 cursor-pointer group select-none">
             <input type="checkbox" checked={opt.checked}
               onChange={e => { if (e.target.checked) opt.onCopy(); opt.onToggle(e.target.checked) }}
@@ -35,38 +32,39 @@ function AddressBlock({ prefix, label, form, onChange, setForm, states, district
         ))}
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} />
-        <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} />
+        <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} readOnly={readOnly} />
+        <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} readOnly={readOnly} />
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <Input label="Post Office" value={form[`${prefix}_post_office`]} onChange={onChange(`${prefix}_post_office`)} />
-        <Input label="City" value={form[`${prefix}_city`]} onChange={onChange(`${prefix}_city`)} />
-        <Input label="PIN Code" value={form[`${prefix}_pin_code`]} onChange={onChange(`${prefix}_pin_code`)} />
+        <Input label="Post Office" value={form[`${prefix}_post_office`]} onChange={onChange(`${prefix}_post_office`)} readOnly={readOnly} />
+        <Input label="City *" value={form[`${prefix}_city`]} onChange={onChange(`${prefix}_city`)} readOnly={readOnly} />
+        <Input label="PIN Code *" value={form[`${prefix}_pin_code`]} onChange={onChange(`${prefix}_pin_code`)} readOnly={readOnly} />
       </div>
       <div className="grid grid-cols-2 gap-4">
         {uniqueStates.length > 0 ? (
-          <Select label="State" value={form[`${prefix}_state`] || ''}
-            onChange={e => setForm(f => ({ ...f, [`${prefix}_state`]: e.target.value, [`${prefix}_district`]: '' }))}>
+          <Select label="State *" value={form[`${prefix}_state`] || ''}
+            onChange={e => setForm(f => ({ ...f, [`${prefix}_state`]: e.target.value, [`${prefix}_district`]: '' }))}
+            disabled={readOnly}>
             <option value="">Select State</option>
             {uniqueStates.map(s => <option key={s.id} value={s.state_name}>{s.state_name}</option>)}
           </Select>
         ) : (
-          <Input label="State" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} />
+          <Input label="State *" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} readOnly={readOnly} />
         )}
         {filteredDistricts.length > 0 ? (
-          <Select label="District" value={form[`${prefix}_district`] || ''} onChange={onChange(`${prefix}_district`)}>
+          <Select label="District" value={form[`${prefix}_district`] || ''} onChange={onChange(`${prefix}_district`)} disabled={readOnly}>
             <option value="">Select District</option>
             {filteredDistricts.map(d => <option key={d.id} value={d.district_name}>{d.district_name}</option>)}
           </Select>
         ) : (
-          <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} />
+          <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} readOnly={readOnly} />
         )}
       </div>
     </div>
   )
 }
 
-function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading, isOpen, onToggle }) {
+function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading, isOpen, onToggle, readOnly }) {
   const levelBoards = boards.filter(b => b.type === 'All' || b.type === boardType)
   const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
   const total = parseFloat(form[`${prefix}_total_marks`]) || 0
@@ -98,26 +96,28 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
       {isOpen && (
         <div className="p-5 space-y-4 border-t border-[#933d18]/10">
           <div className="grid grid-cols-3 gap-4">
-            <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={onChange(`${prefix}_institute_name`)} />
+            <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={onChange(`${prefix}_institute_name`)} readOnly={readOnly} />
             {levelBoards.length > 0 ? (
-              <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)}>
+              <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} disabled={readOnly}>
                 <option value="">Select Board</option>
                 {levelBoards.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </Select>
             ) : (
-              <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} />
+              <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} readOnly={readOnly} />
             )}
-            <Input label="Passing Year" type="number" placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} />
+            <Input label="Passing Year" type="number" placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} readOnly={readOnly} />
           </div>
           <div className="grid grid-cols-4 gap-4">
             <Input label="Obtained Marks" type="number" min="0"
               max={total > 0 ? total : undefined}
               value={form[`${prefix}_obtained_marks`]}
               onChange={onChange(`${prefix}_obtained_marks`)}
-              error={marksError} />
+              error={marksError}
+              readOnly={readOnly} />
             <Input label="Total Marks" type="number" min="0"
               value={form[`${prefix}_total_marks`]}
-              onChange={onChange(`${prefix}_total_marks`)} />
+              onChange={onChange(`${prefix}_total_marks`)}
+              readOnly={readOnly} />
             <Input
               label="Percentage (%)"
               value={percentage ? `${percentage}%` : ''}
@@ -133,6 +133,7 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
               value={form[marksheetKey]}
               onUpload={onUpload}
               isUploading={!!uploading[marksheetKey]}
+              readOnly={readOnly}
             />
           </div>
         </div>
@@ -141,28 +142,30 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
   )
 }
 
-function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUploading }) {
+function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUploading, readOnly }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-semibold text-gray-600 ml-0.5">{label}</label>
       <div className="flex items-center gap-2 flex-wrap">
-        <label className={`cursor-pointer flex items-center gap-2 px-3 py-2 border rounded-xl text-xs font-semibold transition-all
-          ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-[#933d18]/30 text-[#933d18] hover:bg-[#933d18]/5 bg-white'}`}>
-          <Upload size={12} />
-          {isUploading ? 'Uploading...' : value ? 'Change' : 'Upload'}
-          <input type="file" accept={accept} className="hidden" disabled={isUploading}
-            onChange={e => e.target.files[0] && onUpload(fieldKey, e.target.files[0])} />
-        </label>
+        {!readOnly && (
+          <label className={`cursor-pointer flex items-center gap-2 px-3 py-2 border rounded-xl text-xs font-semibold transition-all
+            ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-[#933d18]/30 text-[#933d18] hover:bg-[#933d18]/5 bg-white'}`}>
+            <Upload size={12} />
+            {isUploading ? 'Uploading...' : value ? 'Change' : 'Upload'}
+            <input type="file" accept={accept} className="hidden" disabled={isUploading}
+              onChange={e => e.target.files[0] && onUpload(fieldKey, e.target.files[0])} />
+          </label>
+        )}
         {value && isImage && (
           <img src={value} alt={label} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
         )}
-        {value && !isImage && (
+        {value && (
           <a href={value} target="_blank" rel="noreferrer"
             className="flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
             <Eye size={12} /> View
           </a>
         )}
-        {!value && <span className="text-xs text-gray-400 italic">No file</span>}
+        {!value && <span className="text-xs text-gray-400 italic">{readOnly ? '—' : 'No file'}</span>}
       </div>
     </div>
   )
@@ -212,15 +215,20 @@ const CASTE_OPTIONS = ['General', 'OBC', 'SC', 'ST', 'Minorities', 'Others']
 const SCHOLARSHIP_OPTIONS = ['None', 'Scholarship-1', 'Scholarship-2', 'Scholarship-3', 'Scholarship-4']
 const STATUS_OPTIONS = ['Pending', 'Reviewing', 'Document Verified', 'Account Section', 'Rejected', 'Admitted']
 
-const NAV_SECTIONS = [
-  { id: 'sec-basic', label: 'Basic Entry', icon: <ClipboardList size={13} /> },
-  { id: 'sec-program', label: 'Program Info', icon: <BookOpen size={13} /> },
-  { id: 'sec-personal', label: 'Personal Info', icon: <User size={13} /> },
-  { id: 'sec-family', label: 'Family Info', icon: <Users size={13} /> },
-  { id: 'sec-contact', label: 'Contact', icon: <MapPin size={13} /> },
-  { id: 'sec-education', label: 'Education', icon: <FileText size={13} /> },
-  { id: 'sec-documents', label: 'Documents', icon: <Upload size={13} /> },
+const STEPS = [
+  { id: 'sec-basic', label: 'Basic Entry', icon: ClipboardList },
+  { id: 'sec-program', label: 'Program Info', icon: BookOpen },
+  { id: 'sec-personal', label: 'Personal Info', icon: User },
+  { id: 'sec-family', label: 'Family Info', icon: Users },
+  { id: 'sec-contact', label: 'Contact', icon: MapPin },
+  { id: 'sec-education', label: 'Education', icon: FileText },
+  { id: 'sec-documents', label: 'Documents', icon: Upload },
 ]
+
+function fmtDate(d) {
+  if (!d) return ''
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
 
 export default function StudentForm() {
   const { id } = useParams()
@@ -229,6 +237,7 @@ export default function StudentForm() {
   const role = profile?.role || user?.user_metadata?.role || 'admin'
   const isAdmin = role === 'admin'
   const isEdit = Boolean(id)
+  const isReadOnly = isEdit && !isAdmin
   const backPath = role === 'center' ? '/center/students' : role === 'super_center' ? '/super-center/students' : '/admin/students'
 
   const [form, setForm] = useState(emptyForm)
@@ -245,7 +254,10 @@ export default function StudentForm() {
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState({})
   const [openEdu, setOpenEdu] = useState({ tenth: true, twelfth: false, ug: false, pg: false, diploma: false })
-  const [activeNav, setActiveNav] = useState('sec-basic')
+
+  const [step, setStep] = useState(0)
+  const [stepError, setStepError] = useState('')
+  const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
 
   const toggleEdu = (key) => setOpenEdu(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -273,11 +285,9 @@ export default function StudentForm() {
       setStates(sts.data || [])
       setDistricts(dists.data || [])
 
-      // Auto-fill university if only one exists
       if (!isEdit && unis.data?.length === 1) {
         setForm(f => ({ ...f, university_id: unis.data[0].id }))
       }
-
       if (!isAdmin && user?.email && !isEdit) {
         supabase.from('centers').select('id, center_name').eq('email', user.email).single()
           .then(({ data: cd }) => {
@@ -291,22 +301,12 @@ export default function StudentForm() {
     }
   }, [id])
 
-  // Scroll spy
+  // Auto wallet check when on step 1 and program/center changes
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) setActiveNav(entry.target.id)
-        })
-      },
-      { rootMargin: '-20% 0px -70% 0px' }
-    )
-    NAV_SECTIONS.forEach(s => {
-      const el = document.getElementById(s.id)
-      if (el) observer.observe(el)
-    })
-    return () => observer.disconnect()
-  }, [])
+    if (step === 1 && form.programme_id && form.center_id && !isAdmin && !isEdit) {
+      runWalletCheck()
+    }
+  }, [step, form.programme_id, form.center_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
 
@@ -317,12 +317,13 @@ export default function StudentForm() {
     return next
   })
 
-  const [pressSameAsPerm, setPressSameAsPerm]           = useState(false)
+  const [pressSameAsPerm, setPressSameAsPerm] = useState(false)
   const [guardianPresSameAsStudent, setGuardianPresSameAsStudent] = useState(false)
-  const [guardianPermSameAsPres, setGuardianPermSameAsPres]   = useState(false)
+  const [guardianPermSameAsPres, setGuardianPermSameAsPres] = useState(false)
 
   const handleDepartmentChange = (e) => {
     setForm(f => ({ ...f, department_id: e.target.value, programme_id: '', course_code: '', semester_year: '' }))
+    setWalletInfo({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
   }
 
   const handleProgramChange = (e) => {
@@ -333,11 +334,16 @@ export default function StudentForm() {
   const handleSessionChange = (e) => {
     const sess = sessions.find(s => s.id === e.target.value)
     const today = new Date().toISOString().split('T')[0]
+    let submissionDate = today
+    if (sess?.start_date && sess?.end_date) {
+      if (today < sess.start_date) submissionDate = sess.start_date
+      else if (today > sess.end_date) submissionDate = sess.end_date
+    }
     setForm(f => ({
       ...f,
       session_id: e.target.value,
       academic_year: sess?.academic_year || sess?.session_name || f.academic_year,
-      date_of_submission: today,
+      date_of_submission: submissionDate,
       date_of_admission: '',
     }))
   }
@@ -401,9 +407,100 @@ export default function StudentForm() {
     return `${prefix}${1001 + (count || 0)}`
   }
 
+  async function runWalletCheck() {
+    setWalletInfo(w => ({ ...w, checking: true }))
+    try {
+      const { data: fs } = await supabase
+        .from('fee_structures')
+        .select('id')
+        .eq('program_id', form.programme_id)
+        .maybeSingle()
+
+      let courseFee = 0
+      if (fs) {
+        const { data: items } = await supabase
+          .from('fee_items')
+          .select('amount')
+          .eq('fee_structure_id', fs.id)
+        courseFee = (items || []).reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
+      }
+
+      const { data: ctr } = await supabase
+        .from('centers')
+        .select('virtual_balance')
+        .eq('id', form.center_id)
+        .maybeSingle()
+
+      const balance = Number(ctr?.virtual_balance || 0)
+      const ok = courseFee === 0 || balance >= courseFee
+      setWalletInfo({ checking: false, balance, courseFee, ok, checked: true })
+      return ok
+    } catch {
+      setWalletInfo(w => ({ ...w, checking: false, checked: true, ok: true }))
+      return true
+    }
+  }
+
+  function validateStep(s) {
+    switch (s) {
+      case 0:
+        if (!form.session_id) return 'Please select a Session'
+        if (!form.date_of_submission) return 'Date of Submission is required'
+        return null
+      case 1:
+        if (!form.department_id) return 'Please select a Department'
+        if (!form.programme_id) return 'Please select a Program'
+        if (!form.semester_year) return 'Please select Semester / Year'
+        return null
+      case 2:
+        if (!form.student_name.trim()) return 'Student Name is required'
+        if (!form.date_of_birth) return 'Date of Birth is required'
+        if (!form.gender) return 'Please select Gender'
+        if (!form.mobile_no.trim()) return 'Mobile Number is required'
+        if (!form.email.trim()) return 'Email is required'
+        if (!form.caste) return 'Please select Caste'
+        if (!form.religion.trim()) return 'Religion is required'
+        if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
+        return null
+      case 3:
+        if (!form.fathers_name.trim()) return "Father's Name is required"
+        if (!form.mothers_name.trim()) return "Mother's Name is required"
+        return null
+      case 4:
+        if (!form.student_perm_city.trim() || !form.student_perm_state || !form.student_perm_pin_code.trim())
+          return 'Please fill Student Permanent Address (City, State and PIN Code are required)'
+        return null
+      default:
+        return null
+    }
+  }
+
+  async function handleNext() {
+    const err = validateStep(step)
+    if (err) { setStepError(err); return }
+    setStepError('')
+
+    if (step === 1 && !isAdmin && !isEdit) {
+      const ok = walletInfo.checked ? walletInfo.ok : await runWalletCheck()
+      if (!ok) {
+        setStepError('Insufficient wallet balance. Please recharge your wallet before proceeding.')
+        return
+      }
+    }
+
+    setStep(s => s + 1)
+  }
+
+  function handlePrev() {
+    setStepError('')
+    setStep(s => s - 1)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
-    // Validate marks: obtained cannot exceed total for any education level
+    const err = validateStep(step)
+    if (err) { setStepError(err); return }
+
     const eduPrefixes = ['tenth', 'twelfth', 'ug', 'pg', 'diploma']
     for (const pfx of eduPrefixes) {
       const obt = parseFloat(form[`${pfx}_obtained_marks`]) || 0
@@ -413,6 +510,7 @@ export default function StudentForm() {
         return
       }
     }
+
     setLoading(true)
     const payload = { ...form }
     if (!isAdmin && !isEdit) payload.status = 'Pending'
@@ -422,68 +520,79 @@ export default function StudentForm() {
     delete payload.id; delete payload.created_at; delete payload.updated_at
     const fkFields = ['university_id', 'session_id', 'programme_id', 'department_id', 'mode_id', 'center_id']
     fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
+
     const { error } = isEdit
       ? await supabase.from('students').update(payload).eq('id', id)
       : await supabase.from('students').insert(payload)
-    if (!error) navigate(backPath)
-    else { alert('Error: ' + error.message); setLoading(false) }
-  }
 
-  const scrollTo = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (!error) {
+      // Deduct course fee from center wallet on new submission
+      if (!isEdit && !isAdmin && walletInfo.checked && walletInfo.courseFee > 0 && form.center_id) {
+        await supabase.from('centers')
+          .update({ virtual_balance: walletInfo.balance - walletInfo.courseFee })
+          .eq('id', form.center_id)
+      }
+      navigate(backPath)
+    } else {
+      alert('Error: ' + error.message)
+      setLoading(false)
+    }
   }
-
-  const activeIndex = NAV_SECTIONS.findIndex(s => s.id === activeNav)
 
   return (
     <div className="p-4 lg:p-6 pb-20">
-      <PageHeader title={isEdit ? 'Edit Student' : 'Add Student'} backTo={backPath} />
+      <PageHeader title={isEdit ? (isReadOnly ? 'View Student' : 'Edit Student') : 'Add Student'} backTo={backPath} />
 
-      {/* Horizontal step navigator — sticky */}
+      {/* Read-only banner */}
+      {isReadOnly && (
+        <div className="mt-4 mb-2 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+          <AlertCircle size={15} />
+          This application has been submitted. Contact the university for any changes.
+        </div>
+      )}
+
+      {/* Step header */}
       <div className="sticky top-0 z-20 mt-4 mb-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden">
         <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="flex items-stretch min-w-max">
-            {NAV_SECTIONS.map((s, i) => {
-              const isActive = activeNav === s.id
-              const isPast = i < activeIndex
+            {STEPS.map((s, i) => {
+              const isActive = step === i
+              const isPast = i < step
+              const Icon = s.icon
               return (
                 <div key={s.id} className="flex items-center">
                   <button
                     type="button"
-                    onClick={() => scrollTo(s.id)}
+                    onClick={() => { if (isPast) { setStepError(''); setStep(i) } }}
                     className={`relative flex items-center gap-2.5 px-5 py-3.5 transition-all group
                       ${isActive
                         ? 'bg-[#933d18] text-white'
                         : isPast
-                          ? 'bg-[#933d18]/8 text-[#933d18]/70 hover:bg-[#933d18]/12'
-                          : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+                          ? 'bg-[#933d18]/8 text-[#933d18]/70 hover:bg-[#933d18]/12 cursor-pointer'
+                          : 'text-gray-400 cursor-default'
                       }`}
                   >
-                    {/* Step circle */}
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 transition-all
                       ${isActive
                         ? 'bg-white/20 text-white'
                         : isPast
                           ? 'bg-[#933d18]/20 text-[#933d18]'
-                          : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'
+                          : 'bg-gray-100 text-gray-400'
                       }`}>
                       {isPast ? <CheckCircle2 size={13} /> : i + 1}
                     </div>
-                    {/* Icon + label */}
                     <div className="flex flex-col items-start">
                       <div className="flex items-center gap-1.5">
-                        <span className={isActive ? 'text-white/80' : isPast ? 'text-[#933d18]/60' : 'text-gray-300'}>{s.icon}</span>
+                        <Icon size={13} className={isActive ? 'text-white/80' : isPast ? 'text-[#933d18]/60' : 'text-gray-300'} />
                         <span className={`text-xs font-bold whitespace-nowrap leading-tight
                           ${isActive ? 'text-white' : isPast ? 'text-[#933d18]/80' : 'text-gray-500'}`}>
                           {s.label}
                         </span>
                       </div>
                     </div>
-                    {/* Active bottom bar */}
                     {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/40 rounded-full" />}
                   </button>
-                  {/* Connector */}
-                  {i < NAV_SECTIONS.length - 1 && (
+                  {i < STEPS.length - 1 && (
                     <div className={`w-px self-stretch my-2 transition-colors ${isPast ? 'bg-[#933d18]/20' : 'bg-gray-200'}`} />
                   )}
                 </div>
@@ -493,87 +602,97 @@ export default function StudentForm() {
         </div>
       </div>
 
-        {/* Main form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Step error */}
+      {stepError && (
+        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={15} className="shrink-0" /> {stepError}
+        </div>
+      )}
 
-          {/* 1. Basic Entry */}
-          <div id="sec-basic">
-            <FormSection title="Basic Entry" icon={<ClipboardList size={16} />}>
-              {/* Row 1: Session first, then Mode and Entry Type */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Select label="Session *" value={form.session_id} onChange={handleSessionChange}>
-                  <option value="">Select Session</option>
-                  {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
-                </Select>
-                <Select label="Mode" value={form.mode_id} onChange={set('mode_id')}>
-                  <option value="">Select Mode</option>
-                  {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
-                </Select>
-                <Select label="Entry Type" value={form.entry_type} onChange={set('entry_type')}>
-                  <option value="Regular">Regular</option>
-                  <option value="Lateral">Lateral</option>
-                  <option value="External">External</option>
-                </Select>
-              </div>
-              {/* Row 2: Dates auto-fill from session; University fixed */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input
-                  label="Date of Submission"
-                  type="date"
-                  value={form.date_of_submission}
-                  onChange={set('date_of_submission')}
-                  min={sessionMinDate || undefined}
-                  max={sessionMaxDate || undefined}
-                  hint="Auto-fills when session is selected"
-                />
-                <Input
-                  label="Date of Admission"
-                  type="date"
-                  value={form.date_of_admission}
-                  onChange={set('date_of_admission')}
-                  min={sessionMinDate || undefined}
-                  max={sessionMaxDate || undefined}
-                />
-                <Input
-                  label="University"
-                  value={universities.find(u => u.id === form.university_id)?.university_name || ''}
-                  readOnly
-                  className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed"
-                />
-              </div>
-              {/* Row 3: Center */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {isAdmin ? (
-                  <Select label="Center Name" value={form.center_id} onChange={set('center_id')}>
+      <form onSubmit={handleSubmit} className="space-y-5">
+
+        {/* STEP 0: Basic Entry */}
+        {step === 0 && (
+          <FormSection title="Basic Entry" icon={<ClipboardList size={16} />}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Select label="Session *" value={form.session_id} onChange={handleSessionChange} disabled={isReadOnly} required>
+                <option value="">Select Session</option>
+                {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
+              </Select>
+              <Select label="Mode *" value={form.mode_id} onChange={set('mode_id')} disabled={isReadOnly} required>
+                <option value="">Select Mode</option>
+                {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
+              </Select>
+              <Select label="Entry Type *" value={form.entry_type} onChange={set('entry_type')} disabled={isReadOnly}>
+                <option value="Regular">Regular</option>
+                <option value="Lateral">Lateral</option>
+                <option value="External">External</option>
+              </Select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                label="Date of Submission *"
+                type="date"
+                value={form.date_of_submission}
+                onChange={set('date_of_submission')}
+                min={sessionMinDate || undefined}
+                max={sessionMaxDate || undefined}
+                readOnly={isReadOnly}
+                hint={
+                  sessionMinDate && sessionMaxDate
+                    ? `Between ${fmtDate(sessionMinDate)} and ${fmtDate(sessionMaxDate)}`
+                    : 'Select a session first'
+                }
+              />
+              <Input
+                label="Date of Admission"
+                type="date"
+                value={form.date_of_admission}
+                onChange={set('date_of_admission')}
+                min={sessionMinDate || undefined}
+                max={sessionMaxDate || undefined}
+                readOnly={isReadOnly}
+              />
+              <Input
+                label="University"
+                value={universities.find(u => u.id === form.university_id)?.university_name || ''}
+                readOnly
+                className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {isAdmin ? (
+                <>
+                  <Select label="Center Name *" value={form.center_id} onChange={set('center_id')} disabled={isReadOnly}>
                     <option value="">Select Center</option>
                     {centers.map(c => <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>)}
                   </Select>
-                ) : (
-                  <Input label="Center Name" value={form.center_name || ''} readOnly className="bg-gray-50 text-gray-500 cursor-not-allowed" />
-                )}
-                {isAdmin && (
-                  <Input label="Center Name (manual)" placeholder="Auto-filled or type" value={form.center_name} onChange={set('center_name')} />
-                )}
-              </div>
-            </FormSection>
-          </div>
+                  <Input label="Center Name (manual)" placeholder="Auto-filled or type" value={form.center_name} onChange={set('center_name')} readOnly={isReadOnly} />
+                </>
+              ) : (
+                <Input label="Center Name" value={form.center_name || ''} readOnly className="bg-gray-50 text-gray-500 cursor-not-allowed" />
+              )}
+            </div>
+          </FormSection>
+        )}
 
-          {/* 2. Program Information */}
-          <div id="sec-program">
+        {/* STEP 1: Program Information */}
+        {step === 1 && (
+          <>
             <FormSection title="Program Information" icon={<BookOpen size={16} />}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Select label="Department" value={form.department_id} onChange={handleDepartmentChange}>
+                <Select label="Department *" value={form.department_id} onChange={handleDepartmentChange} disabled={isReadOnly} required>
                   <option value="">Select Department</option>
                   {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </Select>
-                <Select label="Program Name" value={form.programme_id} onChange={handleProgramChange}>
+                <Select label="Program Name *" value={form.programme_id} onChange={handleProgramChange} disabled={isReadOnly} required>
                   <option value="">Select Program</option>
                   {filteredPrograms.map(p => <option key={p.id} value={p.id}>{p.program_name}</option>)}
                 </Select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Course Code" value={form.course_code} onChange={set('course_code')} />
-                <Select label="Semester / Year" value={form.semester_year} onChange={set('semester_year')}>
+                <Input label="Course Code" value={form.course_code} onChange={set('course_code')} readOnly={isReadOnly} />
+                <Select label="Semester / Year *" value={form.semester_year} onChange={set('semester_year')} disabled={isReadOnly} required>
                   <option value="">Select</option>
                   {semesterOptions
                     ? semesterOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)
@@ -587,15 +706,15 @@ export default function StudentForm() {
                       </>
                   }
                 </Select>
-                <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} />
+                <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} readOnly={isReadOnly} />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
                   label="Enrollment No"
                   placeholder={isAdmin ? 'Auto-generate if blank' : '—'}
                   value={form.enrollment_no}
                   onChange={set('enrollment_no')}
-                  readOnly={!isAdmin}
+                  readOnly={!isAdmin || isReadOnly}
                   className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
                 />
                 <Input
@@ -603,218 +722,268 @@ export default function StudentForm() {
                   placeholder={isAdmin ? '' : '—'}
                   value={form.admission_number}
                   onChange={set('admission_number')}
-                  readOnly={!isAdmin}
-                  className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
-                />
-                <Input
-                  label="Registration No"
-                  placeholder={isAdmin ? '' : '—'}
-                  value={form.registration_no}
-                  onChange={set('registration_no')}
-                  readOnly={!isAdmin}
+                  readOnly={!isAdmin || isReadOnly}
                   className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Select
-                  label="Status"
-                  value={form.status}
-                  onChange={set('status')}
-                  disabled={!isAdmin}
-                  className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
-                >
-                  {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </Select>
-                <Textarea label="Remarks" value={form.remarks} onChange={set('remarks')} />
-              </div>
-            </FormSection>
-          </div>
-
-          {/* 3. Personal Information */}
-          <div id="sec-personal">
-            <FormSection title="Personal Information" icon={<User size={16} />}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Student Name *" value={form.student_name} onChange={set('student_name')} required />
-                <Input label="Date of Birth" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Select label="Profession" value={form.profession} onChange={set('profession')}>
-                  <option value="">Select</option>
-                  {PROFESSION_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                </Select>
-                <Select label="Gender / Sex" value={form.gender} onChange={set('gender')}>
-                  <option value="">Select</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Others">Others</option>
-                </Select>
-                <Input label="Email Id" type="email" value={form.email} onChange={set('email')} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Mobile No" type="tel" value={form.mobile_no} onChange={set('mobile_no')} />
-                <Input label="WhatsApp No" type="tel" value={form.whatsapp_no} onChange={set('whatsapp_no')} />
-                {countries.length > 0 ? (
-                  <Select label="Nationality" value={form.nationality} onChange={set('nationality')}>
-                    <option value="">Select Country</option>
-                    {countries.map(c => <option key={c.id} value={c.country_name}>{c.country_name}</option>)}
+              {isAdmin && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Select
+                    label="Status"
+                    value={form.status}
+                    onChange={set('status')}
+                  >
+                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                   </Select>
-                ) : (
-                  <Input label="Nationality" value={form.nationality} onChange={set('nationality')} />
+                  <Textarea label="Remarks" value={form.remarks} onChange={set('remarks')} />
+                </div>
+              )}
+              {!isAdmin && isReadOnly && form.remarks && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs font-bold text-amber-600 uppercase tracking-widest mb-1">Remarks</p>
+                  <p className="text-sm text-gray-700">{form.remarks}</p>
+                </div>
+              )}
+            </FormSection>
+
+            {/* Wallet check panel */}
+            {!isAdmin && !isEdit && (
+              <div className="mt-2">
+                {walletInfo.checking ? (
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-600">
+                    <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                    Checking wallet balance...
+                  </div>
+                ) : walletInfo.checked && form.programme_id ? (
+                  <div className={`flex items-center justify-between rounded-xl px-4 py-3 ${walletInfo.ok ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
+                    <div className="flex items-center gap-3">
+                      <Wallet size={16} className={walletInfo.ok ? 'text-emerald-600' : 'text-red-600'} />
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">Wallet Balance Check</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
+                          &nbsp;·&nbsp;Your Balance: ₹{walletInfo.balance.toLocaleString('en-IN')}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-black px-3 py-1 rounded-full ${walletInfo.ok ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                      {walletInfo.ok ? '✓ Sufficient' : '✗ Insufficient'}
+                    </span>
+                  </div>
+                ) : form.programme_id ? (
+                  <p className="text-xs text-gray-400 italic">Balance check will run automatically...</p>
+                ) : null}
+                {walletInfo.checked && !walletInfo.ok && (
+                  <p className="text-xs text-red-600 mt-2 px-1">
+                    Please recharge your wallet to proceed.{' '}
+                    <a href={role === 'center' ? '/center/balance' : '/super-center/balance'}
+                      className="underline font-semibold">Recharge Now →</a>
+                  </p>
                 )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Select label="Caste" value={form.caste} onChange={set('caste')}>
-                  <option value="">Select</option>
-                  {CASTE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            )}
+          </>
+        )}
+
+        {/* STEP 2: Personal Information */}
+        {step === 2 && (
+          <FormSection title="Personal Information" icon={<User size={16} />}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Student Name *" value={form.student_name} onChange={set('student_name')} required readOnly={isReadOnly} />
+              <Input label="Date of Birth *" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} required readOnly={isReadOnly} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Select label="Profession *" value={form.profession} onChange={set('profession')} disabled={isReadOnly} required>
+                <option value="">Select</option>
+                {PROFESSION_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+              </Select>
+              <Select label="Gender *" value={form.gender} onChange={set('gender')} disabled={isReadOnly} required>
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Others">Others</option>
+              </Select>
+              <Input label="Email Id *" type="email" value={form.email} onChange={set('email')} required readOnly={isReadOnly} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input label="Mobile No *" type="tel" value={form.mobile_no} onChange={set('mobile_no')} required readOnly={isReadOnly} />
+              <Input label="WhatsApp No *" type="tel" value={form.whatsapp_no} onChange={set('whatsapp_no')} required readOnly={isReadOnly} />
+              {countries.length > 0 ? (
+                <Select label="Nationality *" value={form.nationality} onChange={set('nationality')} disabled={isReadOnly} required>
+                  <option value="">Select Country</option>
+                  {countries.map(c => <option key={c.id} value={c.country_name}>{c.country_name}</option>)}
                 </Select>
-                <Input label="Religion" value={form.religion} onChange={set('religion')} />
-                <Input label="Blood Group" placeholder="A+, B-, O+" value={form.blood_group} onChange={set('blood_group')} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Mother Tongue" value={form.mother_tongue} onChange={set('mother_tongue')} />
-                <Select label="Physically Handicapped" value={form.physically_handicapped} onChange={set('physically_handicapped')}>
-                  <option value="No">No</option>
-                  <option value="Yes">Yes</option>
-                </Select>
-                <Input label="Aadhar Link Mobile" type="tel" value={form.aadhar_link_mobile} onChange={set('aadhar_link_mobile')} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Aadhar No" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} />
-                <Input label="PAN No" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} />
-                <Select label="Scholarship Applied" value={form.scholarship_applied} onChange={set('scholarship_applied')}>
-                  {SCHOLARSHIP_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                </Select>
-              </div>
-              <Input label="Identification Marks" placeholder="Any visible identification marks..." value={form.identification_marks} onChange={set('identification_marks')} />
-            </FormSection>
-          </div>
+              ) : (
+                <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} required readOnly={isReadOnly} />
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Select label="Caste *" value={form.caste} onChange={set('caste')} disabled={isReadOnly} required>
+                <option value="">Select</option>
+                {CASTE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </Select>
+              <Input label="Religion *" value={form.religion} onChange={set('religion')} required readOnly={isReadOnly} />
+              <Input label="Blood Group" placeholder="A+, B-, O+" value={form.blood_group} onChange={set('blood_group')} readOnly={isReadOnly} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input label="Mother Tongue *" value={form.mother_tongue} onChange={set('mother_tongue')} required readOnly={isReadOnly} />
+              <Select label="Physically Handicapped *" value={form.physically_handicapped} onChange={set('physically_handicapped')} disabled={isReadOnly}>
+                <option value="No">No</option>
+                <option value="Yes">Yes</option>
+              </Select>
+              <Input label="Aadhar Link Mobile *" type="tel" value={form.aadhar_link_mobile} onChange={set('aadhar_link_mobile')} required readOnly={isReadOnly} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} required readOnly={isReadOnly} />
+              <Input label="PAN No" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} readOnly={isReadOnly} />
+              <Select label="Scholarship Applied *" value={form.scholarship_applied} onChange={set('scholarship_applied')} disabled={isReadOnly}>
+                {SCHOLARSHIP_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            </div>
+            <Input label="Identification Marks" placeholder="Any visible identification marks..." value={form.identification_marks} onChange={set('identification_marks')} readOnly={isReadOnly} />
+          </FormSection>
+        )}
 
-          {/* 4. Family Information */}
-          <div id="sec-family">
-            <FormSection title="Family Information" icon={<Users size={16} />}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Father's Name" value={form.fathers_name} onChange={set('fathers_name')} />
-                <Input label="Father's Occupation" value={form.fathers_occupation} onChange={set('fathers_occupation')} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Mother's Name" value={form.mothers_name} onChange={set('mothers_name')} />
-                <Input label="Mother's Occupation" value={form.mothers_occupation} onChange={set('mothers_occupation')} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Guardian's Name" value={form.guardian_name} onChange={set('guardian_name')} />
-                <Input label="Guardian's Occupation" value={form.guardian_occupation} onChange={set('guardian_occupation')} />
-                <Input label="Relation" placeholder="e.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Guardian Email Id" type="email" value={form.guardian_email} onChange={set('guardian_email')} />
-                <Input label="Guardian Mobile No" type="tel" value={form.guardian_mobile} onChange={set('guardian_mobile')} />
-              </div>
-            </FormSection>
-          </div>
+        {/* STEP 3: Family Information */}
+        {step === 3 && (
+          <FormSection title="Family Information" icon={<Users size={16} />}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Father's Name *" value={form.fathers_name} onChange={set('fathers_name')} required readOnly={isReadOnly} />
+              <Input label="Father's Occupation *" value={form.fathers_occupation} onChange={set('fathers_occupation')} required readOnly={isReadOnly} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Mother's Name *" value={form.mothers_name} onChange={set('mothers_name')} required readOnly={isReadOnly} />
+              <Input label="Mother's Occupation *" value={form.mothers_occupation} onChange={set('mothers_occupation')} required readOnly={isReadOnly} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input label="Guardian's Name" value={form.guardian_name} onChange={set('guardian_name')} readOnly={isReadOnly} />
+              <Input label="Guardian's Occupation" value={form.guardian_occupation} onChange={set('guardian_occupation')} readOnly={isReadOnly} />
+              <Input label="Relation" placeholder="e.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} readOnly={isReadOnly} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Guardian Email Id" type="email" value={form.guardian_email} onChange={set('guardian_email')} readOnly={isReadOnly} />
+              <Input label="Guardian Mobile No" type="tel" value={form.guardian_mobile} onChange={set('guardian_mobile')} readOnly={isReadOnly} />
+            </div>
+          </FormSection>
+        )}
 
-          {/* 5. Contact Information */}
-          <div id="sec-contact">
-            <FormSection title="Contact Information" icon={<MapPin size={16} />}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <AddressBlock prefix="student_perm" label="Student Permanent Address"
-                  form={form} onChange={set} setForm={setForm} states={states} districts={districts} />
-                <AddressBlock prefix="student_pres" label="Student Present Address"
-                  form={form} onChange={set} setForm={setForm} states={states} districts={districts}
-                  sameAsOptions={[{
-                    label: 'Same as Permanent Address',
-                    checked: pressSameAsPerm,
-                    onCopy: () => copyAddress('student_perm', 'student_pres'),
-                    onToggle: v => setPressSameAsPerm(v),
-                  }]} />
-                <AddressBlock prefix="guardian_pres" label="Guardian Present Address"
-                  form={form} onChange={set} setForm={setForm} states={states} districts={districts}
-                  sameAsOptions={[{
-                    label: "Same as Student's Present Address",
-                    checked: guardianPresSameAsStudent,
-                    onCopy: () => copyAddress('student_pres', 'guardian_pres'),
-                    onToggle: v => setGuardianPresSameAsStudent(v),
-                  }]} />
-                <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address"
-                  form={form} onChange={set} setForm={setForm} states={states} districts={districts}
-                  sameAsOptions={[
-                    {
-                      label: 'Same as Guardian Present Address',
-                      checked: guardianPermSameAsPres,
-                      onCopy: () => copyAddress('guardian_pres', 'guardian_perm'),
-                      onToggle: v => setGuardianPermSameAsPres(v),
-                    },
-                    {
-                      label: "Same as Student's Permanent Address",
-                      checked: false,
-                      onCopy: () => copyAddress('student_perm', 'guardian_perm'),
-                      onToggle: () => {},
-                    },
-                  ]} />
-              </div>
-            </FormSection>
-          </div>
+        {/* STEP 4: Contact Information */}
+        {step === 4 && (
+          <FormSection title="Contact Information" icon={<MapPin size={16} />}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <AddressBlock prefix="student_perm" label="Student Permanent Address"
+                form={form} onChange={set} setForm={setForm} states={states} districts={districts} readOnly={isReadOnly} />
+              <AddressBlock prefix="student_pres" label="Student Present Address"
+                form={form} onChange={set} setForm={setForm} states={states} districts={districts} readOnly={isReadOnly}
+                sameAsOptions={[{
+                  label: 'Same as Permanent Address',
+                  checked: pressSameAsPerm,
+                  onCopy: () => copyAddress('student_perm', 'student_pres'),
+                  onToggle: v => setPressSameAsPerm(v),
+                }]} />
+              <AddressBlock prefix="guardian_pres" label="Guardian Present Address"
+                form={form} onChange={set} setForm={setForm} states={states} districts={districts} readOnly={isReadOnly}
+                sameAsOptions={[{
+                  label: "Same as Student's Present Address",
+                  checked: guardianPresSameAsStudent,
+                  onCopy: () => copyAddress('student_pres', 'guardian_pres'),
+                  onToggle: v => setGuardianPresSameAsStudent(v),
+                }]} />
+              <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address"
+                form={form} onChange={set} setForm={setForm} states={states} districts={districts} readOnly={isReadOnly}
+                sameAsOptions={[
+                  {
+                    label: 'Same as Guardian Present Address',
+                    checked: guardianPermSameAsPres,
+                    onCopy: () => copyAddress('guardian_pres', 'guardian_perm'),
+                    onToggle: v => setGuardianPermSameAsPres(v),
+                  },
+                  {
+                    label: "Same as Student's Permanent Address",
+                    checked: false,
+                    onCopy: () => copyAddress('student_perm', 'guardian_perm'),
+                    onToggle: () => {},
+                  },
+                ]} />
+            </div>
+          </FormSection>
+        )}
 
-          {/* 6. Education Qualification */}
-          <div id="sec-education">
-            <FormSection title="Education Qualification" icon={<FileText size={16} />}
-              subtitle="Click on each level to expand and fill details">
-              <div className="space-y-2">
-                <EduRow prefix="tenth" label="10th / SSC / Matric" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.tenth} onToggle={() => toggleEdu('tenth')} />
-                <EduRow prefix="twelfth" label="12th / HSC / Intermediate" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.twelfth} onToggle={() => toggleEdu('twelfth')} />
-                <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.ug} onToggle={() => toggleEdu('ug')} />
-                <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.pg} onToggle={() => toggleEdu('pg')} />
-                <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.diploma} onToggle={() => toggleEdu('diploma')} />
-              </div>
-            </FormSection>
-          </div>
+        {/* STEP 5: Education Qualification */}
+        {step === 5 && (
+          <FormSection title="Education Qualification" icon={<FileText size={16} />}
+            subtitle="Click on each level to expand and fill details">
+            <div className="space-y-2">
+              <EduRow prefix="tenth" label="10th / SSC / Matric" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.tenth} onToggle={() => toggleEdu('tenth')} readOnly={isReadOnly} />
+              <EduRow prefix="twelfth" label="12th / HSC / Intermediate" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.twelfth} onToggle={() => toggleEdu('twelfth')} readOnly={isReadOnly} />
+              <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.ug} onToggle={() => toggleEdu('ug')} readOnly={isReadOnly} />
+              <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.pg} onToggle={() => toggleEdu('pg')} readOnly={isReadOnly} />
+              <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.diploma} onToggle={() => toggleEdu('diploma')} readOnly={isReadOnly} />
+            </div>
+          </FormSection>
+        )}
 
-          {/* 7. Documents */}
-          <div id="sec-documents">
-            <FormSection title="Documents" icon={<Upload size={16} />}
-              subtitle="Upload student photo, Aadhar, signature and declaration">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3 items-center">
-                  {form.photo_url
-                    ? <img src={form.photo_url} alt="Photo" className="h-24 w-24 object-cover rounded-xl border-2 border-[#933d18]/20 shadow" />
-                    : <div className="h-24 w-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-white">
-                        <User size={28} className="text-gray-300" />
-                      </div>
-                  }
-                  <FileField label="Student Photo" fieldKey="photo_url" accept="image/*" isImage value={form.photo_url} onUpload={handleFileUpload} isUploading={!!uploading.photo_url} />
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3 items-center">
-                  {form.signature_url
-                    ? <img src={form.signature_url} alt="Signature" className="h-24 w-24 object-contain rounded-xl border-2 border-[#933d18]/20 shadow bg-white" />
-                    : <div className="h-24 w-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-white">
-                        <FileText size={28} className="text-gray-300" />
-                      </div>
-                  }
-                  <FileField label="Signature" fieldKey="signature_url" accept="image/*" isImage value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} />
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
-                  <p className="text-xs font-semibold text-gray-500">Aadhar Card</p>
-                  <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} />
-                  {form.aadhar_url && (
-                    <a href={form.aadhar_url} target="_blank" rel="noreferrer" className="text-xs text-[#933d18] underline">View Aadhar</a>
-                  )}
-                </div>
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
-                  <p className="text-xs font-semibold text-gray-500">Declaration Form</p>
-                  <FileField label="" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false} value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} />
-                  {form.declaration_url && (
-                    <a href={form.declaration_url} target="_blank" rel="noreferrer" className="text-xs text-[#933d18] underline">View Declaration</a>
-                  )}
-                </div>
+        {/* STEP 6: Documents */}
+        {step === 6 && (
+          <FormSection title="Documents" icon={<Upload size={16} />}
+            subtitle="Upload student photo, Aadhar, signature and declaration">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3 items-center">
+                {form.photo_url
+                  ? <img src={form.photo_url} alt="Photo" className="h-24 w-24 object-cover rounded-xl border-2 border-[#933d18]/20 shadow" />
+                  : <div className="h-24 w-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-white">
+                      <User size={28} className="text-gray-300" />
+                    </div>
+                }
+                <FileField label="Student Photo *" fieldKey="photo_url" accept="image/*" isImage value={form.photo_url} onUpload={handleFileUpload} isUploading={!!uploading.photo_url} readOnly={isReadOnly} />
               </div>
-            </FormSection>
-          </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3 items-center">
+                {form.signature_url
+                  ? <img src={form.signature_url} alt="Signature" className="h-24 w-24 object-contain rounded-xl border-2 border-[#933d18]/20 shadow bg-white" />
+                  : <div className="h-24 w-24 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center bg-white">
+                      <FileText size={28} className="text-gray-300" />
+                    </div>
+                }
+                <FileField label="Signature *" fieldKey="signature_url" accept="image/*" isImage value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} readOnly={isReadOnly} />
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
+                <p className="text-xs font-semibold text-gray-500">Aadhar Card *</p>
+                <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} readOnly={isReadOnly} />
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
+                <p className="text-xs font-semibold text-gray-500">Declaration Form *</p>
+                <FileField label="" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false} value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} readOnly={isReadOnly} />
+              </div>
+            </div>
+          </FormSection>
+        )}
 
-          <div className="flex gap-3 pt-2 pb-8">
-            <Button type="submit" disabled={loading}>{loading ? 'Saving...' : isEdit ? 'Update Student' : 'Submit Application'}</Button>
+        {/* Navigation buttons */}
+        <div className="flex items-center justify-between pt-2 pb-8">
+          <div>
+            {step > 0 && (
+              <Button type="button" variant="outline" onClick={handlePrev}>
+                <ArrowLeft size={14} /> Back
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-3">
             <Button type="button" variant="outline" onClick={() => navigate(backPath)}>Cancel</Button>
+            {step < STEPS.length - 1 ? (
+              <Button type="button" onClick={handleNext} disabled={walletInfo.checking}>
+                {walletInfo.checking ? 'Checking...' : 'Next'} <ArrowRight size={14} />
+              </Button>
+            ) : (
+              !isReadOnly && (
+                <Button type="submit" disabled={loading}>
+                  {loading ? 'Saving...' : isEdit ? 'Update Student' : 'Submit Application'}
+                </Button>
+              )
+            )}
           </div>
+        </div>
 
-        </form>
+      </form>
     </div>
   )
 }
