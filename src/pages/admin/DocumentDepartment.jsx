@@ -125,6 +125,7 @@ export default function DocumentDepartment() {
       status: 'Hold',
       admission_number: admNo,
       remarks: remarks || null,
+      doc_verified_at: new Date().toISOString(),
     }).eq('id', verifyModal.id)
     setSaving(false)
     setVerifyModal(null)

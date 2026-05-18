@@ -513,7 +513,7 @@ export default function StudentForm() {
 
     setLoading(true)
     const payload = { ...form }
-    if (!isAdmin && !isEdit) payload.status = 'Pending'
+    if (!isEdit) payload.status = 'Pending'
     if (!isEdit && !payload.registration_no) {
       payload.registration_no = await generateRegistrationNumber()
     }
@@ -726,7 +726,7 @@ export default function StudentForm() {
                   className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
                 />
               </div>
-              {isAdmin && (
+              {isAdmin && isEdit && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Select
                     label="Status"
@@ -735,6 +735,18 @@ export default function StudentForm() {
                   >
                     {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                   </Select>
+                  <Textarea label="Remarks" value={form.remarks} onChange={set('remarks')} />
+                </div>
+              )}
+              {isAdmin && !isEdit && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-xs font-bold text-gray-500">Status</p>
+                    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+                      <span className="text-xs font-bold text-amber-700">Pending</span>
+                      <span className="text-xs text-amber-600">— will go to Document Dept. first</span>
+                    </div>
+                  </div>
                   <Textarea label="Remarks" value={form.remarks} onChange={set('remarks')} />
                 </div>
               )}
