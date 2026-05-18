@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import {
   Building2, User, MapPin, Briefcase, CreditCard, GraduationCap,
-  Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft
+  Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, Wallet
 } from 'lucide-react'
 
 const STEPS = [
@@ -18,6 +18,7 @@ const STEPS = [
   { label: 'Organization',     icon: Briefcase },
   { label: 'Bank Details',     icon: CreditCard },
   { label: 'Education',        icon: GraduationCap },
+  { label: 'Payment',          icon: Wallet },
   { label: 'Documents',        icon: Upload },
 ]
 
@@ -45,6 +46,8 @@ const emptyForm = {
   owner_photo_url: '', owner_signature_url: '', owner_aadhar_url: '', owner_pan_url: '',
   center_reg_url: '', premises_photo_url: '', gst_url: '', agreement_url: '',
   cancel_cheque_url: '', bank_passbook_url: '',
+  // Payment
+  amount_paid: '', utr_number: '', payment_date: '', payment_screenshot_url: '',
   center_type: 'center',
   approval_status: 'pending',
 }
@@ -209,7 +212,7 @@ export default function SubCenterForm() {
       delete payload.id; delete payload.created_at; delete payload.updated_at
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id']
       fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
-      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage']
+      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid']
       numericFields.forEach(k => {
         if (payload[k] === '' || payload[k] === null) delete payload[k]
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
@@ -238,6 +241,7 @@ export default function SubCenterForm() {
     ['agreement_url', 'Agreement'],
     ['cancel_cheque_url', 'Cancel Cheque'],
     ['bank_passbook_url', 'Bank Passbook'],
+    ['payment_screenshot_url', 'Payment Proof'],
   ]
   const docsUploaded = docFields.filter(([k]) => !!form[k]).length
 
@@ -526,8 +530,36 @@ export default function SubCenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 6: Documents */}
+        {/* STEP 6: Payment */}
         {step === 6 && (
+          <FormSection title="Payment Details" icon={<Wallet size={16} />}
+            subtitle="Record registration / initial payment made by the applicant">
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 font-medium">
+              Enter the payment details received from the center applicant before their center is activated.
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Amount Paid (₹)" type="number" placeholder="e.g. 5000"
+                value={form.amount_paid} onChange={set('amount_paid')} />
+              <Input label="UTR / Transaction Number" placeholder="Bank reference number"
+                value={form.utr_number} onChange={set('utr_number')} />
+            </div>
+            <Input label="Payment Date" type="date"
+              value={form.payment_date} onChange={set('payment_date')} />
+            <div>
+              <p className="text-xs font-bold text-gray-500 mb-2">Payment Screenshot / Proof</p>
+              <div className="max-w-xs">
+                <FileCard label="Payment Screenshot" fieldKey="payment_screenshot_url"
+                  accept="image/*,application/pdf" isImage
+                  value={form.payment_screenshot_url} onUpload={handleFileUpload}
+                  isUploading={!!uploading.payment_screenshot_url}
+                  hint="Screenshot of bank transfer / UTR proof" />
+              </div>
+            </div>
+          </FormSection>
+        )}
+
+        {/* STEP 7: Documents */}
+        {step === 7 && (
           <div className="space-y-5">
             <FormSection title="Identity Documents" icon={<User size={16} />}
               subtitle="Owner's personal identity documents">
@@ -580,7 +612,7 @@ export default function SubCenterForm() {
             {/* Upload summary */}
             <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
-                Upload Summary — {docsUploaded}/10 documents uploaded
+                Upload Summary — {docsUploaded}/11 documents uploaded
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {docFields.map(([k, label]) => (
