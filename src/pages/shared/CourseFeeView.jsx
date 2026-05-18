@@ -141,67 +141,91 @@ export default function CourseFeeView() {
     setResults([])
     setErrMsg('')
 
-    // Use the EXACT same select pattern that FeeManagement uses (proven to work)
-    let q = supabase
-      .from('fee_structures')
-      .select(`
-        id, program_id, session_id, total_semesters,
-        programs(id, program_name, duration, semester_year, department_id, programme_type_id, study_mode_id),
-        academic_sessions(id, session_name),
-        fee_items(label, category, amount, sort_order)
-      `)
-
-    if (selSession) q = q.eq('session_id', selSession)
-    if (selProg)    q = q.eq('program_id',  selProg)
-
-    const { data: fsList, error } = await q
-
-    if (error) {
-      setErrMsg(`Query error: ${error.message}`)
-      setLoading(false)
-      return
-    }
-
-    if (!fsList?.length) {
-      setLoading(false)
-      return
-    }
-
-    // Build dept / type name lookup maps from already-loaded state
-    const deptMap = Object.fromEntries(departments.map(d => [d.id, d.name]))
-    const typeMap = Object.fromEntries(progTypes.map(t => [t.id, t.programme_type_name]))
-    const modeMap = Object.fromEntries(modes.map(m => [m.id, m.mode_name]))
-
-    const rows = []
-    fsList.forEach(fs => {
-      const prog = fs.programs
-      const sess = fs.academic_sessions
-      if (!prog) return
-
-      // Apply client-side filters (for dept/type/mode when program not locked)
-      if (selDept && prog.department_id     !== selDept) return
-      if (selType && prog.programme_type_id !== selType) return
-      if (selMode && prog.study_mode_id     !== selMode) return
-
-      const feeItems  = [...(fs.fee_items || [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-      const totalSems = fs.total_semesters ||
-        (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
-
-      for (let i = 0; i < totalSems; i++) {
-        rows.push({
-          key:         `${fs.id}-${i}`,
-          session:     sess?.session_name || '—',
-          department:  deptMap[prog.department_id]     || '—',
-          progType:    typeMap[prog.programme_type_id] || '—',
-          mode:        modeMap[prog.study_mode_id]     || '—',
-          programName: prog.program_name || '—',
-          semester:    `Semester ${i + 1}`,
-          fee:         semFee(feeItems, i, totalSems),
-        })
+    try {
+      // Step 1: resolve program IDs from dept/type/mode/specific-prog filters
+      // Do this as a separate DB query so we never rely on nested column names
+      let matchProgIds = null
+      if (selProg) {
+        matchProgIds = [selProg]
+      } else if (selDept || selType || selMode) {
+        let pq = supabase.from('programs').select('id')
+        if (selDept) pq = pq.eq('department_id',     selDept)
+        if (selType) pq = pq.eq('programme_type_id', selType)
+        if (selMode) pq = pq.eq('study_mode_id',     selMode)
+        const { data: mp, error: mpErr } = await pq
+        if (mpErr) throw mpErr
+        matchProgIds = (mp || []).map(p => p.id)
+        if (!matchProgIds.length) { setResults([]); setLoading(false); return }
       }
-    })
 
-    setResults(rows)
+      // Step 2: fetch fee_structures (simple columns only — no nested joins)
+      let fsQ = supabase
+        .from('fee_structures')
+        .select('id, program_id, session_id, total_semesters')
+      if (selSession)     fsQ = fsQ.eq('session_id', selSession)
+      if (matchProgIds)   fsQ = fsQ.in('program_id', matchProgIds)
+
+      const { data: fsList, error: fsErr } = await fsQ
+      if (fsErr) throw fsErr
+      if (!fsList?.length) { setResults([]); setLoading(false); return }
+
+      // Step 3: fetch fee_items for these fee_structure IDs
+      const fsIds   = fsList.map(f => f.id)
+      const progIds = [...new Set(fsList.map(f => f.program_id).filter(Boolean))]
+      const sessIds = [...new Set(fsList.map(f => f.session_id).filter(Boolean))]
+
+      const [{ data: itemList, error: itemErr }, { data: progList, error: progErr }, { data: sessList, error: sessErr }] =
+        await Promise.all([
+          supabase.from('fee_items').select('fee_structure_id, label, category, amount, sort_order').in('fee_structure_id', fsIds),
+          supabase.from('programs').select('id, program_name, duration, semester_year, department_id, programme_type_id').in('id', progIds),
+          supabase.from('academic_sessions').select('id, session_name').in('id', sessIds),
+        ])
+
+      if (itemErr) throw itemErr
+      if (progErr) throw progErr
+      if (sessErr) throw sessErr
+
+      // Step 4: build lookup maps
+      const itemMap = {}
+      ;(itemList || []).forEach(item => {
+        if (!itemMap[item.fee_structure_id]) itemMap[item.fee_structure_id] = []
+        itemMap[item.fee_structure_id].push(item)
+      })
+      const progMap = Object.fromEntries((progList || []).map(p => [p.id, p]))
+      const sessMap = Object.fromEntries((sessList || []).map(s => [s.id, s]))
+      const deptMap = Object.fromEntries(departments.map(d => [d.id, d.name]))
+      const typeMap = Object.fromEntries(progTypes.map(t => [t.id, t.programme_type_name]))
+      const modeMap = Object.fromEntries(modes.map(m => [m.id, m.mode_name]))
+
+      // Step 5: build rows
+      const rows = []
+      fsList.forEach(fs => {
+        const prog = progMap[fs.program_id]
+        const sess = sessMap[fs.session_id]
+        if (!prog) return
+
+        const feeItems  = (itemMap[fs.id] || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        const totalSems = fs.total_semesters ||
+          (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
+
+        for (let i = 0; i < totalSems; i++) {
+          rows.push({
+            key:         `${fs.id}-${i}`,
+            session:     sess?.session_name              || '—',
+            department:  deptMap[prog.department_id]     || '—',
+            progType:    typeMap[prog.programme_type_id] || '—',
+            mode:        modeMap[prog.study_mode_id]     || '—',
+            programName: prog.program_name               || '—',
+            semester:    `Semester ${i + 1}`,
+            fee:         semFee(feeItems, i, totalSems),
+          })
+        }
+      })
+
+      setResults(rows)
+    } catch (err) {
+      setErrMsg(`Error: ${err.message}`)
+    }
     setLoading(false)
   }
 
