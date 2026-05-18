@@ -143,10 +143,15 @@ export default function Login() {
 
           </form>
 
-          <p className="text-center text-sm text-gray-400 mt-8">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-[#933d18] font-bold hover:underline">Register</Link>
-          </p>
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Are you a Student?</p>
+            <Link
+              to="/student/login"
+              className="flex items-center justify-center w-full h-11 rounded-2xl border-2 border-[#933d18]/30 text-[#933d18] font-bold text-sm hover:bg-[#933d18]/5 hover:border-[#933d18] transition-all"
+            >
+              Go to Student Portal →
+            </Link>
+          </div>
         </div>
       </div>
     </div>
