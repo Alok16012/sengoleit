@@ -1,6 +1,6 @@
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { LayoutDashboard, User, IndianRupee, FileText, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay } from 'lucide-react'
+import { LayoutDashboard, User, IndianRupee, FileText, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck } from 'lucide-react'
 
 const navItems = [
   { to: '/student/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
@@ -13,6 +13,8 @@ const navItems = [
   { to: '/student/id-card',          icon: CreditCard,      label: 'I Card' },
   { to: '/student/admit-card',       icon: BadgeCheck,      label: 'Admit Card' },
   { to: '/student/online-exam',      icon: MonitorPlay,     label: 'Online Exam' },
+  { to: '/student/syllabus',         icon: BookMarked,      label: 'Syllabus' },
+  { to: '/student/ebook',            icon: BookOpenCheck,   label: 'E-Book' },
 ]
 
 export default function StudentLayout() {

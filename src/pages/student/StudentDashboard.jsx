@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { BookOpen, Building2, Calendar, Award, Hash, User } from 'lucide-react'
+import { BookOpen, Calendar, Award, Hash, User } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 
 export default function StudentDashboard() {
@@ -22,7 +22,6 @@ export default function StudentDashboard() {
 
   const cards = [
     { icon: BookOpen, bg: 'bg-blue-100', text: 'text-blue-600', label: 'Program', value: data?.programs?.program_name || '—' },
-    { icon: Building2, bg: 'bg-purple-100', text: 'text-purple-600', label: 'Center', value: data?.centers?.center_name || '—' },
     { icon: Calendar, bg: 'bg-emerald-100', text: 'text-emerald-600', label: 'Session', value: data?.academic_sessions?.session_name || '—' },
     { icon: Award, bg: 'bg-orange-100', text: 'text-orange-600', label: 'Status', value: data?.status || 'Pending', isBadge: true },
   ]
@@ -71,7 +70,6 @@ export default function StudentDashboard() {
               ['Registration No', data?.registration_no],
               ['Date of Admission', data?.date_of_admission],
               ['Entry Type', data?.entry_type],
-              ['Center Code', data?.centers?.center_code],
             ].map(([label, val]) => (
               <div key={label} className="flex justify-between gap-2">
                 <dt className="text-gray-400 shrink-0">{label}</dt>

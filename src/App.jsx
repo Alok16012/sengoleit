@@ -90,6 +90,8 @@ export default function App() {
             <Route path="/student/id-card" element={<ComingSoon title="I Card" description="Download your student identity card" />} />
             <Route path="/student/admit-card" element={<ComingSoon title="Admit Card" description="Download your exam admit card" />} />
             <Route path="/student/online-exam" element={<ComingSoon title="Online Exam" description="Appear for your scheduled online exams" />} />
+            <Route path="/student/syllabus" element={<ComingSoon title="Syllabus" description="View your program syllabus and curriculum" />} />
+            <Route path="/student/ebook" element={<ComingSoon title="E-Book" description="Access your digital study materials" />} />
           </Route>
 
           <Route element={<AppLayout />}>
