@@ -528,7 +528,7 @@ export default function SubCenterForm() {
 
         {/* STEP 6: Documents */}
         {step === 6 && (
-          <>
+          <div className="space-y-5">
             <FormSection title="Identity Documents" icon={<User size={16} />}
               subtitle="Owner's personal identity documents">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -594,7 +594,7 @@ export default function SubCenterForm() {
                 ))}
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* Error */}
