@@ -1,13 +1,18 @@
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { LayoutDashboard, User, IndianRupee, FileText, GraduationCap, LogOut, Bell } from 'lucide-react'
+import { LayoutDashboard, User, IndianRupee, FileText, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay } from 'lucide-react'
 
 const navItems = [
-  { to: '/student/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/student/profile', icon: User, label: 'My Profile' },
-  { to: '/student/fees', icon: IndianRupee, label: 'Fee Details' },
-  { to: '/student/documents', icon: FileText, label: 'My Documents' },
-  { to: '/student/results', icon: GraduationCap, label: 'Results' },
+  { to: '/student/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/student/profile',          icon: User,            label: 'My Profile' },
+  { to: '/student/fees',             icon: IndianRupee,     label: 'Fee Details' },
+  { to: '/student/documents',        icon: FileText,        label: 'My Documents' },
+  { to: '/student/results',          icon: GraduationCap,   label: 'Results' },
+  { to: '/student/admission-form',   icon: ClipboardList,   label: 'Admission Form' },
+  { to: '/student/registration-slip',icon: Receipt,         label: 'Registration Slip' },
+  { to: '/student/id-card',          icon: CreditCard,      label: 'I Card' },
+  { to: '/student/admit-card',       icon: BadgeCheck,      label: 'Admit Card' },
+  { to: '/student/online-exam',      icon: MonitorPlay,     label: 'Online Exam' },
 ]
 
 export default function StudentLayout() {

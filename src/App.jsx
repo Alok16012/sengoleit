@@ -85,6 +85,11 @@ export default function App() {
             <Route path="/student/fees" element={<StudentFees />} />
             <Route path="/student/documents" element={<StudentDocuments />} />
             <Route path="/student/results" element={<StudentResults />} />
+            <Route path="/student/admission-form" element={<ComingSoon title="Admission Form" description="Download your admission form" />} />
+            <Route path="/student/registration-slip" element={<ComingSoon title="Registration Slip" description="View and download your registration slip" />} />
+            <Route path="/student/id-card" element={<ComingSoon title="I Card" description="Download your student identity card" />} />
+            <Route path="/student/admit-card" element={<ComingSoon title="Admit Card" description="Download your exam admit card" />} />
+            <Route path="/student/online-exam" element={<ComingSoon title="Online Exam" description="Appear for your scheduled online exams" />} />
           </Route>
 
           <Route element={<AppLayout />}>
