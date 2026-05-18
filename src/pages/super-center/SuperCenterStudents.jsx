@@ -5,12 +5,31 @@ import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import Badge from '../../components/ui/Badge'
 import { Search, Edit, Plus, Download } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
-const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
+const STATUS_FILTERS = ['All', 'Pending', 'Reviewing', 'Document Verified', 'Account Section', 'Hold', 'Rejected', 'Admitted']
+
+const STATUS_DISPLAY = {
+  'Pending': 'Pending',
+  'Reviewing': 'Documents Verification',
+  'Document Verified': 'Documents Verified',
+  'Account Section': 'Under Process for Enrollment',
+  'Rejected': 'Rejected',
+  'Admitted': 'Enrolled',
+  'Hold': 'Hold',
+}
+
+const STATUS_COLOR = {
+  'Pending': 'bg-amber-50 text-amber-700',
+  'Reviewing': 'bg-blue-50 text-blue-700',
+  'Document Verified': 'bg-indigo-50 text-indigo-700',
+  'Account Section': 'bg-purple-50 text-purple-700',
+  'Rejected': 'bg-red-50 text-red-700',
+  'Admitted': 'bg-emerald-50 text-emerald-700',
+  'Hold': 'bg-orange-50 text-orange-700',
+}
 
 export default function SuperCenterStudents() {
   const { user } = useAuth()
@@ -72,7 +91,8 @@ export default function SuperCenterStudents() {
   }
 
   const filtered = data.filter(s => {
-    const matchSearch = `${s.student_name} ${s.enrollment_no} ${s.mobile_no} ${s.admission_number}`.toLowerCase().includes(search.toLowerCase())
+    const searchStr = `${s.student_name} ${s.enrollment_no} ${s.mobile_no} ${s.admission_number} ${s.programs?.program_name || ''} ${s.academic_sessions?.session_name || ''} ${s.centers?.center_name || ''}`.toLowerCase()
+    const matchSearch = searchStr.includes(search.toLowerCase())
     const matchStatus = statusFilter === 'All' || s.status === statusFilter
     const matchSource = sourceFilter === 'All'
       ? true
@@ -137,7 +157,7 @@ export default function SuperCenterStudents() {
               className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
                 statusFilter === s ? 'bg-[#933d18] text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-500 hover:border-[#933d18]/40 hover:text-[#933d18]'
               }`}>
-              {s}
+              {s === 'All' ? 'All' : (STATUS_DISPLAY[s] || s)}
             </button>
           ))}
         </div>
@@ -188,7 +208,11 @@ export default function SuperCenterStudents() {
                 </Td>
                 <Td className="text-gray-500">{s.mobile_no || '—'}</Td>
                 <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
-                <Td><Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge></Td>
+                <Td>
+                  <span className={`text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${STATUS_COLOR[s.status] || 'bg-gray-50 text-gray-600'}`}>
+                    {STATUS_DISPLAY[s.status] || s.status || 'Pending'}
+                  </span>
+                </Td>
                 <Td>
                   <div className="flex gap-1">
                     {s.centers?.id === myCenterId && (
