@@ -587,71 +587,77 @@ export default function CenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 6: Documents */}
+        {/* STEP 6: Documents – Identity */}
         {step === 6 && (
-          <div className="space-y-5">
-            <FormSection title="Identity Documents" icon={<User size={16} />}
-              subtitle="Owner's personal identity documents">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <FileCard label="Owner Photo *" fieldKey="owner_photo_url" accept="image/*" isImage
-                  value={form.owner_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_photo_url}
-                  hint="Passport-size photo" />
-                <FileCard label="Owner Signature *" fieldKey="owner_signature_url" accept="image/*" isImage
-                  value={form.owner_signature_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_signature_url}
-                  hint="Signature on white paper" />
-                <FileCard label="Aadhar Card *" fieldKey="owner_aadhar_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.owner_aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_aadhar_url}
-                  hint="Front & back (PDF or image)" />
-                <FileCard label="PAN Card *" fieldKey="owner_pan_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.owner_pan_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_pan_url}
-                  hint="Owner's PAN card" />
-              </div>
-            </FormSection>
+          <FormSection title="Identity Documents" icon={<User size={16} />}
+            subtitle="Owner's personal identity documents">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <FileCard label="Owner Photo *" fieldKey="owner_photo_url" accept="image/*" isImage
+                value={form.owner_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_photo_url}
+                hint="Passport-size photo" />
+              <FileCard label="Owner Signature *" fieldKey="owner_signature_url" accept="image/*" isImage
+                value={form.owner_signature_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_signature_url}
+                hint="Signature on white paper" />
+              <FileCard label="Aadhar Card *" fieldKey="owner_aadhar_url" accept="image/*,application/pdf" isImage={false}
+                value={form.owner_aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_aadhar_url}
+                hint="Front & back (PDF or image)" />
+              <FileCard label="PAN Card *" fieldKey="owner_pan_url" accept="image/*,application/pdf" isImage={false}
+                value={form.owner_pan_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_pan_url}
+                hint="Owner's PAN card" />
+            </div>
+          </FormSection>
+        )}
 
-            <FormSection title="Center Documents" icon={<Building2 size={16} />}
-              subtitle="Organization and premises documents">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <FileCard label="Registration Cert. *" fieldKey="center_reg_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.center_reg_url} onUpload={handleFileUpload} isUploading={!!uploading.center_reg_url}
-                  hint="Society / trust / company reg." />
-                <FileCard label="Premises Photo *" fieldKey="premises_photo_url" accept="image/*" isImage
-                  value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url}
-                  hint="Center building / office" />
-                <FileCard label="GST Certificate" fieldKey="gst_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.gst_url} onUpload={handleFileUpload} isUploading={!!uploading.gst_url}
-                  hint="If applicable" />
-                <FileCard label="Agreement Document *" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url}
-                  hint="Signed MOU with university" />
-              </div>
-            </FormSection>
+        {/* STEP 6: Documents – Center */}
+        {step === 6 && (
+          <FormSection title="Center Documents" icon={<Building2 size={16} />}
+            subtitle="Organization and premises documents">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <FileCard label="Registration Cert. *" fieldKey="center_reg_url" accept="image/*,application/pdf" isImage={false}
+                value={form.center_reg_url} onUpload={handleFileUpload} isUploading={!!uploading.center_reg_url}
+                hint="Society / trust / company reg." />
+              <FileCard label="Premises Photo *" fieldKey="premises_photo_url" accept="image/*" isImage
+                value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url}
+                hint="Center building / office" />
+              <FileCard label="GST Certificate" fieldKey="gst_url" accept="image/*,application/pdf" isImage={false}
+                value={form.gst_url} onUpload={handleFileUpload} isUploading={!!uploading.gst_url}
+                hint="If applicable" />
+              <FileCard label="Agreement Document *" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false}
+                value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url}
+                hint="Signed MOU with university" />
+            </div>
+          </FormSection>
+        )}
 
-            <FormSection title="Bank Documents" icon={<CreditCard size={16} />}
-              subtitle="Bank verification documents">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <FileCard label="Cancel Cheque *" fieldKey="cancel_cheque_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.cancel_cheque_url} onUpload={handleFileUpload} isUploading={!!uploading.cancel_cheque_url}
-                  hint="Cancelled cheque of bank account" />
-                <FileCard label="Bank Passbook *" fieldKey="bank_passbook_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.bank_passbook_url} onUpload={handleFileUpload} isUploading={!!uploading.bank_passbook_url}
-                  hint="First page or recent statement" />
-              </div>
-            </FormSection>
+        {/* STEP 6: Documents – Bank */}
+        {step === 6 && (
+          <FormSection title="Bank Documents" icon={<CreditCard size={16} />}
+            subtitle="Bank verification documents">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <FileCard label="Cancel Cheque *" fieldKey="cancel_cheque_url" accept="image/*,application/pdf" isImage={false}
+                value={form.cancel_cheque_url} onUpload={handleFileUpload} isUploading={!!uploading.cancel_cheque_url}
+                hint="Cancelled cheque of bank account" />
+              <FileCard label="Bank Passbook *" fieldKey="bank_passbook_url" accept="image/*,application/pdf" isImage={false}
+                value={form.bank_passbook_url} onUpload={handleFileUpload} isUploading={!!uploading.bank_passbook_url}
+                hint="First page or recent statement" />
+            </div>
+          </FormSection>
+        )}
 
-            {/* Upload summary */}
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Upload Summary — {docsUploaded}/10 documents uploaded</p>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {docFields.map(([k, label]) => (
-                  <div key={k} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                    <span className="text-[11px] text-gray-600 truncate">{label}</span>
-                    {form[k]
-                      ? <CheckCircle2 size={13} className="text-emerald-500 shrink-0 ml-1" />
-                      : <div className="w-3 h-3 rounded-full border-2 border-gray-300 shrink-0 ml-1" />
-                    }
-                  </div>
-                ))}
-              </div>
+        {/* STEP 6: Documents – Upload Summary */}
+        {step === 6 && (
+          <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Upload Summary — {docsUploaded}/10 documents uploaded</p>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {docFields.map(([k, label]) => (
+                <div key={k} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                  <span className="text-[11px] text-gray-600 truncate">{label}</span>
+                  {form[k]
+                    ? <CheckCircle2 size={13} className="text-emerald-500 shrink-0 ml-1" />
+                    : <div className="w-3 h-3 rounded-full border-2 border-gray-300 shrink-0 ml-1" />
+                  }
+                </div>
+              ))}
             </div>
           </div>
         )}
