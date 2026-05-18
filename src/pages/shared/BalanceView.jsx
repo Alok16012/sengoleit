@@ -16,7 +16,7 @@ export default function BalanceView() {
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ amount: '', utr_number: '', notes: '' })
+  const [form, setForm] = useState({ amount: '', utr_number: '', payment_date: '', notes: '' })
   const [screenshot, setScreenshot] = useState(null)
   const [screenshotPreview, setScreenshotPreview] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -43,7 +43,7 @@ export default function BalanceView() {
   }
 
   function openModal() {
-    setForm({ amount: '', utr_number: '', notes: '' })
+    setForm({ amount: '', utr_number: '', payment_date: '', notes: '' })
     setScreenshot(null)
     setScreenshotPreview(null)
     setSubmitErr('')
@@ -58,8 +58,8 @@ export default function BalanceView() {
   }
 
   async function handleSubmit() {
-    if (!form.amount || !form.utr_number) {
-      setSubmitErr('Amount and UTR number are required.')
+    if (!form.amount || !form.utr_number || !form.payment_date) {
+      setSubmitErr('Amount, UTR number, and Payment Date are required.')
       return
     }
     if (!center) { setSubmitErr('Center not loaded. Refresh the page and try again.'); return }
@@ -84,6 +84,7 @@ export default function BalanceView() {
         center_id: center.id,
         amount: Number(form.amount),
         utr_number: form.utr_number,
+        payment_date: form.payment_date || null,
         utr_screenshot_url: screenshotUrl,
         notes: form.notes,
         status: 'pending',
@@ -167,6 +168,7 @@ export default function BalanceView() {
               <Th>#</Th>
               <Th>Amount</Th>
               <Th>UTR Number</Th>
+              <Th>Payment Date</Th>
               <Th>Screenshot</Th>
               <Th>Notes</Th>
               <Th>Requested On</Th>
@@ -176,12 +178,13 @@ export default function BalanceView() {
           </Thead>
           <Tbody>
             {requests.length === 0 ? (
-              <Tr><Td colSpan={8} className="text-center text-gray-400 py-12">No recharge requests yet</Td></Tr>
+              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No recharge requests yet</Td></Tr>
             ) : requests.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td><span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span></Td>
                 <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
+                <Td className="text-gray-500 text-xs">{r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : '—'}</Td>
                 <Td>
                   {r.utr_screenshot_url ? (
                     <a href={r.utr_screenshot_url} target="_blank" rel="noreferrer" className="text-[#933d18] text-xs font-semibold underline">View</a>
@@ -212,6 +215,12 @@ export default function BalanceView() {
             placeholder="e.g. UTR123456789"
             value={form.utr_number}
             onChange={e => setForm(f => ({ ...f, utr_number: e.target.value }))}
+          />
+          <Input
+            label="Payment Date *"
+            type="date"
+            value={form.payment_date}
+            onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))}
           />
           <div>
             <p className="text-xs font-semibold text-gray-600 mb-1">Payment Screenshot</p>
