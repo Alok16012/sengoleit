@@ -64,7 +64,7 @@ export default function CenterRegistrationForm() {
     org_city: '', org_state: '', org_pin_code: '', organization_registration_no: '',
     gst_pan_of_organization: '', premises_type: '', office_area_sq_ft: '',
     account_holder_name: '', account_no: '', ifc_code: '', branch: '',
-    amount_paid: '', utr_number: '', payment_date: '',
+    amount_paid: '', utr_number: '', payment_date: '', payment_remark: '',
   })
 
   const [files, setFiles] = useState({
@@ -147,6 +147,7 @@ export default function CenterRegistrationForm() {
       amount_paid: parseFloat(form.amount_paid) || 0,
       utr_number: form.utr_number,
       payment_date: form.payment_date || null,
+      payment_remark: form.payment_remark || null,
       photo_url: photoUrl,
       aadhar_upload_url: aadharUrl,
       pan_upload_url: panUrl,
@@ -305,6 +306,7 @@ export default function CenterRegistrationForm() {
               <Field label="UTR / Transaction Number"><input className={inp} value={form.utr_number} onChange={e => set('utr_number', e.target.value)} /></Field>
               <Field label="Payment Date"><input className={inp} type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} /></Field>
             </div>
+            <Field label="Remark"><textarea className={inp} rows={3} placeholder="e.g. Registration fee paid, partial payment, pending balance, etc." value={form.payment_remark} onChange={e => set('payment_remark', e.target.value)} /></Field>
             <FileUpload label="Payment Screenshot" fileKey="payment_screenshot" files={files} previews={previews} onChange={handleFile} accept="image/*" />
           </div>
         )}

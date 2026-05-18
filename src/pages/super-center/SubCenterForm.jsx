@@ -47,7 +47,7 @@ const emptyForm = {
   center_reg_url: '', premises_photo_url: '', gst_url: '', agreement_url: '',
   cancel_cheque_url: '', bank_passbook_url: '',
   // Payment
-  amount_paid: '', utr_number: '', payment_date: '', payment_screenshot_url: '',
+  amount_paid: '', utr_number: '', payment_date: '', payment_screenshot_url: '', payment_remark: '',
   center_type: 'center',
   approval_status: 'pending',
 }
@@ -545,6 +545,8 @@ export default function SubCenterForm() {
             </div>
             <Input label="Payment Date" type="date"
               value={form.payment_date} onChange={set('payment_date')} />
+            <Textarea label="Remark" placeholder="e.g. Registration fee received, partial payment, pending balance, etc."
+              value={form.payment_remark} onChange={set('payment_remark')} rows={3} />
             <div>
               <p className="text-xs font-bold text-gray-500 mb-2">Payment Screenshot / Proof</p>
               <div className="max-w-xs">
