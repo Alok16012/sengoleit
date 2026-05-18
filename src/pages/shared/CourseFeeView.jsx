@@ -285,11 +285,7 @@ export default function CourseFeeView() {
               <Table>
                 <Thead>
                   <tr>
-                    <Th>#</Th>
-                    <Th>Session</Th>
-                    <Th>Department</Th>
-                    <Th>Program Type</Th>
-                    <Th>Mode</Th>
+                    <Th>S.No</Th>
                     <Th>Program Name</Th>
                     <Th>Sem</Th>
                     <Th>Fee</Th>
@@ -299,11 +295,7 @@ export default function CourseFeeView() {
                   {results.map((row, i) => (
                     <Tr key={row.key}>
                       <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                      <Td className="text-gray-500 text-xs whitespace-nowrap">{row.session}</Td>
-                      <Td className="text-gray-500 text-xs max-w-[150px] truncate">{row.department}</Td>
-                      <Td className="text-gray-500 text-xs whitespace-nowrap">{row.progType}</Td>
-                      <Td className="text-gray-500 text-xs whitespace-nowrap">{row.mode}</Td>
-                      <Td className="font-semibold text-gray-900 whitespace-nowrap">{row.programName}</Td>
+                      <Td className="font-semibold text-gray-900">{row.programName}</Td>
                       <Td className="text-gray-500 text-xs whitespace-nowrap">{row.semester}</Td>
                       <Td className="font-mono font-bold text-[#933d18] whitespace-nowrap">{fmt(row.fee)}</Td>
                     </Tr>
