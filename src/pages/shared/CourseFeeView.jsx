@@ -167,19 +167,20 @@ export default function CourseFeeView() {
     setResults([])
 
     try {
-      // Fetch fee_structures
+      // fee_structures: actual columns are program_id, total_semesters
+      // fee_items is a related table (not a JSON column)
       let fsQuery = supabase
         .from('fee_structures')
-        .select('id, programme_id, session_id, fee_items, total_sems')
+        .select('id, program_id, session_id, total_semesters, fee_items(label, category, amount, sort_order)')
       if (selSession) fsQuery = fsQuery.eq('session_id', selSession)
-      if (selProg)    fsQuery = fsQuery.eq('programme_id', selProg)
+      if (selProg)    fsQuery = fsQuery.eq('program_id', selProg)
 
       const { data: fsList, error: fsErr } = await fsQuery
       if (fsErr) throw fsErr
       if (!fsList?.length) { setResults([]); setLoading(false); return }
 
       // Fetch programs + sessions in parallel
-      const progIds = [...new Set(fsList.map(f => f.programme_id).filter(Boolean))]
+      const progIds = [...new Set(fsList.map(f => f.program_id).filter(Boolean))]
       const sessIds = [...new Set(fsList.map(f => f.session_id).filter(Boolean))]
 
       const [{ data: progList }, { data: sessList }] = await Promise.all([
@@ -198,7 +199,7 @@ export default function CourseFeeView() {
 
       const rows = []
       fsList.forEach(fs => {
-        const prog = progMap[fs.programme_id]
+        const prog = progMap[fs.program_id]
         const sess = sessMap[fs.session_id]
         if (!prog) return
 
@@ -206,7 +207,8 @@ export default function CourseFeeView() {
         if (selType && prog.programme_type_id !== selType) return
         if (selMode && prog.study_mode_id     !== selMode) return
 
-        const totalSems = fs.total_sems ||
+        const feeItems  = [...(fs.fee_items || [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        const totalSems = fs.total_semesters ||
           (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
 
         for (let i = 0; i < totalSems; i++) {
@@ -218,7 +220,7 @@ export default function CourseFeeView() {
             mode:        prog.study_modes?.mode_name || '—',
             programName: prog.program_name || '—',
             semester:    `Semester ${i + 1}`,
-            fee:         semFee(fs.fee_items, i, totalSems),
+            fee:         semFee(feeItems, i, totalSems),
           })
         }
       })
