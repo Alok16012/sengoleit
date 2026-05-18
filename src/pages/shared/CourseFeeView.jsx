@@ -1,39 +1,31 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Search, ChevronDown, X } from 'lucide-react'
+import { Search, ChevronDown, X, AlertCircle } from 'lucide-react'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 
 // ── Searchable single-select dropdown ──────────────────────────────────────
 function SearchableSelect({ options, value, onChange, placeholder = 'All', label }) {
-  const [open, setOpen]       = useState(false)
-  const [query, setQuery]     = useState('')
-  const ref                   = useRef(null)
+  const [open,  setOpen]  = useState(false)
+  const [query, setQuery] = useState('')
+  const ref               = useRef(null)
 
   const selected = options.find(o => o.id === value)
-
   const filtered = query
     ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
     : options
 
-  // close on outside click
   useEffect(() => {
     function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [])
 
-  function select(id) {
-    onChange(id)
-    setOpen(false)
-    setQuery('')
-  }
+  function select(id) { onChange(id); setOpen(false); setQuery('') }
 
   return (
     <div className="relative" ref={ref}>
-      {label && (
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">{label}</p>
-      )}
+      {label && <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">{label}</p>}
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
@@ -41,16 +33,13 @@ function SearchableSelect({ options, value, onChange, placeholder = 'All', label
           open ? 'border-[#933d18] ring-2 ring-[#933d18]/10' : 'border-gray-200 hover:border-gray-300'
         }`}
       >
-        <span className={selected ? 'text-gray-900 font-medium truncate' : 'text-gray-400'}>
+        <span className={`truncate ${selected ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
           {selected ? selected.label : placeholder}
         </span>
         <div className="flex items-center gap-1 shrink-0 ml-2">
           {value && (
-            <span
-              role="button"
-              onClick={e => { e.stopPropagation(); select('') }}
-              className="p-0.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
-            >
+            <span role="button" onClick={e => { e.stopPropagation(); select('') }}
+              className="p-0.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600">
               <X size={12} />
             </span>
           )}
@@ -60,43 +49,27 @@ function SearchableSelect({ options, value, onChange, placeholder = 'All', label
 
       {open && (
         <div className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
-          {/* Search box */}
           <div className="p-2 border-b border-gray-100">
             <div className="relative">
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                autoFocus
-                value={query}
-                onChange={e => setQuery(e.target.value)}
+              <input autoFocus value={query} onChange={e => setQuery(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#933d18]"
-              />
+                className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#933d18]" />
             </div>
           </div>
-
-          {/* Options list */}
           <ul className="max-h-52 overflow-y-auto">
-            <li
-              onClick={() => select('')}
-              className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${
-                !value ? 'text-[#933d18] font-semibold bg-[#933d18]/5' : 'text-gray-500'
-              }`}
-            >
+            <li onClick={() => select('')}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${!value ? 'text-[#933d18] font-semibold bg-[#933d18]/5' : 'text-gray-500'}`}>
               {placeholder}
             </li>
-            {filtered.length === 0 ? (
-              <li className="px-3 py-3 text-xs text-gray-400 text-center">No results</li>
-            ) : filtered.map(o => (
-              <li
-                key={o.id}
-                onClick={() => select(o.id)}
-                className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${
-                  value === o.id ? 'text-[#933d18] font-semibold bg-[#933d18]/5' : 'text-gray-700'
-                }`}
-              >
-                {o.label}
-              </li>
-            ))}
+            {filtered.length === 0
+              ? <li className="px-3 py-3 text-xs text-gray-400 text-center">No results</li>
+              : filtered.map(o => (
+                <li key={o.id} onClick={() => select(o.id)}
+                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${value === o.id ? 'text-[#933d18] font-semibold bg-[#933d18]/5' : 'text-gray-700'}`}>
+                  {o.label}
+                </li>
+              ))}
           </ul>
         </div>
       )}
@@ -136,8 +109,9 @@ export default function CourseFeeView() {
   const [results,  setResults]  = useState([])
   const [loading,  setLoading]  = useState(false)
   const [searched, setSearched] = useState(false)
+  const [errMsg,   setErrMsg]   = useState('')
 
-  // Load master data on mount
+  // Load master dropdowns
   useEffect(() => {
     Promise.all([
       supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false }),
@@ -152,7 +126,7 @@ export default function CourseFeeView() {
     })
   }, [])
 
-  // Reload program list when filters change
+  // Reload program dropdown
   useEffect(() => {
     let q = supabase.from('programs').select('id, program_name').order('program_name')
     if (selDept) q = q.eq('department_id', selDept)
@@ -165,134 +139,92 @@ export default function CourseFeeView() {
     setLoading(true)
     setSearched(true)
     setResults([])
+    setErrMsg('')
 
-    try {
-      // fee_structures: actual columns are program_id, total_semesters
-      // fee_items is a related table (not a JSON column)
-      let fsQuery = supabase
-        .from('fee_structures')
-        .select('id, program_id, session_id, total_semesters, fee_items(label, category, amount, sort_order)')
-      if (selSession) fsQuery = fsQuery.eq('session_id', selSession)
-      if (selProg)    fsQuery = fsQuery.eq('program_id', selProg)
+    // Use the EXACT same select pattern that FeeManagement uses (proven to work)
+    let q = supabase
+      .from('fee_structures')
+      .select(`
+        id, program_id, session_id, total_semesters,
+        programs(id, program_name, duration, semester_year, department_id, programme_type_id, study_mode_id),
+        academic_sessions(id, session_name),
+        fee_items(label, category, amount, sort_order)
+      `)
 
-      const { data: fsList, error: fsErr } = await fsQuery
-      if (fsErr) throw fsErr
-      if (!fsList?.length) { setResults([]); setLoading(false); return }
+    if (selSession) q = q.eq('session_id', selSession)
+    if (selProg)    q = q.eq('program_id',  selProg)
 
-      // Fetch programs + sessions in parallel
-      const progIds = [...new Set(fsList.map(f => f.program_id).filter(Boolean))]
-      const sessIds = [...new Set(fsList.map(f => f.session_id).filter(Boolean))]
+    const { data: fsList, error } = await q
 
-      const [{ data: progList }, { data: sessList }] = await Promise.all([
-        supabase
-          .from('programs')
-          .select('id, program_name, duration, semester_year, department_id, programme_type_id, study_mode_id, departments(name), programme_types(programme_type_name), study_modes(mode_name)')
-          .in('id', progIds),
-        supabase
-          .from('academic_sessions')
-          .select('id, session_name')
-          .in('id', sessIds),
-      ])
-
-      const progMap = Object.fromEntries((progList || []).map(p => [p.id, p]))
-      const sessMap = Object.fromEntries((sessList || []).map(s => [s.id, s]))
-
-      const rows = []
-      fsList.forEach(fs => {
-        const prog = progMap[fs.program_id]
-        const sess = sessMap[fs.session_id]
-        if (!prog) return
-
-        if (selDept && prog.department_id     !== selDept) return
-        if (selType && prog.programme_type_id !== selType) return
-        if (selMode && prog.study_mode_id     !== selMode) return
-
-        const feeItems  = [...(fs.fee_items || [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-        const totalSems = fs.total_semesters ||
-          (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
-
-        for (let i = 0; i < totalSems; i++) {
-          rows.push({
-            key:         `${fs.id}-${i}`,
-            session:     sess?.session_name || '—',
-            department:  prog.departments?.name || '—',
-            progType:    prog.programme_types?.programme_type_name || '—',
-            mode:        prog.study_modes?.mode_name || '—',
-            programName: prog.program_name || '—',
-            semester:    `Semester ${i + 1}`,
-            fee:         semFee(feeItems, i, totalSems),
-          })
-        }
-      })
-
-      setResults(rows)
-    } catch (err) {
-      console.error('Fee search error:', err)
-      setResults([])
+    if (error) {
+      setErrMsg(`Query error: ${error.message}`)
+      setLoading(false)
+      return
     }
+
+    if (!fsList?.length) {
+      setLoading(false)
+      return
+    }
+
+    // Build dept / type name lookup maps from already-loaded state
+    const deptMap = Object.fromEntries(departments.map(d => [d.id, d.name]))
+    const typeMap = Object.fromEntries(progTypes.map(t => [t.id, t.programme_type_name]))
+    const modeMap = Object.fromEntries(modes.map(m => [m.id, m.mode_name]))
+
+    const rows = []
+    fsList.forEach(fs => {
+      const prog = fs.programs
+      const sess = fs.academic_sessions
+      if (!prog) return
+
+      // Apply client-side filters (for dept/type/mode when program not locked)
+      if (selDept && prog.department_id     !== selDept) return
+      if (selType && prog.programme_type_id !== selType) return
+      if (selMode && prog.study_mode_id     !== selMode) return
+
+      const feeItems  = [...(fs.fee_items || [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      const totalSems = fs.total_semesters ||
+        (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
+
+      for (let i = 0; i < totalSems; i++) {
+        rows.push({
+          key:         `${fs.id}-${i}`,
+          session:     sess?.session_name || '—',
+          department:  deptMap[prog.department_id]     || '—',
+          progType:    typeMap[prog.programme_type_id] || '—',
+          mode:        modeMap[prog.study_mode_id]     || '—',
+          programName: prog.program_name || '—',
+          semester:    `Semester ${i + 1}`,
+          fee:         semFee(feeItems, i, totalSems),
+        })
+      }
+    })
+
+    setResults(rows)
     setLoading(false)
   }
 
   const grandTotal = results.reduce((s, r) => s + r.fee, 0)
 
-  // Option arrays for SearchableSelect
-  const sessionOpts    = sessions.map(s    => ({ id: s.id, label: s.session_name }))
-  const deptOpts       = departments.map(d => ({ id: d.id, label: d.name }))
-  const typeOpts       = progTypes.map(t   => ({ id: t.id, label: t.programme_type_name }))
-  const modeOpts       = modes.map(m       => ({ id: m.id, label: m.mode_name }))
-  const programOpts    = programs.map(p    => ({ id: p.id, label: p.program_name }))
+  const sessionOpts = sessions.map(s  => ({ id: s.id, label: s.session_name }))
+  const deptOpts    = departments.map(d => ({ id: d.id, label: d.name }))
+  const typeOpts    = progTypes.map(t  => ({ id: t.id, label: t.programme_type_name }))
+  const modeOpts    = modes.map(m      => ({ id: m.id, label: m.mode_name }))
+  const programOpts = programs.map(p   => ({ id: p.id, label: p.program_name }))
 
   return (
     <div className="p-6 space-y-5">
-      <PageHeader
-        title="Center Course Fee"
-        subtitle="Search fee structure by session, department and program"
-      />
+      <PageHeader title="Center Course Fee" subtitle="Search fee structure by session, department and program" />
 
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-
-          <SearchableSelect
-            label="Session"
-            options={sessionOpts}
-            value={selSession}
-            onChange={setSelSession}
-            placeholder="All Sessions"
-          />
-
-          <SearchableSelect
-            label="Department"
-            options={deptOpts}
-            value={selDept}
-            onChange={v => { setSelDept(v); setSelType(''); setSelMode(''); setSelProg('') }}
-            placeholder="All Departments"
-          />
-
-          <SearchableSelect
-            label="Program Type"
-            options={typeOpts}
-            value={selType}
-            onChange={v => { setSelType(v); setSelProg('') }}
-            placeholder="All Types"
-          />
-
-          <SearchableSelect
-            label="Mode"
-            options={modeOpts}
-            value={selMode}
-            onChange={v => { setSelMode(v); setSelProg('') }}
-            placeholder="All Modes"
-          />
-
-          <SearchableSelect
-            label="Program Name"
-            options={programOpts}
-            value={selProg}
-            onChange={setSelProg}
-            placeholder="All Programs"
-          />
-
+          <SearchableSelect label="Session"      options={sessionOpts} value={selSession} onChange={setSelSession} placeholder="All Sessions" />
+          <SearchableSelect label="Department"   options={deptOpts}    value={selDept}    onChange={v => { setSelDept(v); setSelType(''); setSelMode(''); setSelProg('') }} placeholder="All Departments" />
+          <SearchableSelect label="Program Type" options={typeOpts}    value={selType}    onChange={v => { setSelType(v); setSelProg('') }} placeholder="All Types" />
+          <SearchableSelect label="Mode"         options={modeOpts}    value={selMode}    onChange={v => { setSelMode(v); setSelProg('') }} placeholder="All Modes" />
+          <SearchableSelect label="Program Name" options={programOpts} value={selProg}    onChange={setSelProg} placeholder="All Programs" />
         </div>
 
         <button
@@ -305,8 +237,16 @@ export default function CourseFeeView() {
         </button>
       </div>
 
+      {/* Error */}
+      {errMsg && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          <span>{errMsg}</span>
+        </div>
+      )}
+
       {/* Results */}
-      {searched && !loading && (
+      {searched && !loading && !errMsg && (
         results.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
             No fee structures found for selected filters.
@@ -315,9 +255,7 @@ export default function CourseFeeView() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-bold text-gray-800">Fee Structure</h3>
-              <span className="text-xs text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg font-semibold">
-                {results.length} rows
-              </span>
+              <span className="text-xs text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg font-semibold">{results.length} rows</span>
             </div>
             <div className="overflow-x-auto">
               <Table>
