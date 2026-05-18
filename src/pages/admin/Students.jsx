@@ -5,11 +5,129 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit, Download } from 'lucide-react'
+import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
+
+function genPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let pwd = 'Sg@'
+  for (let i = 0; i < 5; i++) pwd += chars[Math.floor(Math.random() * chars.length)]
+  return pwd
+}
+
+function CredModal({ studentId, onClose }) {
+  const [cred, setCred] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [copied, setCopied] = useState('')
+
+  useEffect(() => {
+    supabase.from('students')
+      .select('student_name, enrollment_no, login_password')
+      .eq('id', studentId)
+      .single()
+      .then(({ data }) => { setCred(data); setLoading(false) })
+  }, [studentId])
+
+  async function handleGenerate() {
+    setSaving(true)
+    const pwd = genPassword()
+    await supabase.from('students').update({ login_password: pwd }).eq('id', studentId)
+    setCred(prev => ({ ...prev, login_password: pwd }))
+    setSaving(false)
+  }
+
+  function copyText(text, key) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key)
+      setTimeout(() => setCopied(''), 1500)
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <KeyRound size={16} className="text-[#933d18]" />
+            <h3 className="font-bold text-gray-900">Student Login Credentials</h3>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+            <X size={16} className="text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          {loading ? (
+            <div className="text-center text-gray-400 py-8">Loading...</div>
+          ) : (
+            <>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Student</p>
+                <p className="font-semibold text-gray-900">{cred?.student_name}</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Enrollment Number</p>
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                  <span className="flex-1 font-mono text-sm font-semibold text-gray-800">
+                    {cred?.enrollment_no || '—'}
+                  </span>
+                  {cred?.enrollment_no && (
+                    <button
+                      onClick={() => copyText(cred.enrollment_no, 'enroll')}
+                      className="text-[#933d18] hover:text-[#933d18]/70 transition-colors"
+                      title="Copy"
+                    >
+                      {copied === 'enroll' ? <span className="text-xs font-bold text-emerald-600">Copied!</span> : <Copy size={14} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Password</p>
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                  <span className="flex-1 font-mono text-sm font-semibold text-gray-800">
+                    {cred?.login_password || <span className="text-gray-300 italic text-xs font-sans">Not generated yet</span>}
+                  </span>
+                  {cred?.login_password && (
+                    <button
+                      onClick={() => copyText(cred.login_password, 'pwd')}
+                      className="text-[#933d18] hover:text-[#933d18]/70 transition-colors"
+                      title="Copy"
+                    >
+                      {copied === 'pwd' ? <span className="text-xs font-bold text-emerald-600">Copied!</span> : <Copy size={14} />}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={handleGenerate}
+                disabled={saving}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#933d18] text-white text-sm font-bold hover:bg-[#b05a30] transition-colors disabled:opacity-60"
+              >
+                <RefreshCw size={14} className={saving ? 'animate-spin' : ''} />
+                {cred?.login_password ? 'Reset Password' : 'Generate Password'}
+              </button>
+
+              {cred?.login_password && (
+                <p className="text-center text-xs text-gray-400">
+                  Share enrollment number + password with the student to login at{' '}
+                  <span className="font-semibold text-[#933d18]">/student/login</span>
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function Students() {
   const [data, setData] = useState([])
@@ -17,6 +135,7 @@ export default function Students() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [downloading, setDownloading] = useState(null)
+  const [credStudentId, setCredStudentId] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => { fetchData() }, [])
@@ -130,12 +249,19 @@ export default function Students() {
                     <Button size="sm" variant="ghost" onClick={() => handleDownload(s.id)} disabled={downloading === s.id} title="Download PDF">
                       <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
                     </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setCredStudentId(s.id)} title="Login Credentials">
+                      <KeyRound size={14} className="text-gray-500" />
+                    </Button>
                   </div>
                 </Td>
               </Tr>
             ))}
           </Tbody>
         </Table>
+      )}
+
+      {credStudentId && (
+        <CredModal studentId={credStudentId} onClose={() => setCredStudentId(null)} />
       )}
     </div>
   )

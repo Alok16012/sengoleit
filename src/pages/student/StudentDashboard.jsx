@@ -1,92 +1,108 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import { useAuth } from '../../context/AuthContext'
-import { BookOpen, Building2, Calendar, Award } from 'lucide-react'
+import { useStudentAuth } from '../../context/StudentAuthContext'
+import { BookOpen, Building2, Calendar, Award, Hash, User } from 'lucide-react'
+import Badge from '../../components/ui/Badge'
 
 export default function StudentDashboard() {
-  const { user } = useAuth()
-  const [student, setStudent] = useState(null)
+  const { student } = useStudentAuth()
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!user) return
+    if (!student?.id) return
     supabase.from('students')
-      .select('*, programs(program_name, duration, fees_per_year), centers(center_name), academic_sessions(session_name)')
-      .eq('email', user.email)
-      .maybeSingle()
-      .then(({ data }) => { setStudent(data); setLoading(false) })
-  }, [user])
+      .select('*, programs(program_name, short_name, duration, semester_year), centers(center_name, center_code), academic_sessions(session_name), departments(name)')
+      .eq('id', student.id)
+      .single()
+      .then(({ data }) => { setData(data); setLoading(false) })
+  }, [student?.id])
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
 
+  const cards = [
+    { icon: BookOpen, bg: 'bg-blue-100', text: 'text-blue-600', label: 'Program', value: data?.programs?.program_name || '—' },
+    { icon: Building2, bg: 'bg-purple-100', text: 'text-purple-600', label: 'Center', value: data?.centers?.center_name || '—' },
+    { icon: Calendar, bg: 'bg-emerald-100', text: 'text-emerald-600', label: 'Session', value: data?.academic_sessions?.session_name || '—' },
+    { icon: Award, bg: 'bg-orange-100', text: 'text-orange-600', label: 'Status', value: data?.status || 'Pending', isBadge: true },
+  ]
+
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Student Dashboard</h1>
-        {student && <p className="text-gray-500 mt-1">Welcome, {student.student_name}</p>}
+    <div className="p-6 space-y-6">
+      {/* Welcome banner */}
+      <div className="bg-gradient-to-r from-[#933d18] to-[#ab4e2a] rounded-2xl p-6 text-white flex items-center justify-between">
+        <div>
+          <p className="text-orange-200 text-sm font-medium mb-1">Welcome back</p>
+          <h1 className="text-2xl font-black">{data?.student_name || student.student_name}</h1>
+          <p className="text-orange-100/70 text-sm mt-1 font-mono">{data?.enrollment_no || student.enrollment_no}</p>
+        </div>
+        <div className="h-16 w-16 bg-white/20 rounded-2xl flex items-center justify-center flex-shrink-0">
+          <User size={32} className="text-white/80" />
+        </div>
       </div>
 
-      {student ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <BookOpen size={20} className="text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Program</p>
-                <p className="text-sm font-semibold text-gray-900">{student.programs?.program_name || '—'}</p>
-              </div>
+      {/* Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {cards.map(({ icon: Icon, bg, text, label, value, isBadge }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+              <Icon size={20} className={text} />
             </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                <Building2 size={20} className="text-purple-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Center</p>
-                <p className="text-sm font-semibold text-gray-900">{student.centers?.center_name || '—'}</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <Calendar size={20} className="text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Session</p>
-                <p className="text-sm font-semibold text-gray-900">{student.academic_sessions?.session_name || '—'}</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-                <Award size={20} className="text-orange-600" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500">Status</p>
-                <p className="text-sm font-semibold text-gray-900">{student.status || 'Pending'}</p>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs text-gray-500">{label}</p>
+              {isBadge
+                ? <div className="mt-0.5"><Badge status={value?.toLowerCase()}>{value}</Badge></div>
+                : <p className="text-sm font-semibold text-gray-900 truncate mt-0.5">{value}</p>
+              }
             </div>
           </div>
+        ))}
+      </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="font-semibold text-gray-800 mb-4">Personal Details</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-              <div><p className="text-gray-400">Enrollment No</p><p className="font-medium mt-0.5">{student.enrollment_no || '—'}</p></div>
-              <div><p className="text-gray-400">Registration No</p><p className="font-medium mt-0.5">{student.registration_no || '—'}</p></div>
-              <div><p className="text-gray-400">Mobile</p><p className="font-medium mt-0.5">{student.mobile_no || '—'}</p></div>
-              <div><p className="text-gray-400">Date of Birth</p><p className="font-medium mt-0.5">{student.date_of_birth || '—'}</p></div>
-              <div><p className="text-gray-400">Gender</p><p className="font-medium mt-0.5">{student.gender || '—'}</p></div>
-              <div><p className="text-gray-400">Blood Group</p><p className="font-medium mt-0.5">{student.blood_group || '—'}</p></div>
-              <div><p className="text-gray-400">Father's Name</p><p className="font-medium mt-0.5">{student.fathers_name || '—'}</p></div>
-              <div><p className="text-gray-400">Mother's Name</p><p className="font-medium mt-0.5">{student.mothers_name || '—'}</p></div>
-              <div><p className="text-gray-400">Email</p><p className="font-medium mt-0.5">{student.email || '—'}</p></div>
-            </div>
-          </div>
+      {/* Detail panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm">
+            <Hash size={15} className="text-[#933d18]" /> Enrollment Details
+          </h2>
+          <dl className="space-y-3 text-sm">
+            {[
+              ['Enrollment No', data?.enrollment_no],
+              ['Registration No', data?.registration_no],
+              ['Date of Admission', data?.date_of_admission],
+              ['Entry Type', data?.entry_type],
+              ['Center Code', data?.centers?.center_code],
+            ].map(([label, val]) => (
+              <div key={label} className="flex justify-between gap-2">
+                <dt className="text-gray-400 shrink-0">{label}</dt>
+                <dd className="font-semibold font-mono text-right text-gray-800">{val || '—'}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-          No student record found for this account.
+
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="font-bold text-gray-800 mb-4 flex items-center gap-2 text-sm">
+            <BookOpen size={15} className="text-[#933d18]" /> Program Details
+          </h2>
+          <dl className="space-y-3 text-sm">
+            {[
+              ['Program', data?.programs?.program_name],
+              ['Short Name', data?.programs?.short_name],
+              ['Department', data?.departments?.name],
+              ['Duration', data?.programs?.duration
+                ? `${data.programs.duration} ${data.programs.semester_year || 'Sem'}`
+                : null],
+              ['Session', data?.academic_sessions?.session_name],
+            ].map(([label, val]) => (
+              <div key={label} className="flex justify-between gap-2">
+                <dt className="text-gray-400 shrink-0">{label}</dt>
+                <dd className="font-semibold text-right text-gray-800">{val || '—'}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
-      )}
+      </div>
     </div>
   )
 }

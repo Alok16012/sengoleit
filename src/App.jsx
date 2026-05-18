@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { StudentAuthProvider } from './context/StudentAuthContext'
 import AppLayout from './components/layout/AppLayout'
 
 import Login from './pages/auth/Login'
@@ -45,7 +46,13 @@ import StudentListReport from './pages/shared/StudentListReport'
 import ComingSoon from './pages/shared/ComingSoon'
 
 // Student
+import StudentLogin from './pages/student/StudentLogin'
+import StudentLayout from './pages/student/StudentLayout'
 import StudentDashboard from './pages/student/StudentDashboard'
+import StudentProfile from './pages/student/StudentProfile'
+import StudentFees from './pages/student/StudentFees'
+import StudentDocuments from './pages/student/StudentDocuments'
+import StudentResults from './pages/student/StudentResults'
 
 function RoleRedirect() {
   const { profile, loading } = useAuth()
@@ -63,10 +70,21 @@ function RoleRedirect() {
 export default function App() {
   return (
     <AuthProvider>
+      <StudentAuthProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+
+          {/* Student portal — separate auth (enrollment no + password) */}
+          <Route path="/student/login" element={<StudentLogin />} />
+          <Route element={<StudentLayout />}>
+            <Route path="/student/dashboard" element={<StudentDashboard />} />
+            <Route path="/student/profile" element={<StudentProfile />} />
+            <Route path="/student/fees" element={<StudentFees />} />
+            <Route path="/student/documents" element={<StudentDocuments />} />
+            <Route path="/student/results" element={<StudentResults />} />
+          </Route>
 
           <Route element={<AppLayout />}>
             <Route path="/" element={<RoleRedirect />} />
@@ -171,13 +189,12 @@ export default function App() {
             <Route path="/center/reports/wallet-coupon" element={<ComingSoon title="Wallet Coupon" description="Wallet coupon management" />} />
             <Route path="/center/reports/admission-coupon" element={<ComingSoon title="Admission Coupon" description="Admission coupon management" />} />
 
-            {/* Student portal */}
-            <Route path="/student/dashboard" element={<StudentDashboard />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
+      </StudentAuthProvider>
     </AuthProvider>
   )
 }
