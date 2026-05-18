@@ -8,104 +8,129 @@ function semFee(feeItems, semIndex, totalSems) {
   let total = 0
   ;(feeItems || []).forEach(item => {
     const a = parseFloat(item.amount) || 0
-    if (item.category === 'entry'     && semIndex === 0)  total += a
-    if (item.category === 'divide')                        total += totalSems > 0 ? a / totalSems : 0
-    if (item.category === 'multiply')                      total += a
-    if (item.category === 'multiply2' && semIndex > 0)     total += a
+    if (item.category === 'entry'     && semIndex === 0) total += a
+    if (item.category === 'divide')                      total += totalSems > 0 ? a / totalSems : 0
+    if (item.category === 'multiply')                    total += a
+    if (item.category === 'multiply2' && semIndex > 0)   total += a
   })
   return total
 }
 
 const fmt = n => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-
-const sel = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 disabled:bg-gray-50 disabled:text-gray-400'
+const sel = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10'
 
 export default function CourseFeeView() {
   const [sessions,    setSessions]    = useState([])
   const [departments, setDepartments] = useState([])
   const [progTypes,   setProgTypes]   = useState([])
+  const [modes,       setModes]       = useState([])
   const [programs,    setPrograms]    = useState([])
 
   const [selSession, setSelSession] = useState('')
   const [selDept,    setSelDept]    = useState('')
   const [selType,    setSelType]    = useState('')
+  const [selMode,    setSelMode]    = useState('')
   const [selProg,    setSelProg]    = useState('')
 
   const [results,  setResults]  = useState([])
   const [loading,  setLoading]  = useState(false)
   const [searched, setSearched] = useState(false)
 
-  // Load sessions + departments on mount
+  // Load master data on mount
   useEffect(() => {
     Promise.all([
       supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false }),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('programme_types').select('id, programme_type_name').order('programme_type_name'),
-    ]).then(([sess, depts, types]) => {
+      supabase.from('study_modes').select('id, mode_name').order('mode_name'),
+    ]).then(([sess, depts, types, mds]) => {
       setSessions(sess.data || [])
       setDepartments(depts.data || [])
       setProgTypes(types.data || [])
+      setModes(mds.data || [])
     })
   }, [])
 
-  // Reload programs when dept or type changes
+  // Reload program dropdown when filters change
   useEffect(() => {
     let q = supabase.from('programs').select('id, program_name').order('program_name')
     if (selDept) q = q.eq('department_id', selDept)
     if (selType) q = q.eq('programme_type_id', selType)
+    if (selMode) q = q.eq('study_mode_id', selMode)
     q.then(({ data }) => { setPrograms(data || []); setSelProg('') })
-  }, [selDept, selType])
+  }, [selDept, selType, selMode])
 
   async function handleSearch() {
     setLoading(true)
     setSearched(true)
+    setResults([])
 
-    // Build base query with all joins
-    let q = supabase
-      .from('fee_structures')
-      .select(`
-        id, programme_id, session_id, fee_items, total_sems,
-        programs(
-          id, program_name, duration, semester_year,
-          department_id, programme_type_id,
-          departments(name),
-          programme_types(programme_type_name)
-        ),
-        academic_sessions(session_name)
-      `)
+    try {
+      // Step 1: fetch fee_structures (raw IDs only)
+      let fsQuery = supabase
+        .from('fee_structures')
+        .select('id, programme_id, session_id, fee_items, total_sems')
+      if (selSession) fsQuery = fsQuery.eq('session_id', selSession)
+      if (selProg)    fsQuery = fsQuery.eq('programme_id', selProg)
 
-    if (selSession) q = q.eq('session_id', selSession)
-    if (selProg)    q = q.eq('programme_id', selProg)
+      const { data: fsList, error: fsErr } = await fsQuery
+      if (fsErr) throw fsErr
+      if (!fsList?.length) { setResults([]); setLoading(false); return }
 
-    const { data, error } = await q
-    if (error) { console.error(error); setResults([]); setLoading(false); return }
+      // Step 2: fetch programs for those IDs with all meta
+      const progIds  = [...new Set(fsList.map(f => f.programme_id).filter(Boolean))]
+      const sessIds  = [...new Set(fsList.map(f => f.session_id).filter(Boolean))]
 
-    const rows = []
-    ;(data || []).forEach(fs => {
-      const prog = fs.programs
-      if (!prog) return
+      const [{ data: progList }, { data: sessList }] = await Promise.all([
+        supabase
+          .from('programs')
+          .select('id, program_name, duration, semester_year, department_id, programme_type_id, study_mode_id, departments(name), programme_types(programme_type_name), study_modes(mode_name)')
+          .in('id', progIds),
+        supabase
+          .from('academic_sessions')
+          .select('id, session_name')
+          .in('id', sessIds),
+      ])
 
-      // Client-side filter by dept / type when no specific program selected
-      if (selDept && prog.department_id    !== selDept) return
-      if (selType && prog.programme_type_id !== selType) return
+      // Step 3: build lookup maps
+      const progMap = {}
+      ;(progList || []).forEach(p => { progMap[p.id] = p })
+      const sessMap = {}
+      ;(sessList || []).forEach(s => { sessMap[s.id] = s })
 
-      const totalSems = fs.total_sems ||
-        (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
+      // Step 4: build rows, apply client-side filters
+      const rows = []
+      fsList.forEach(fs => {
+        const prog = progMap[fs.programme_id]
+        const sess = sessMap[fs.session_id]
+        if (!prog) return
 
-      for (let i = 0; i < totalSems; i++) {
-        rows.push({
-          key:         `${fs.id}-${i}`,
-          session:     fs.academic_sessions?.session_name || '—',
-          department:  prog.departments?.name || '—',
-          progType:    prog.programme_types?.programme_type_name || '—',
-          programName: prog.program_name || '—',
-          semester:    `Semester ${i + 1}`,
-          fee:         semFee(fs.fee_items, i, totalSems),
-        })
-      }
-    })
+        if (selDept && prog.department_id     !== selDept) return
+        if (selType && prog.programme_type_id !== selType) return
+        if (selMode && prog.study_mode_id     !== selMode) return
 
-    setResults(rows)
+        const totalSems = fs.total_sems ||
+          (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
+
+        for (let i = 0; i < totalSems; i++) {
+          rows.push({
+            key:         `${fs.id}-${i}`,
+            session:     sess?.session_name || '—',
+            department:  prog.departments?.name || '—',
+            progType:    prog.programme_types?.programme_type_name || '—',
+            mode:        prog.study_modes?.mode_name || '—',
+            programName: prog.program_name || '—',
+            semester:    `Semester ${i + 1}`,
+            fee:         semFee(fs.fee_items, i, totalSems),
+          })
+        }
+      })
+
+      setResults(rows)
+    } catch (err) {
+      console.error('Fee search error:', err)
+      setResults([])
+    }
     setLoading(false)
   }
 
@@ -120,12 +145,10 @@ export default function CourseFeeView() {
 
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
 
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">
-              Session
-            </label>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Session</label>
             <select value={selSession} onChange={e => setSelSession(e.target.value)} className={sel}>
               <option value="">All Sessions</option>
               {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
@@ -133,12 +156,10 @@ export default function CourseFeeView() {
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">
-              Department
-            </label>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Department</label>
             <select
               value={selDept}
-              onChange={e => { setSelDept(e.target.value); setSelType(''); setSelProg('') }}
+              onChange={e => { setSelDept(e.target.value); setSelType(''); setSelMode(''); setSelProg('') }}
               className={sel}
             >
               <option value="">All Departments</option>
@@ -147,9 +168,7 @@ export default function CourseFeeView() {
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">
-              Program Type
-            </label>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Program Type</label>
             <select
               value={selType}
               onChange={e => { setSelType(e.target.value); setSelProg('') }}
@@ -161,14 +180,25 @@ export default function CourseFeeView() {
           </div>
 
           <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">
-              Program Name
-            </label>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Mode</label>
+            <select
+              value={selMode}
+              onChange={e => { setSelMode(e.target.value); setSelProg('') }}
+              className={sel}
+            >
+              <option value="">All Modes</option>
+              {modes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Program Name</label>
             <select value={selProg} onChange={e => setSelProg(e.target.value)} className={sel}>
               <option value="">All Programs</option>
               {programs.map(p => <option key={p.id} value={p.id}>{p.program_name}</option>)}
             </select>
           </div>
+
         </div>
 
         <button
@@ -203,9 +233,10 @@ export default function CourseFeeView() {
                     <Th>Session</Th>
                     <Th>Department</Th>
                     <Th>Program Type</Th>
+                    <Th>Mode</Th>
                     <Th>Program Name</Th>
                     <Th>Sem</Th>
-                    <Th className="text-right">Fee</Th>
+                    <Th>Fee</Th>
                   </tr>
                 </Thead>
                 <Tbody>
@@ -213,13 +244,12 @@ export default function CourseFeeView() {
                     <Tr key={row.key}>
                       <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                       <Td className="text-gray-500 text-xs whitespace-nowrap">{row.session}</Td>
-                      <Td className="text-gray-500 text-xs max-w-[160px] truncate">{row.department}</Td>
+                      <Td className="text-gray-500 text-xs max-w-[150px] truncate">{row.department}</Td>
                       <Td className="text-gray-500 text-xs whitespace-nowrap">{row.progType}</Td>
+                      <Td className="text-gray-500 text-xs whitespace-nowrap">{row.mode}</Td>
                       <Td className="font-semibold text-gray-900 whitespace-nowrap">{row.programName}</Td>
                       <Td className="text-gray-500 text-xs whitespace-nowrap">{row.semester}</Td>
-                      <Td className="text-right font-mono font-bold text-[#933d18] whitespace-nowrap">
-                        {fmt(row.fee)}
-                      </Td>
+                      <Td className="font-mono font-bold text-[#933d18] whitespace-nowrap">{fmt(row.fee)}</Td>
                     </Tr>
                   ))}
                 </Tbody>
