@@ -27,6 +27,8 @@ import AccountDepartment from './pages/admin/AccountDepartment'
 import DocumentDepartment from './pages/admin/DocumentDepartment'
 import FeeManagement from './pages/admin/FeeManagement'
 import Boards from './pages/admin/Boards'
+import WalletSummary from './pages/admin/WalletSummary'
+import CouponManagement from './pages/admin/CouponManagement'
 
 // Super Center portal
 import SuperCenterDashboard from './pages/super-center/SuperCenterDashboard'
@@ -52,6 +54,7 @@ import BalanceView from './pages/shared/BalanceView'
 import StudentListReport from './pages/shared/StudentListReport'
 import CourseFeeView from './pages/shared/CourseFeeView'
 import ComingSoon from './pages/shared/ComingSoon'
+import CouponView from './pages/shared/CouponView'
 
 // Student
 import StudentLogin from './pages/student/StudentLogin'
@@ -144,6 +147,8 @@ export default function App() {
             <Route path="/admin/document-department" element={<DocumentDepartment />} />
             <Route path="/admin/fee-management" element={<FeeManagement />} />
             <Route path="/admin/boards" element={<Boards />} />
+            <Route path="/admin/wallet-summary" element={<WalletSummary />} />
+            <Route path="/admin/coupons" element={<CouponManagement />} />
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />
@@ -176,8 +181,8 @@ export default function App() {
             <Route path="/super-center/reports/syllabus" element={<ComingSoon title="Syllabus" description="Program syllabus and curriculum" />} />
             <Route path="/super-center/reports/credentials" element={<ComingSoon title="Credentials" description="Student credentials and certificates" />} />
             <Route path="/super-center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
-            <Route path="/super-center/reports/wallet-coupon" element={<ComingSoon title="Wallet Coupon" description="Wallet coupon management" />} />
-            <Route path="/super-center/reports/admission-coupon" element={<ComingSoon title="Admission Coupon" description="Admission coupon management" />} />
+            <Route path="/super-center/reports/wallet-coupon" element={<CouponView type="wallet" />} />
+            <Route path="/super-center/reports/admission-coupon" element={<CouponView type="admission" />} />
 
             {/* Center portal */}
             <Route path="/center/dashboard" element={<CenterDashboard />} />
@@ -205,8 +210,8 @@ export default function App() {
             <Route path="/center/reports/syllabus" element={<ComingSoon title="Syllabus" description="Program syllabus and curriculum" />} />
             <Route path="/center/reports/credentials" element={<ComingSoon title="Credentials" description="Student credentials and certificates" />} />
             <Route path="/center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
-            <Route path="/center/reports/wallet-coupon" element={<ComingSoon title="Wallet Coupon" description="Wallet coupon management" />} />
-            <Route path="/center/reports/admission-coupon" element={<ComingSoon title="Admission Coupon" description="Admission coupon management" />} />
+            <Route path="/center/reports/wallet-coupon" element={<CouponView type="wallet" />} />
+            <Route path="/center/reports/admission-coupon" element={<CouponView type="admission" />} />
 
           </Route>
 
