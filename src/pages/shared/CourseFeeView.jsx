@@ -1,9 +1,110 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Search } from 'lucide-react'
+import { Search, ChevronDown, X } from 'lucide-react'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 
+// ── Searchable single-select dropdown ──────────────────────────────────────
+function SearchableSelect({ options, value, onChange, placeholder = 'All', label }) {
+  const [open, setOpen]       = useState(false)
+  const [query, setQuery]     = useState('')
+  const ref                   = useRef(null)
+
+  const selected = options.find(o => o.id === value)
+
+  const filtered = query
+    ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+    : options
+
+  // close on outside click
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
+  function select(id) {
+    onChange(id)
+    setOpen(false)
+    setQuery('')
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      {label && (
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">{label}</p>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center justify-between border rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none transition-all ${
+          open ? 'border-[#933d18] ring-2 ring-[#933d18]/10' : 'border-gray-200 hover:border-gray-300'
+        }`}
+      >
+        <span className={selected ? 'text-gray-900 font-medium truncate' : 'text-gray-400'}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <div className="flex items-center gap-1 shrink-0 ml-2">
+          {value && (
+            <span
+              role="button"
+              onClick={e => { e.stopPropagation(); select('') }}
+              className="p-0.5 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
+            >
+              <X size={12} />
+            </span>
+          )}
+          <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </div>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          {/* Search box */}
+          <div className="p-2 border-b border-gray-100">
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                autoFocus
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search..."
+                className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#933d18]"
+              />
+            </div>
+          </div>
+
+          {/* Options list */}
+          <ul className="max-h-52 overflow-y-auto">
+            <li
+              onClick={() => select('')}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${
+                !value ? 'text-[#933d18] font-semibold bg-[#933d18]/5' : 'text-gray-500'
+              }`}
+            >
+              {placeholder}
+            </li>
+            {filtered.length === 0 ? (
+              <li className="px-3 py-3 text-xs text-gray-400 text-center">No results</li>
+            ) : filtered.map(o => (
+              <li
+                key={o.id}
+                onClick={() => select(o.id)}
+                className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 transition-colors ${
+                  value === o.id ? 'text-[#933d18] font-semibold bg-[#933d18]/5' : 'text-gray-700'
+                }`}
+              >
+                {o.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Fee calculation ─────────────────────────────────────────────────────────
 function semFee(feeItems, semIndex, totalSems) {
   let total = 0
   ;(feeItems || []).forEach(item => {
@@ -17,8 +118,8 @@ function semFee(feeItems, semIndex, totalSems) {
 }
 
 const fmt = n => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
-const sel = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10'
 
+// ── Main Component ──────────────────────────────────────────────────────────
 export default function CourseFeeView() {
   const [sessions,    setSessions]    = useState([])
   const [departments, setDepartments] = useState([])
@@ -51,7 +152,7 @@ export default function CourseFeeView() {
     })
   }, [])
 
-  // Reload program dropdown when filters change
+  // Reload program list when filters change
   useEffect(() => {
     let q = supabase.from('programs').select('id, program_name').order('program_name')
     if (selDept) q = q.eq('department_id', selDept)
@@ -66,7 +167,7 @@ export default function CourseFeeView() {
     setResults([])
 
     try {
-      // Step 1: fetch fee_structures (raw IDs only)
+      // Fetch fee_structures
       let fsQuery = supabase
         .from('fee_structures')
         .select('id, programme_id, session_id, fee_items, total_sems')
@@ -77,9 +178,9 @@ export default function CourseFeeView() {
       if (fsErr) throw fsErr
       if (!fsList?.length) { setResults([]); setLoading(false); return }
 
-      // Step 2: fetch programs for those IDs with all meta
-      const progIds  = [...new Set(fsList.map(f => f.programme_id).filter(Boolean))]
-      const sessIds  = [...new Set(fsList.map(f => f.session_id).filter(Boolean))]
+      // Fetch programs + sessions in parallel
+      const progIds = [...new Set(fsList.map(f => f.programme_id).filter(Boolean))]
+      const sessIds = [...new Set(fsList.map(f => f.session_id).filter(Boolean))]
 
       const [{ data: progList }, { data: sessList }] = await Promise.all([
         supabase
@@ -92,13 +193,9 @@ export default function CourseFeeView() {
           .in('id', sessIds),
       ])
 
-      // Step 3: build lookup maps
-      const progMap = {}
-      ;(progList || []).forEach(p => { progMap[p.id] = p })
-      const sessMap = {}
-      ;(sessList || []).forEach(s => { sessMap[s.id] = s })
+      const progMap = Object.fromEntries((progList || []).map(p => [p.id, p]))
+      const sessMap = Object.fromEntries((sessList || []).map(s => [s.id, s]))
 
-      // Step 4: build rows, apply client-side filters
       const rows = []
       fsList.forEach(fs => {
         const prog = progMap[fs.programme_id]
@@ -136,6 +233,13 @@ export default function CourseFeeView() {
 
   const grandTotal = results.reduce((s, r) => s + r.fee, 0)
 
+  // Option arrays for SearchableSelect
+  const sessionOpts    = sessions.map(s    => ({ id: s.id, label: s.session_name }))
+  const deptOpts       = departments.map(d => ({ id: d.id, label: d.name }))
+  const typeOpts       = progTypes.map(t   => ({ id: t.id, label: t.programme_type_name }))
+  const modeOpts       = modes.map(m       => ({ id: m.id, label: m.mode_name }))
+  const programOpts    = programs.map(p    => ({ id: p.id, label: p.program_name }))
+
   return (
     <div className="p-6 space-y-5">
       <PageHeader
@@ -147,57 +251,45 @@ export default function CourseFeeView() {
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
 
-          <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Session</label>
-            <select value={selSession} onChange={e => setSelSession(e.target.value)} className={sel}>
-              <option value="">All Sessions</option>
-              {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Session"
+            options={sessionOpts}
+            value={selSession}
+            onChange={setSelSession}
+            placeholder="All Sessions"
+          />
 
-          <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Department</label>
-            <select
-              value={selDept}
-              onChange={e => { setSelDept(e.target.value); setSelType(''); setSelMode(''); setSelProg('') }}
-              className={sel}
-            >
-              <option value="">All Departments</option>
-              {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Department"
+            options={deptOpts}
+            value={selDept}
+            onChange={v => { setSelDept(v); setSelType(''); setSelMode(''); setSelProg('') }}
+            placeholder="All Departments"
+          />
 
-          <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Program Type</label>
-            <select
-              value={selType}
-              onChange={e => { setSelType(e.target.value); setSelProg('') }}
-              className={sel}
-            >
-              <option value="">All Types</option>
-              {progTypes.map(t => <option key={t.id} value={t.id}>{t.programme_type_name}</option>)}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Program Type"
+            options={typeOpts}
+            value={selType}
+            onChange={v => { setSelType(v); setSelProg('') }}
+            placeholder="All Types"
+          />
 
-          <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Mode</label>
-            <select
-              value={selMode}
-              onChange={e => { setSelMode(e.target.value); setSelProg('') }}
-              className={sel}
-            >
-              <option value="">All Modes</option>
-              {modes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Mode"
+            options={modeOpts}
+            value={selMode}
+            onChange={v => { setSelMode(v); setSelProg('') }}
+            placeholder="All Modes"
+          />
 
-          <div>
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Program Name</label>
-            <select value={selProg} onChange={e => setSelProg(e.target.value)} className={sel}>
-              <option value="">All Programs</option>
-              {programs.map(p => <option key={p.id} value={p.id}>{p.program_name}</option>)}
-            </select>
-          </div>
+          <SearchableSelect
+            label="Program Name"
+            options={programOpts}
+            value={selProg}
+            onChange={setSelProg}
+            placeholder="All Programs"
+          />
 
         </div>
 
