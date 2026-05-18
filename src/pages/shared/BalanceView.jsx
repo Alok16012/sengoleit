@@ -7,11 +7,12 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
-import { Wallet, Plus, Upload, RefreshCw } from 'lucide-react'
+import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
 
 export default function BalanceView() {
   const { user } = useAuth()
   const [center, setCenter] = useState(null)
+  const [centerErr, setCenterErr] = useState('')
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
@@ -19,14 +20,18 @@ export default function BalanceView() {
   const [screenshot, setScreenshot] = useState(null)
   const [screenshotPreview, setScreenshotPreview] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [submitErr, setSubmitErr] = useState('')
+  const [success, setSuccess] = useState(false)
   const fileRef = useRef()
 
   useEffect(() => {
     if (!user) return
-    supabase.from('centers').select('id, center_name, center_code, virtual_balance, center_type').eq('email', user.email).single()
-      .then(({ data }) => {
+    supabase.from('centers').select('id, center_name, center_code, virtual_balance, center_type').eq('email', user.email).maybeSingle()
+      .then(({ data, error }) => {
+        if (error) { setCenterErr(`Center lookup failed: ${error.message}`); setLoading(false); return }
+        if (!data) { setCenterErr('No center found linked to your account. Contact admin.'); setLoading(false); return }
         setCenter(data)
-        if (data) fetchRequests(data.id)
+        fetchRequests(data.id)
       })
   }, [user])
 
@@ -41,6 +46,7 @@ export default function BalanceView() {
     setForm({ amount: '', utr_number: '', payment_date: '', notes: '' })
     setScreenshot(null)
     setScreenshotPreview(null)
+    setSubmitErr('')
     setModal(true)
   }
 
@@ -52,32 +58,49 @@ export default function BalanceView() {
   }
 
   async function handleSubmit() {
-    if (!form.amount || !form.utr_number || !form.payment_date) return alert('Amount, UTR number, and Payment Date are required')
-    setSaving(true)
-    let screenshotUrl = null
-
-    if (screenshot) {
-      const fileName = `recharge/${center.id}/${Date.now()}_${screenshot.name}`
-      const { data: uploadData } = await supabase.storage.from('documents').upload(fileName, screenshot)
-      if (uploadData) {
-        const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName)
-        screenshotUrl = urlData.publicUrl
-      }
+    if (!form.amount || !form.utr_number || !form.payment_date) {
+      setSubmitErr('Amount, UTR number, and Payment Date are required.')
+      return
     }
+    if (!center) { setSubmitErr('Center not loaded. Refresh the page and try again.'); return }
 
-    await supabase.from('recharge_requests').insert({
-      center_id: center.id,
-      amount: Number(form.amount),
-      utr_number: form.utr_number,
-      payment_date: form.payment_date || null,
-      utr_screenshot_url: screenshotUrl,
-      notes: form.notes,
-      status: 'pending',
-    })
+    setSaving(true)
+    setSubmitErr('')
 
-    setSaving(false)
-    setModal(false)
-    fetchRequests(center.id)
+    try {
+      let screenshotUrl = null
+
+      if (screenshot) {
+        const fileName = `recharge/${center.id}/${Date.now()}_${screenshot.name}`
+        const { data: uploadData, error: upErr } = await supabase.storage.from('documents').upload(fileName, screenshot)
+        if (upErr) console.warn('Screenshot upload failed:', upErr.message)
+        else if (uploadData) {
+          const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName)
+          screenshotUrl = urlData.publicUrl
+        }
+      }
+
+      const { error: insErr } = await supabase.from('recharge_requests').insert({
+        center_id: center.id,
+        amount: Number(form.amount),
+        utr_number: form.utr_number,
+        payment_date: form.payment_date || null,
+        utr_screenshot_url: screenshotUrl,
+        notes: form.notes,
+        status: 'pending',
+      })
+
+      if (insErr) { setSubmitErr(`Failed to submit: ${insErr.message}`); setSaving(false); return }
+
+      setSaving(false)
+      setModal(false)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 4000)
+      fetchRequests(center.id)
+    } catch (err) {
+      setSubmitErr(`Unexpected error: ${err.message}`)
+      setSaving(false)
+    }
   }
 
   const totalPending = requests.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
@@ -89,6 +112,20 @@ export default function BalanceView() {
         subtitle="Recharge your account to register students"
         action={{ label: <><Plus size={15} /> Request Recharge</>, onClick: openModal }}
       />
+
+      {centerErr && (
+        <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-sm text-red-700">
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          <span>{centerErr}</span>
+        </div>
+      )}
+
+      {success && (
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4 text-sm text-emerald-700">
+          <CheckCircle2 size={16} className="shrink-0" />
+          <span>Recharge request submitted successfully! Account department will verify shortly.</span>
+        </div>
+      )}
 
       {/* Balance Card */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -216,6 +253,12 @@ export default function BalanceView() {
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
             After submitting, the Account Department will verify your payment and credit the balance to your account.
           </div>
+          {submitErr && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700">
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              <span>{submitErr}</span>
+            </div>
+          )}
           <div className="flex gap-3 pt-1">
             <Button onClick={handleSubmit} disabled={saving}>{saving ? 'Submitting...' : 'Submit Request'}</Button>
             <Button variant="outline" onClick={() => setModal(false)}>Cancel</Button>
