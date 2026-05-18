@@ -6,7 +6,20 @@ import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
-import { Building2, User, MapPin, Briefcase, CreditCard, GraduationCap } from 'lucide-react'
+import {
+  Building2, User, MapPin, Briefcase, CreditCard, GraduationCap,
+  Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft
+} from 'lucide-react'
+
+const STEPS = [
+  { label: 'Center Identity',  icon: Building2 },
+  { label: 'Contact Person',   icon: User },
+  { label: 'Center Address',   icon: MapPin },
+  { label: 'Organization',     icon: Briefcase },
+  { label: 'Bank Details',     icon: CreditCard },
+  { label: 'Education',        icon: GraduationCap },
+  { label: 'Documents',        icon: Upload },
+]
 
 const emptyForm = {
   center_name: '', center_code: '', email: '', phone: '',
@@ -24,9 +37,57 @@ const emptyForm = {
   edu_ug_institute: '', edu_ug_board: '', edu_ug_year: '',
   edu_pg_institute: '', edu_pg_board: '', edu_pg_year: '',
   edu_diploma_institute: '', edu_diploma_board: '', edu_diploma_year: '',
-  kyc_status: 'Pending', status: 'Pending',
+  // Documents
+  owner_photo_url: '', owner_signature_url: '', owner_aadhar_url: '', owner_pan_url: '',
+  center_reg_url: '', premises_photo_url: '', gst_url: '', agreement_url: '',
+  cancel_cheque_url: '', bank_passbook_url: '',
   center_type: 'center',
   approval_status: 'pending',
+}
+
+function FileCard({ label, fieldKey, accept, isImage, value, onUpload, isUploading, hint }) {
+  return (
+    <div className="bg-gray-50/60 rounded-xl border border-gray-100 overflow-hidden">
+      <div className="px-4 pt-3 pb-1 flex items-center justify-between">
+        <p className="text-xs font-bold text-gray-700">{label}</p>
+        {value && (
+          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <CheckCircle2 size={10} /> Uploaded
+          </span>
+        )}
+      </div>
+      {hint && <p className="text-[10px] text-gray-400 px-4 pb-1">{hint}</p>}
+      <div className="flex flex-col items-center px-4 py-4 gap-3">
+        {value && isImage ? (
+          <img src={value} alt={label} className="h-28 w-full object-contain rounded-lg border border-gray-200 bg-white shadow-sm" />
+        ) : value && !isImage ? (
+          <div className="h-20 w-full rounded-lg border-2 border-[#933d18]/20 bg-[#933d18]/5 flex items-center justify-center gap-2">
+            <Upload size={18} className="text-[#933d18]/60" />
+            <span className="text-xs font-semibold text-[#933d18]/80">Document uploaded</span>
+          </div>
+        ) : (
+          <div className="h-20 w-full rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center bg-white">
+            <p className="text-xs text-gray-300 font-medium">No file yet</p>
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <label className={`cursor-pointer flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-semibold transition-all
+            ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-[#933d18]/30 text-[#933d18] hover:bg-[#933d18]/5 bg-white'}`}>
+            <Upload size={11} />
+            {isUploading ? 'Uploading...' : value ? 'Replace' : 'Upload'}
+            <input type="file" accept={accept} className="hidden" disabled={isUploading}
+              onChange={e => e.target.files[0] && onUpload(fieldKey, e.target.files[0])} />
+          </label>
+          {value && (
+            <a href={value} target="_blank" rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-all">
+              <Eye size={11} /> View
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function SubCenterForm() {
@@ -34,6 +95,7 @@ export default function SubCenterForm() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isEdit = Boolean(id)
+
   const [form, setForm] = useState(emptyForm)
   const [superCenterId, setSuperCenterId] = useState(null)
   const [states, setStates] = useState([])
@@ -41,6 +103,10 @@ export default function SubCenterForm() {
   const [orgDistricts, setOrgDistricts] = useState([])
   const [countries, setCountries] = useState([])
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState({})
+  const [error, setError] = useState(null)
+  const [step, setStep] = useState(0)
+  const [stepError, setStepError] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -76,137 +142,398 @@ export default function SubCenterForm() {
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
 
+  async function handleFileUpload(fieldKey, file) {
+    setUploading(u => ({ ...u, [fieldKey]: true }))
+    setError(null)
+    try {
+      const ext = file.name.split('.').pop()
+      const centerId = id || `new_${Date.now()}`
+      const path = `centers/${centerId}/${fieldKey}_${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('documents').upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path)
+      setForm(f => ({ ...f, [fieldKey]: publicUrl }))
+    } catch (err) {
+      setError('Upload failed: ' + err.message)
+    }
+    setUploading(u => ({ ...u, [fieldKey]: false }))
+  }
+
+  function validateStep(s) {
+    switch (s) {
+      case 0:
+        if (!form.center_name.trim()) return 'Center Name is required'
+        if (!form.email.trim()) return 'Email is required'
+        return null
+      case 1:
+        if (!form.contact_person.trim()) return 'Contact Person Name is required'
+        if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
+        return null
+      case 2:
+        if (!form.city.trim()) return 'City is required'
+        if (!form.pincode.trim()) return 'Pincode is required'
+        return null
+      default:
+        return null
+    }
+  }
+
+  function handleNext() {
+    const err = validateStep(step)
+    if (err) { setStepError(err); return }
+    setStepError('')
+    setStep(s => s + 1)
+  }
+
+  function handlePrev() {
+    setStepError('')
+    setStep(s => s - 1)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
-    const payload = { ...form, center_type: 'center', super_center_id: superCenterId, approval_status: 'pending' }
-    delete payload.id; delete payload.created_at; delete payload.updated_at
-    const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id']
-    fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
-    if (isEdit) await supabase.from('centers').update(payload).eq('id', id)
-    else await supabase.from('centers').insert(payload)
-    navigate('/super-center/centers')
+    setError(null)
+    try {
+      const payload = { ...form, center_type: 'center', super_center_id: superCenterId, approval_status: 'pending' }
+      delete payload.id; delete payload.created_at; delete payload.updated_at
+      const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id']
+      fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
+      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage']
+      numericFields.forEach(k => {
+        if (payload[k] === '' || payload[k] === null) delete payload[k]
+        else if (payload[k] !== undefined) payload[k] = Number(payload[k])
+      })
+      Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+
+      const { error: err } = isEdit
+        ? await supabase.from('centers').update(payload).eq('id', id)
+        : await supabase.from('centers').insert(payload)
+      if (err) throw err
+      navigate('/super-center/centers')
+    } catch (err) {
+      setError(err.message || 'Something went wrong.')
+      setLoading(false)
+    }
   }
 
+  const docFields = [
+    ['owner_photo_url', 'Owner Photo'],
+    ['owner_signature_url', 'Signature'],
+    ['owner_aadhar_url', 'Aadhar Card'],
+    ['owner_pan_url', 'PAN Card'],
+    ['center_reg_url', 'Reg. Cert.'],
+    ['premises_photo_url', 'Premises'],
+    ['gst_url', 'GST Cert.'],
+    ['agreement_url', 'Agreement'],
+    ['cancel_cheque_url', 'Cancel Cheque'],
+    ['bank_passbook_url', 'Bank Passbook'],
+  ]
+  const docsUploaded = docFields.filter(([k]) => !!form[k]).length
+
   return (
-    <div className="p-6 max-w-4xl">
+    <div className="p-4 lg:p-6 pb-20">
       <PageHeader title={isEdit ? 'Edit Center' : 'Create Center'} backTo="/super-center/centers" />
 
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-5 text-sm text-blue-700">
-        This center will be created under your Super Center and sent to Account Department for approval.
+      <div className="mt-3 mb-4 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
+        This center will be created under your Super Center and sent for university approval.
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <FormSection title="Center Identity" icon={<Building2 size={16} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Center Name *" value={form.center_name} onChange={set('center_name')} required />
-            <Input label="Center Code" placeholder="CTR001" value={form.center_code} onChange={set('center_code')} />
+      {/* Step header */}
+      <div className="sticky top-0 z-20 mb-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden">
+        <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="flex items-stretch min-w-max">
+            {STEPS.map((s, i) => {
+              const isActive = step === i
+              const isPast = i < step
+              const Icon = s.icon
+              return (
+                <div key={i} className="flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => { if (isPast) { setStepError(''); setStep(i) } }}
+                    className={`relative flex items-center gap-2.5 px-5 py-3.5 transition-all
+                      ${isActive
+                        ? 'bg-[#933d18] text-white'
+                        : isPast
+                          ? 'bg-[#933d18]/8 text-[#933d18]/70 hover:bg-[#933d18]/12 cursor-pointer'
+                          : 'text-gray-400 cursor-default'
+                      }`}
+                  >
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0
+                      ${isActive ? 'bg-white/20 text-white' : isPast ? 'bg-[#933d18]/20 text-[#933d18]' : 'bg-gray-100 text-gray-400'}`}>
+                      {isPast ? <CheckCircle2 size={13} /> : i + 1}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Icon size={13} className={isActive ? 'text-white/80' : isPast ? 'text-[#933d18]/60' : 'text-gray-300'} />
+                      <span className={`text-xs font-bold whitespace-nowrap ${isActive ? 'text-white' : isPast ? 'text-[#933d18]/80' : 'text-gray-500'}`}>
+                        {s.label}
+                      </span>
+                    </div>
+                    {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/40 rounded-full" />}
+                  </button>
+                  {i < STEPS.length - 1 && (
+                    <div className={`w-px self-stretch my-2 ${isPast ? 'bg-[#933d18]/20' : 'bg-gray-200'}`} />
+                  )}
+                </div>
+              )
+            })}
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Email" type="email" value={form.email} onChange={set('email')} />
-            <Input label="Phone" value={form.phone} onChange={set('phone')} />
-          </div>
-        </FormSection>
-
-        <FormSection title="Contact Person Details" icon={<User size={16} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Contact Person Name *" value={form.contact_person} onChange={set('contact_person')} required />
-            <Input label="Father / Mother Name" value={form.father_mother_name} onChange={set('father_mother_name')} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Input label="Date of Birth" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} />
-            <Select label="Gender" value={form.gender} onChange={set('gender')}>
-              <option value="">Select Gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </Select>
-            <Input label="Nationality" value={form.nationality} onChange={set('nationality')} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Aadhar No" value={form.aadhar_no} onChange={set('aadhar_no')} />
-            <Input label="PAN No" value={form.pan_no} onChange={set('pan_no')} />
-          </div>
-        </FormSection>
-
-        <FormSection title="Center Address" icon={<MapPin size={16} />}>
-          <Input label="Address Line 1" value={form.address_line1} onChange={set('address_line1')} />
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Landmark" value={form.landmark} onChange={set('landmark')} />
-            <Input label="Post Office" value={form.post_office} onChange={set('post_office')} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Select label="Country" value={form.country_id} onChange={set('country_id')}>
-              <option value="">Select Country</option>
-              {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
-            </Select>
-            <Select label="State" value={form.state_id} onChange={set('state_id')}>
-              <option value="">Select State</option>
-              {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
-            </Select>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Select label="District" value={form.district_id} onChange={set('district_id')}>
-              <option value="">Select District</option>
-              {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
-            </Select>
-            <Input label="City" value={form.city} onChange={set('city')} />
-            <Input label="Pincode" value={form.pincode} onChange={set('pincode')} />
-          </div>
-        </FormSection>
-
-        <FormSection title="Organization Details" icon={<Briefcase size={16} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Organization Name" value={form.organization_name} onChange={set('organization_name')} />
-            <Input label="Org Type" placeholder="Trust / Society / Pvt Ltd" value={form.org_type} onChange={set('org_type')} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Registration Number" value={form.registration_number} onChange={set('registration_number')} />
-            <Input label="GST / PAN (Org)" value={form.gst_pan} onChange={set('gst_pan')} />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <Select label="Premises Type" value={form.premises_type} onChange={set('premises_type')}>
-              <option value="Owned">Owned</option>
-              <option value="Rented">Rented</option>
-              <option value="Leased">Leased</option>
-            </Select>
-            <Input label="Office Area (sqft)" type="number" value={form.office_area_sqft} onChange={set('office_area_sqft')} />
-            <Input label="Student Capacity" type="number" value={form.student_capacity} onChange={set('student_capacity')} />
-          </div>
-        </FormSection>
-
-        <FormSection title="Bank Details" icon={<CreditCard size={16} />}>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="Account Holder Name" value={form.bank_account_holder} onChange={set('bank_account_holder')} />
-            <Input label="Account Number" value={form.bank_account_number} onChange={set('bank_account_number')} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="IFSC Code" value={form.ifsc_code} onChange={set('ifsc_code')} />
-            <Input label="Bank Branch" value={form.bank_branch} onChange={set('bank_branch')} />
-          </div>
-        </FormSection>
-
-        <FormSection title="Education Qualification" icon={<GraduationCap size={16} />}>
-          {[
-            { level: '10th', fields: ['edu_10th_institute', 'edu_10th_board', 'edu_10th_year'] },
-            { level: '12th', fields: ['edu_12th_institute', 'edu_12th_board', 'edu_12th_year'] },
-            { level: 'UG', fields: ['edu_ug_institute', 'edu_ug_board', 'edu_ug_year'] },
-            { level: 'PG', fields: ['edu_pg_institute', 'edu_pg_board', 'edu_pg_year'] },
-            { level: 'Diploma', fields: ['edu_diploma_institute', 'edu_diploma_board', 'edu_diploma_year'] },
-          ].map(({ level, fields }) => (
-            <div key={level} className="grid grid-cols-4 gap-3 items-center">
-              <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">{level}</div>
-              <Input placeholder="Institute" value={form[fields[0]]} onChange={set(fields[0])} />
-              <Input placeholder="Board / University" value={form[fields[1]]} onChange={set(fields[1])} />
-              <Input placeholder="Year" value={form[fields[2]]} onChange={set(fields[2])} />
-            </div>
-          ))}
-        </FormSection>
-
-        <div className="flex gap-3 pt-2">
-          <Button type="submit" disabled={loading}>{loading ? 'Saving...' : isEdit ? 'Update Center' : 'Create Center'}</Button>
-          <Button type="button" variant="outline" onClick={() => navigate('/super-center/centers')}>Cancel</Button>
         </div>
+      </div>
+
+      {/* Step error */}
+      {stepError && (
+        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={15} className="shrink-0" /> {stepError}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-5">
+
+        {/* STEP 0: Center Identity */}
+        {step === 0 && (
+          <FormSection title="Center Identity" icon={<Building2 size={16} />}>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Center Name *" value={form.center_name} onChange={set('center_name')} required />
+              <Input label="Center Code" placeholder="CTR001" value={form.center_code} onChange={set('center_code')} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Email *" type="email" value={form.email} onChange={set('email')} required />
+              <Input label="Phone *" type="tel" value={form.phone} onChange={set('phone')} required />
+            </div>
+          </FormSection>
+        )}
+
+        {/* STEP 1: Contact Person */}
+        {step === 1 && (
+          <FormSection title="Contact Person Details" icon={<User size={16} />}>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Contact Person Name *" value={form.contact_person} onChange={set('contact_person')} required />
+              <Input label="Father / Mother Name *" value={form.father_mother_name} onChange={set('father_mother_name')} required />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Input label="Date of Birth *" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} required />
+              <Select label="Gender *" value={form.gender} onChange={set('gender')} required>
+                <option value="">Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </Select>
+              <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} required />
+              <Input label="PAN No *" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} required />
+            </div>
+          </FormSection>
+        )}
+
+        {/* STEP 2: Center Address */}
+        {step === 2 && (
+          <FormSection title="Center Address" icon={<MapPin size={16} />}>
+            <Input label="Address Line 1 *" value={form.address_line1} onChange={set('address_line1')} required />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Landmark" value={form.landmark} onChange={set('landmark')} />
+              <Input label="Post Office" value={form.post_office} onChange={set('post_office')} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="City *" value={form.city} onChange={set('city')} required />
+              <Input label="Pincode *" value={form.pincode} onChange={set('pincode')} required />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Select label="Country" value={form.country_id} onChange={set('country_id')}>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
+              </Select>
+              <Select label="State *" value={form.state_id} onChange={set('state_id')}>
+                <option value="">Select State</option>
+                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+              <Select label="District" value={form.district_id} onChange={set('district_id')}>
+                <option value="">Select District</option>
+                {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
+              </Select>
+            </div>
+          </FormSection>
+        )}
+
+        {/* STEP 3: Organization */}
+        {step === 3 && (
+          <FormSection title="Organization Details" icon={<Briefcase size={16} />}>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Organization Name *" value={form.organization_name} onChange={set('organization_name')} required />
+              <Input label="Org Type" placeholder="Trust / Society / Pvt Ltd" value={form.org_type} onChange={set('org_type')} />
+            </div>
+            <Textarea label="Organization Address" value={form.org_address} onChange={set('org_address')} />
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} />
+              <Input label="Org City" value={form.org_city} onChange={set('org_city')} />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Select label="Org State" value={form.org_state_id} onChange={set('org_state_id')}>
+                <option value="">Select State</option>
+                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+              <Select label="Org District" value={form.org_district_id} onChange={set('org_district_id')}>
+                <option value="">Select District</option>
+                {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
+              </Select>
+              <Input label="Org Pincode" value={form.org_pincode} onChange={set('org_pincode')} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Registration Number *" value={form.registration_number} onChange={set('registration_number')} required />
+              <Input label="GST / PAN (Org)" value={form.gst_pan} onChange={set('gst_pan')} />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Select label="Premises Type" value={form.premises_type} onChange={set('premises_type')}>
+                <option value="Owned">Owned</option>
+                <option value="Rented">Rented</option>
+                <option value="Leased">Leased</option>
+              </Select>
+              <Input label="Office Area (sqft)" type="number" value={form.office_area_sqft} onChange={set('office_area_sqft')} />
+              <Input label="Student Capacity" type="number" value={form.student_capacity} onChange={set('student_capacity')} />
+            </div>
+          </FormSection>
+        )}
+
+        {/* STEP 4: Bank Details */}
+        {step === 4 && (
+          <FormSection title="Bank Details" icon={<CreditCard size={16} />}>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Account Holder Name *" value={form.bank_account_holder} onChange={set('bank_account_holder')} required />
+              <Input label="Account Number *" value={form.bank_account_number} onChange={set('bank_account_number')} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="IFSC Code *" value={form.ifsc_code} onChange={set('ifsc_code')} required />
+              <Input label="Bank Branch *" value={form.bank_branch} onChange={set('bank_branch')} required />
+            </div>
+          </FormSection>
+        )}
+
+        {/* STEP 5: Education */}
+        {step === 5 && (
+          <FormSection title="Education Qualification" icon={<GraduationCap size={16} />}>
+            {[
+              { level: '10th',    f: ['edu_10th_institute',    'edu_10th_board',    'edu_10th_year'] },
+              { level: '12th',    f: ['edu_12th_institute',    'edu_12th_board',    'edu_12th_year'] },
+              { level: 'UG',      f: ['edu_ug_institute',      'edu_ug_board',      'edu_ug_year'] },
+              { level: 'PG',      f: ['edu_pg_institute',      'edu_pg_board',      'edu_pg_year'] },
+              { level: 'Diploma', f: ['edu_diploma_institute', 'edu_diploma_board', 'edu_diploma_year'] },
+            ].map(({ level, f }) => (
+              <div key={level}>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{level}</p>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <Input label="Institute Name" value={form[f[0]]} onChange={set(f[0])} />
+                  <Input label="Board / University" value={form[f[1]]} onChange={set(f[1])} />
+                  <Input label="Passing Year" type="number" value={form[f[2]]} onChange={set(f[2])} />
+                </div>
+              </div>
+            ))}
+          </FormSection>
+        )}
+
+        {/* STEP 6: Documents */}
+        {step === 6 && (
+          <>
+            <FormSection title="Identity Documents" icon={<User size={16} />}
+              subtitle="Owner's personal identity documents">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <FileCard label="Owner Photo *" fieldKey="owner_photo_url" accept="image/*" isImage
+                  value={form.owner_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_photo_url}
+                  hint="Passport-size photo" />
+                <FileCard label="Owner Signature *" fieldKey="owner_signature_url" accept="image/*" isImage
+                  value={form.owner_signature_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_signature_url}
+                  hint="On white paper" />
+                <FileCard label="Aadhar Card *" fieldKey="owner_aadhar_url" accept="image/*,application/pdf" isImage={false}
+                  value={form.owner_aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_aadhar_url}
+                  hint="Front & back" />
+                <FileCard label="PAN Card *" fieldKey="owner_pan_url" accept="image/*,application/pdf" isImage={false}
+                  value={form.owner_pan_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_pan_url}
+                  hint="Owner's PAN card" />
+              </div>
+            </FormSection>
+
+            <FormSection title="Center Documents" icon={<Building2 size={16} />}
+              subtitle="Organization and premises documents">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <FileCard label="Registration Cert. *" fieldKey="center_reg_url" accept="image/*,application/pdf" isImage={false}
+                  value={form.center_reg_url} onUpload={handleFileUpload} isUploading={!!uploading.center_reg_url}
+                  hint="Society / company reg." />
+                <FileCard label="Premises Photo *" fieldKey="premises_photo_url" accept="image/*" isImage
+                  value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url}
+                  hint="Center building/office" />
+                <FileCard label="GST Certificate" fieldKey="gst_url" accept="image/*,application/pdf" isImage={false}
+                  value={form.gst_url} onUpload={handleFileUpload} isUploading={!!uploading.gst_url}
+                  hint="If applicable" />
+                <FileCard label="Agreement Doc *" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false}
+                  value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url}
+                  hint="Signed MOU" />
+              </div>
+            </FormSection>
+
+            <FormSection title="Bank Documents" icon={<CreditCard size={16} />}
+              subtitle="Bank verification documents">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <FileCard label="Cancel Cheque *" fieldKey="cancel_cheque_url" accept="image/*,application/pdf" isImage={false}
+                  value={form.cancel_cheque_url} onUpload={handleFileUpload} isUploading={!!uploading.cancel_cheque_url}
+                  hint="Cancelled cheque" />
+                <FileCard label="Bank Passbook *" fieldKey="bank_passbook_url" accept="image/*,application/pdf" isImage={false}
+                  value={form.bank_passbook_url} onUpload={handleFileUpload} isUploading={!!uploading.bank_passbook_url}
+                  hint="First page / statement" />
+              </div>
+            </FormSection>
+
+            {/* Upload summary */}
+            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+                Upload Summary — {docsUploaded}/10 documents uploaded
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {docFields.map(([k, label]) => (
+                  <div key={k} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                    <span className="text-[11px] text-gray-600 truncate">{label}</span>
+                    {form[k]
+                      ? <CheckCircle2 size={13} className="text-emerald-500 shrink-0 ml-1" />
+                      : <div className="w-3 h-3 rounded-full border-2 border-gray-300 shrink-0 ml-1" />
+                    }
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+            <AlertCircle size={15} /> {error}
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex items-center justify-between pt-2 pb-8">
+          <div>
+            {step > 0 && (
+              <Button type="button" variant="outline" onClick={handlePrev}>
+                <ArrowLeft size={14} /> Back
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <Button type="button" variant="outline" onClick={() => navigate('/super-center/centers')}>Cancel</Button>
+            {step < STEPS.length - 1 ? (
+              <Button type="button" onClick={handleNext}>
+                Next <ArrowRight size={14} />
+              </Button>
+            ) : (
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Saving...' : isEdit ? 'Update Center' : 'Create Center'}
+              </Button>
+            )}
+          </div>
+        </div>
+
       </form>
     </div>
   )
