@@ -215,8 +215,7 @@ export default function SubCenterForm() {
     setStep(s => s - 1)
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
+  async function handleSubmit() {
     if (step !== STEPS.length - 1) return
     setLoading(true)
     setError(null)
@@ -334,7 +333,7 @@ export default function SubCenterForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <div className="flex flex-col gap-5">
 
         {/* STEP 0: Center Identity */}
         {step === 0 && (
@@ -593,66 +592,60 @@ export default function SubCenterForm() {
 
         {/* STEP 7: Documents */}
         {step === 7 && (
-          <div className="flex flex-col gap-5">
-            <FormSection title="Identity Documents" icon={<User size={16} />}
-              subtitle="Owner's personal identity documents">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <FileCard label="Owner Photo *" fieldKey="owner_photo_url" accept="image/*" isImage
-                  value={form.owner_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_photo_url}
-                  hint="Passport-size photo" />
-                <FileCard label="Owner Signature *" fieldKey="owner_signature_url" accept="image/*" isImage
-                  value={form.owner_signature_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_signature_url}
-                  hint="On white paper" />
-                <FileCard label="Aadhar Card *" fieldKey="owner_aadhar_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.owner_aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_aadhar_url}
-                  hint="Front & back" />
-                <FileCard label="PAN Card *" fieldKey="owner_pan_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.owner_pan_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_pan_url}
-                  hint="Owner's PAN card" />
-              </div>
-            </FormSection>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-            <FormSection title="Center Documents" icon={<Building2 size={16} />}
-              subtitle="Organization and premises documents">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <FileCard label="Registration Cert. *" fieldKey="center_reg_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.center_reg_url} onUpload={handleFileUpload} isUploading={!!uploading.center_reg_url}
-                  hint="Society / company reg." />
-                <FileCard label="Premises Photo *" fieldKey="premises_photo_url" accept="image/*" isImage
-                  value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url}
-                  hint="Center building/office" />
-                <FileCard label="GST Certificate" fieldKey="gst_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.gst_url} onUpload={handleFileUpload} isUploading={!!uploading.gst_url}
-                  hint="If applicable" />
-                <FileCard label="Agreement Doc *" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url}
-                  hint="Signed MOU" />
+            {/* Identity */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px' }}>
+              <div style={{ padding: '16px 24px', background: '#f9fafb', borderBottom: '1px solid #f3f4f6', borderRadius: '16px 16px 0 0' }}>
+                <p style={{ fontWeight: 700, fontSize: '14px', color: '#1f2937', margin: 0 }}>Identity Documents</p>
+                <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0' }}>Owner's personal identity documents</p>
               </div>
-            </FormSection>
-
-            <FormSection title="Bank Documents" icon={<CreditCard size={16} />}
-              subtitle="Bank verification documents">
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <FileCard label="Cancel Cheque *" fieldKey="cancel_cheque_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.cancel_cheque_url} onUpload={handleFileUpload} isUploading={!!uploading.cancel_cheque_url}
-                  hint="Cancelled cheque" />
-                <FileCard label="Bank Passbook *" fieldKey="bank_passbook_url" accept="image/*,application/pdf" isImage={false}
-                  value={form.bank_passbook_url} onUpload={handleFileUpload} isUploading={!!uploading.bank_passbook_url}
-                  hint="First page / statement" />
+              <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                <FileCard label="Owner Photo *" fieldKey="owner_photo_url" accept="image/*" isImage value={form.owner_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_photo_url} hint="Passport-size photo" />
+                <FileCard label="Owner Signature *" fieldKey="owner_signature_url" accept="image/*" isImage value={form.owner_signature_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_signature_url} hint="On white paper" />
+                <FileCard label="Aadhar Card *" fieldKey="owner_aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.owner_aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_aadhar_url} hint="Front & back" />
+                <FileCard label="PAN Card *" fieldKey="owner_pan_url" accept="image/*,application/pdf" isImage={false} value={form.owner_pan_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_pan_url} hint="Owner's PAN card" />
               </div>
-            </FormSection>
+            </div>
 
-            <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">
+            {/* Center */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px' }}>
+              <div style={{ padding: '16px 24px', background: '#f9fafb', borderBottom: '1px solid #f3f4f6', borderRadius: '16px 16px 0 0' }}>
+                <p style={{ fontWeight: 700, fontSize: '14px', color: '#1f2937', margin: 0 }}>Center Documents</p>
+                <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0' }}>Organization and premises documents</p>
+              </div>
+              <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                <FileCard label="Registration Cert. *" fieldKey="center_reg_url" accept="image/*,application/pdf" isImage={false} value={form.center_reg_url} onUpload={handleFileUpload} isUploading={!!uploading.center_reg_url} hint="Society / company reg." />
+                <FileCard label="Premises Photo *" fieldKey="premises_photo_url" accept="image/*" isImage value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url} hint="Center building/office" />
+                <FileCard label="GST Certificate" fieldKey="gst_url" accept="image/*,application/pdf" isImage={false} value={form.gst_url} onUpload={handleFileUpload} isUploading={!!uploading.gst_url} hint="If applicable" />
+                <FileCard label="Agreement Doc *" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false} value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url} hint="Signed MOU" />
+              </div>
+            </div>
+
+            {/* Bank */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px' }}>
+              <div style={{ padding: '16px 24px', background: '#f9fafb', borderBottom: '1px solid #f3f4f6', borderRadius: '16px 16px 0 0' }}>
+                <p style={{ fontWeight: 700, fontSize: '14px', color: '#1f2937', margin: 0 }}>Bank Documents</p>
+                <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0' }}>Bank verification documents</p>
+              </div>
+              <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+                <FileCard label="Cancel Cheque *" fieldKey="cancel_cheque_url" accept="image/*,application/pdf" isImage={false} value={form.cancel_cheque_url} onUpload={handleFileUpload} isUploading={!!uploading.cancel_cheque_url} hint="Cancelled cheque" />
+                <FileCard label="Bank Passbook *" fieldKey="bank_passbook_url" accept="image/*,application/pdf" isImage={false} value={form.bank_passbook_url} onUpload={handleFileUpload} isUploading={!!uploading.bank_passbook_url} hint="First page / statement" />
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: '12px', padding: '16px' }}>
+              <p style={{ fontSize: '11px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>
                 Upload Summary — {docsUploaded}/11 documents uploaded
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                 {docFields.map(([k, label]) => (
-                  <div key={k} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                    <span className="text-[11px] text-gray-600 truncate">{label}</span>
+                  <div key={k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: '8px', padding: '8px 12px', border: '1px solid #f3f4f6' }}>
+                    <span style={{ fontSize: '11px', color: '#4b5563' }}>{label}</span>
                     {form[k]
-                      ? <CheckCircle2 size={13} className="text-emerald-500 shrink-0 ml-1" />
-                      : <div className="w-3 h-3 rounded-full border-2 border-gray-300 shrink-0 ml-1" />
+                      ? <CheckCircle2 size={13} className="text-emerald-500" />
+                      : <div style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid #d1d5db' }} />
                     }
                   </div>
                 ))}
@@ -684,14 +677,14 @@ export default function SubCenterForm() {
                 Next <ArrowRight size={14} />
               </Button>
             ) : (
-              <Button type="submit" disabled={loading}>
+              <Button type="button" onClick={handleSubmit} disabled={loading}>
                 {loading ? 'Saving...' : isEdit ? 'Update Center' : 'Create Center'}
               </Button>
             )}
           </div>
         </div>
 
-      </form>
+      </div>
     </div>
   )
 }
