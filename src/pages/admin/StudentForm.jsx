@@ -489,13 +489,13 @@ export default function StudentForm() {
     }
 
     setStep(s => s + 1)
-    window.scrollTo({ top: 0, behavior: 'instant' })
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   function handlePrev() {
     setStepError('')
     setStep(s => s - 1)
-    window.scrollTo({ top: 0, behavior: 'instant' })
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   async function handleSubmit(e) {
