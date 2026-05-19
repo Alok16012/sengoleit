@@ -196,11 +196,13 @@ export default function SubCenterForm() {
     if (err) { setStepError(err); return }
     setStepError('')
     setStep(s => s + 1)
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   function handlePrev() {
     setStepError('')
     setStep(s => s - 1)
+    window.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   async function handleSubmit(e) {
