@@ -262,6 +262,11 @@ export default function StudentForm() {
   const toggleEdu = (key) => setOpenEdu(prev => ({ ...prev, [key]: !prev[key] }))
 
   useEffect(() => {
+    const main = document.querySelector('main')
+    if (main) main.scrollTop = 0
+  }, [step])
+
+  useEffect(() => {
     Promise.all([
       supabase.from('universities').select('id, university_name').order('university_name'),
       supabase.from('programs').select('id, program_name, course_code, department_id, semester_year, duration, complete_duration').order('program_name'),
@@ -489,13 +494,11 @@ export default function StudentForm() {
     }
 
     setStep(s => s + 1)
-    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   function handlePrev() {
     setStepError('')
     setStep(s => s - 1)
-    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   async function handleSubmit(e) {

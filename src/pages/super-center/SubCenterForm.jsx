@@ -140,6 +140,11 @@ export default function SubCenterForm() {
   }, [id, user])
 
   useEffect(() => {
+    const main = document.querySelector('main')
+    if (main) main.scrollTop = 0
+  }, [step])
+
+  useEffect(() => {
     if (form.state_id) {
       supabase.from('districts').select('id, district_name').eq('state_id', form.state_id).order('district_name')
         .then(({ data }) => setDistricts(data || []))
@@ -196,13 +201,11 @@ export default function SubCenterForm() {
     if (err) { setStepError(err); return }
     setStepError('')
     setStep(s => s + 1)
-    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   function handlePrev() {
     setStepError('')
     setStep(s => s - 1)
-    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' })
   }
 
   async function handleSubmit(e) {
