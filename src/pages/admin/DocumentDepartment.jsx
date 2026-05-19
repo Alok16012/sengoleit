@@ -49,6 +49,11 @@ export default function DocumentDepartment() {
 
   useEffect(() => { fetchStudents() }, [statusFilter])
   useEffect(() => {
+    // pre-load centers data so badge count shows immediately
+    fetchCenterApps()
+    fetchDirectCenters()
+  }, [])
+  useEffect(() => {
     if (mainTab === 'centers') {
       fetchCenterApps()
       fetchDirectCenters()
@@ -69,11 +74,10 @@ export default function DocumentDepartment() {
 
   async function handleDCVerify() {
     setDCSaving(true)
-    await supabase.from('centers').update({
-      approval_status: 'doc_verified',
-      doc_remarks: dcRemarks || null,
-      doc_verified_at: new Date().toISOString(),
-    }).eq('id', dcVerifyModal.id)
+    const { error } = await supabase.from('centers')
+      .update({ approval_status: 'doc_verified' })
+      .eq('id', dcVerifyModal.id)
+    if (error) { alert('Verify failed: ' + error.message); setDCSaving(false); return }
     setDCSaving(false)
     setDCVerifyModal(null)
     setDCRemarks('')
