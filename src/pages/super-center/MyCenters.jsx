@@ -5,32 +5,49 @@ import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Trash2, Edit } from 'lucide-react'
+import { Plus, Search, Trash2, Edit, RefreshCw } from 'lucide-react'
 
 export default function MyCenters() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [mySuperCenter, setMySuperCenter] = useState(null)
+  const [superCenterError, setSuperCenterError] = useState(null)
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
     if (!user?.email) return
-    supabase.from('centers').select('id, center_name, center_code, approval_status').eq('email', user.email).eq('center_type', 'super_center').maybeSingle()
-      .then(({ data }) => {
-        setMySuperCenter(data)
-        if (data?.id) fetchCenters(data.id)
-        else setLoading(false)
-      })
+    loadData()
   }, [user?.email])
 
-  async function fetchCenters(superCenterId) {
+  async function loadData() {
     setLoading(true)
+    const { data: sc, error: scErr } = await supabase
+      .from('centers')
+      .select('id, center_name, center_code, approval_status')
+      .eq('email', user.email)
+      .eq('center_type', 'super_center')
+      .maybeSingle()
+    if (scErr) {
+      setSuperCenterError(scErr.message)
+      setLoading(false)
+      return
+    }
+    setMySuperCenter(sc)
+    if (sc?.id) {
+      await fetchCenters(sc.id)
+    } else {
+      setLoading(false)
+    }
+  }
+
+  async function fetchCenters(superCenterId) {
     const { data } = await supabase
       .from('centers')
       .select('*, states(state_name)')
       .eq('super_center_id', superCenterId)
+      .eq('approval_status', 'approved')
       .order('created_at', { ascending: false })
     setData(data || [])
     setLoading(false)
@@ -57,7 +74,27 @@ export default function MyCenters() {
         action={canCreate ? { label: <><Plus size={15} /> Create Center</>, onClick: () => navigate('/super-center/centers/new') } : undefined}
       />
 
-      {!canCreate && (
+      {superCenterError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-sm text-red-700">
+          Error loading your super center account: {superCenterError}
+        </div>
+      )}
+
+      {!superCenterError && !mySuperCenter && !loading && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-sm text-red-700">
+          Super center account not found for <strong>{user?.email}</strong>. Please contact admin to verify your account is set up correctly.
+        </div>
+      )}
+
+      {mySuperCenter && (
+        <div className="flex justify-end mb-2">
+          <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-[#933d18] hover:text-[#933d18]/80 font-semibold transition-colors">
+            <RefreshCw size={13} /> Refresh
+          </button>
+        </div>
+      )}
+
+      {mySuperCenter && !canCreate && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-700">
           Your super center needs to be approved by Account Department before you can create centers.
         </div>

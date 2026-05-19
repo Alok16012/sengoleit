@@ -201,8 +201,8 @@ export default function SubCenterForm() {
     if (err) { setStepError(err); return }
     // Check center_code uniqueness before leaving step 0
     if (step === 0 && form.center_code.trim()) {
-      const q = supabase.from('centers').select('id').eq('center_code', form.center_code.trim())
-      if (isEdit) q.neq('id', id)
+      let q = supabase.from('centers').select('id').eq('center_code', form.center_code.trim())
+      if (isEdit) q = q.neq('id', id)
       const { data: existing } = await q.maybeSingle()
       if (existing) { setStepError('Center Code already taken. Please use a unique Center Code.'); return }
     }
@@ -240,11 +240,14 @@ export default function SubCenterForm() {
       })
       Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
 
-      const { error: err } = isEdit
-        ? await supabase.from('centers').update(payload).eq('id', id)
-        : await supabase.from('centers').insert(payload)
-      if (err) throw err
-      navigate('/super-center/centers')
+      if (isEdit) {
+        const { error: err } = await supabase.from('centers').update(payload).eq('id', id)
+        if (err) throw err
+      } else {
+        const { error: err } = await supabase.from('centers').insert(payload)
+        if (err) throw err
+      }
+      navigate(isEdit ? '/super-center/centers' : '/super-center/center-applications')
     } catch (err) {
       const msg = err.message || ''
       if (msg.includes('centers_center_code_key') || msg.includes('center_code')) {
