@@ -196,9 +196,16 @@ export default function SubCenterForm() {
     }
   }
 
-  function handleNext() {
+  async function handleNext() {
     const err = validateStep(step)
     if (err) { setStepError(err); return }
+    // Check center_code uniqueness before leaving step 0
+    if (step === 0 && form.center_code.trim()) {
+      const q = supabase.from('centers').select('id').eq('center_code', form.center_code.trim())
+      if (isEdit) q.neq('id', id)
+      const { data: existing } = await q.maybeSingle()
+      if (existing) { setStepError('Center Code already taken. Please use a unique Center Code.'); return }
+    }
     setStepError('')
     setStep(s => s + 1)
   }

@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search } from 'lucide-react'
+import { Plus, Search, Trash2, Edit } from 'lucide-react'
 
 export default function MyCenters() {
   const { user } = useAuth()
@@ -34,6 +34,13 @@ export default function MyCenters() {
       .order('created_at', { ascending: false })
     setData(data || [])
     setLoading(false)
+  }
+
+  async function handleDelete(id, name) {
+    if (!confirm(`"${name}" ko delete karna chahte ho? Ye wapas nahi aayega.`)) return
+    const { error } = await supabase.from('centers').delete().eq('id', id)
+    if (error) { alert('Delete failed: ' + error.message); return }
+    setData(d => d.filter(c => c.id !== id))
   }
 
   const filtered = data.filter(c =>
@@ -81,11 +88,12 @@ export default function MyCenters() {
               <Th>Virtual Balance</Th>
               <Th>Approval</Th>
               <Th>Status</Th>
+              <Th></Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No centers created yet</Td></Tr>
+              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No centers created yet</Td></Tr>
             ) : filtered.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -107,6 +115,18 @@ export default function MyCenters() {
                   </span>
                 </Td>
                 <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
+                <Td>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => navigate(`/super-center/centers/edit/${c.id}`)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-[#933d18] hover:bg-[#933d18]/5 transition-all">
+                      <Edit size={14} />
+                    </button>
+                    <button onClick={() => handleDelete(c.id, c.center_name)}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </Td>
               </Tr>
             ))}
           </Tbody>
