@@ -240,7 +240,16 @@ export default function SubCenterForm() {
       if (err) throw err
       navigate('/super-center/centers')
     } catch (err) {
-      setError(err.message || 'Something went wrong.')
+      const msg = err.message || ''
+      if (msg.includes('centers_center_code_key') || msg.includes('center_code')) {
+        setError('Center Code already exists. Please go back to Step 1 and use a unique Center Code.')
+        setStep(0)
+      } else if (msg.includes('centers_email_key') || (msg.includes('unique') && msg.includes('email'))) {
+        setError('This email is already registered. Please go back to Step 1 and use a different email.')
+        setStep(0)
+      } else {
+        setError(msg || 'Something went wrong. Please try again.')
+      }
       setLoading(false)
     }
   }
