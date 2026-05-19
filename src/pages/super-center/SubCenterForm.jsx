@@ -214,7 +214,16 @@ export default function SubCenterForm() {
     setLoading(true)
     setError(null)
     try {
-      const payload = { ...form, center_type: 'center', super_center_id: superCenterId, approval_status: 'pending' }
+      // Re-fetch super center ID if not yet loaded
+      let scId = superCenterId
+      if (!scId && user?.email) {
+        const { data: sc } = await supabase.from('centers').select('id').eq('email', user.email).eq('center_type', 'super_center').single()
+        scId = sc?.id || null
+        if (scId) setSuperCenterId(scId)
+      }
+      if (!scId) throw new Error('Super center account not found. Please contact admin.')
+
+      const payload = { ...form, center_type: 'center', super_center_id: scId, approval_status: 'pending' }
       delete payload.id; delete payload.created_at; delete payload.updated_at
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id']
       fkFields.forEach(k => { if (!payload[k]) delete payload[k] })

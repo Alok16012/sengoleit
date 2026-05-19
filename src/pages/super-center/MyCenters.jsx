@@ -16,13 +16,14 @@ export default function MyCenters() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    if (!user) return
-    supabase.from('centers').select('id, center_name, center_code, approval_status').eq('email', user.email).eq('center_type', 'super_center').single()
+    if (!user?.email) return
+    supabase.from('centers').select('id, center_name, center_code, approval_status').eq('email', user.email).eq('center_type', 'super_center').maybeSingle()
       .then(({ data }) => {
         setMySuperCenter(data)
-        if (data) fetchCenters(data.id)
+        if (data?.id) fetchCenters(data.id)
+        else setLoading(false)
       })
-  }, [user])
+  }, [user?.email])
 
   async function fetchCenters(superCenterId) {
     setLoading(true)
