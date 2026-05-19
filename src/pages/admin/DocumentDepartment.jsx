@@ -6,6 +6,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { CheckCircle, XCircle, Download, Eye, ExternalLink } from 'lucide-react'
+
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -28,15 +29,7 @@ export default function DocumentDepartment() {
   const [viewStudent, setViewStudent] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
 
-  // Center applications state (from center_applications table — via public link)
-  const [centerApps, setCenterApps] = useState([])
-  const [caLoading, setCaLoading] = useState(false)
-  const [viewCA, setViewCA] = useState(null)
-  const [caVerifyModal, setCAVerifyModal] = useState(null)
-  const [caRemarks, setCARemarks] = useState('')
-  const [caSaving, setCASaving] = useState(false)
-
-  // Direct center registrations (from centers table — via SubCenterForm)
+  // All pending centers (from centers table)
   const [directCenters, setDirectCenters] = useState([])
   const [dcLoading, setDcLoading] = useState(false)
   const [viewDC, setViewDC] = useState(null)
@@ -44,27 +37,15 @@ export default function DocumentDepartment() {
   const [dcRemarks, setDCRemarks] = useState('')
   const [dcSaving, setDCSaving] = useState(false)
 
-  // Centers sub-tab: 'direct' | 'link'
-  const [centersSubTab, setCentersSubTab] = useState('direct')
-
   useEffect(() => { fetchStudents() }, [statusFilter])
-  useEffect(() => {
-    // pre-load centers data so badge count shows immediately
-    fetchCenterApps()
-    fetchDirectCenters()
-  }, [])
-  useEffect(() => {
-    if (mainTab === 'centers') {
-      fetchCenterApps()
-      fetchDirectCenters()
-    }
-  }, [mainTab])
+  useEffect(() => { fetchDirectCenters() }, [])
+  useEffect(() => { if (mainTab === 'centers') fetchDirectCenters() }, [mainTab])
 
   async function fetchDirectCenters() {
     setDcLoading(true)
     const { data } = await supabase
       .from('centers')
-      .select('*, states(state_name)')
+      .select('*, states(state_name), super_center:centers!centers_super_center_id_fkey(center_name)')
       .eq('center_type', 'center')
       .eq('approval_status', 'pending')
       .order('created_at', { ascending: false })
@@ -88,33 +69,6 @@ export default function DocumentDepartment() {
     if (!confirm('Reject this center registration?')) return
     await supabase.from('centers').update({ approval_status: 'rejected', status: 'Inactive' }).eq('id', centerId)
     fetchDirectCenters()
-  }
-
-  async function fetchCenterApps() {
-    setCaLoading(true)
-    const { data } = await supabase.from('center_applications')
-      .select('*').eq('status', 'sc_forwarded').order('created_at', { ascending: false })
-    setCenterApps(data || [])
-    setCaLoading(false)
-  }
-
-  async function handleCAVerify() {
-    setCASaving(true)
-    await supabase.from('center_applications').update({
-      status: 'doc_verified',
-      doc_remarks: caRemarks || null,
-      doc_verified_at: new Date().toISOString(),
-    }).eq('id', caVerifyModal.id)
-    setCASaving(false)
-    setCAVerifyModal(null)
-    setCARemarks('')
-    fetchCenterApps()
-  }
-
-  async function handleCAReject(appId) {
-    if (!confirm('Reject this center application?')) return
-    await supabase.from('center_applications').update({ status: 'rejected' }).eq('id', appId)
-    fetchCenterApps()
   }
 
   async function handleViewStudent(studentId) {
@@ -211,8 +165,8 @@ export default function DocumentDepartment() {
               mainTab === t.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
             }`}>
             {t.label}
-            {t.key === 'centers' && (centerApps.length + directCenters.length) > 0 && (
-              <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{centerApps.length + directCenters.length}</span>
+            {t.key === 'centers' && directCenters.length > 0 && (
+              <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{directCenters.length}</span>
             )}
           </button>
         ))}
@@ -221,71 +175,54 @@ export default function DocumentDepartment() {
       {/* Center Applications Tab */}
       {mainTab === 'centers' && (
         <div>
-          {/* Sub-tabs */}
-          <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
-            <button onClick={() => setCentersSubTab('direct')}
-              className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${centersSubTab === 'direct' ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
-              Direct Registrations
-              {directCenters.length > 0 && <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{directCenters.length}</span>}
-            </button>
-            <button onClick={() => setCentersSubTab('link')}
-              className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${centersSubTab === 'link' ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}>
-              Via Registration Link
-              {centerApps.length > 0 && <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{centerApps.length}</span>}
-            </button>
-          </div>
-
-          {/* Direct Centers (from centers table) */}
-          {centersSubTab === 'direct' && (
-            dcLoading ? (
-              <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
-            ) : (
-              <Table>
-                <Thead>
-                  <tr>
-                    <Th>#</Th>
-                    <Th>Center Name</Th>
-                    <Th>Contact Person</Th>
-                    <Th>Super Center</Th>
-                    <Th>State</Th>
-                    <Th>Amount Paid</Th>
-                    <Th>Submitted</Th>
-                    <Th>Actions</Th>
-                  </tr>
-                </Thead>
-                <Tbody>
-                  {directCenters.length === 0 ? (
-                    <Tr><Td colSpan={8} className="text-center text-gray-400 py-12">No direct center registrations pending document verification.</Td></Tr>
-                  ) : directCenters.map((c, i) => (
-                    <Tr key={c.id}>
-                      <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                      <Td>
-                        <p className="font-semibold text-gray-900">{c.center_name}</p>
-                        <p className="text-xs text-gray-400">{c.email}</p>
-                      </Td>
-                      <Td className="text-gray-500">{c.contact_person || '—'}</Td>
-                      <Td className="text-gray-500 text-xs">{c.super_center_id ? <span className="font-mono text-[10px]">{c.super_center_id.slice(0, 8)}…</span> : '—'}</Td>
-                      <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
-                      <Td className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</Td>
-                      <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
-                      <Td>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setViewDC(c)} title="View Details">
-                            <Eye size={13} className="text-[#933d18]" />
-                          </Button>
-                          <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks('') }}>
-                            <CheckCircle size={13} /> Verify
-                          </Button>
-                          <Button size="sm" variant="danger" onClick={() => handleDCReject(c.id)}>
-                            <XCircle size={13} />
-                          </Button>
-                        </div>
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            )
+          {dcLoading ? (
+            <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
+          ) : (
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>Center Name</Th>
+                  <Th>Contact Person</Th>
+                  <Th>Super Center</Th>
+                  <Th>State</Th>
+                  <Th>Amount Paid</Th>
+                  <Th>Submitted</Th>
+                  <Th>Actions</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {directCenters.length === 0 ? (
+                  <Tr><Td colSpan={8} className="text-center text-gray-400 py-12">No centers pending document verification.</Td></Tr>
+                ) : directCenters.map((c, i) => (
+                  <Tr key={c.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td>
+                      <p className="font-semibold text-gray-900">{c.center_name}</p>
+                      <p className="text-xs text-gray-400">{c.email}</p>
+                    </Td>
+                    <Td className="text-gray-500">{c.contact_person || '—'}</Td>
+                    <Td className="text-gray-500 text-sm">{c.super_center?.center_name || '—'}</Td>
+                    <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
+                    <Td className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
+                    <Td>
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setViewDC(c)} title="View Details">
+                          <Eye size={13} className="text-[#933d18]" />
+                        </Button>
+                        <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks('') }}>
+                          <CheckCircle size={13} /> Verify
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => handleDCReject(c.id)}>
+                          <XCircle size={13} />
+                        </Button>
+                      </div>
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
           )}
 
           {/* View Direct Center Modal */}
@@ -369,136 +306,7 @@ export default function DocumentDepartment() {
             </div>
           </Modal>
 
-          {/* Link Applications (from center_applications table) */}
-          {centersSubTab === 'link' && (
-            caLoading ? (
-              <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
-            ) : (
-              <Table>
-                <Thead>
-                  <tr>
-                    <Th>#</Th>
-                    <Th>Organization / Applicant</Th>
-                    <Th>Contact</Th>
-                    <Th>Amount Paid</Th>
-                    <Th>SC Remarks</Th>
-                    <Th>Univ. Fee</Th>
-                    <Th>SC Fee</Th>
-                    <Th>Submitted</Th>
-                    <Th>Actions</Th>
-                  </tr>
-                </Thead>
-                <Tbody>
-                  {centerApps.length === 0 ? (
-                    <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No center applications pending document verification.</Td></Tr>
-                  ) : centerApps.map((a, i) => (
-                    <Tr key={a.id}>
-                      <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                      <Td>
-                        <p className="font-semibold text-gray-900">{a.organization_name || '—'}</p>
-                        <p className="text-xs text-gray-400">{a.full_name}</p>
-                      </Td>
-                      <Td>
-                        <p className="text-sm text-gray-700">{a.phone}</p>
-                        <p className="text-xs text-gray-400">{a.email}</p>
-                      </Td>
-                      <Td className="font-bold text-gray-900">₹{Number(a.amount_paid || 0).toLocaleString()}</Td>
-                      <Td className="text-gray-500 text-xs max-w-[120px] truncate">{a.sc_remarks || '—'}</Td>
-                      <Td className="font-semibold text-emerald-700">₹{Number(a.university_fee || 0).toLocaleString()}</Td>
-                      <Td className="font-semibold text-blue-700">₹{Number(a.super_center_fee || 0).toLocaleString()}</Td>
-                      <Td className="text-gray-400 text-xs">{a.created_at ? new Date(a.created_at).toLocaleDateString('en-IN') : '—'}</Td>
-                      <Td>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setViewCA(a)} title="View Details">
-                            <Eye size={13} className="text-[#933d18]" />
-                          </Button>
-                          <Button size="sm" variant="success" onClick={() => { setCAVerifyModal(a); setCARemarks('') }}>
-                            <CheckCircle size={13} /> Verify
-                          </Button>
-                          <Button size="sm" variant="danger" onClick={() => handleCAReject(a.id)}>
-                            <XCircle size={13} />
-                          </Button>
-                        </div>
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            )
-          )}
 
-          {/* View Center Application Modal */}
-          <Modal isOpen={!!viewCA} onClose={() => setViewCA(null)} title="Center Application Details">
-            {viewCA && (
-              <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    ['Organization', viewCA.organization_name],
-                    ['Applicant', viewCA.full_name],
-                    ['Email', viewCA.email],
-                    ['Phone', viewCA.phone],
-                    ['City', viewCA.org_city],
-                    ['Aadhar No', viewCA.aadhar_no],
-                    ['PAN No', viewCA.pan_no],
-                    ['Amount Paid', `₹${Number(viewCA.amount_paid || 0).toLocaleString()}`],
-                    ['UTR Number', viewCA.utr_number],
-                    ['University Fee', `₹${Number(viewCA.university_fee || 0).toLocaleString()}`],
-                    ['SC Fee', `₹${Number(viewCA.super_center_fee || 0).toLocaleString()}`],
-                    ['SC Remarks', viewCA.sc_remarks],
-                  ].map(([label, val]) => (
-                    <div key={label} className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-0.5">{val || '—'}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="bg-white border border-gray-100 rounded-xl p-4">
-                  <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Documents</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      ['Photo', viewCA.photo_url], ['Aadhar', viewCA.aadhar_upload_url],
-                      ['PAN', viewCA.pan_upload_url], ['Marksheet', viewCA.marksheet_url],
-                      ['Org Reg.', viewCA.organization_registration_no_url],
-                      ['Premises', viewCA.premises_pic_url], ['Cheque', viewCA.cancel_cheque_url],
-                      ['Payment SS', viewCA.payment_screenshot_url],
-                    ].map(([label, url]) => (
-                      <div key={label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
-                        <span className="text-xs text-gray-600">{label}</span>
-                        {url ? <a href={url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#933d18] underline flex items-center gap-1"><ExternalLink size={11} /> View</a>
-                          : <span className="text-xs text-gray-400">—</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                <Button onClick={() => { setViewCA(null); setCAVerifyModal(viewCA); setCARemarks('') }} className="w-full justify-center">
-                  <CheckCircle size={14} /> Verify Documents
-                </Button>
-              </div>
-            )}
-          </Modal>
-
-          {/* Verify Center App Modal */}
-          <Modal isOpen={!!caVerifyModal} onClose={() => setCAVerifyModal(null)} title="Verify Center Application Documents">
-            <div className="space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                <p className="font-semibold text-gray-900">{caVerifyModal?.organization_name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{caVerifyModal?.full_name} · ₹{Number(caVerifyModal?.amount_paid || 0).toLocaleString()} paid</p>
-              </div>
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-                Verifying will forward this application to the <strong>Account Department</strong> for final approval and credential generation.
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Remarks (optional)</label>
-                <textarea className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#933d18] resize-none"
-                  rows={2} placeholder="Any document verification notes..."
-                  value={caRemarks} onChange={e => setCARemarks(e.target.value)} />
-              </div>
-              <div className="flex gap-3">
-                <Button variant="success" onClick={handleCAVerify} disabled={caSaving}>{caSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}</Button>
-                <Button variant="outline" onClick={() => setCAVerifyModal(null)}>Cancel</Button>
-              </div>
-            </div>
-          </Modal>
         </div>
       )}
 
