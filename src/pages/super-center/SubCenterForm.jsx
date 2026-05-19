@@ -54,7 +54,7 @@ const emptyForm = {
 
 function FileCard({ label, fieldKey, accept, isImage, value, onUpload, isUploading, hint }) {
   return (
-    <div className="bg-gray-50/60 rounded-xl border border-gray-100 overflow-hidden">
+    <div className="bg-gray-50/60 rounded-xl border border-gray-100">
       <div className="px-4 pt-3 pb-1 flex items-center justify-between">
         <p className="text-xs font-bold text-gray-700">{label}</p>
         {value && (
@@ -64,7 +64,7 @@ function FileCard({ label, fieldKey, accept, isImage, value, onUpload, isUploadi
         )}
       </div>
       {hint && <p className="text-[10px] text-gray-400 px-4 pb-1">{hint}</p>}
-      <div className="flex flex-col items-center px-4 py-4 gap-3">
+      <div className="flex flex-col px-4 py-4 gap-3">
         {value && isImage ? (
           <img src={value} alt={label} className="h-28 w-full object-contain rounded-lg border border-gray-200 bg-white shadow-sm" />
         ) : value && !isImage ? (
@@ -207,6 +207,7 @@ export default function SubCenterForm() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (step !== STEPS.length - 1) return
     setLoading(true)
     setError(null)
     try {
