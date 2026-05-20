@@ -250,6 +250,7 @@ export default function CenterForm() {
     setError(null)
     try {
       const payload = { ...form }
+      if (!isEdit) payload.approval_status = 'pending'
       const plainPassword = payload.generated_password
       delete payload.id; delete payload.created_at; delete payload.updated_at
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id', 'super_center_id']
