@@ -45,10 +45,18 @@ export default function DocumentDepartment() {
     setDcLoading(true)
     const { data } = await supabase
       .from('centers')
-      .select('*, states(state_name), super_center:centers!centers_super_center_id_fkey(center_name)')
+      .select('*, states(state_name)')
       .eq('approval_status', 'pending')
       .order('created_at', { ascending: false })
-    setDirectCenters(data || [])
+    const rows = data || []
+    // Fetch super center names separately to avoid self-join issues
+    const scIds = [...new Set(rows.map(r => r.super_center_id).filter(Boolean))]
+    let scMap = {}
+    if (scIds.length) {
+      const { data: scs } = await supabase.from('centers').select('id, center_name').in('id', scIds)
+      ;(scs || []).forEach(sc => { scMap[sc.id] = sc.center_name })
+    }
+    setDirectCenters(rows.map(r => ({ ...r, super_center_name: scMap[r.super_center_id] || null })))
     setDcLoading(false)
   }
 
@@ -201,7 +209,7 @@ export default function DocumentDepartment() {
                       <p className="text-xs text-gray-400">{c.email}</p>
                     </Td>
                     <Td className="text-gray-500">{c.contact_person || '—'}</Td>
-                    <Td className="text-gray-500 text-sm">{c.super_center?.center_name || '—'}</Td>
+                    <Td className="text-gray-500 text-sm">{c.super_center_name || '—'}</Td>
                     <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
                     <Td className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</Td>
                     <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
