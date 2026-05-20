@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
@@ -43,18 +43,17 @@ export default function DocumentDepartment() {
 
   async function fetchDirectCenters() {
     setDcLoading(true)
-    const { data, error } = await supabase
+    const db = supabaseAdmin || supabase
+    const { data, error } = await db
       .from('centers')
-      .select('id, center_name, center_type, approval_status, states(state_name), contact_person, phone, city, created_at, super_center_id, email, amount_paid, aadhar_no, pan_no, organization_name, org_type, bank_account_number, ifsc_code, utr_number, owner_photo_url, owner_signature_url, owner_aadhar_url, owner_pan_url, center_reg_url, premises_photo_url, gst_url, agreement_url, cancel_cheque_url, bank_passbook_url, payment_screenshot_url, center_code')
-      .eq('center_type', 'center')
+      .select('*, states(state_name)')
+      .or('approval_status.eq.pending,approval_status.is.null')
       .order('created_at', { ascending: false })
-    console.log('Doc Dept ALL centers:', data, 'error:', error)
     const rows = data || []
-    // Fetch super center names separately to avoid self-join issues
     const scIds = [...new Set(rows.map(r => r.super_center_id).filter(Boolean))]
     let scMap = {}
     if (scIds.length) {
-      const { data: scs } = await supabase.from('centers').select('id, center_name').in('id', scIds)
+      const { data: scs } = await db.from('centers').select('id, center_name').in('id', scIds)
       ;(scs || []).forEach(sc => { scMap[sc.id] = sc.center_name })
     }
     setDirectCenters(rows.map(r => ({ ...r, super_center_name: scMap[r.super_center_id] || null })))
@@ -63,7 +62,8 @@ export default function DocumentDepartment() {
 
   async function handleDCVerify() {
     setDCSaving(true)
-    const { error } = await supabase.from('centers')
+    const db = supabaseAdmin || supabase
+    const { error } = await db.from('centers')
       .update({ approval_status: 'doc_verified' })
       .eq('id', dcVerifyModal.id)
     if (error) { alert('Verify failed: ' + error.message); setDCSaving(false); return }
@@ -75,7 +75,8 @@ export default function DocumentDepartment() {
 
   async function handleDCReject(centerId) {
     if (!confirm('Reject this center registration?')) return
-    await supabase.from('centers').update({ approval_status: 'rejected', status: 'Inactive' }).eq('id', centerId)
+    const db = supabaseAdmin || supabase
+    await db.from('centers').update({ approval_status: 'rejected', status: 'Inactive' }).eq('id', centerId)
     fetchDirectCenters()
   }
 
