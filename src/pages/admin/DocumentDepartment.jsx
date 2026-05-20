@@ -46,7 +46,7 @@ export default function DocumentDepartment() {
     const { data } = await supabase
       .from('centers')
       .select('*, states(state_name)')
-      .eq('approval_status', 'pending')
+      .or('approval_status.eq.pending,approval_status.is.null')
       .order('created_at', { ascending: false })
     const rows = data || []
     // Fetch super center names separately to avoid self-join issues
