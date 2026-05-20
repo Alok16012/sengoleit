@@ -46,24 +46,25 @@ const emptyForm = {
   amount_paid: '', utr_number: '', payment_date: '', payment_remark: '',
 }
 
-const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white'
-
-const onlyNums = (e, maxLen) => {
-  const val = e.target.value.replace(/\D/g, '')
-  e.target.value = maxLen ? val.slice(0, maxLen) : val
-}
+const inp = (err) =>
+  `w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 bg-white transition-colors ${
+    err
+      ? 'border-red-400 focus:border-red-400 focus:ring-red-100'
+      : 'border-gray-200 focus:border-[#933d18] focus:ring-[#933d18]/10'
+  }`
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-function Field({ label, required, children }) {
+function Field({ label, required, error, children }) {
   return (
     <div>
       <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">
         {label}{required && <span className="text-red-400 ml-0.5">*</span>}
       </label>
       {children}
+      {error && <p className="text-xs text-red-500 mt-1 font-medium">{error}</p>}
     </div>
   )
 }
@@ -133,6 +134,38 @@ export default function CenterRegistrationForm() {
   const [saving, setSaving] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+  const [fe, setFe] = useState({}) // field errors
+
+  function validateField(key, val) {
+    switch (key) {
+      case 'email':
+      case 'contact_email':
+        if (!val) return key === 'email' ? 'Email is required' : ''
+        if (!isValidEmail(val)) return 'Enter a valid email (e.g. name@example.com)'
+        return ''
+      case 'phone':
+      case 'contact_mobile':
+        if (!val) return key === 'phone' ? 'Phone is required' : ''
+        if (val.length < 10) return 'Must be 10 digits'
+        return ''
+      case 'aadhar_no':
+        if (!val) return 'Aadhar number is required'
+        if (val.length < 12) return 'Must be 12 digits'
+        return ''
+      case 'pincode':
+      case 'org_pincode':
+        if (val && val.length < 6) return 'Must be 6 digits'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  function setField(key, val) {
+    setForm(f => ({ ...f, [key]: val }))
+    const err = validateField(key, val)
+    setFe(f => ({ ...f, [key]: err }))
+  }
 
   useEffect(() => {
     supabase.from('centers')
@@ -398,17 +431,19 @@ export default function CenterRegistrationForm() {
             {sectionTitle(<Building2 size={16} />, 'Center Identity')}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Center Name" required>
-                <input className={inp} value={form.center_name} onChange={e => set('center_name', e.target.value)} placeholder="Name of the center" />
+                <input className={inp()} value={form.center_name} onChange={e => set('center_name', e.target.value)} placeholder="Name of the center" />
               </Field>
               <Field label="Center Code">
-                <input className={inp} value={form.center_code} onChange={e => set('center_code', e.target.value)} placeholder="e.g. CTR001 (optional)" />
+                <input className={inp()} value={form.center_code} onChange={e => set('center_code', e.target.value)} placeholder="e.g. CTR001 (optional)" />
               </Field>
-              <Field label="Email" required>
-                <input className={inp} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="name@example.com" />
+              <Field label="Email" required error={fe.email}>
+                <input className={inp(fe.email)} type="email" value={form.email}
+                  onChange={e => setField('email', e.target.value)}
+                  placeholder="name@example.com" />
               </Field>
-              <Field label="Phone" required>
-                <input className={inp} type="tel" value={form.phone} inputMode="numeric"
-                  onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+              <Field label="Phone" required error={fe.phone}>
+                <input className={inp(fe.phone)} type="tel" value={form.phone} inputMode="numeric"
+                  onChange={e => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
                   placeholder="10-digit mobile number" maxLength={10} />
               </Field>
             </div>
@@ -421,37 +456,37 @@ export default function CenterRegistrationForm() {
             {sectionTitle(<User size={16} />, 'Contact Person Details')}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Contact Person Name" required>
-                <input className={inp} value={form.contact_person} onChange={e => set('contact_person', e.target.value)} />
+                <input className={inp()} value={form.contact_person} onChange={e => set('contact_person', e.target.value)} />
               </Field>
               <Field label="Father / Mother Name">
-                <input className={inp} value={form.father_mother_name} onChange={e => set('father_mother_name', e.target.value)} />
+                <input className={inp()} value={form.father_mother_name} onChange={e => set('father_mother_name', e.target.value)} />
               </Field>
               <Field label="Date of Birth">
-                <input className={inp} type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
+                <input className={inp()} type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
               </Field>
               <Field label="Gender">
-                <select className={inp} value={form.gender} onChange={e => set('gender', e.target.value)}>
+                <select className={inp()} value={form.gender} onChange={e => set('gender', e.target.value)}>
                   <option value="">Select</option>
                   <option>Male</option><option>Female</option><option>Other</option>
                 </select>
               </Field>
               <Field label="Nationality">
-                <input className={inp} value={form.nationality} onChange={e => set('nationality', e.target.value)} />
+                <input className={inp()} value={form.nationality} onChange={e => set('nationality', e.target.value)} />
               </Field>
-              <Field label="Aadhar Number" required>
-                <input className={inp} value={form.aadhar_no} inputMode="numeric"
-                  onChange={e => set('aadhar_no', e.target.value.replace(/\D/g, '').slice(0, 12))}
+              <Field label="Aadhar Number" required error={fe.aadhar_no}>
+                <input className={inp(fe.aadhar_no)} value={form.aadhar_no} inputMode="numeric"
+                  onChange={e => setField('aadhar_no', e.target.value.replace(/\D/g, '').slice(0, 12))}
                   placeholder="12-digit Aadhar" maxLength={12} />
               </Field>
               <Field label="PAN Number">
-                <input className={inp} value={form.pan_no} onChange={e => set('pan_no', e.target.value)} placeholder="ABCDE1234F" />
+                <input className={inp()} value={form.pan_no} onChange={e => set('pan_no', e.target.value)} placeholder="ABCDE1234F" />
               </Field>
             </div>
 
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-5 mb-3">Contact Details</p>
             <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end mb-4">
               <Field label="Current Address">
-                <input className={inp} value={form.current_address}
+                <input className={inp()} value={form.current_address}
                   onChange={e => { setSameAddress(false); set('current_address', e.target.value) }} />
               </Field>
               <div className="pb-2.5 flex flex-col items-center gap-1">
@@ -460,27 +495,29 @@ export default function CenterRegistrationForm() {
                   className="w-4 h-4 accent-[#933d18] cursor-pointer" />
               </div>
               <Field label="Permanent Address">
-                <input className={inp} value={form.permanent_address} onChange={e => set('permanent_address', e.target.value)} />
+                <input className={inp()} value={form.permanent_address} onChange={e => set('permanent_address', e.target.value)} />
               </Field>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Mobile Number">
-                <input className={inp} type="tel" value={form.contact_mobile} inputMode="numeric"
-                  onChange={e => set('contact_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+              <Field label="Mobile Number" error={fe.contact_mobile}>
+                <input className={inp(fe.contact_mobile)} type="tel" value={form.contact_mobile} inputMode="numeric"
+                  onChange={e => setField('contact_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
                   placeholder="10-digit mobile" maxLength={10} />
               </Field>
-              <Field label="Contact Email">
-                <input className={inp} type="email" value={form.contact_email} onChange={e => set('contact_email', e.target.value)} placeholder="name@example.com" />
+              <Field label="Contact Email" error={fe.contact_email}>
+                <input className={inp(fe.contact_email)} type="email" value={form.contact_email}
+                  onChange={e => setField('contact_email', e.target.value)}
+                  placeholder="name@example.com" />
               </Field>
             </div>
 
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-5 mb-3">Professional Details</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Current Occupation">
-                <input className={inp} value={form.current_occupation} onChange={e => set('current_occupation', e.target.value)} />
+                <input className={inp()} value={form.current_occupation} onChange={e => set('current_occupation', e.target.value)} />
               </Field>
               <Field label="Previous Experience in Admissions">
-                <input className={inp} value={form.previous_experience_admissions} onChange={e => set('previous_experience_admissions', e.target.value)} />
+                <input className={inp()} value={form.previous_experience_admissions} onChange={e => set('previous_experience_admissions', e.target.value)} />
               </Field>
             </div>
           </div>
@@ -492,39 +529,39 @@ export default function CenterRegistrationForm() {
             {sectionTitle(<MapPin size={16} />, 'Center Address')}
             <div className="space-y-4">
               <Field label="Address Line 1" required>
-                <input className={inp} value={form.address_line1} onChange={e => set('address_line1', e.target.value)} />
+                <input className={inp()} value={form.address_line1} onChange={e => set('address_line1', e.target.value)} />
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Landmark">
-                  <input className={inp} value={form.landmark} onChange={e => set('landmark', e.target.value)} />
+                  <input className={inp()} value={form.landmark} onChange={e => set('landmark', e.target.value)} />
                 </Field>
                 <Field label="Post Office">
-                  <input className={inp} value={form.post_office} onChange={e => set('post_office', e.target.value)} />
+                  <input className={inp()} value={form.post_office} onChange={e => set('post_office', e.target.value)} />
                 </Field>
                 <Field label="City" required>
-                  <input className={inp} value={form.city} onChange={e => set('city', e.target.value)} />
+                  <input className={inp()} value={form.city} onChange={e => set('city', e.target.value)} />
                 </Field>
-                <Field label="Pincode" required>
-                  <input className={inp} value={form.pincode} inputMode="numeric"
-                    onChange={e => set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                <Field label="Pincode" required error={fe.pincode}>
+                  <input className={inp(fe.pincode)} value={form.pincode} inputMode="numeric"
+                    onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
                     placeholder="6-digit pincode" maxLength={6} />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Country">
-                  <select className={inp} value={form.country_id} onChange={e => set('country_id', e.target.value)}>
+                  <select className={inp()} value={form.country_id} onChange={e => set('country_id', e.target.value)}>
                     <option value="">Select Country</option>
                     {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
                   </select>
                 </Field>
                 <Field label="State">
-                  <select className={inp} value={form.state_id} onChange={e => set('state_id', e.target.value)}>
+                  <select className={inp()} value={form.state_id} onChange={e => set('state_id', e.target.value)}>
                     <option value="">Select State</option>
                     {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
                   </select>
                 </Field>
                 <Field label="District">
-                  <select className={inp} value={form.district_id} onChange={e => set('district_id', e.target.value)}>
+                  <select className={inp()} value={form.district_id} onChange={e => set('district_id', e.target.value)}>
                     <option value="">Select District</option>
                     {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
                   </select>
@@ -541,10 +578,10 @@ export default function CenterRegistrationForm() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Organization Name">
-                  <input className={inp} value={form.organization_name} onChange={e => set('organization_name', e.target.value)} />
+                  <input className={inp()} value={form.organization_name} onChange={e => set('organization_name', e.target.value)} />
                 </Field>
                 <Field label="Organization Type">
-                  <select className={inp} value={form.org_type} onChange={e => set('org_type', e.target.value)}>
+                  <select className={inp()} value={form.org_type} onChange={e => set('org_type', e.target.value)}>
                     <option value="">Select</option>
                     <option>Education Consultancy</option>
                     <option>Institute</option>
@@ -555,54 +592,54 @@ export default function CenterRegistrationForm() {
                 </Field>
               </div>
               <Field label="Organization Address">
-                <textarea className={inp} rows={2} value={form.org_address} onChange={e => set('org_address', e.target.value)} />
+                <textarea className={inp()} rows={2} value={form.org_address} onChange={e => set('org_address', e.target.value)} />
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Org Post Office">
-                  <input className={inp} value={form.org_post_office} onChange={e => set('org_post_office', e.target.value)} />
+                  <input className={inp()} value={form.org_post_office} onChange={e => set('org_post_office', e.target.value)} />
                 </Field>
                 <Field label="Org City">
-                  <input className={inp} value={form.org_city} onChange={e => set('org_city', e.target.value)} />
+                  <input className={inp()} value={form.org_city} onChange={e => set('org_city', e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Org State">
-                  <select className={inp} value={form.org_state_id} onChange={e => set('org_state_id', e.target.value)}>
+                  <select className={inp()} value={form.org_state_id} onChange={e => set('org_state_id', e.target.value)}>
                     <option value="">Select State</option>
                     {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
                   </select>
                 </Field>
                 <Field label="Org District">
-                  <select className={inp} value={form.org_district_id} onChange={e => set('org_district_id', e.target.value)}>
+                  <select className={inp()} value={form.org_district_id} onChange={e => set('org_district_id', e.target.value)}>
                     <option value="">Select District</option>
                     {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
                   </select>
                 </Field>
-                <Field label="Org Pincode">
-                  <input className={inp} value={form.org_pincode} inputMode="numeric"
-                    onChange={e => set('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                <Field label="Org Pincode" error={fe.org_pincode}>
+                  <input className={inp(fe.org_pincode)} value={form.org_pincode} inputMode="numeric"
+                    onChange={e => setField('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
                     maxLength={6} />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Registration Number">
-                  <input className={inp} value={form.registration_number} onChange={e => set('registration_number', e.target.value)} />
+                  <input className={inp()} value={form.registration_number} onChange={e => set('registration_number', e.target.value)} />
                 </Field>
                 <Field label="GST / PAN (Organization)">
-                  <input className={inp} value={form.gst_pan} onChange={e => set('gst_pan', e.target.value)} />
+                  <input className={inp()} value={form.gst_pan} onChange={e => set('gst_pan', e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Premises Type">
-                  <select className={inp} value={form.premises_type} onChange={e => set('premises_type', e.target.value)}>
+                  <select className={inp()} value={form.premises_type} onChange={e => set('premises_type', e.target.value)}>
                     <option>Owned</option><option>Rented</option><option>Leased</option>
                   </select>
                 </Field>
                 <Field label="Office Area (sqft)">
-                  <input className={inp} type="number" value={form.office_area_sqft} onChange={e => set('office_area_sqft', e.target.value)} />
+                  <input className={inp()} type="number" value={form.office_area_sqft} onChange={e => set('office_area_sqft', e.target.value)} />
                 </Field>
                 <Field label="Student Capacity">
-                  <input className={inp} type="number" value={form.student_capacity} onChange={e => set('student_capacity', e.target.value)} />
+                  <input className={inp()} type="number" value={form.student_capacity} onChange={e => set('student_capacity', e.target.value)} />
                 </Field>
               </div>
 
@@ -664,16 +701,16 @@ export default function CenterRegistrationForm() {
             {sectionTitle(<CreditCard size={16} />, 'Bank Details')}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Account Holder Name">
-                <input className={inp} value={form.bank_account_holder} onChange={e => set('bank_account_holder', e.target.value)} />
+                <input className={inp()} value={form.bank_account_holder} onChange={e => set('bank_account_holder', e.target.value)} />
               </Field>
               <Field label="Account Number">
-                <input className={inp} value={form.bank_account_number} onChange={e => set('bank_account_number', e.target.value)} />
+                <input className={inp()} value={form.bank_account_number} onChange={e => set('bank_account_number', e.target.value)} />
               </Field>
               <Field label="IFSC Code">
-                <input className={inp} value={form.ifsc_code} onChange={e => set('ifsc_code', e.target.value)} placeholder="e.g. SBIN0001234" />
+                <input className={inp()} value={form.ifsc_code} onChange={e => set('ifsc_code', e.target.value)} placeholder="e.g. SBIN0001234" />
               </Field>
               <Field label="Bank Branch">
-                <input className={inp} value={form.bank_branch} onChange={e => set('bank_branch', e.target.value)} />
+                <input className={inp()} value={form.bank_branch} onChange={e => set('bank_branch', e.target.value)} />
               </Field>
             </div>
           </div>
@@ -694,13 +731,13 @@ export default function CenterRegistrationForm() {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{level}</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Field label="Institute Name">
-                    <input className={inp} value={form[f[0]]} onChange={e => set(f[0], e.target.value)} />
+                    <input className={inp()} value={form[f[0]]} onChange={e => set(f[0], e.target.value)} />
                   </Field>
                   <Field label="Board / University">
-                    <input className={inp} value={form[f[1]]} onChange={e => set(f[1], e.target.value)} />
+                    <input className={inp()} value={form[f[1]]} onChange={e => set(f[1], e.target.value)} />
                   </Field>
                   <Field label="Passing Year">
-                    <input className={inp} type="number" value={form[f[2]]} onChange={e => set(f[2], e.target.value)} placeholder="e.g. 2020" />
+                    <input className={inp()} type="number" value={form[f[2]]} onChange={e => set(f[2], e.target.value)} placeholder="e.g. 2020" />
                   </Field>
                 </div>
               </div>
@@ -717,18 +754,18 @@ export default function CenterRegistrationForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Amount Paid (₹)">
-                <input className={inp} type="number" value={form.amount_paid} onChange={e => set('amount_paid', e.target.value)} placeholder="e.g. 5000" />
+                <input className={inp()} type="number" value={form.amount_paid} onChange={e => set('amount_paid', e.target.value)} placeholder="e.g. 5000" />
               </Field>
               <Field label="UTR / Transaction Number">
-                <input className={inp} value={form.utr_number} onChange={e => set('utr_number', e.target.value)} />
+                <input className={inp()} value={form.utr_number} onChange={e => set('utr_number', e.target.value)} />
               </Field>
               <Field label="Payment Date">
-                <input className={inp} type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} />
+                <input className={inp()} type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} />
               </Field>
             </div>
             <div className="mt-4">
               <Field label="Remark">
-                <textarea className={inp} rows={3} value={form.payment_remark} onChange={e => set('payment_remark', e.target.value)}
+                <textarea className={inp()} rows={3} value={form.payment_remark} onChange={e => set('payment_remark', e.target.value)}
                   placeholder="e.g. Registration fee paid, partial payment, etc." />
               </Field>
             </div>
