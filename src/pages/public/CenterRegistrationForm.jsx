@@ -48,6 +48,15 @@ const emptyForm = {
 
 const inp = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white'
 
+const onlyNums = (e, maxLen) => {
+  const val = e.target.value.replace(/\D/g, '')
+  e.target.value = maxLen ? val.slice(0, maxLen) : val
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 function Field({ label, required, children }) {
   return (
     <div>
@@ -176,15 +185,21 @@ export default function CenterRegistrationForm() {
       case 0:
         if (!form.center_name.trim()) return 'Center Name is required'
         if (!form.email.trim()) return 'Email is required'
+        if (!isValidEmail(form.email)) return 'Valid email address required (e.g. name@example.com)'
         if (!form.phone.trim()) return 'Phone is required'
+        if (form.phone.length < 10) return 'Phone number must be 10 digits'
         return null
       case 1:
         if (!form.contact_person.trim()) return 'Contact Person Name is required'
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
+        if (form.aadhar_no.length !== 12) return 'Aadhar Number must be exactly 12 digits'
+        if (form.contact_email && !isValidEmail(form.contact_email)) return 'Valid contact email required'
+        if (form.contact_mobile && form.contact_mobile.length < 10) return 'Contact mobile must be 10 digits'
         return null
       case 2:
         if (!form.city.trim()) return 'City is required'
         if (!form.pincode.trim()) return 'Pincode is required'
+        if (form.pincode.length !== 6) return 'Pincode must be 6 digits'
         return null
       default:
         return null
@@ -392,10 +407,12 @@ export default function CenterRegistrationForm() {
                 <input className={inp} value={form.center_code} onChange={e => set('center_code', e.target.value)} placeholder="e.g. CTR001 (optional)" />
               </Field>
               <Field label="Email" required>
-                <input className={inp} type="email" value={form.email} onChange={e => set('email', e.target.value)} />
+                <input className={inp} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="name@example.com" />
               </Field>
               <Field label="Phone" required>
-                <input className={inp} type="tel" value={form.phone} onChange={e => set('phone', e.target.value)} />
+                <input className={inp} type="tel" value={form.phone} inputMode="numeric"
+                  onChange={e => set('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit mobile number" maxLength={10} />
               </Field>
             </div>
           </div>
@@ -425,7 +442,9 @@ export default function CenterRegistrationForm() {
                 <input className={inp} value={form.nationality} onChange={e => set('nationality', e.target.value)} />
               </Field>
               <Field label="Aadhar Number" required>
-                <input className={inp} value={form.aadhar_no} onChange={e => set('aadhar_no', e.target.value)} placeholder="12-digit Aadhar" maxLength={12} />
+                <input className={inp} value={form.aadhar_no} inputMode="numeric"
+                  onChange={e => set('aadhar_no', e.target.value.replace(/\D/g, '').slice(0, 12))}
+                  placeholder="12-digit Aadhar" maxLength={12} />
               </Field>
               <Field label="PAN Number">
                 <input className={inp} value={form.pan_no} onChange={e => set('pan_no', e.target.value)} placeholder="ABCDE1234F" />
@@ -449,10 +468,12 @@ export default function CenterRegistrationForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Mobile Number">
-                <input className={inp} type="tel" value={form.contact_mobile} onChange={e => set('contact_mobile', e.target.value)} />
+                <input className={inp} type="tel" value={form.contact_mobile} inputMode="numeric"
+                  onChange={e => set('contact_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="10-digit mobile" maxLength={10} />
               </Field>
               <Field label="Contact Email">
-                <input className={inp} type="email" value={form.contact_email} onChange={e => set('contact_email', e.target.value)} />
+                <input className={inp} type="email" value={form.contact_email} onChange={e => set('contact_email', e.target.value)} placeholder="name@example.com" />
               </Field>
             </div>
 
@@ -487,7 +508,9 @@ export default function CenterRegistrationForm() {
                   <input className={inp} value={form.city} onChange={e => set('city', e.target.value)} />
                 </Field>
                 <Field label="Pincode" required>
-                  <input className={inp} value={form.pincode} onChange={e => set('pincode', e.target.value)} maxLength={6} />
+                  <input className={inp} value={form.pincode} inputMode="numeric"
+                    onChange={e => set('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="6-digit pincode" maxLength={6} />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -559,7 +582,9 @@ export default function CenterRegistrationForm() {
                   </select>
                 </Field>
                 <Field label="Org Pincode">
-                  <input className={inp} value={form.org_pincode} onChange={e => set('org_pincode', e.target.value)} maxLength={6} />
+                  <input className={inp} value={form.org_pincode} inputMode="numeric"
+                    onChange={e => set('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    maxLength={6} />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
