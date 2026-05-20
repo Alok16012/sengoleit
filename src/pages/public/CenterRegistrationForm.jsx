@@ -208,7 +208,11 @@ export default function CenterRegistrationForm() {
 
   function handleNext() {
     const err = validateStep(step)
-    if (err) { setStepError(err); return }
+    if (err) {
+      setStepError(err)
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+      return
+    }
     setStepError('')
     setStep(s => s + 1)
   }
@@ -387,13 +391,6 @@ export default function CenterRegistrationForm() {
       </div>
 
       <div className="max-w-2xl mx-auto p-5 space-y-4">
-
-        {/* Step error */}
-        {stepError && (
-          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-            <AlertCircle size={15} className="shrink-0" /> {stepError}
-          </div>
-        )}
 
         {/* STEP 0: Center Identity */}
         {step === 0 && (
@@ -784,6 +781,13 @@ export default function CenterRegistrationForm() {
           <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
             <AlertCircle size={15} className="shrink-0 mt-0.5" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {/* Step validation error — shown near Next button so user sees it */}
+        {stepError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            <AlertCircle size={15} className="shrink-0" /> {stepError}
           </div>
         )}
 
