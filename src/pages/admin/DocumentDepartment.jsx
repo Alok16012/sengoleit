@@ -46,7 +46,6 @@ export default function DocumentDepartment() {
     const { data } = await supabase
       .from('centers')
       .select('*, states(state_name), super_center:centers!centers_super_center_id_fkey(center_name)')
-      .eq('center_type', 'center')
       .eq('approval_status', 'pending')
       .order('created_at', { ascending: false })
     setDirectCenters(data || [])

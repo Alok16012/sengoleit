@@ -124,17 +124,14 @@ export default function AccountDepartment() {
 
   async function fetchAll() {
     setLoading(true)
-    // Pending Approvals:
-    //   - super_centers with approval_status = 'pending' (direct admin approval, no doc dept step)
-    //   - centers (center_type = 'center') with approval_status = 'doc_verified' (passed through doc dept)
-    const [superCenterPending, centerDocVerified, rech, ctr, holdStu] = await Promise.all([
-      supabase.from('centers').select('*').eq('center_type', 'super_center').eq('approval_status', 'pending').order('created_at', { ascending: false }),
-      supabase.from('centers').select('*').eq('center_type', 'center').eq('approval_status', 'doc_verified').order('created_at', { ascending: false }),
+    // Pending Approvals: all centers with approval_status = 'doc_verified' (passed through doc dept)
+    const [docVerified, rech, ctr, holdStu] = await Promise.all([
+      supabase.from('centers').select('*').eq('approval_status', 'doc_verified').order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*').order('created_at', { ascending: false }),
       supabase.from('centers').select('*').not('approval_status', 'in', '(pending,doc_verified)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, programs(program_name, enrollment_code), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
     ])
-    setApprovals([...(superCenterPending.data || []), ...(centerDocVerified.data || [])])
+    setApprovals(docVerified.data || [])
     setRecharges(rech.data || [])
     setCenters(ctr.data || [])
     setHoldStudents(holdStu.data || [])
