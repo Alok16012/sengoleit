@@ -111,6 +111,7 @@ export default function CenterForm() {
   const [error, setError] = useState(null)
   const [step, setStep] = useState(0)
   const [stepError, setStepError] = useState('')
+  const [fe, setFe] = useState({})
   const [sameAddress, setSameAddress] = useState(false)
 
   const handleSameAddress = (checked) => {
@@ -150,6 +151,43 @@ export default function CenterForm() {
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
 
+  function validateField(key, val) {
+    switch (key) {
+      case 'email':
+        if (!val) return 'Email is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'Enter a valid email (e.g. name@example.com)'
+        return ''
+      case 'phone':
+        if (!val) return 'Phone is required'
+        if (val.length < 10) return 'Must be 10 digits'
+        return ''
+      case 'aadhar_no':
+        if (!val) return 'Aadhar number is required'
+        if (val.length < 12) return 'Must be 12 digits'
+        return ''
+      case 'contact_mobile':
+        if (!val) return 'Mobile number is required'
+        if (val.length < 10) return 'Must be 10 digits'
+        return ''
+      case 'contact_email':
+        if (val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'Enter a valid email'
+        return ''
+      case 'pincode':
+        if (val && val.length < 6) return 'Must be 6 digits'
+        return ''
+      case 'org_pincode':
+        if (val && val.length < 6) return 'Must be 6 digits'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  function setField(key, val) {
+    setForm(f => ({ ...f, [key]: val }))
+    setFe(f => ({ ...f, [key]: validateField(key, val) }))
+  }
+
   async function handleFileUpload(fieldKey, file) {
     setUploading(u => ({ ...u, [fieldKey]: true }))
     setError(null)
@@ -172,15 +210,22 @@ export default function CenterForm() {
       case 0:
         if (!form.center_name.trim()) return 'Center Name is required'
         if (!form.email.trim()) return 'Email is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Enter a valid email'
+        if (!form.phone.trim()) return 'Phone is required'
+        if (form.phone.length < 10) return 'Phone must be 10 digits'
         if (!isEdit && !form.generated_password.trim()) return 'Login Password is required'
         return null
       case 1:
         if (!form.contact_person.trim()) return 'Contact Person Name is required'
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
+        if (form.aadhar_no.length < 12) return 'Aadhar must be 12 digits'
+        if (!form.contact_mobile.trim()) return 'Mobile number is required'
+        if (form.contact_mobile.length < 10) return 'Mobile must be 10 digits'
         return null
       case 2:
         if (!form.city.trim()) return 'City is required'
         if (!form.pincode.trim()) return 'Pincode is required'
+        if (form.pincode.length < 6) return 'Pincode must be 6 digits'
         return null
       default:
         return null
@@ -313,13 +358,6 @@ export default function CenterForm() {
         </div>
       </div>
 
-      {/* Step error */}
-      {stepError && (
-        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-          <AlertCircle size={15} className="shrink-0" /> {stepError}
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
         {/* STEP 0: Center Identity */}
@@ -344,8 +382,10 @@ export default function CenterForm() {
               <Input label="Center Code" placeholder="SIU001 (auto on approval)" value={form.center_code} onChange={set('center_code')} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Email (Login ID) *" type="email" value={form.email} onChange={set('email')} required />
-              <Input label="Phone *" type="tel" value={form.phone} onChange={set('phone')} />
+              <Input label="Email (Login ID) *" type="email" value={form.email}
+                onChange={e => setField('email', e.target.value)} error={fe.email} required />
+              <Input label="Phone *" inputMode="numeric" value={form.phone}
+                onChange={e => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} error={fe.phone} />
             </div>
             {!isEdit && (
               <Input label="Login Password *" type="text" placeholder="Set password for center portal login" value={form.generated_password} onChange={set('generated_password')} />
@@ -379,7 +419,8 @@ export default function CenterForm() {
               <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} required />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} required />
+              <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" inputMode="numeric" value={form.aadhar_no}
+                onChange={e => setField('aadhar_no', e.target.value.replace(/\D/g, '').slice(0, 12))} error={fe.aadhar_no} required />
               <Input label="PAN No *" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} required />
             </div>
 
@@ -396,8 +437,10 @@ export default function CenterForm() {
                 onChange={e => { setSameAddress(false); set('current_address')(e) }} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Mobile Number *" type="tel" value={form.contact_mobile} onChange={set('contact_mobile')} required />
-              <Input label="Email Address" type="email" value={form.contact_email} onChange={set('contact_email')} />
+              <Input label="Mobile Number *" inputMode="numeric" value={form.contact_mobile}
+                onChange={e => setField('contact_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))} error={fe.contact_mobile} required />
+              <Input label="Email Address" type="email" value={form.contact_email}
+                onChange={e => setField('contact_email', e.target.value)} error={fe.contact_email} />
             </div>
 
             {/* Professional Details */}
@@ -417,7 +460,8 @@ export default function CenterForm() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="City *" value={form.city} onChange={set('city')} required />
-              <Input label="Pincode *" value={form.pincode} onChange={set('pincode')} required />
+              <Input label="Pincode *" inputMode="numeric" value={form.pincode}
+                onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))} error={fe.pincode} required />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <Select label="Country" value={form.country_id} onChange={set('country_id')}>
@@ -464,7 +508,8 @@ export default function CenterForm() {
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
-              <Input label="Org Pincode *" value={form.org_pincode} onChange={set('org_pincode')} required />
+              <Input label="Org Pincode *" inputMode="numeric" value={form.org_pincode}
+                onChange={e => setField('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))} error={fe.org_pincode} required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Registration Number *" value={form.registration_number} onChange={set('registration_number')} required />
@@ -705,6 +750,13 @@ export default function CenterForm() {
         {error && (
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
             <AlertCircle size={15} /> {error}
+          </div>
+        )}
+
+        {/* Step error */}
+        {stepError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            <AlertCircle size={15} className="shrink-0" /> {stepError}
           </div>
         )}
 
