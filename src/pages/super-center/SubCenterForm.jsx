@@ -115,6 +115,7 @@ export default function SubCenterForm() {
   const [step, setStep] = useState(0)
   const [stepError, setStepError] = useState('')
   const [sameAddress, setSameAddress] = useState(false)
+  const [fe, setFe] = useState({}) // field errors
 
   const handleSameAddress = (checked) => {
     setSameAddress(checked)
@@ -160,6 +161,33 @@ export default function SubCenterForm() {
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
 
+  function validateField(key, val) {
+    switch (key) {
+      case 'email':
+        if (!val) return 'Email is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return 'Enter a valid email (e.g. name@example.com)'
+        return ''
+      case 'phone':
+        if (!val) return 'Phone is required'
+        if (val.length < 10) return 'Must be 10 digits'
+        return ''
+      case 'aadhar_no':
+        if (!val) return 'Aadhar number is required'
+        if (val.length < 12) return 'Must be 12 digits'
+        return ''
+      case 'pincode':
+        if (val && val.length < 6) return 'Must be 6 digits'
+        return ''
+      default:
+        return ''
+    }
+  }
+
+  function setField(key, val) {
+    setForm(f => ({ ...f, [key]: val }))
+    setFe(f => ({ ...f, [key]: validateField(key, val) }))
+  }
+
   async function handleFileUpload(fieldKey, file) {
     setUploading(u => ({ ...u, [fieldKey]: true }))
     setError(null)
@@ -182,14 +210,19 @@ export default function SubCenterForm() {
       case 0:
         if (!form.center_name.trim()) return 'Center Name is required'
         if (!form.email.trim()) return 'Email is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Enter a valid email address'
+        if (!form.phone.trim()) return 'Phone is required'
+        if (form.phone.length < 10) return 'Phone must be 10 digits'
         return null
       case 1:
         if (!form.contact_person.trim()) return 'Contact Person Name is required'
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
+        if (form.aadhar_no.length < 12) return 'Aadhar must be 12 digits'
         return null
       case 2:
         if (!form.city.trim()) return 'City is required'
         if (!form.pincode.trim()) return 'Pincode is required'
+        if (form.pincode.length < 6) return 'Pincode must be 6 digits'
         return null
       default:
         return null
@@ -329,13 +362,6 @@ export default function SubCenterForm() {
         </div>
       </div>
 
-      {/* Step error */}
-      {stepError && (
-        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-          <AlertCircle size={15} className="shrink-0" /> {stepError}
-        </div>
-      )}
-
       <div className="flex flex-col gap-5">
 
         {/* STEP 0: Center Identity */}
@@ -346,8 +372,15 @@ export default function SubCenterForm() {
               <Input label="Center Code" placeholder="CTR001" value={form.center_code} onChange={set('center_code')} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Email *" type="email" value={form.email} onChange={set('email')} required />
-              <Input label="Phone *" type="tel" value={form.phone} onChange={set('phone')} required />
+              <Input label="Email *" type="email" value={form.email}
+                error={fe.email}
+                onChange={e => setField('email', e.target.value)}
+                placeholder="name@example.com" required />
+              <Input label="Phone *" type="tel" value={form.phone}
+                error={fe.phone}
+                inputMode="numeric"
+                onChange={e => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                placeholder="10-digit number" maxLength={10} required />
             </div>
           </FormSection>
         )}
@@ -370,7 +403,11 @@ export default function SubCenterForm() {
               <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} required />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} required />
+              <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" value={form.aadhar_no}
+                error={fe.aadhar_no}
+                inputMode="numeric"
+                onChange={e => setField('aadhar_no', e.target.value.replace(/\D/g, '').slice(0, 12))}
+                maxLength={12} required />
               <Input label="PAN No *" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} required />
             </div>
 
@@ -408,7 +445,11 @@ export default function SubCenterForm() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="City *" value={form.city} onChange={set('city')} required />
-              <Input label="Pincode *" value={form.pincode} onChange={set('pincode')} required />
+              <Input label="Pincode *" value={form.pincode}
+                error={fe.pincode}
+                inputMode="numeric"
+                onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6} placeholder="6-digit pincode" required />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <Select label="Country" value={form.country_id} onChange={set('country_id')}>
@@ -661,6 +702,13 @@ export default function SubCenterForm() {
         {error && (
           <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
             <AlertCircle size={15} /> {error}
+          </div>
+        )}
+
+        {/* Step validation error — shown near Next button */}
+        {stepError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            <AlertCircle size={15} className="shrink-0" /> {stepError}
           </div>
         )}
 
