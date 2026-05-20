@@ -44,19 +44,32 @@ export default function DocumentDepartment() {
   async function fetchDirectCenters() {
     setDcLoading(true)
     const db = supabaseAdmin || supabase
-    const { data, error } = await db
+    const { data, error } = await (supabaseAdmin || supabase)
       .from('centers')
-      .select('*, states(state_name)')
+      .select('*')
       .or('approval_status.eq.pending,approval_status.is.null')
       .order('created_at', { ascending: false })
+    if (error) console.error('fetchDirectCenters error:', error)
     const rows = data || []
+    // Fetch state names
+    const stateIds = [...new Set(rows.map(r => r.state_id).filter(Boolean))]
+    let stateMap = {}
+    if (stateIds.length) {
+      const { data: sts } = await supabase.from('states').select('id, state_name').in('id', stateIds)
+      ;(sts || []).forEach(s => { stateMap[s.id] = s.state_name })
+    }
+    // Fetch super center names
     const scIds = [...new Set(rows.map(r => r.super_center_id).filter(Boolean))]
     let scMap = {}
     if (scIds.length) {
-      const { data: scs } = await db.from('centers').select('id, center_name').in('id', scIds)
+      const { data: scs } = await supabase.from('centers').select('id, center_name').in('id', scIds)
       ;(scs || []).forEach(sc => { scMap[sc.id] = sc.center_name })
     }
-    setDirectCenters(rows.map(r => ({ ...r, super_center_name: scMap[r.super_center_id] || null })))
+    setDirectCenters(rows.map(r => ({
+      ...r,
+      states: { state_name: stateMap[r.state_id] || null },
+      super_center_name: scMap[r.super_center_id] || null,
+    })))
     setDcLoading(false)
   }
 
