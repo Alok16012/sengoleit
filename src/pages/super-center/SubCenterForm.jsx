@@ -232,13 +232,6 @@ export default function SubCenterForm() {
   async function handleNext() {
     const err = validateStep(step)
     if (err) { setStepError(err); return }
-    // Check center_code uniqueness before leaving step 0
-    if (step === 0 && form.center_code.trim()) {
-      let q = supabase.from('centers').select('id').eq('center_code', form.center_code.trim())
-      if (isEdit) q = q.neq('id', id)
-      const { data: existing } = await q.maybeSingle()
-      if (existing) { setStepError('Center Code already taken. Please use a unique Center Code.'); return }
-    }
     setStepError('')
     setStep(s => s + 1)
   }
@@ -369,7 +362,7 @@ export default function SubCenterForm() {
           <FormSection title="Center Identity" icon={<Building2 size={16} />}>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Center Name *" value={form.center_name} onChange={set('center_name')} required />
-              <Input label="Center Code" placeholder="CTR001" value={form.center_code} onChange={set('center_code')} />
+              <Input label="Center Code (Auto-generated on approval)" placeholder="Will be assigned after approval" value={form.center_code} readOnly className="bg-gray-50 cursor-not-allowed text-gray-400" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Email *" type="email" value={form.email}
