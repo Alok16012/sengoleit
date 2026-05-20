@@ -44,13 +44,15 @@ export default function DocumentDepartment() {
   async function fetchDirectCenters() {
     setDcLoading(true)
     const db = supabaseAdmin || supabase
-    const { data, error } = await (supabaseAdmin || supabase)
+    const { data, error } = await supabase
       .from('centers')
       .select('*')
-      .or('approval_status.eq.pending,approval_status.is.null')
       .order('created_at', { ascending: false })
     if (error) console.error('fetchDirectCenters error:', error)
-    const rows = data || []
+    // Filter in JS — pending/null = needs doc verification; approved/rejected already processed
+    const rows = (data || []).filter(r =>
+      r.approval_status !== 'approved' && r.approval_status !== 'rejected' && r.approval_status !== 'doc_verified'
+    )
     // Fetch state names
     const stateIds = [...new Set(rows.map(r => r.state_id).filter(Boolean))]
     let stateMap = {}
