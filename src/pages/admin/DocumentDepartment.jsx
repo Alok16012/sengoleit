@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase, supabaseAdmin } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
@@ -43,7 +43,6 @@ export default function DocumentDepartment() {
 
   async function fetchDirectCenters() {
     setDcLoading(true)
-    const db = supabaseAdmin || supabase
     const { data, error } = await supabase
       .from('centers')
       .select('*')
@@ -77,8 +76,7 @@ export default function DocumentDepartment() {
 
   async function handleDCVerify() {
     setDCSaving(true)
-    const db = supabaseAdmin || supabase
-    const { error } = await db.from('centers')
+    const { error } = await supabase.from('centers')
       .update({ approval_status: 'doc_verified' })
       .eq('id', dcVerifyModal.id)
     if (error) { alert('Verify failed: ' + error.message); setDCSaving(false); return }
@@ -90,8 +88,7 @@ export default function DocumentDepartment() {
 
   async function handleDCReject(centerId) {
     if (!confirm('Reject this center registration?')) return
-    const db = supabaseAdmin || supabase
-    await db.from('centers').update({ approval_status: 'rejected', status: 'Inactive' }).eq('id', centerId)
+    await supabase.from('centers').update({ approval_status: 'rejected', status: 'Inactive' }).eq('id', centerId)
     fetchDirectCenters()
   }
 
