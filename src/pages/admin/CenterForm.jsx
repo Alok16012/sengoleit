@@ -380,7 +380,7 @@ export default function CenterForm() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Center Name *" value={form.center_name} onChange={set('center_name')} required />
-              <Input label="Center Code" placeholder="SIU001 (auto on approval)" value={form.center_code} onChange={set('center_code')} />
+              <Input label="Center Code (Auto-generated on approval)" placeholder="Will be assigned by Account Dept" value={form.center_code} readOnly className="bg-gray-50 cursor-not-allowed text-gray-400" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Email (Login ID) *" type="email" value={form.email}
