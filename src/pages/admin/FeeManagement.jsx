@@ -52,6 +52,7 @@ export default function FeeManagement() {
   const [tab, setTab]           = useState('master')   // 'master' | 'editor'
   const [masterList, setMasterList] = useState([])
   const [masterLoading, setMasterLoading] = useState(true)
+  const [masterSearch, setMasterSearch] = useState('')
   const [viewStruct, setViewStruct] = useState(null)
 
   // editor state
@@ -254,12 +255,42 @@ export default function FeeManagement() {
           </div>
         ) : (
           <>
-            <div className="flex justify-end mb-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="relative flex-1 max-w-sm">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10"
+                  placeholder="Search by program or session..."
+                  value={masterSearch}
+                  onChange={e => setMasterSearch(e.target.value)}
+                />
+                {masterSearch && (
+                  <button onClick={() => setMasterSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
               <Button onClick={() => openEditor()}>
                 <Plus size={14} /> Add New Fee Structure
               </Button>
             </div>
+            {(() => {
+              const q = masterSearch.toLowerCase()
+              const filtered = q
+                ? masterList.filter(s =>
+                    (s.programs?.program_name || '').toLowerCase().includes(q) ||
+                    (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
+                  )
+                : masterList
+              return (
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+              {filtered.length === 0 && masterSearch && (
+                <div className="flex flex-col items-center justify-center py-14 text-gray-300">
+                  <Search size={36} className="mb-2" />
+                  <p className="text-sm font-semibold text-gray-400">No results for "{masterSearch}"</p>
+                </div>
+              )}
+              {filtered.length > 0 && (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#933d18]">
@@ -274,7 +305,7 @@ export default function FeeManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {masterList.map((struct, i) => {
+                  {filtered.map((struct, i) => {
                     const t = calcTotals(struct.fee_items, struct.total_semesters)
                     return (
                       <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
@@ -327,10 +358,10 @@ export default function FeeManagement() {
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-200">
                     <td colSpan={4} className="px-4 py-3 font-bold text-gray-700 text-sm">
-                      Total ({masterList.length} programs)
+                      {masterSearch ? `${filtered.length} of ${masterList.length} programs` : `Total (${masterList.length} programs)`}
                     </td>
                     <td className="px-4 py-3 text-right font-black text-amber-700">
-                      ₹{fmt(masterList.reduce((s, st) => s + calcTotals(st.fee_items, st.total_semesters).entryTotal, 0))}
+                      ₹{fmt(filtered.reduce((s, st) => s + calcTotals(st.fee_items, st.total_semesters).entryTotal, 0))}
                     </td>
                     <td className="px-4 py-3"></td>
                     <td className="px-4 py-3 text-right font-black text-[#933d18]">
@@ -340,7 +371,10 @@ export default function FeeManagement() {
                   </tr>
                 </tfoot>
               </table>
+              )}
             </div>
+              )
+            })()}
           </>
         )
       )}
