@@ -43,11 +43,12 @@ export default function DocumentDepartment() {
 
   async function fetchDirectCenters() {
     setDcLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('centers')
-      .select('*, states(state_name)')
-      .or('approval_status.eq.pending,approval_status.is.null')
+      .select('id, center_name, center_type, approval_status, states(state_name), contact_person, phone, city, created_at, super_center_id, email, amount_paid, aadhar_no, pan_no, organization_name, org_type, bank_account_number, ifsc_code, utr_number, owner_photo_url, owner_signature_url, owner_aadhar_url, owner_pan_url, center_reg_url, premises_photo_url, gst_url, agreement_url, cancel_cheque_url, bank_passbook_url, payment_screenshot_url, center_code')
+      .eq('center_type', 'center')
       .order('created_at', { ascending: false })
+    console.log('Doc Dept ALL centers:', data, 'error:', error)
     const rows = data || []
     // Fetch super center names separately to avoid self-join issues
     const scIds = [...new Set(rows.map(r => r.super_center_id).filter(Boolean))]
