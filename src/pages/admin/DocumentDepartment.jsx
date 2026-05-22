@@ -386,142 +386,167 @@ export default function DocumentDepartment() {
           </Modal>
 
           {/* Verify Direct Center Modal */}
-          <Modal isOpen={!!dcVerifyModal} onClose={() => { setDCVerifyModal(null); setFieldChecks({}) }} title="Verify Center Documents">
-            {dcVerifyModal && (
-              <div className="space-y-5 max-h-[80vh] overflow-y-auto pr-1">
-                {/* Header */}
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                  <p className="font-semibold text-gray-900">{dcVerifyModal.center_name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{dcVerifyModal.contact_person} · {dcVerifyModal.email}</p>
-                </div>
+          <Modal isOpen={!!dcVerifyModal} onClose={() => { setDCVerifyModal(null); setFieldChecks({}) }} title="Verify Center Documents" size="xl">
+            {dcVerifyModal && (() => {
+              const infoFields = [
+                { key: 'aadhar_no', label: 'Aadhar Number', val: dcVerifyModal.aadhar_no },
+                { key: 'pan_no', label: 'PAN Number', val: dcVerifyModal.pan_no },
+                { key: 'bank_account_number', label: 'Bank Account', val: dcVerifyModal.bank_account_number },
+                { key: 'ifsc_code', label: 'IFSC Code', val: dcVerifyModal.ifsc_code },
+                { key: 'amount_paid', label: 'Amount Paid', val: dcVerifyModal.amount_paid ? `₹${Number(dcVerifyModal.amount_paid).toLocaleString()}` : null },
+                { key: 'utr_number', label: 'UTR Number', val: dcVerifyModal.utr_number },
+              ]
+              const docFields = [
+                { key: 'doc_owner_photo', label: 'Owner Photo', url: dcVerifyModal.owner_photo_url },
+                { key: 'doc_signature', label: 'Owner Signature', url: dcVerifyModal.owner_signature_url },
+                { key: 'doc_aadhar', label: 'Aadhar Card', url: dcVerifyModal.owner_aadhar_url },
+                { key: 'doc_pan', label: 'PAN Card', url: dcVerifyModal.owner_pan_url },
+                { key: 'doc_reg', label: 'Registration Cert.', url: dcVerifyModal.center_reg_url },
+                { key: 'doc_premises', label: 'Premises Photo', url: dcVerifyModal.premises_photo_url },
+                { key: 'doc_gst', label: 'GST Certificate', url: dcVerifyModal.gst_url },
+                { key: 'doc_agreement', label: 'Agreement', url: dcVerifyModal.agreement_url },
+                { key: 'doc_cheque', label: 'Cancel Cheque', url: dcVerifyModal.cancel_cheque_url },
+                { key: 'doc_passbook', label: 'Bank Passbook', url: dcVerifyModal.bank_passbook_url },
+                { key: 'doc_payment', label: 'Payment Proof', url: dcVerifyModal.payment_screenshot_url },
+              ]
+              const totalItems = infoFields.length + docFields.length
+              const verifiedCount = Object.values(fieldChecks).filter(c => c.ok).length
 
-                {/* Key Information Fields */}
-                <div>
-                  <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-2">Key Information</p>
-                  <div className="space-y-2">
-                    {[
-                      { key: 'aadhar_no', label: 'Aadhar Number', val: dcVerifyModal.aadhar_no },
-                      { key: 'pan_no', label: 'PAN Number', val: dcVerifyModal.pan_no },
-                      { key: 'bank_account_number', label: 'Bank Account', val: dcVerifyModal.bank_account_number },
-                      { key: 'ifsc_code', label: 'IFSC Code', val: dcVerifyModal.ifsc_code },
-                      { key: 'amount_paid', label: 'Amount Paid', val: dcVerifyModal.amount_paid ? `₹${Number(dcVerifyModal.amount_paid).toLocaleString()}` : null },
-                      { key: 'utr_number', label: 'UTR Number', val: dcVerifyModal.utr_number },
-                    ].map(({ key, label, val }) => {
-                      const check = fieldChecks[key]
-                      return (
-                        <div key={key} className={`rounded-xl border p-3 transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                              <p className="text-sm font-semibold text-gray-900 mt-0.5 truncate">
-                                {val || <span className="text-gray-400 font-normal">Not provided</span>}
-                              </p>
-                            </div>
-                            {check?.ok ? (
-                              <button
-                                onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
-                                className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0">
-                                <CheckCircle size={12} /> Verified
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
-                                className="text-xs font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
-                                Mark Verified
-                              </button>
-                            )}
-                          </div>
-                          {!check?.ok && (
-                            <input type="text" placeholder="Remark (if any issue)..."
-                              value={check?.remark || ''}
-                              onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
-                              className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#933d18]" />
-                          )}
-                        </div>
-                      )
-                    })}
+              return (
+                <div className="-mx-6 -mt-6 -mb-6 flex flex-col max-h-[82vh]">
+                  {/* Hero Header */}
+                  <div className="bg-gradient-to-r from-[#933d18] to-[#b84e22] px-6 py-5 flex items-center gap-4 shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                      <span className="text-xl font-black text-white">{dcVerifyModal.center_name?.[0]?.toUpperCase() || 'C'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-lg font-black text-white truncate">{dcVerifyModal.center_name}</h3>
+                      <p className="text-sm text-white/70 mt-0.5">{dcVerifyModal.contact_person} · {dcVerifyModal.email}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">Items Verified</p>
+                      <p className="text-3xl font-black text-white leading-none mt-0.5">{verifiedCount}<span className="text-base font-semibold text-white/50">/{totalItems}</span></p>
+                      {verifiedCount === totalItems && (
+                        <p className="text-[10px] text-emerald-300 font-bold mt-1">All verified ✓</p>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Documents */}
-                <div>
-                  <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-2">Documents</p>
-                  <div className="space-y-2">
-                    {[
-                      { key: 'doc_owner_photo', label: 'Owner Photo', url: dcVerifyModal.owner_photo_url },
-                      { key: 'doc_signature', label: 'Owner Signature', url: dcVerifyModal.owner_signature_url },
-                      { key: 'doc_aadhar', label: 'Aadhar Card', url: dcVerifyModal.owner_aadhar_url },
-                      { key: 'doc_pan', label: 'PAN Card', url: dcVerifyModal.owner_pan_url },
-                      { key: 'doc_reg', label: 'Registration Cert.', url: dcVerifyModal.center_reg_url },
-                      { key: 'doc_premises', label: 'Premises Photo', url: dcVerifyModal.premises_photo_url },
-                      { key: 'doc_gst', label: 'GST Certificate', url: dcVerifyModal.gst_url },
-                      { key: 'doc_agreement', label: 'Agreement', url: dcVerifyModal.agreement_url },
-                      { key: 'doc_cheque', label: 'Cancel Cheque', url: dcVerifyModal.cancel_cheque_url },
-                      { key: 'doc_passbook', label: 'Bank Passbook', url: dcVerifyModal.bank_passbook_url },
-                      { key: 'doc_payment', label: 'Payment Proof', url: dcVerifyModal.payment_screenshot_url },
-                    ].map(({ key, label, url }) => {
-                      const check = fieldChecks[key]
-                      return (
-                        <div key={key} className={`rounded-xl border p-3 transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : url ? 'bg-white border-gray-200' : 'bg-amber-50 border-amber-200'}`}>
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${check?.ok ? 'bg-emerald-500' : url ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                              <span className="text-sm font-medium text-gray-800 truncate">{label}</span>
-                              {url ? (
-                                <a href={url} target="_blank" rel="noreferrer"
-                                  className="text-xs font-bold text-[#933d18] hover:underline flex items-center gap-1 shrink-0">
-                                  <ExternalLink size={11} /> View
-                                </a>
-                              ) : (
-                                <span className="text-xs text-amber-600 font-medium shrink-0">Not uploaded</span>
+                  {/* Progress bar */}
+                  <div className="h-1 bg-white/10 shrink-0">
+                    <div className="h-1 bg-emerald-500 transition-all duration-300" style={{ width: `${(verifiedCount / totalItems) * 100}%` }} />
+                  </div>
+
+                  {/* Two-column body */}
+                  <div className="flex-1 overflow-y-auto">
+                    <div className="grid grid-cols-2 divide-x divide-gray-100 min-h-full">
+                      {/* Left — Key Information */}
+                      <div className="p-5 space-y-2">
+                        <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-3">Key Information</p>
+                        {infoFields.map(({ key, label, val }) => {
+                          const check = fieldChecks[key]
+                          return (
+                            <div key={key} className={`rounded-xl border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
+                              <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                                  <p className="text-sm font-semibold text-gray-900 mt-0.5 truncate font-mono">
+                                    {val || <span className="text-gray-400 font-sans font-normal text-xs">Not provided</span>}
+                                  </p>
+                                </div>
+                                {check?.ok ? (
+                                  <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
+                                    className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0">
+                                    <CheckCircle size={11} /> Verified
+                                  </button>
+                                ) : (
+                                  <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
+                                    className="text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
+                                    Mark Verified
+                                  </button>
+                                )}
+                              </div>
+                              {!check?.ok && (
+                                <div className="px-3 pb-2.5">
+                                  <input type="text" placeholder="Remark if issue..."
+                                    value={check?.remark || ''}
+                                    onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
+                                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#933d18] bg-gray-50" />
+                                </div>
                               )}
                             </div>
-                            {check?.ok ? (
-                              <button
-                                onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
-                                className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-100 px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0">
-                                <CheckCircle size={12} /> Verified
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
-                                className="text-xs font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
-                                Mark Verified
-                              </button>
-                            )}
-                          </div>
-                          {!check?.ok && (
-                            <input type="text" placeholder="Remark (if any issue)..."
-                              value={check?.remark || ''}
-                              onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
-                              className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#933d18]" />
-                          )}
-                        </div>
-                      )
-                    })}
+                          )
+                        })}
+                      </div>
+
+                      {/* Right — Documents */}
+                      <div className="p-5 space-y-2">
+                        <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-3">Documents</p>
+                        {docFields.map(({ key, label, url }) => {
+                          const check = fieldChecks[key]
+                          return (
+                            <div key={key} className={`rounded-xl border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : url ? 'bg-white border-gray-200' : 'bg-amber-50 border-amber-200'}`}>
+                              <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className={`w-2 h-2 rounded-full shrink-0 ${check?.ok ? 'bg-emerald-500' : url ? 'bg-blue-400' : 'bg-amber-400'}`} />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-gray-800 truncate leading-tight">{label}</p>
+                                    {url
+                                      ? <a href={url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-[#933d18] hover:underline flex items-center gap-0.5">
+                                          <ExternalLink size={9} /> View document
+                                        </a>
+                                      : <p className="text-[10px] text-amber-600 font-medium">Not uploaded</p>
+                                    }
+                                  </div>
+                                </div>
+                                {check?.ok ? (
+                                  <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
+                                    className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0">
+                                    <CheckCircle size={11} /> Verified
+                                  </button>
+                                ) : (
+                                  <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
+                                    className="text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
+                                    Mark Verified
+                                  </button>
+                                )}
+                              </div>
+                              {!check?.ok && (
+                                <div className="px-3 pb-2.5">
+                                  <input type="text" placeholder="Remark if issue..."
+                                    value={check?.remark || ''}
+                                    onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
+                                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#933d18] bg-gray-50" />
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="shrink-0 border-t border-gray-100 bg-gray-50 px-6 py-4 rounded-b-2xl space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Overall Remarks (optional)</label>
+                        <input type="text" placeholder="Any overall verification notes..."
+                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#933d18] bg-white"
+                          value={dcRemarks} onChange={e => setDCRemarks(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Button variant="success" onClick={handleDCVerify} disabled={dcSaving} className="flex-1 justify-center">
+                        {dcSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
+                      </Button>
+                      <Button variant="outline" onClick={() => { setDCVerifyModal(null); setFieldChecks({}) }}>Cancel</Button>
+                      <p className="text-xs text-gray-400 ml-auto">Will forward to Account Dept. for final approval.</p>
+                    </div>
                   </div>
                 </div>
-
-                {/* Overall Remarks */}
-                <div>
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5 block">Overall Remarks (optional)</label>
-                  <textarea className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#933d18] resize-none"
-                    rows={2} placeholder="Any overall verification notes..."
-                    value={dcRemarks} onChange={e => setDCRemarks(e.target.value)} />
-                </div>
-
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-                  Verifying will forward this center to the <strong>Account Department</strong> for final approval and credential generation.
-                </div>
-
-                <div className="flex gap-3 sticky bottom-0 bg-white pb-1 pt-2 border-t border-gray-100">
-                  <Button variant="success" onClick={handleDCVerify} disabled={dcSaving}>
-                    {dcSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
-                  </Button>
-                  <Button variant="outline" onClick={() => { setDCVerifyModal(null); setFieldChecks({}) }}>Cancel</Button>
-                </div>
-              </div>
-            )}
+              )
+            })()}
           </Modal>
 
 
