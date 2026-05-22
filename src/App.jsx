@@ -64,6 +64,9 @@ import StudentProfile from './pages/student/StudentProfile'
 import StudentFees from './pages/student/StudentFees'
 import StudentDocuments from './pages/student/StudentDocuments'
 import StudentResults from './pages/student/StudentResults'
+import StudentIDCard from './pages/student/StudentIDCard'
+import StudentAdmitCard from './pages/student/StudentAdmitCard'
+import StudentRegistrationSlip from './pages/student/StudentRegistrationSlip'
 
 function RoleRedirect() {
   const { profile, loading } = useAuth()
@@ -99,9 +102,9 @@ export default function App() {
             <Route path="/student/documents" element={<StudentDocuments />} />
             <Route path="/student/results" element={<StudentResults />} />
             <Route path="/student/admission-form" element={<ComingSoon title="Admission Form" description="Download your admission form" />} />
-            <Route path="/student/registration-slip" element={<ComingSoon title="Registration Slip" description="View and download your registration slip" />} />
-            <Route path="/student/id-card" element={<ComingSoon title="I Card" description="Download your student identity card" />} />
-            <Route path="/student/admit-card" element={<ComingSoon title="Admit Card" description="Download your exam admit card" />} />
+            <Route path="/student/registration-slip" element={<StudentRegistrationSlip />} />
+            <Route path="/student/id-card" element={<StudentIDCard />} />
+            <Route path="/student/admit-card" element={<StudentAdmitCard />} />
             <Route path="/student/online-exam" element={<ComingSoon title="Online Exam" description="Appear for your scheduled online exams" />} />
             <Route path="/student/syllabus" element={<ComingSoon title="Syllabus" description="View your program syllabus and curriculum" />} />
             <Route path="/student/ebook" element={<ComingSoon title="E-Book" description="Access your digital study materials" />} />
