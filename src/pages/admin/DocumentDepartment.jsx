@@ -248,59 +248,139 @@ export default function DocumentDepartment() {
           )}
 
           {/* View Direct Center Modal */}
-          <Modal isOpen={!!viewDC} onClose={() => setViewDC(null)} title="Center Registration Details">
+          <Modal isOpen={!!viewDC} onClose={() => setViewDC(null)} title="Center Registration Details" size="xl">
             {viewDC && (
-              <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    ['Center Name', viewDC.center_name],
-                    ['Email', viewDC.email],
-                    ['Phone', viewDC.phone],
-                    ['Contact Person', viewDC.contact_person],
-                    ['Aadhar No', viewDC.aadhar_no],
-                    ['PAN No', viewDC.pan_no],
-                    ['Organization', viewDC.organization_name],
-                    ['Org Type', viewDC.org_type],
-                    ['City', viewDC.city],
-                    ['State', viewDC.states?.state_name],
-                    ['Bank Account', viewDC.bank_account_number ? `****${viewDC.bank_account_number.slice(-4)}` : '—'],
-                    ['IFSC', viewDC.ifsc_code],
-                    ['Amount Paid', viewDC.amount_paid ? `₹${Number(viewDC.amount_paid).toLocaleString()}` : '—'],
-                    ['UTR Number', viewDC.utr_number],
-                  ].map(([label, val]) => (
-                    <div key={label} className="bg-gray-50 rounded-xl p-3">
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                      <p className="text-sm font-semibold text-gray-900 mt-0.5">{val || '—'}</p>
+              <div className="max-h-[78vh] overflow-y-auto -mx-6 -mt-6 -mb-6">
+                {/* Hero Header */}
+                <div className="bg-gradient-to-r from-[#933d18] to-[#b84e22] px-6 py-5 flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                    <span className="text-2xl font-black text-white">{viewDC.center_name?.[0]?.toUpperCase() || 'C'}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-xl font-black text-white truncate">{viewDC.center_name}</h3>
+                    <p className="text-sm text-white/75 mt-0.5">{viewDC.email}</p>
+                    <div className="flex items-center gap-3 mt-2 flex-wrap">
+                      {viewDC.phone && <span className="text-xs bg-white/20 text-white px-2.5 py-1 rounded-lg font-medium">{viewDC.phone}</span>}
+                      {viewDC.contact_person && <span className="text-xs bg-white/20 text-white px-2.5 py-1 rounded-lg font-medium">{viewDC.contact_person}</span>}
+                      {viewDC.city && <span className="text-xs bg-white/20 text-white px-2.5 py-1 rounded-lg font-medium">{viewDC.city}{viewDC.states?.state_name ? `, ${viewDC.states.state_name}` : ''}</span>}
                     </div>
-                  ))}
+                  </div>
+                  {viewDC.amount_paid && (
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs text-white/60 uppercase tracking-wider font-bold">Amount Paid</p>
+                      <p className="text-2xl font-black text-white">₹{Number(viewDC.amount_paid).toLocaleString()}</p>
+                    </div>
+                  )}
                 </div>
-                <div className="bg-white border border-gray-100 rounded-xl p-4">
-                  <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Documents</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      ['Owner Photo', viewDC.owner_photo_url],
-                      ['Signature', viewDC.owner_signature_url],
-                      ['Aadhar Card', viewDC.owner_aadhar_url],
-                      ['PAN Card', viewDC.owner_pan_url],
-                      ['Reg. Cert.', viewDC.center_reg_url],
-                      ['Premises Photo', viewDC.premises_photo_url],
-                      ['GST Cert.', viewDC.gst_url],
-                      ['Agreement', viewDC.agreement_url],
-                      ['Cancel Cheque', viewDC.cancel_cheque_url],
-                      ['Bank Passbook', viewDC.bank_passbook_url],
-                      ['Payment Proof', viewDC.payment_screenshot_url],
-                    ].map(([label, url]) => (
-                      <div key={label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
-                        <span className="text-xs text-gray-600">{label}</span>
-                        {url ? <a href={url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#933d18] underline flex items-center gap-1"><ExternalLink size={11} /> View</a>
-                          : <span className="text-xs text-gray-400">—</span>}
+
+                {/* Body: two columns */}
+                <div className="grid grid-cols-5 gap-0 divide-x divide-gray-100">
+                  {/* Left — Center Info */}
+                  <div className="col-span-3 p-6 space-y-5">
+                    {/* Organization */}
+                    <div>
+                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Organization</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          ['Organization Name', viewDC.organization_name],
+                          ['Org Type', viewDC.org_type],
+                          ['City', viewDC.city],
+                          ['State', viewDC.states?.state_name],
+                        ].map(([label, val]) => (
+                          <div key={label} className="bg-gray-50 rounded-xl px-4 py-3">
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                            <p className="text-sm font-semibold text-gray-900 mt-0.5">{val || <span className="text-gray-400 font-normal">—</span>}</p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
+                    {/* KYC */}
+                    <div>
+                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">KYC Details</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          ['Aadhar Number', viewDC.aadhar_no],
+                          ['PAN Number', viewDC.pan_no],
+                        ].map(([label, val]) => (
+                          <div key={label} className="bg-gray-50 rounded-xl px-4 py-3">
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                            <p className="text-sm font-semibold text-gray-900 mt-0.5 font-mono">{val || <span className="text-gray-400 font-sans font-normal">—</span>}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Banking */}
+                    <div>
+                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Banking & Payment</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          ['Bank Account', viewDC.bank_account_number ? `****${viewDC.bank_account_number.slice(-4)}` : null],
+                          ['IFSC Code', viewDC.ifsc_code],
+                          ['Amount Paid', viewDC.amount_paid ? `₹${Number(viewDC.amount_paid).toLocaleString()}` : null],
+                          ['UTR Number', viewDC.utr_number],
+                        ].map(([label, val]) => (
+                          <div key={label} className="bg-gray-50 rounded-xl px-4 py-3">
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                            <p className="text-sm font-semibold text-gray-900 mt-0.5 font-mono">{val || <span className="text-gray-400 font-sans font-normal">—</span>}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right — Documents */}
+                  <div className="col-span-2 p-6">
+                    <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-3">Documents</p>
+                    <div className="space-y-1.5">
+                      {[
+                        ['Owner Photo', viewDC.owner_photo_url],
+                        ['Owner Signature', viewDC.owner_signature_url],
+                        ['Aadhar Card', viewDC.owner_aadhar_url],
+                        ['PAN Card', viewDC.owner_pan_url],
+                        ['Reg. Certificate', viewDC.center_reg_url],
+                        ['Premises Photo', viewDC.premises_photo_url],
+                        ['GST Certificate', viewDC.gst_url],
+                        ['Agreement', viewDC.agreement_url],
+                        ['Cancel Cheque', viewDC.cancel_cheque_url],
+                        ['Bank Passbook', viewDC.bank_passbook_url],
+                        ['Payment Proof', viewDC.payment_screenshot_url],
+                      ].map(([label, url]) => (
+                        <div key={label} className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-100'}`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${url ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                            <span className="text-xs text-gray-700 font-medium truncate">{label}</span>
+                          </div>
+                          {url
+                            ? <a href={url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#933d18] hover:underline flex items-center gap-1 shrink-0 ml-2">
+                                <ExternalLink size={10} /> View
+                              </a>
+                            : <span className="text-[10px] text-gray-400 shrink-0 ml-2">Missing</span>
+                          }
+                        </div>
+                      ))}
+                    </div>
+                    {/* Doc summary */}
+                    {(() => {
+                      const urls = [viewDC.owner_photo_url, viewDC.owner_signature_url, viewDC.owner_aadhar_url, viewDC.owner_pan_url, viewDC.center_reg_url, viewDC.premises_photo_url, viewDC.gst_url, viewDC.agreement_url, viewDC.cancel_cheque_url, viewDC.bank_passbook_url, viewDC.payment_screenshot_url]
+                      const uploaded = urls.filter(Boolean).length
+                      return (
+                        <div className={`mt-3 text-xs font-bold px-3 py-2 rounded-xl text-center ${uploaded === 11 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                          {uploaded}/11 documents uploaded
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
-                <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks({}) }} className="w-full justify-center">
-                  <CheckCircle size={14} /> Verify Documents
-                </Button>
+
+                {/* Footer CTA */}
+                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between gap-3">
+                  <p className="text-xs text-gray-400">Review all details before proceeding to verification.</p>
+                  <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks({}) }}>
+                    <CheckCircle size={14} /> Verify Documents
+                  </Button>
+                </div>
               </div>
             )}
           </Modal>
