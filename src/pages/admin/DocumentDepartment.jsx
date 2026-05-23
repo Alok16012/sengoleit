@@ -498,268 +498,210 @@ export default function DocumentDepartment() {
             )}
           </Modal>
 
-          {/* Verify Direct Center Modal */}
+          {/* Verify Direct Center Modal — Full Screen */}
           <Modal isOpen={!!dcVerifyModal} onClose={() => { setDCVerifyModal(null); setFieldChecks({}) }} title="Verify Center Documents" size="fullscreen">
             {dcVerifyModal && (() => {
-              const infoFields = [
-                { key: 'aadhar_no', label: 'Aadhar Number', val: dcVerifyModal.aadhar_no },
-                { key: 'pan_no', label: 'PAN Number', val: dcVerifyModal.pan_no },
-                { key: 'registration_number', label: 'Org Reg. Number', val: dcVerifyModal.registration_number },
-                { key: 'gst_pan', label: 'GST / PAN', val: dcVerifyModal.gst_pan },
-                { key: 'bank_account_holder', label: 'Account Holder', val: dcVerifyModal.bank_account_holder },
-                { key: 'bank_account_number', label: 'Bank Account No', val: dcVerifyModal.bank_account_number },
-                { key: 'ifsc_code', label: 'IFSC Code', val: dcVerifyModal.ifsc_code },
-                { key: 'bank_branch', label: 'Bank Branch', val: dcVerifyModal.bank_branch },
-                { key: 'amount_paid', label: 'Amount Paid', val: dcVerifyModal.amount_paid ? `₹${Number(dcVerifyModal.amount_paid).toLocaleString()}` : null },
-                { key: 'utr_number', label: 'UTR Number', val: dcVerifyModal.utr_number },
-                { key: 'payment_date', label: 'Payment Date', val: dcVerifyModal.payment_date ? new Date(dcVerifyModal.payment_date).toLocaleDateString('en-IN') : null },
-              ]
-              const docFields = [
-                { key: 'doc_owner_photo', label: 'Owner Photo', url: dcVerifyModal.owner_photo_url },
-                { key: 'doc_signature', label: 'Owner Signature', url: dcVerifyModal.owner_signature_url },
-                { key: 'doc_aadhar', label: 'Aadhar Card', url: dcVerifyModal.owner_aadhar_url },
-                { key: 'doc_pan', label: 'PAN Card', url: dcVerifyModal.owner_pan_url },
-                { key: 'doc_reg', label: 'Registration Cert.', url: dcVerifyModal.center_reg_url },
-                { key: 'doc_premises', label: 'Premises Photo', url: dcVerifyModal.premises_photo_url },
-                { key: 'doc_gst', label: 'GST Certificate', url: dcVerifyModal.gst_url },
-                { key: 'doc_agreement', label: 'Agreement', url: dcVerifyModal.agreement_url },
-                { key: 'doc_cheque', label: 'Cancel Cheque', url: dcVerifyModal.cancel_cheque_url },
-                { key: 'doc_passbook', label: 'Bank Passbook', url: dcVerifyModal.bank_passbook_url },
-                { key: 'doc_payment', label: 'Payment Proof', url: dcVerifyModal.payment_screenshot_url },
-              ]
-              const totalItems = infoFields.length + docFields.length
-              const verifiedCount = Object.values(fieldChecks).filter(c => c.ok).length
+              const c = dcVerifyModal
 
-              const allKeys = [...infoFields.map(f => f.key), ...docFields.map(f => f.key)]
+              // ALL verifiable fields, grouped by section
+              const sections = [
+                { title: 'Basic Information', fields: [
+                  { key: 'f_center_name',   label: 'Center Name',       val: c.center_name },
+                  { key: 'f_email',         label: 'Email',             val: c.email },
+                  { key: 'f_phone',         label: 'Phone',             val: c.phone },
+                  { key: 'f_contact_person',label: 'Contact Person',    val: c.contact_person },
+                ]},
+                { title: 'Contact Person Details', fields: [
+                  { key: 'f_father_mother',   label: 'Father / Mother Name',      val: c.father_mother_name },
+                  { key: 'f_dob',             label: 'Date of Birth',             val: c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString('en-IN') : null },
+                  { key: 'f_gender',          label: 'Gender',                    val: c.gender },
+                  { key: 'f_nationality',     label: 'Nationality',               val: c.nationality },
+                  { key: 'f_contact_mobile',  label: 'Contact Mobile',            val: c.contact_mobile },
+                  { key: 'f_contact_email',   label: 'Contact Email',             val: c.contact_email },
+                  { key: 'f_occupation',      label: 'Current Occupation',        val: c.current_occupation },
+                  { key: 'f_experience',      label: 'Prev. Experience (Admissions)', val: c.previous_experience_admissions },
+                  { key: 'f_perm_address',    label: 'Permanent Address',         val: c.permanent_address },
+                  { key: 'f_curr_address',    label: 'Current Address',           val: c.current_address },
+                ]},
+                { title: 'Center Address', fields: [
+                  { key: 'f_addr1',     label: 'Address Line 1', val: c.address_line1 },
+                  { key: 'f_landmark',  label: 'Landmark',       val: c.landmark },
+                  { key: 'f_po',        label: 'Post Office',    val: c.post_office },
+                  { key: 'f_city',      label: 'City',           val: c.city },
+                  { key: 'f_state',     label: 'State',          val: c.states?.state_name },
+                  { key: 'f_pincode',   label: 'Pincode',        val: c.pincode },
+                ]},
+                { title: 'KYC Details', fields: [
+                  { key: 'f_aadhar',  label: 'Aadhar Number', val: c.aadhar_no },
+                  { key: 'f_pan',     label: 'PAN Number',    val: c.pan_no },
+                ]},
+                { title: 'Organization', fields: [
+                  { key: 'f_org_name',      label: 'Organization Name',   val: c.organization_name },
+                  { key: 'f_org_type',      label: 'Org Type',            val: c.org_type },
+                  { key: 'f_reg_number',    label: 'Registration Number', val: c.registration_number },
+                  { key: 'f_gst_pan',       label: 'GST / PAN',           val: c.gst_pan },
+                  { key: 'f_premises_type', label: 'Premises Type',       val: c.premises_type },
+                  { key: 'f_org_address',   label: 'Org Address',         val: c.org_address },
+                  { key: 'f_org_po',        label: 'Org Post Office',     val: c.org_post_office },
+                  { key: 'f_org_city',      label: 'Org City',            val: c.org_city },
+                  { key: 'f_org_pincode',   label: 'Org Pincode',         val: c.org_pincode },
+                ]},
+                { title: 'Facilities', fields: [
+                  { key: 'f_reception',       label: 'Reception Desk',     val: c.facility_reception_desk },
+                  { key: 'f_waiting',         label: 'Waiting Area',       val: c.facility_waiting_area },
+                  { key: 'f_meeting',         label: 'Meeting Room',       val: c.facility_meeting_room },
+                  { key: 'f_rent_agreement',  label: 'Rent Agreement',     val: c.rent_agreement_attached },
+                  { key: 'f_photos',          label: 'Photos Attached',    val: c.photos_attached },
+                ]},
+                { title: 'Banking Details', fields: [
+                  { key: 'f_acct_holder', label: 'Account Holder',  val: c.bank_account_holder },
+                  { key: 'f_acct_no',     label: 'Account Number',  val: c.bank_account_number },
+                  { key: 'f_ifsc',        label: 'IFSC Code',       val: c.ifsc_code },
+                  { key: 'f_bank_branch', label: 'Bank Branch',     val: c.bank_branch },
+                ]},
+                { title: 'Payment Details', fields: [
+                  { key: 'f_amount',          label: 'Amount Paid',    val: c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : null },
+                  { key: 'f_utr',             label: 'UTR Number',     val: c.utr_number },
+                  { key: 'f_payment_date',    label: 'Payment Date',   val: c.payment_date ? new Date(c.payment_date).toLocaleDateString('en-IN') : null },
+                  { key: 'f_payment_remark',  label: 'Payment Remark', val: c.payment_remark },
+                ]},
+                ...[
+                  ['10th', c.edu_10th_institute, c.edu_10th_board, c.edu_10th_year],
+                  ['12th', c.edu_12th_institute, c.edu_12th_board, c.edu_12th_year],
+                  ['UG',   c.edu_ug_institute,   c.edu_ug_board,   c.edu_ug_year],
+                  ['PG',   c.edu_pg_institute,   c.edu_pg_board,   c.edu_pg_year],
+                  ['Diploma', c.edu_diploma_institute, c.edu_diploma_board, c.edu_diploma_year],
+                ].filter(([, inst]) => inst).length > 0 ? [{
+                  title: 'Education',
+                  fields: [
+                    ['10th', c.edu_10th_institute, c.edu_10th_board, c.edu_10th_year],
+                    ['12th', c.edu_12th_institute, c.edu_12th_board, c.edu_12th_year],
+                    ['UG',   c.edu_ug_institute,   c.edu_ug_board,   c.edu_ug_year],
+                    ['PG',   c.edu_pg_institute,   c.edu_pg_board,   c.edu_pg_year],
+                    ['Diploma', c.edu_diploma_institute, c.edu_diploma_board, c.edu_diploma_year],
+                  ].filter(([, inst]) => inst).map(([level, inst, board, year]) => ({
+                    key: `f_edu_${level.toLowerCase()}`,
+                    label: `${level} — ${inst}`,
+                    val: [board, year].filter(Boolean).join(' · ') || inst,
+                  })),
+                }] : [],
+              ]
+
+              const docFields = [
+                { key: 'doc_owner_photo', label: 'Owner Photo',        url: c.owner_photo_url },
+                { key: 'doc_signature',   label: 'Owner Signature',    url: c.owner_signature_url },
+                { key: 'doc_aadhar',      label: 'Aadhar Card',        url: c.owner_aadhar_url },
+                { key: 'doc_pan',         label: 'PAN Card',           url: c.owner_pan_url },
+                { key: 'doc_reg',         label: 'Registration Cert.', url: c.center_reg_url },
+                { key: 'doc_premises',    label: 'Premises Photo',     url: c.premises_photo_url },
+                { key: 'doc_gst',         label: 'GST Certificate',    url: c.gst_url },
+                { key: 'doc_agreement',   label: 'Agreement',          url: c.agreement_url },
+                { key: 'doc_cheque',      label: 'Cancel Cheque',      url: c.cancel_cheque_url },
+                { key: 'doc_passbook',    label: 'Bank Passbook',      url: c.bank_passbook_url },
+                { key: 'doc_payment',     label: 'Payment Proof',      url: c.payment_screenshot_url },
+              ]
+
+              const allFieldKeys = sections.flatMap(s => s.fields.map(f => f.key))
+              const allDocKeys = docFields.map(d => d.key)
+              const allKeys = [...allFieldKeys, ...allDocKeys]
+              const totalItems = allKeys.length
+              const verifiedCount = Object.values(fieldChecks).filter(v => v.ok).length
+
               function verifyAll() {
                 const next = {}
                 allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '' } })
                 setFieldChecks(next)
               }
 
+              // Reusable verify row renderer
+              function VRow({ fkey, label, val, url }) {
+                const check = fieldChecks[fkey]
+                const missing = url === undefined ? !val : !url
+                return (
+                  <div className={`rounded-lg border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : missing ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+                    <div className="flex items-center justify-between gap-2 px-3 py-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide leading-tight">{label}</p>
+                        {url !== undefined
+                          ? url
+                            ? <a href={url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-[#933d18] hover:underline flex items-center gap-0.5 mt-0.5"><ExternalLink size={9} /> View Document</a>
+                            : <p className="text-[10px] text-amber-600 font-semibold mt-0.5">Not uploaded</p>
+                          : <p className="text-xs font-semibold text-gray-900 mt-0.5 truncate">{val || <span className="text-gray-400 font-normal">—</span>}</p>
+                        }
+                      </div>
+                      {check?.ok
+                        ? <button onClick={() => setFieldChecks(p => ({ ...p, [fkey]: { ...p[fkey], ok: false } }))}
+                            className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-1 rounded-lg whitespace-nowrap shrink-0">
+                            <CheckCircle size={10} /> Verified
+                          </button>
+                        : <button onClick={() => setFieldChecks(p => ({ ...p, [fkey]: { ok: true, remark: p[fkey]?.remark || '' } }))}
+                            className="text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2 py-1 rounded-lg whitespace-nowrap shrink-0 transition-colors">
+                            Verify
+                          </button>
+                      }
+                    </div>
+                    {!check?.ok && (
+                      <div className="px-3 pb-2">
+                        <input type="text" placeholder="Remark (optional)..."
+                          value={check?.remark || ''}
+                          onChange={e => setFieldChecks(p => ({ ...p, [fkey]: { ok: false, remark: e.target.value } }))}
+                          className="w-full border border-gray-100 rounded-md px-2.5 py-1 text-xs focus:outline-none focus:border-[#933d18] bg-white" />
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
               return (
                 <div className="flex flex-col h-full">
-                  {/* Hero Header */}
+                  {/* Header */}
                   <div className="bg-gradient-to-r from-[#933d18] to-[#b84e22] px-6 py-4 flex items-center gap-4 shrink-0">
-                    <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
-                      <span className="text-lg font-black text-white">{dcVerifyModal.center_name?.[0]?.toUpperCase() || 'C'}</span>
+                    <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                      <span className="text-base font-black text-white">{c.center_name?.[0]?.toUpperCase() || 'C'}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-black text-white truncate">{dcVerifyModal.center_name}</h3>
-                      <p className="text-sm text-white/70 mt-0.5">{dcVerifyModal.contact_person} · {dcVerifyModal.email}</p>
+                      <h3 className="text-lg font-black text-white truncate">{c.center_name}</h3>
+                      <p className="text-sm text-white/70">{c.contact_person} · {c.email} · {c.phone}</p>
                     </div>
-                    {/* Verify All button */}
-                    <button
-                      onClick={verifyAll}
+                    <button onClick={verifyAll}
                       className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shrink-0 border border-white/30">
                       <CheckCircle size={15} /> Verify All
                     </button>
-                    <div className="shrink-0 text-right border-l border-white/20 pl-4">
+                    <div className="text-right border-l border-white/20 pl-4 shrink-0">
                       <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">Verified</p>
-                      <p className="text-2xl font-black text-white leading-none mt-0.5">{verifiedCount}<span className="text-sm font-semibold text-white/50">/{totalItems}</span></p>
-                      {verifiedCount === totalItems && <p className="text-[10px] text-emerald-300 font-bold mt-0.5">All done ✓</p>}
+                      <p className="text-2xl font-black text-white leading-none">{verifiedCount}<span className="text-sm font-semibold text-white/50">/{totalItems}</span></p>
+                      {verifiedCount === totalItems && <p className="text-[10px] text-emerald-300 font-bold">All done ✓</p>}
                     </div>
                   </div>
 
-                  {/* Progress bar */}
+                  {/* Progress */}
                   <div className="h-1.5 bg-gray-200 shrink-0">
-                    <div className="h-1.5 bg-emerald-500 transition-all duration-300" style={{ width: `${(verifiedCount / totalItems) * 100}%` }} />
+                    <div className="h-1.5 bg-emerald-500 transition-all duration-300" style={{ width: `${totalItems ? (verifiedCount / totalItems) * 100 : 0}%` }} />
                   </div>
 
-                  {/* Three-column body */}
+                  {/* Body: Fields (left) + Documents (right) */}
                   <div className="flex-1 overflow-hidden flex divide-x divide-gray-100">
 
-                    {/* Col 1: Full Center Details (read-only reference) */}
-                    <div className="w-[38%] shrink-0 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
-                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest">Center Details</p>
-
-                      {[
-                        { title: 'Basic Info', rows: [
-                          ['Center Name', dcVerifyModal.center_name],
-                          ['Email', dcVerifyModal.email],
-                          ['Phone', dcVerifyModal.phone],
-                          ['Contact Person', dcVerifyModal.contact_person],
-                        ]},
-                        { title: 'Contact Person', rows: [
-                          ['Father / Mother', dcVerifyModal.father_mother_name],
-                          ['Date of Birth', dcVerifyModal.date_of_birth ? new Date(dcVerifyModal.date_of_birth).toLocaleDateString('en-IN') : null],
-                          ['Gender', dcVerifyModal.gender],
-                          ['Nationality', dcVerifyModal.nationality],
-                          ['Contact Mobile', dcVerifyModal.contact_mobile],
-                          ['Contact Email', dcVerifyModal.contact_email],
-                          ['Occupation', dcVerifyModal.current_occupation],
-                          ['Prev. Experience', dcVerifyModal.previous_experience_admissions],
-                          ['Permanent Address', dcVerifyModal.permanent_address],
-                          ['Current Address', dcVerifyModal.current_address],
-                        ]},
-                        { title: 'Center Address', rows: [
-                          ['Address Line 1', dcVerifyModal.address_line1],
-                          ['Landmark', dcVerifyModal.landmark],
-                          ['Post Office', dcVerifyModal.post_office],
-                          ['City', dcVerifyModal.city],
-                          ['State', dcVerifyModal.states?.state_name],
-                          ['Pincode', dcVerifyModal.pincode],
-                        ]},
-                        { title: 'Organization', rows: [
-                          ['Org Name', dcVerifyModal.organization_name],
-                          ['Org Type', dcVerifyModal.org_type],
-                          ['Reg. Number', dcVerifyModal.registration_number],
-                          ['GST / PAN', dcVerifyModal.gst_pan],
-                          ['Premises Type', dcVerifyModal.premises_type],
-                          ['Org Address', dcVerifyModal.org_address],
-                          ['Org City', dcVerifyModal.org_city],
-                          ['Org Pincode', dcVerifyModal.org_pincode],
-                        ]},
-                        { title: 'Facilities', rows: [
-                          ['Reception Desk', dcVerifyModal.facility_reception_desk],
-                          ['Waiting Area', dcVerifyModal.facility_waiting_area],
-                          ['Meeting Room', dcVerifyModal.facility_meeting_room],
-                          ['Rent Agreement', dcVerifyModal.rent_agreement_attached],
-                        ]},
-                        { title: 'Banking', rows: [
-                          ['Account Holder', dcVerifyModal.bank_account_holder],
-                          ['Account Number', dcVerifyModal.bank_account_number],
-                          ['IFSC Code', dcVerifyModal.ifsc_code],
-                          ['Bank Branch', dcVerifyModal.bank_branch],
-                        ]},
-                        { title: 'Payment', rows: [
-                          ['Amount Paid', dcVerifyModal.amount_paid ? `₹${Number(dcVerifyModal.amount_paid).toLocaleString()}` : null],
-                          ['UTR Number', dcVerifyModal.utr_number],
-                          ['Payment Date', dcVerifyModal.payment_date ? new Date(dcVerifyModal.payment_date).toLocaleDateString('en-IN') : null],
-                          ['Payment Remark', dcVerifyModal.payment_remark],
-                        ]},
-                      ].map(({ title, rows }) => {
-                        const filled = rows.filter(([, v]) => v)
-                        if (!filled.length) return null
+                    {/* Left — All fields with verify buttons */}
+                    <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                      {sections.map(sec => {
+                        const visible = sec.fields.filter(f => f.val)
+                        if (!visible.length) return null
                         return (
-                          <div key={title}>
-                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">{title}</p>
-                            <div className="space-y-1">
-                              {filled.map(([label, val]) => (
-                                <div key={label} className="flex gap-2 bg-white rounded-lg px-3 py-2 border border-gray-100">
-                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide w-20 shrink-0 pt-0.5 leading-tight">{label}</p>
-                                  <p className="text-xs font-semibold text-gray-900 break-all leading-tight">{val}</p>
-                                </div>
-                              ))}
+                          <div key={sec.title}>
+                            <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">{sec.title}</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {visible.map(f => <VRow key={f.key} fkey={f.key} label={f.label} val={f.val} />)}
                             </div>
-                          </div>
-                        )
-                      })}
-
-                      {/* Education table */}
-                      {(dcVerifyModal.edu_10th_institute || dcVerifyModal.edu_12th_institute || dcVerifyModal.edu_ug_institute) && (
-                        <div>
-                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Education</p>
-                          <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
-                            <table className="w-full text-[10px]">
-                              <thead><tr className="bg-gray-50 border-b border-gray-100">
-                                <th className="text-left px-2 py-1.5 font-bold text-gray-500">Level</th>
-                                <th className="text-left px-2 py-1.5 font-bold text-gray-500">Institute</th>
-                                <th className="text-left px-2 py-1.5 font-bold text-gray-500">Year</th>
-                              </tr></thead>
-                              <tbody>
-                                {[
-                                  ['10th', dcVerifyModal.edu_10th_institute, dcVerifyModal.edu_10th_year],
-                                  ['12th', dcVerifyModal.edu_12th_institute, dcVerifyModal.edu_12th_year],
-                                  ['UG', dcVerifyModal.edu_ug_institute, dcVerifyModal.edu_ug_year],
-                                  ['PG', dcVerifyModal.edu_pg_institute, dcVerifyModal.edu_pg_year],
-                                  ['Diploma', dcVerifyModal.edu_diploma_institute, dcVerifyModal.edu_diploma_year],
-                                ].filter(([, inst]) => inst).map(([level, inst, year]) => (
-                                  <tr key={level} className="border-t border-gray-50">
-                                    <td className="px-2 py-1.5 font-bold text-[#933d18]">{level}</td>
-                                    <td className="px-2 py-1.5 text-gray-700">{inst}</td>
-                                    <td className="px-2 py-1.5 text-gray-500">{year || '—'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Col 2: Key Information verify */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Key Information — Mark Verified</p>
-                      {infoFields.map(({ key, label, val }) => {
-                        const check = fieldChecks[key]
-                        return (
-                          <div key={key} className={`rounded-xl border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
-                            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                                <p className="text-xs font-semibold text-gray-900 mt-0.5 truncate font-mono">
-                                  {val || <span className="text-gray-400 font-sans font-normal">Not provided</span>}
-                                </p>
-                              </div>
-                              {check?.ok ? (
-                                <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
-                                  className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0">
-                                  <CheckCircle size={10} /> Verified
-                                </button>
-                              ) : (
-                                <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
-                                  className="text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
-                                  Verify
-                                </button>
-                              )}
-                            </div>
-                            {!check?.ok && (
-                              <div className="px-3 pb-2.5">
-                                <input type="text" placeholder="Remark if issue..."
-                                  value={check?.remark || ''}
-                                  onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
-                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#933d18] bg-gray-50" />
-                              </div>
-                            )}
                           </div>
                         )
                       })}
                     </div>
 
-                    {/* Col 3: Documents verify */}
-                    <div className="w-[30%] shrink-0 overflow-y-auto p-4 space-y-2">
-                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Documents — Mark Verified</p>
-                      {docFields.map(({ key, label, url }) => {
-                        const check = fieldChecks[key]
-                        return (
-                          <div key={key} className={`rounded-xl border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : url ? 'bg-white border-gray-200' : 'bg-amber-50 border-amber-200'}`}>
-                            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${check?.ok ? 'bg-emerald-500' : url ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                                <div className="min-w-0">
-                                  <p className="text-xs font-medium text-gray-800 truncate leading-tight">{label}</p>
-                                  {url
-                                    ? <a href={url} target="_blank" rel="noreferrer" className="text-[9px] font-bold text-[#933d18] hover:underline flex items-center gap-0.5">
-                                        <ExternalLink size={8} /> View
-                                      </a>
-                                    : <p className="text-[9px] text-amber-600 font-medium">Not uploaded</p>
-                                  }
-                                </div>
-                              </div>
-                              {check?.ok ? (
-                                <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
-                                  className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0">
-                                  <CheckCircle size={10} /> OK
-                                </button>
-                              ) : (
-                                <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
-                                  className="text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
-                                  Verify
-                                </button>
-                              )}
-                            </div>
-                            {!check?.ok && (
-                              <div className="px-3 pb-2.5">
-                                <input type="text" placeholder="Remark..."
-                                  value={check?.remark || ''}
-                                  onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
-                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#933d18] bg-gray-50" />
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
+                    {/* Right — Documents with verify buttons */}
+                    <div className="w-72 shrink-0 overflow-y-auto p-5 space-y-2">
+                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Documents</p>
+                      {docFields.map(d => <VRow key={d.key} fkey={d.key} label={d.label} url={d.url} />)}
                     </div>
                   </div>
 
