@@ -275,59 +275,172 @@ export default function DocumentDepartment() {
 
                 {/* Body: two columns */}
                 <div className="grid grid-cols-5 gap-0 divide-x divide-gray-100">
-                  {/* Left — Center Info */}
-                  <div className="col-span-3 p-6 space-y-5">
-                    {/* Organization */}
-                    <div>
-                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Organization</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          ['Organization Name', viewDC.organization_name],
-                          ['Org Type', viewDC.org_type],
-                          ['City', viewDC.city],
-                          ['State', viewDC.states?.state_name],
-                        ].map(([label, val]) => (
-                          <div key={label} className="bg-gray-50 rounded-xl px-4 py-3">
-                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                            <p className="text-sm font-semibold text-gray-900 mt-0.5">{val || <span className="text-gray-400 font-normal">—</span>}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  {/* Left — Center Info (all fields) */}
+                  <div className="col-span-3 p-6 space-y-5 overflow-y-auto">
 
-                    {/* KYC */}
-                    <div>
-                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">KYC Details</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          ['Aadhar Number', viewDC.aadhar_no],
-                          ['PAN Number', viewDC.pan_no],
-                        ].map(([label, val]) => (
-                          <div key={label} className="bg-gray-50 rounded-xl px-4 py-3">
-                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                            <p className="text-sm font-semibold text-gray-900 mt-0.5 font-mono">{val || <span className="text-gray-400 font-sans font-normal">—</span>}</p>
+                    {/* Helper inline component */}
+                    {(() => {
+                      const InfoGrid = ({ cols = 2, items }) => (
+                        <div className={`grid grid-cols-${cols} gap-2`}>
+                          {items.map(([label, val, mono]) => (
+                            <div key={label} className="bg-gray-50 rounded-xl px-4 py-3">
+                              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                              <p className={`text-sm font-semibold text-gray-900 mt-0.5 ${mono ? 'font-mono' : ''}`}>{val || <span className="text-gray-400 font-normal font-sans">—</span>}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                      const SectionHead = ({ title }) => (
+                        <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">{title}</p>
+                      )
+                      return (
+                        <>
+                          {/* Contact Person */}
+                          <div>
+                            <SectionHead title="Contact Person Details" />
+                            <InfoGrid items={[
+                              ['Contact Person', viewDC.contact_person],
+                              ['Father / Mother Name', viewDC.father_mother_name],
+                              ['Date of Birth', viewDC.date_of_birth ? new Date(viewDC.date_of_birth).toLocaleDateString('en-IN') : null],
+                              ['Gender', viewDC.gender],
+                              ['Nationality', viewDC.nationality],
+                              ['Contact Mobile', viewDC.contact_mobile],
+                              ['Contact Email', viewDC.contact_email],
+                              ['Occupation', viewDC.current_occupation],
+                              ['Prev. Exp (Admissions)', viewDC.previous_experience_admissions],
+                            ]} />
+                            {(viewDC.permanent_address || viewDC.current_address) && (
+                              <div className="grid grid-cols-1 gap-2 mt-2">
+                                {viewDC.permanent_address && (
+                                  <div className="bg-gray-50 rounded-xl px-4 py-3">
+                                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Permanent Address</p>
+                                    <p className="text-sm text-gray-900 mt-0.5">{viewDC.permanent_address}</p>
+                                  </div>
+                                )}
+                                {viewDC.current_address && (
+                                  <div className="bg-gray-50 rounded-xl px-4 py-3">
+                                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Current Address</p>
+                                    <p className="text-sm text-gray-900 mt-0.5">{viewDC.current_address}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
-                    </div>
 
-                    {/* Banking */}
-                    <div>
-                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Banking & Payment</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          ['Bank Account', viewDC.bank_account_number ? `****${viewDC.bank_account_number.slice(-4)}` : null],
-                          ['IFSC Code', viewDC.ifsc_code],
-                          ['Amount Paid', viewDC.amount_paid ? `₹${Number(viewDC.amount_paid).toLocaleString()}` : null],
-                          ['UTR Number', viewDC.utr_number],
-                        ].map(([label, val]) => (
-                          <div key={label} className="bg-gray-50 rounded-xl px-4 py-3">
-                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                            <p className="text-sm font-semibold text-gray-900 mt-0.5 font-mono">{val || <span className="text-gray-400 font-sans font-normal">—</span>}</p>
+                          {/* Center Address */}
+                          <div>
+                            <SectionHead title="Center Address" />
+                            <InfoGrid items={[
+                              ['Address Line 1', viewDC.address_line1],
+                              ['Landmark', viewDC.landmark],
+                              ['Post Office', viewDC.post_office],
+                              ['City', viewDC.city],
+                              ['State', viewDC.states?.state_name],
+                              ['Pincode', viewDC.pincode],
+                            ]} />
                           </div>
-                        ))}
-                      </div>
-                    </div>
+
+                          {/* Organization */}
+                          <div>
+                            <SectionHead title="Organization" />
+                            <InfoGrid items={[
+                              ['Organization Name', viewDC.organization_name],
+                              ['Org Type', viewDC.org_type],
+                              ['Reg. Number', viewDC.registration_number],
+                              ['GST / PAN', viewDC.gst_pan],
+                              ['Premises Type', viewDC.premises_type],
+                              ['Org City', viewDC.org_city],
+                              ['Org Pincode', viewDC.org_pincode],
+                            ]} />
+                            {viewDC.org_address && (
+                              <div className="bg-gray-50 rounded-xl px-4 py-3 mt-2">
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">Org Address</p>
+                                <p className="text-sm text-gray-900 mt-0.5">{viewDC.org_address}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Facilities */}
+                          {(viewDC.facility_reception_desk || viewDC.facility_waiting_area || viewDC.facility_meeting_room) && (
+                            <div>
+                              <SectionHead title="Facilities & Premises" />
+                              <InfoGrid items={[
+                                ['Reception Desk', viewDC.facility_reception_desk],
+                                ['Waiting Area', viewDC.facility_waiting_area],
+                                ['Meeting Room', viewDC.facility_meeting_room],
+                                ['Rent Agreement', viewDC.rent_agreement_attached],
+                              ]} />
+                            </div>
+                          )}
+
+                          {/* KYC */}
+                          <div>
+                            <SectionHead title="KYC Details" />
+                            <InfoGrid items={[
+                              ['Aadhar Number', viewDC.aadhar_no, true],
+                              ['PAN Number', viewDC.pan_no, true],
+                            ]} />
+                          </div>
+
+                          {/* Banking */}
+                          <div>
+                            <SectionHead title="Banking Details" />
+                            <InfoGrid items={[
+                              ['Account Holder', viewDC.bank_account_holder],
+                              ['Bank Account No', viewDC.bank_account_number, true],
+                              ['IFSC Code', viewDC.ifsc_code, true],
+                              ['Bank Branch', viewDC.bank_branch],
+                            ]} />
+                          </div>
+
+                          {/* Payment */}
+                          <div>
+                            <SectionHead title="Payment Details" />
+                            <InfoGrid items={[
+                              ['Amount Paid', viewDC.amount_paid ? `₹${Number(viewDC.amount_paid).toLocaleString()}` : null],
+                              ['UTR Number', viewDC.utr_number, true],
+                              ['Payment Date', viewDC.payment_date ? new Date(viewDC.payment_date).toLocaleDateString('en-IN') : null],
+                              ['Payment Remark', viewDC.payment_remark],
+                            ]} />
+                          </div>
+
+                          {/* Education */}
+                          {(viewDC.edu_10th_institute || viewDC.edu_12th_institute || viewDC.edu_ug_institute) && (
+                            <div>
+                              <SectionHead title="Education" />
+                              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="bg-gray-100">
+                                      <th className="text-left px-3 py-2 font-bold text-gray-500">Level</th>
+                                      <th className="text-left px-3 py-2 font-bold text-gray-500">Institute</th>
+                                      <th className="text-left px-3 py-2 font-bold text-gray-500">Board</th>
+                                      <th className="text-left px-3 py-2 font-bold text-gray-500">Year</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {[
+                                      ['10th', viewDC.edu_10th_institute, viewDC.edu_10th_board, viewDC.edu_10th_year],
+                                      ['12th', viewDC.edu_12th_institute, viewDC.edu_12th_board, viewDC.edu_12th_year],
+                                      ['UG', viewDC.edu_ug_institute, viewDC.edu_ug_board, viewDC.edu_ug_year],
+                                      ['PG', viewDC.edu_pg_institute, viewDC.edu_pg_board, viewDC.edu_pg_year],
+                                      ['Diploma', viewDC.edu_diploma_institute, viewDC.edu_diploma_board, viewDC.edu_diploma_year],
+                                    ].filter(([, inst]) => inst).map(([level, inst, board, year]) => (
+                                      <tr key={level} className="border-t border-gray-100">
+                                        <td className="px-3 py-2 font-bold text-[#933d18]">{level}</td>
+                                        <td className="px-3 py-2 text-gray-800">{inst}</td>
+                                        <td className="px-3 py-2 text-gray-500">{board || '—'}</td>
+                                        <td className="px-3 py-2 text-gray-500">{year || '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
 
                   {/* Right — Documents */}
@@ -391,10 +504,15 @@ export default function DocumentDepartment() {
               const infoFields = [
                 { key: 'aadhar_no', label: 'Aadhar Number', val: dcVerifyModal.aadhar_no },
                 { key: 'pan_no', label: 'PAN Number', val: dcVerifyModal.pan_no },
-                { key: 'bank_account_number', label: 'Bank Account', val: dcVerifyModal.bank_account_number },
+                { key: 'registration_number', label: 'Org Reg. Number', val: dcVerifyModal.registration_number },
+                { key: 'gst_pan', label: 'GST / PAN', val: dcVerifyModal.gst_pan },
+                { key: 'bank_account_holder', label: 'Account Holder', val: dcVerifyModal.bank_account_holder },
+                { key: 'bank_account_number', label: 'Bank Account No', val: dcVerifyModal.bank_account_number },
                 { key: 'ifsc_code', label: 'IFSC Code', val: dcVerifyModal.ifsc_code },
+                { key: 'bank_branch', label: 'Bank Branch', val: dcVerifyModal.bank_branch },
                 { key: 'amount_paid', label: 'Amount Paid', val: dcVerifyModal.amount_paid ? `₹${Number(dcVerifyModal.amount_paid).toLocaleString()}` : null },
                 { key: 'utr_number', label: 'UTR Number', val: dcVerifyModal.utr_number },
+                { key: 'payment_date', label: 'Payment Date', val: dcVerifyModal.payment_date ? new Date(dcVerifyModal.payment_date).toLocaleDateString('en-IN') : null },
               ]
               const docFields = [
                 { key: 'doc_owner_photo', label: 'Owner Photo', url: dcVerifyModal.owner_photo_url },
