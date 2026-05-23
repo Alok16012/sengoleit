@@ -499,7 +499,7 @@ export default function DocumentDepartment() {
           </Modal>
 
           {/* Verify Direct Center Modal */}
-          <Modal isOpen={!!dcVerifyModal} onClose={() => { setDCVerifyModal(null); setFieldChecks({}) }} title="Verify Center Documents" size="xl">
+          <Modal isOpen={!!dcVerifyModal} onClose={() => { setDCVerifyModal(null); setFieldChecks({}) }} title="Verify Center Documents" size="fullscreen">
             {dcVerifyModal && (() => {
               const infoFields = [
                 { key: 'aadhar_no', label: 'Aadhar Number', val: dcVerifyModal.aadhar_no },
@@ -530,29 +530,40 @@ export default function DocumentDepartment() {
               const totalItems = infoFields.length + docFields.length
               const verifiedCount = Object.values(fieldChecks).filter(c => c.ok).length
 
+              const allKeys = [...infoFields.map(f => f.key), ...docFields.map(f => f.key)]
+              function verifyAll() {
+                const next = {}
+                allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '' } })
+                setFieldChecks(next)
+              }
+
               return (
-                <div className="-mx-6 -mt-6 -mb-6 flex flex-col max-h-[82vh]">
+                <div className="flex flex-col h-full">
                   {/* Hero Header */}
-                  <div className="bg-gradient-to-r from-[#933d18] to-[#b84e22] px-6 py-5 flex items-center gap-4 shrink-0">
-                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
-                      <span className="text-xl font-black text-white">{dcVerifyModal.center_name?.[0]?.toUpperCase() || 'C'}</span>
+                  <div className="bg-gradient-to-r from-[#933d18] to-[#b84e22] px-6 py-4 flex items-center gap-4 shrink-0">
+                    <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+                      <span className="text-lg font-black text-white">{dcVerifyModal.center_name?.[0]?.toUpperCase() || 'C'}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-black text-white truncate">{dcVerifyModal.center_name}</h3>
                       <p className="text-sm text-white/70 mt-0.5">{dcVerifyModal.contact_person} · {dcVerifyModal.email}</p>
                     </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">Items Verified</p>
-                      <p className="text-3xl font-black text-white leading-none mt-0.5">{verifiedCount}<span className="text-base font-semibold text-white/50">/{totalItems}</span></p>
-                      {verifiedCount === totalItems && (
-                        <p className="text-[10px] text-emerald-300 font-bold mt-1">All verified ✓</p>
-                      )}
+                    {/* Verify All button */}
+                    <button
+                      onClick={verifyAll}
+                      className="flex items-center gap-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shrink-0 border border-white/30">
+                      <CheckCircle size={15} /> Verify All
+                    </button>
+                    <div className="shrink-0 text-right border-l border-white/20 pl-4">
+                      <p className="text-[10px] text-white/60 uppercase tracking-widest font-bold">Verified</p>
+                      <p className="text-2xl font-black text-white leading-none mt-0.5">{verifiedCount}<span className="text-sm font-semibold text-white/50">/{totalItems}</span></p>
+                      {verifiedCount === totalItems && <p className="text-[10px] text-emerald-300 font-bold mt-0.5">All done ✓</p>}
                     </div>
                   </div>
 
                   {/* Progress bar */}
-                  <div className="h-1 bg-white/10 shrink-0">
-                    <div className="h-1 bg-emerald-500 transition-all duration-300" style={{ width: `${(verifiedCount / totalItems) * 100}%` }} />
+                  <div className="h-1.5 bg-gray-200 shrink-0">
+                    <div className="h-1.5 bg-emerald-500 transition-all duration-300" style={{ width: `${(verifiedCount / totalItems) * 100}%` }} />
                   </div>
 
                   {/* Three-column body */}
@@ -753,22 +764,16 @@ export default function DocumentDepartment() {
                   </div>
 
                   {/* Footer */}
-                  <div className="shrink-0 border-t border-gray-100 bg-gray-50 px-6 py-4 rounded-b-2xl space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Overall Remarks (optional)</label>
-                        <input type="text" placeholder="Any overall verification notes..."
-                          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#933d18] bg-white"
-                          value={dcRemarks} onChange={e => setDCRemarks(e.target.value)} />
-                      </div>
+                  <div className="shrink-0 border-t border-gray-100 bg-gray-50 px-6 py-3 flex items-center gap-3">
+                    <div className="flex-1">
+                      <input type="text" placeholder="Overall remarks (optional)..."
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-[#933d18] bg-white"
+                        value={dcRemarks} onChange={e => setDCRemarks(e.target.value)} />
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Button variant="success" onClick={handleDCVerify} disabled={dcSaving} className="flex-1 justify-center">
-                        {dcSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
-                      </Button>
-                      <Button variant="outline" onClick={() => { setDCVerifyModal(null); setFieldChecks({}) }}>Cancel</Button>
-                      <p className="text-xs text-gray-400 ml-auto">Will forward to Account Dept. for final approval.</p>
-                    </div>
+                    <Button variant="success" onClick={handleDCVerify} disabled={dcSaving}>
+                      {dcSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
+                    </Button>
+                    <Button variant="outline" onClick={() => { setDCVerifyModal(null); setFieldChecks({}) }}>Cancel</Button>
                   </div>
                 </div>
               )
