@@ -555,92 +555,200 @@ export default function DocumentDepartment() {
                     <div className="h-1 bg-emerald-500 transition-all duration-300" style={{ width: `${(verifiedCount / totalItems) * 100}%` }} />
                   </div>
 
-                  {/* Two-column body */}
-                  <div className="flex-1 overflow-y-auto">
-                    <div className="grid grid-cols-2 divide-x divide-gray-100 min-h-full">
-                      {/* Left — Key Information */}
-                      <div className="p-5 space-y-2">
-                        <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-3">Key Information</p>
-                        {infoFields.map(({ key, label, val }) => {
-                          const check = fieldChecks[key]
-                          return (
-                            <div key={key} className={`rounded-xl border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
-                              <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                                  <p className="text-sm font-semibold text-gray-900 mt-0.5 truncate font-mono">
-                                    {val || <span className="text-gray-400 font-sans font-normal text-xs">Not provided</span>}
-                                  </p>
-                                </div>
-                                {check?.ok ? (
-                                  <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
-                                    className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0">
-                                    <CheckCircle size={11} /> Verified
-                                  </button>
-                                ) : (
-                                  <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
-                                    className="text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
-                                    Mark Verified
-                                  </button>
-                                )}
-                              </div>
-                              {!check?.ok && (
-                                <div className="px-3 pb-2.5">
-                                  <input type="text" placeholder="Remark if issue..."
-                                    value={check?.remark || ''}
-                                    onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
-                                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#933d18] bg-gray-50" />
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
-                      </div>
+                  {/* Three-column body */}
+                  <div className="flex-1 overflow-hidden flex divide-x divide-gray-100">
 
-                      {/* Right — Documents */}
-                      <div className="p-5 space-y-2">
-                        <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-3">Documents</p>
-                        {docFields.map(({ key, label, url }) => {
-                          const check = fieldChecks[key]
-                          return (
-                            <div key={key} className={`rounded-xl border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : url ? 'bg-white border-gray-200' : 'bg-amber-50 border-amber-200'}`}>
-                              <div className="flex items-center justify-between gap-2 px-3 py-2.5">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <span className={`w-2 h-2 rounded-full shrink-0 ${check?.ok ? 'bg-emerald-500' : url ? 'bg-blue-400' : 'bg-amber-400'}`} />
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-medium text-gray-800 truncate leading-tight">{label}</p>
-                                    {url
-                                      ? <a href={url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-[#933d18] hover:underline flex items-center gap-0.5">
-                                          <ExternalLink size={9} /> View document
-                                        </a>
-                                      : <p className="text-[10px] text-amber-600 font-medium">Not uploaded</p>
-                                    }
-                                  </div>
+                    {/* Col 1: Full Center Details (read-only reference) */}
+                    <div className="w-[38%] shrink-0 overflow-y-auto p-4 space-y-4 bg-gray-50/50">
+                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest">Center Details</p>
+
+                      {[
+                        { title: 'Basic Info', rows: [
+                          ['Center Name', dcVerifyModal.center_name],
+                          ['Email', dcVerifyModal.email],
+                          ['Phone', dcVerifyModal.phone],
+                          ['Contact Person', dcVerifyModal.contact_person],
+                        ]},
+                        { title: 'Contact Person', rows: [
+                          ['Father / Mother', dcVerifyModal.father_mother_name],
+                          ['Date of Birth', dcVerifyModal.date_of_birth ? new Date(dcVerifyModal.date_of_birth).toLocaleDateString('en-IN') : null],
+                          ['Gender', dcVerifyModal.gender],
+                          ['Nationality', dcVerifyModal.nationality],
+                          ['Contact Mobile', dcVerifyModal.contact_mobile],
+                          ['Contact Email', dcVerifyModal.contact_email],
+                          ['Occupation', dcVerifyModal.current_occupation],
+                          ['Prev. Experience', dcVerifyModal.previous_experience_admissions],
+                          ['Permanent Address', dcVerifyModal.permanent_address],
+                          ['Current Address', dcVerifyModal.current_address],
+                        ]},
+                        { title: 'Center Address', rows: [
+                          ['Address Line 1', dcVerifyModal.address_line1],
+                          ['Landmark', dcVerifyModal.landmark],
+                          ['Post Office', dcVerifyModal.post_office],
+                          ['City', dcVerifyModal.city],
+                          ['State', dcVerifyModal.states?.state_name],
+                          ['Pincode', dcVerifyModal.pincode],
+                        ]},
+                        { title: 'Organization', rows: [
+                          ['Org Name', dcVerifyModal.organization_name],
+                          ['Org Type', dcVerifyModal.org_type],
+                          ['Reg. Number', dcVerifyModal.registration_number],
+                          ['GST / PAN', dcVerifyModal.gst_pan],
+                          ['Premises Type', dcVerifyModal.premises_type],
+                          ['Org Address', dcVerifyModal.org_address],
+                          ['Org City', dcVerifyModal.org_city],
+                          ['Org Pincode', dcVerifyModal.org_pincode],
+                        ]},
+                        { title: 'Facilities', rows: [
+                          ['Reception Desk', dcVerifyModal.facility_reception_desk],
+                          ['Waiting Area', dcVerifyModal.facility_waiting_area],
+                          ['Meeting Room', dcVerifyModal.facility_meeting_room],
+                          ['Rent Agreement', dcVerifyModal.rent_agreement_attached],
+                        ]},
+                        { title: 'Banking', rows: [
+                          ['Account Holder', dcVerifyModal.bank_account_holder],
+                          ['Account Number', dcVerifyModal.bank_account_number],
+                          ['IFSC Code', dcVerifyModal.ifsc_code],
+                          ['Bank Branch', dcVerifyModal.bank_branch],
+                        ]},
+                        { title: 'Payment', rows: [
+                          ['Amount Paid', dcVerifyModal.amount_paid ? `₹${Number(dcVerifyModal.amount_paid).toLocaleString()}` : null],
+                          ['UTR Number', dcVerifyModal.utr_number],
+                          ['Payment Date', dcVerifyModal.payment_date ? new Date(dcVerifyModal.payment_date).toLocaleDateString('en-IN') : null],
+                          ['Payment Remark', dcVerifyModal.payment_remark],
+                        ]},
+                      ].map(({ title, rows }) => {
+                        const filled = rows.filter(([, v]) => v)
+                        if (!filled.length) return null
+                        return (
+                          <div key={title}>
+                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">{title}</p>
+                            <div className="space-y-1">
+                              {filled.map(([label, val]) => (
+                                <div key={label} className="flex gap-2 bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wide w-20 shrink-0 pt-0.5 leading-tight">{label}</p>
+                                  <p className="text-xs font-semibold text-gray-900 break-all leading-tight">{val}</p>
                                 </div>
-                                {check?.ok ? (
-                                  <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
-                                    className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-100 px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0">
-                                    <CheckCircle size={11} /> Verified
-                                  </button>
-                                ) : (
-                                  <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
-                                    className="text-[11px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
-                                    Mark Verified
-                                  </button>
-                                )}
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {/* Education table */}
+                      {(dcVerifyModal.edu_10th_institute || dcVerifyModal.edu_12th_institute || dcVerifyModal.edu_ug_institute) && (
+                        <div>
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Education</p>
+                          <div className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+                            <table className="w-full text-[10px]">
+                              <thead><tr className="bg-gray-50 border-b border-gray-100">
+                                <th className="text-left px-2 py-1.5 font-bold text-gray-500">Level</th>
+                                <th className="text-left px-2 py-1.5 font-bold text-gray-500">Institute</th>
+                                <th className="text-left px-2 py-1.5 font-bold text-gray-500">Year</th>
+                              </tr></thead>
+                              <tbody>
+                                {[
+                                  ['10th', dcVerifyModal.edu_10th_institute, dcVerifyModal.edu_10th_year],
+                                  ['12th', dcVerifyModal.edu_12th_institute, dcVerifyModal.edu_12th_year],
+                                  ['UG', dcVerifyModal.edu_ug_institute, dcVerifyModal.edu_ug_year],
+                                  ['PG', dcVerifyModal.edu_pg_institute, dcVerifyModal.edu_pg_year],
+                                  ['Diploma', dcVerifyModal.edu_diploma_institute, dcVerifyModal.edu_diploma_year],
+                                ].filter(([, inst]) => inst).map(([level, inst, year]) => (
+                                  <tr key={level} className="border-t border-gray-50">
+                                    <td className="px-2 py-1.5 font-bold text-[#933d18]">{level}</td>
+                                    <td className="px-2 py-1.5 text-gray-700">{inst}</td>
+                                    <td className="px-2 py-1.5 text-gray-500">{year || '—'}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Col 2: Key Information verify */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Key Information — Mark Verified</p>
+                      {infoFields.map(({ key, label, val }) => {
+                        const check = fieldChecks[key]
+                        return (
+                          <div key={key} className={`rounded-xl border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
+                            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                                <p className="text-xs font-semibold text-gray-900 mt-0.5 truncate font-mono">
+                                  {val || <span className="text-gray-400 font-sans font-normal">Not provided</span>}
+                                </p>
                               </div>
-                              {!check?.ok && (
-                                <div className="px-3 pb-2.5">
-                                  <input type="text" placeholder="Remark if issue..."
-                                    value={check?.remark || ''}
-                                    onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
-                                    className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#933d18] bg-gray-50" />
-                                </div>
+                              {check?.ok ? (
+                                <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
+                                  className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0">
+                                  <CheckCircle size={10} /> Verified
+                                </button>
+                              ) : (
+                                <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
+                                  className="text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
+                                  Verify
+                                </button>
                               )}
                             </div>
-                          )
-                        })}
-                      </div>
+                            {!check?.ok && (
+                              <div className="px-3 pb-2.5">
+                                <input type="text" placeholder="Remark if issue..."
+                                  value={check?.remark || ''}
+                                  onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
+                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#933d18] bg-gray-50" />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Col 3: Documents verify */}
+                    <div className="w-[30%] shrink-0 overflow-y-auto p-4 space-y-2">
+                      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Documents — Mark Verified</p>
+                      {docFields.map(({ key, label, url }) => {
+                        const check = fieldChecks[key]
+                        return (
+                          <div key={key} className={`rounded-xl border transition-all ${check?.ok ? 'bg-emerald-50 border-emerald-200' : url ? 'bg-white border-gray-200' : 'bg-amber-50 border-amber-200'}`}>
+                            <div className="flex items-center justify-between gap-2 px-3 py-2.5">
+                              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${check?.ok ? 'bg-emerald-500' : url ? 'bg-blue-400' : 'bg-amber-400'}`} />
+                                <div className="min-w-0">
+                                  <p className="text-xs font-medium text-gray-800 truncate leading-tight">{label}</p>
+                                  {url
+                                    ? <a href={url} target="_blank" rel="noreferrer" className="text-[9px] font-bold text-[#933d18] hover:underline flex items-center gap-0.5">
+                                        <ExternalLink size={8} /> View
+                                      </a>
+                                    : <p className="text-[9px] text-amber-600 font-medium">Not uploaded</p>
+                                  }
+                                </div>
+                              </div>
+                              {check?.ok ? (
+                                <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ...prev[key], ok: false } }))}
+                                  className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0">
+                                  <CheckCircle size={10} /> OK
+                                </button>
+                              ) : (
+                                <button onClick={() => setFieldChecks(prev => ({ ...prev, [key]: { ok: true, remark: prev[key]?.remark || '' } }))}
+                                  className="text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-[#933d18]/10 hover:text-[#933d18] px-2 py-1.5 rounded-lg whitespace-nowrap shrink-0 transition-colors">
+                                  Verify
+                                </button>
+                              )}
+                            </div>
+                            {!check?.ok && (
+                              <div className="px-3 pb-2.5">
+                                <input type="text" placeholder="Remark..."
+                                  value={check?.remark || ''}
+                                  onChange={e => setFieldChecks(prev => ({ ...prev, [key]: { ok: false, remark: e.target.value } }))}
+                                  className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#933d18] bg-gray-50" />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
 
