@@ -7,14 +7,13 @@ import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import {
-  Building2, User, MapPin, Briefcase, CreditCard, GraduationCap,
+  Building2, User, Briefcase, CreditCard, GraduationCap,
   Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, Wallet
 } from 'lucide-react'
 
 const STEPS = [
   { label: 'Center Identity',  icon: Building2 },
   { label: 'Contact Person',   icon: User },
-  { label: 'Center Address',   icon: MapPin },
   { label: 'Organization',     icon: Briefcase },
   { label: 'Bank Details',     icon: CreditCard },
   { label: 'Education',        icon: GraduationCap },
@@ -230,11 +229,6 @@ export default function SubCenterForm() {
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
         if (form.aadhar_no.length < 12) return 'Aadhar must be 12 digits'
         return null
-      case 2:
-        if (!form.city.trim()) return 'City is required'
-        if (!form.pincode.trim()) return 'Pincode is required'
-        if (form.pincode.length < 6) return 'Pincode must be 6 digits'
-        return null
       default:
         return null
     }
@@ -442,41 +436,8 @@ export default function SubCenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 2: Center Address */}
+        {/* STEP 2: Organization */}
         {step === 2 && (
-          <FormSection title="Center Address" icon={<MapPin size={16} />}>
-            <Input label="Address Line 1 *" value={form.address_line1} onChange={set('address_line1')} required />
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Landmark" value={form.landmark} onChange={set('landmark')} />
-              <Input label="Post Office" value={form.post_office} onChange={set('post_office')} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="City *" value={form.city} onChange={set('city')} required />
-              <Input label="Pincode *" value={form.pincode}
-                error={fe.pincode}
-                inputMode="numeric"
-                onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                maxLength={6} placeholder="6-digit pincode" required />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="Country" value={form.country_id} onChange={set('country_id')}>
-                <option value="">Select Country</option>
-                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
-              </Select>
-              <Select label="State *" value={form.state_id} onChange={set('state_id')}>
-                <option value="">Select State</option>
-                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
-              </Select>
-              <Select label="District" value={form.district_id} onChange={set('district_id')}>
-                <option value="">Select District</option>
-                {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
-              </Select>
-            </div>
-          </FormSection>
-        )}
-
-        {/* STEP 3: Organization */}
-        {step === 3 && (
           <FormSection title="Organization Details" icon={<Briefcase size={16} />}>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Organization Name *" value={form.organization_name} onChange={set('organization_name')} required />
@@ -521,7 +482,6 @@ export default function SubCenterForm() {
 
             {/* Infrastructure */}
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Infrastructure</p>
-            <Textarea label="Centre Address" value={form.centre_address} onChange={set('centre_address')} />
             <div className="grid grid-cols-3 gap-4">
               <Input label="No. of Class Rooms" type="number" min="0" value={form.num_classrooms} onChange={set('num_classrooms')} />
               <Input label="No. of Faculty" type="number" min="0" value={form.num_faculty} onChange={set('num_faculty')} />
@@ -579,7 +539,11 @@ export default function SubCenterForm() {
                   ))}
                 </div>
                 {form.photos_attached && (
-                  <p className="text-[11px] text-[#933d18] mt-1.5">Please upload premises photos in the Documents step</p>
+                  <div className="mt-3 max-w-xs">
+                    <FileCard label="Premises Photo" fieldKey="premises_photo_url" accept="image/*" isImage
+                      value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url}
+                      hint="Upload center building / office photo" />
+                  </div>
                 )}
               </div>
               <div>
@@ -595,13 +559,20 @@ export default function SubCenterForm() {
                     </label>
                   ))}
                 </div>
+                {form.rent_agreement_attached === 'Attached' && (
+                  <div className="mt-3 max-w-xs">
+                    <FileCard label="Rent Agreement / Ownership Proof" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false}
+                      value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url}
+                      hint="Upload rent agreement / ownership document (PDF or image)" />
+                  </div>
+                )}
               </div>
             </div>
           </FormSection>
         )}
 
-        {/* STEP 4: Bank Details */}
-        {step === 4 && (
+        {/* STEP 3: Bank Details */}
+        {step === 3 && (
           <FormSection title="Bank Details" icon={<CreditCard size={16} />}>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Account Holder Name *" value={form.bank_account_holder} onChange={set('bank_account_holder')} required />
@@ -614,8 +585,8 @@ export default function SubCenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 5: Education */}
-        {step === 5 && (
+        {/* STEP 4: Education */}
+        {step === 4 && (
           <FormSection title="Education Qualification" icon={<GraduationCap size={16} />}>
             {[
               { level: '10th',    f: ['edu_10th_institute',    'edu_10th_board',    'edu_10th_year'] },
@@ -636,8 +607,8 @@ export default function SubCenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 6: Payment */}
-        {step === 6 && (
+        {/* STEP 5: Payment */}
+        {step === 5 && (
           <FormSection title="Payment Details" icon={<Wallet size={16} />}
             subtitle="Record registration / initial payment made by the applicant">
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 font-medium">
@@ -666,8 +637,8 @@ export default function SubCenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 7: Documents */}
-        {step === 7 && (
+        {/* STEP 6: Documents */}
+        {step === 6 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
             {/* Identity */}
