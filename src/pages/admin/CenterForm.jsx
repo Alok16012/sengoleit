@@ -6,14 +6,13 @@ import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import {
-  Building2, User, MapPin, Briefcase, CreditCard, GraduationCap, ShieldCheck,
+  Building2, User, Briefcase, CreditCard, GraduationCap, ShieldCheck,
   Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft
 } from 'lucide-react'
 
 const STEPS = [
   { label: 'Center Identity',    icon: Building2 },
   { label: 'Contact Person',     icon: User },
-  { label: 'Center Address',     icon: MapPin },
   { label: 'Organization',       icon: Briefcase },
   { label: 'Bank Details',       icon: CreditCard },
   { label: 'Education',          icon: GraduationCap },
@@ -230,11 +229,6 @@ export default function CenterForm() {
         if (!form.contact_mobile.trim()) return 'Mobile number is required'
         if (form.contact_mobile.length < 10) return 'Mobile must be 10 digits'
         return null
-      case 2:
-        if (!form.city.trim()) return 'City is required'
-        if (!form.pincode.trim()) return 'Pincode is required'
-        if (form.pincode.length < 6) return 'Pincode must be 6 digits'
-        return null
       default:
         return null
     }
@@ -447,7 +441,7 @@ export default function CenterForm() {
                 disabled={sameAddress} placeholder={sameAddress ? 'Same as current address' : ''} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Mobile Number *" inputMode="numeric" value={form.contact_mobile}
+              <Input label="Mobile Number *" inputMode="numeric" maxLength={10} value={form.contact_mobile}
                 onChange={e => setField('contact_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))} error={fe.contact_mobile} required />
               <Input label="Email Address" type="email" value={form.contact_email}
                 onChange={e => setField('contact_email', e.target.value)} error={fe.contact_email} />
@@ -460,38 +454,8 @@ export default function CenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 2: Center Address */}
+        {/* STEP 2: Organization Details */}
         {step === 2 && (
-          <FormSection title="Center Address" icon={<MapPin size={16} />}>
-            <Input label="Address Line 1 *" value={form.address_line1} onChange={set('address_line1')} required />
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Landmark" value={form.landmark} onChange={set('landmark')} />
-              <Input label="Post Office" value={form.post_office} onChange={set('post_office')} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="City *" value={form.city} onChange={set('city')} required />
-              <Input label="Pincode *" inputMode="numeric" value={form.pincode}
-                onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))} error={fe.pincode} required />
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="Country" value={form.country_id} onChange={set('country_id')}>
-                <option value="">Select Country</option>
-                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
-              </Select>
-              <Select label="State *" value={form.state_id} onChange={set('state_id')}>
-                <option value="">Select State</option>
-                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
-              </Select>
-              <Select label="District" value={form.district_id} onChange={set('district_id')}>
-                <option value="">Select District</option>
-                {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
-              </Select>
-            </div>
-          </FormSection>
-        )}
-
-        {/* STEP 3: Organization Details */}
-        {step === 3 && (
           <FormSection title="Organization Details" icon={<Briefcase size={16} />}>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Organization Name *" value={form.organization_name} onChange={set('organization_name')} required />
@@ -538,7 +502,6 @@ export default function CenterForm() {
 
             {/* Infrastructure */}
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Infrastructure</p>
-            <Textarea label="Centre Address" value={form.centre_address} onChange={set('centre_address')} />
             <div className="grid grid-cols-3 gap-4">
               <Input label="No. of Class Rooms" type="number" min="0" value={form.num_classrooms} onChange={set('num_classrooms')} />
               <Input label="No. of Faculty" type="number" min="0" value={form.num_faculty} onChange={set('num_faculty')} />
@@ -596,7 +559,11 @@ export default function CenterForm() {
                   ))}
                 </div>
                 {form.photos_attached && (
-                  <p className="text-[11px] text-[#933d18] mt-1.5">Please upload premises photos in the Documents step</p>
+                  <div className="mt-3 max-w-xs">
+                    <FileCard label="Premises Photo" fieldKey="premises_photo_url" accept="image/*" isImage
+                      value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url}
+                      hint="Upload center building / office photo" />
+                  </div>
                 )}
               </div>
               <div>
@@ -612,13 +579,20 @@ export default function CenterForm() {
                     </label>
                   ))}
                 </div>
+                {form.rent_agreement_attached === 'Attached' && (
+                  <div className="mt-3 max-w-xs">
+                    <FileCard label="Rent Agreement / Ownership Proof" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false}
+                      value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url}
+                      hint="Upload rent agreement / ownership document (PDF or image)" />
+                  </div>
+                )}
               </div>
             </div>
           </FormSection>
         )}
 
-        {/* STEP 4: Bank Details */}
-        {step === 4 && (
+        {/* STEP 3: Bank Details */}
+        {step === 3 && (
           <FormSection title="Bank Details" icon={<CreditCard size={16} />}>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Account Holder Name *" value={form.bank_account_holder} onChange={set('bank_account_holder')} required />
@@ -631,8 +605,8 @@ export default function CenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 5: Education Details */}
-        {step === 5 && (
+        {/* STEP 4: Education Details */}
+        {step === 4 && (
           <FormSection title="Education Details" icon={<GraduationCap size={16} />}>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider -mb-1">10th</p>
             <div className="grid grid-cols-3 gap-4">
@@ -667,8 +641,8 @@ export default function CenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 6: Documents – Identity */}
-        {step === 6 && (
+        {/* STEP 5: Documents – Identity */}
+        {step === 5 && (
           <FormSection title="Identity Documents" icon={<User size={16} />}
             subtitle="Owner's personal identity documents">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -688,8 +662,8 @@ export default function CenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 6: Documents – Center */}
-        {step === 6 && (
+        {/* STEP 5: Documents – Center */}
+        {step === 5 && (
           <FormSection title="Center Documents" icon={<Building2 size={16} />}
             subtitle="Organization and premises documents">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -709,8 +683,8 @@ export default function CenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 6: Documents – Bank */}
-        {step === 6 && (
+        {/* STEP 5: Documents – Bank */}
+        {step === 5 && (
           <FormSection title="Bank Documents" icon={<CreditCard size={16} />}
             subtitle="Bank verification documents">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -724,8 +698,8 @@ export default function CenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 6: Documents – Upload Summary */}
-        {step === 6 && (
+        {/* STEP 5: Documents – Upload Summary */}
+        {step === 5 && (
           <div className="bg-gray-50 rounded-xl border border-gray-100 p-4">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Upload Summary — {docsUploaded}/10 documents uploaded</p>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
@@ -742,8 +716,8 @@ export default function CenterForm() {
           </div>
         )}
 
-        {/* STEP 7: KYC & Status */}
-        {step === 7 && (
+        {/* STEP 6: KYC & Status */}
+        {step === 6 && (
           <FormSection title="KYC & Status" icon={<ShieldCheck size={16} />}>
             <div className="grid grid-cols-2 gap-4">
               <Select label="Center Status" value={form.status} onChange={set('status')}>

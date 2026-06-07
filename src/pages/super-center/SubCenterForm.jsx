@@ -179,6 +179,9 @@ export default function SubCenterForm() {
         if (!val) return 'Phone is required'
         if (val.length < 10) return 'Must be 10 digits'
         return ''
+      case 'contact_mobile':
+        if (val && val.length < 10) return 'Must be 10 digits'
+        return ''
       case 'aadhar_no':
         if (!val) return 'Aadhar number is required'
         if (val.length < 12) return 'Must be 12 digits'
@@ -426,7 +429,9 @@ export default function SubCenterForm() {
                 disabled={sameAddress} placeholder={sameAddress ? 'Same as current address' : ''} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Mobile Number *" type="tel" value={form.contact_mobile} onChange={set('contact_mobile')} required />
+              <Input label="Mobile Number *" inputMode="numeric" maxLength={10} value={form.contact_mobile}
+                onChange={e => setField('contact_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                error={fe.contact_mobile} placeholder="10-digit mobile" required />
               <Input label="Email Address" type="email" value={form.contact_email} onChange={set('contact_email')} />
             </div>
 
