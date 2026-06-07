@@ -33,6 +33,9 @@ const emptyForm = {
   organization_name: '', org_type: '', org_address: '', org_post_office: '', org_city: '',
   org_country_id: '', org_state_id: '', org_district_id: '', org_pincode: '',
   registration_number: '', gst_pan: '',
+  centre_address: '',
+  num_classrooms: '', has_computer_lab: false, num_computers: '', internet_speed: '',
+  has_cctv: false, current_courses_offered: '', num_faculty: '',
   facility_reception_desk: false, facility_waiting_area: false, facility_meeting_room: false,
   photos_attached: false, rent_agreement_attached: '',
   premises_type: 'Owned', office_area_sqft: '', student_capacity: '', revenue_share_percentage: '50',
@@ -120,6 +123,11 @@ export default function SubCenterForm() {
   const handleSameAddress = (checked) => {
     setSameAddress(checked)
     if (checked) setForm(f => ({ ...f, permanent_address: f.current_address }))
+  }
+
+  const handleCurrentAddress = (e) => {
+    const val = e.target.value
+    setForm(f => ({ ...f, current_address: val, ...(sameAddress ? { permanent_address: val } : {}) }))
   }
 
   useEffect(() => {
@@ -259,7 +267,8 @@ export default function SubCenterForm() {
       delete payload.id; delete payload.created_at; delete payload.updated_at
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id']
       fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
-      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid']
+      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid',
+        'num_classrooms', 'num_computers', 'num_faculty']
       numericFields.forEach(k => {
         if (payload[k] === '' || payload[k] === null) delete payload[k]
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
@@ -407,14 +416,14 @@ export default function SubCenterForm() {
             {/* Contact Details */}
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Contact Details</p>
             <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
-              <Input label="Permanent Address *" value={form.permanent_address} onChange={set('permanent_address')} />
+              <Input label="Current Address *" value={form.current_address} onChange={handleCurrentAddress} />
               <div className="pb-2.5 flex flex-col items-center gap-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Same</span>
                 <input type="checkbox" checked={sameAddress} onChange={e => handleSameAddress(e.target.checked)}
                   className="w-4 h-4 accent-[#933d18] cursor-pointer" />
               </div>
-              <Input label="Current Address *" value={form.current_address}
-                onChange={e => { setSameAddress(false); set('current_address')(e) }} />
+              <Input label="Permanent Address *" value={form.permanent_address} onChange={set('permanent_address')}
+                disabled={sameAddress} placeholder={sameAddress ? 'Same as current address' : ''} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Mobile Number *" type="tel" value={form.contact_mobile} onChange={set('contact_mobile')} required />
@@ -504,6 +513,31 @@ export default function SubCenterForm() {
               <Input label="Office Area (sqft)" type="number" value={form.office_area_sqft} onChange={set('office_area_sqft')} />
               <Input label="Student Capacity" type="number" value={form.student_capacity} onChange={set('student_capacity')} />
             </div>
+
+            {/* Infrastructure */}
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Infrastructure</p>
+            <Textarea label="Centre Address" value={form.centre_address} onChange={set('centre_address')} />
+            <div className="grid grid-cols-3 gap-4">
+              <Input label="No. of Class Rooms" type="number" min="0" value={form.num_classrooms} onChange={set('num_classrooms')} />
+              <Input label="No. of Faculty" type="number" min="0" value={form.num_faculty} onChange={set('num_faculty')} />
+              <Input label="Internet Speed" placeholder="e.g. 100 Mbps" value={form.internet_speed} onChange={set('internet_speed')} />
+            </div>
+            <div className="grid grid-cols-3 gap-4 items-end">
+              <Select label="Computer Lab" value={form.has_computer_lab ? 'yes' : 'no'}
+                onChange={e => setForm(f => ({ ...f, has_computer_lab: e.target.value === 'yes', ...(e.target.value === 'no' ? { num_computers: '' } : {}) }))}>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </Select>
+              {form.has_computer_lab && (
+                <Input label="No. of Computers" type="number" min="0" value={form.num_computers} onChange={set('num_computers')} />
+              )}
+              <Select label="CCTV Camera" value={form.has_cctv ? 'yes' : 'no'}
+                onChange={e => setForm(f => ({ ...f, has_cctv: e.target.value === 'yes' }))}>
+                <option value="no">No</option>
+                <option value="yes">Yes</option>
+              </Select>
+            </div>
+            <Textarea label="Current Courses Offered" placeholder="List the courses currently offered at this centre" value={form.current_courses_offered} onChange={set('current_courses_offered')} />
 
             {/* Facilities Available */}
             <div>

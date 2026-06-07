@@ -34,6 +34,9 @@ const emptyForm = {
   organization_name: '', org_type: '', org_address: '', org_post_office: '', org_city: '',
   org_state_id: '', org_district_id: '', org_pincode: '',
   registration_number: '', gst_pan: '',
+  centre_address: '',
+  num_classrooms: '', has_computer_lab: false, num_computers: '', internet_speed: '',
+  has_cctv: false, current_courses_offered: '', num_faculty: '',
   facility_reception_desk: false, facility_waiting_area: false, facility_meeting_room: false,
   photos_attached: false, rent_agreement_attached: '',
   premises_type: 'Owned', office_area_sqft: '', student_capacity: '',
@@ -213,6 +216,10 @@ export default function CenterRegistrationForm() {
     if (checked) setForm(f => ({ ...f, permanent_address: f.current_address }))
   }
 
+  function handleCurrentAddress(val) {
+    setForm(f => ({ ...f, current_address: val, ...(sameAddress ? { permanent_address: val } : {}) }))
+  }
+
   function validateStep(s) {
     switch (s) {
       case 0:
@@ -305,6 +312,11 @@ export default function CenterRegistrationForm() {
         org_pincode: form.org_pincode,
         registration_number: form.registration_number,
         gst_pan: form.gst_pan,
+        centre_address: form.centre_address,
+        internet_speed: form.internet_speed,
+        has_computer_lab: form.has_computer_lab,
+        has_cctv: form.has_cctv,
+        current_courses_offered: form.current_courses_offered,
         facility_reception_desk: form.facility_reception_desk,
         facility_waiting_area: form.facility_waiting_area,
         facility_meeting_room: form.facility_meeting_room,
@@ -337,6 +349,9 @@ export default function CenterRegistrationForm() {
       if (form.office_area_sqft) payload.office_area_sqft = Number(form.office_area_sqft)
       if (form.student_capacity) payload.student_capacity = Number(form.student_capacity)
       if (form.amount_paid) payload.amount_paid = Number(form.amount_paid)
+      if (form.num_classrooms) payload.num_classrooms = Number(form.num_classrooms)
+      if (form.num_faculty) payload.num_faculty = Number(form.num_faculty)
+      if (form.has_computer_lab && form.num_computers) payload.num_computers = Number(form.num_computers)
 
       // Remove null/empty strings
       Object.keys(payload).forEach(k => {
@@ -487,7 +502,7 @@ export default function CenterRegistrationForm() {
             <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end mb-4">
               <Field label="Current Address">
                 <input className={inp()} value={form.current_address}
-                  onChange={e => { setSameAddress(false); set('current_address', e.target.value) }} />
+                  onChange={e => handleCurrentAddress(e.target.value)} />
               </Field>
               <div className="pb-2.5 flex flex-col items-center gap-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Same</span>
@@ -495,7 +510,9 @@ export default function CenterRegistrationForm() {
                   className="w-4 h-4 accent-[#933d18] cursor-pointer" />
               </div>
               <Field label="Permanent Address">
-                <input className={inp()} value={form.permanent_address} onChange={e => set('permanent_address', e.target.value)} />
+                <input className={`${inp()} disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed`}
+                  value={form.permanent_address} onChange={e => set('permanent_address', e.target.value)}
+                  disabled={sameAddress} placeholder={sameAddress ? 'Same as current address' : ''} />
               </Field>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -642,6 +659,47 @@ export default function CenterRegistrationForm() {
                   <input className={inp()} type="number" value={form.student_capacity} onChange={e => set('student_capacity', e.target.value)} />
                 </Field>
               </div>
+
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-1">Infrastructure</p>
+              <Field label="Centre Address">
+                <textarea className={inp()} rows={2} value={form.centre_address} onChange={e => set('centre_address', e.target.value)} />
+              </Field>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Field label="No. of Class Rooms">
+                  <input className={inp()} type="number" min="0" value={form.num_classrooms} onChange={e => set('num_classrooms', e.target.value)} />
+                </Field>
+                <Field label="No. of Faculty">
+                  <input className={inp()} type="number" min="0" value={form.num_faculty} onChange={e => set('num_faculty', e.target.value)} />
+                </Field>
+                <Field label="Internet Speed">
+                  <input className={inp()} placeholder="e.g. 100 Mbps" value={form.internet_speed} onChange={e => set('internet_speed', e.target.value)} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Field label="Computer Lab">
+                  <select className={inp()} value={form.has_computer_lab ? 'yes' : 'no'}
+                    onChange={e => setForm(f => ({ ...f, has_computer_lab: e.target.value === 'yes', ...(e.target.value === 'no' ? { num_computers: '' } : {}) }))}>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </Field>
+                {form.has_computer_lab && (
+                  <Field label="No. of Computers">
+                    <input className={inp()} type="number" min="0" value={form.num_computers} onChange={e => set('num_computers', e.target.value)} />
+                  </Field>
+                )}
+                <Field label="CCTV Camera">
+                  <select className={inp()} value={form.has_cctv ? 'yes' : 'no'}
+                    onChange={e => setForm(f => ({ ...f, has_cctv: e.target.value === 'yes' }))}>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </Field>
+              </div>
+              <Field label="Current Courses Offered">
+                <textarea className={inp()} rows={2} placeholder="List the courses currently offered at this centre"
+                  value={form.current_courses_offered} onChange={e => set('current_courses_offered', e.target.value)} />
+              </Field>
 
               <div>
                 <p className="text-xs font-bold text-gray-500 mb-2">Facilities Available</p>
