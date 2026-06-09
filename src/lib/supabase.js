@@ -14,8 +14,11 @@ export const supabase = isConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : createClient('https://placeholder.supabase.co', 'placeholder-key')
 
-// Admin client — only used server-side operations like updating auth passwords
-export const supabaseAdmin = (supabaseUrl && supabaseServiceKey)
+// Admin client — only used for privileged operations like updating auth passwords.
+// Require a real-looking key (placeholders are short) so we don't create a client
+// with an invalid key and then silently fail every admin call.
+const hasRealServiceKey = supabaseServiceKey && supabaseServiceKey.length > 40
+export const supabaseAdmin = (supabaseUrl && hasRealServiceKey)
   ? createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false }
     })

@@ -144,27 +144,54 @@ export default function AccountDepartment() {
     const center = centers.find(c => c.id === centerId)
     if (!center?.email) { alert('Center ka email nahi hai.'); return }
 
-    // 1. Save password to DB for display
+    const role = center.center_type === 'super_center' ? 'super_center' : 'center'
+
+    // Save password to DB for display
     await supabase.from('centers').update({ generated_password: newPass }).eq('id', centerId)
 
-    // 2. Save admin session before any auth changes
-    const { data: { session: adminSession } } = await supabase.auth.getSession()
+    // Preferred path — service-role admin API can change an EXISTING user's password
+    // (signUp cannot; it only creates new users).
+    if (supabaseAdmin) {
+      let userId = null
+      try {
+        const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+        userId = list?.users?.find(u => u.email?.toLowerCase() === center.email.toLowerCase())?.id || null
+      } catch (_) { /* fall through to create */ }
 
-    // 3. Create/update Supabase Auth user via signUp
+      if (userId) {
+        const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+          password: newPass,
+          user_metadata: { role },
+        })
+        if (updErr) { alert('Password update failed: ' + updErr.message); return }
+        await supabase.from('profiles').upsert({ id: userId, role })
+        alert(`✓ Password update ho gaya! Ab ${center.email} + naya password se login hoga.`)
+      } else {
+        const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
+          email: center.email,
+          password: newPass,
+          email_confirm: true,
+          user_metadata: { role },
+        })
+        if (cErr) { alert('User create failed: ' + cErr.message); return }
+        if (created?.user) await supabase.from('profiles').upsert({ id: created.user.id, role })
+        alert(`✓ Account ban gaya! Ab ${center.email} + password se login hoga.`)
+      }
+      setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
+      fetchAll()
+      return
+    }
+
+    // Fallback (no service key) — signUp can only create NEW users, not change existing passwords.
+    const { data: { session: adminSession } } = await supabase.auth.getSession()
     const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
       email: center.email,
       password: newPass,
-      options: { data: { role: center.center_type === 'super_center' ? 'super_center' : 'center' } }
+      options: { data: { role } }
     })
-
     if (!signUpErr && signUpData?.user) {
-      await supabase.from('profiles').upsert({
-        id: signUpData.user.id,
-        role: center.center_type === 'super_center' ? 'super_center' : 'center'
-      })
+      await supabase.from('profiles').upsert({ id: signUpData.user.id, role })
     }
-
-    // 4. Always restore admin session
     if (adminSession?.access_token) {
       await supabase.auth.setSession({
         access_token: adminSession.access_token,
@@ -173,7 +200,7 @@ export default function AccountDepartment() {
     }
 
     if (signUpErr && signUpErr.message.toLowerCase().includes('already registered')) {
-      alert(`Yeh email already registered hai. Password change ke liye Supabase Dashboard → Authentication → Users mein jaake manually reset karo.`)
+      alert(`Password actually change NAHI hua — yeh email already registered hai aur existing user ka password sirf service key se badalta hai.\n\nAbhi ke liye: Supabase Dashboard → Authentication → Users → "${center.email}" → Reset/Update password.\n\nPermanent fix: .env mein asli VITE_SUPABASE_SERVICE_KEY daalo.`)
     } else if (signUpErr) {
       alert('Error: ' + signUpErr.message)
     } else {
