@@ -36,6 +36,8 @@ export default function DocumentDepartment() {
   const [dcVerifyModal, setDCVerifyModal] = useState(null)
   const [dcRemarks, setDCRemarks] = useState('')
   const [dcSaving, setDCSaving] = useState(false)
+  const [dcRejectModal, setDCRejectModal] = useState(null)
+  const [dcRejectRemarks, setDCRejectRemarks] = useState('')
   const [fieldChecks, setFieldChecks] = useState({})
 
   useEffect(() => { fetchStudents() }, [statusFilter])
@@ -78,7 +80,7 @@ export default function DocumentDepartment() {
   async function handleDCVerify() {
     setDCSaving(true)
     const { error } = await supabase.from('centers')
-      .update({ approval_status: 'doc_verified' })
+      .update({ approval_status: 'doc_verified', approval_notes: dcRemarks || null })
       .eq('id', dcVerifyModal.id)
     if (error) { alert('Verify failed: ' + error.message); setDCSaving(false); return }
     setDCSaving(false)
@@ -87,9 +89,16 @@ export default function DocumentDepartment() {
     fetchDirectCenters()
   }
 
-  async function handleDCReject(centerId) {
-    if (!confirm('Reject this center registration?')) return
-    await supabase.from('centers').update({ approval_status: 'rejected', status: 'Inactive' }).eq('id', centerId)
+  async function confirmDCReject() {
+    if (!dcRejectRemarks.trim()) { alert('Rejection ka karan likhna zaroori hai'); return }
+    setDCSaving(true)
+    const { error } = await supabase.from('centers')
+      .update({ approval_status: 'rejected', status: 'Inactive', approval_notes: dcRejectRemarks })
+      .eq('id', dcRejectModal.id)
+    setDCSaving(false)
+    if (error) { alert('Reject failed: ' + error.message); return }
+    setDCRejectModal(null)
+    setDCRejectRemarks('')
     fetchDirectCenters()
   }
 
@@ -236,7 +245,7 @@ export default function DocumentDepartment() {
                         <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks({}) }}>
                           <CheckCircle size={13} /> Verify
                         </Button>
-                        <Button size="sm" variant="danger" onClick={() => handleDCReject(c.id)}>
+                        <Button size="sm" variant="danger" onClick={() => { setDCRejectModal(c); setDCRejectRemarks('') }}>
                           <XCircle size={13} />
                         </Button>
                       </div>
@@ -643,26 +652,37 @@ export default function DocumentDepartment() {
                           }
                         </div>
                       </div>
-                      <div className="shrink-0 mt-0.5">
+                      <div className="shrink-0 mt-0.5 flex items-center gap-1.5">
                         {isVerified
                           ? <button onClick={() => setFieldChecks(p => ({ ...p, [fkey]: { ...p[fkey], ok: false } }))}
                               className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-lg hover:bg-emerald-200 transition-colors">
                               <CheckCircle size={11} /> Verified
                             </button>
-                          : <button onClick={() => setFieldChecks(p => ({ ...p, [fkey]: { ok: true, remark: p[fkey]?.remark || '' } }))}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 border border-gray-200 bg-gray-50 hover:border-[#933d18] hover:text-[#933d18] hover:bg-[#933d18]/5 px-2.5 py-1 rounded-lg transition-colors">
-                              Verify
-                            </button>
+                          : <>
+                              <button onClick={() => setFieldChecks(p => ({ ...p, [fkey]: { ...(p[fkey] || {}), ok: false, showRemark: !p[fkey]?.showRemark } }))}
+                                className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
+                                  check?.showRemark || check?.remark
+                                    ? 'text-red-600 border-red-200 bg-red-50'
+                                    : 'text-gray-400 border-gray-200 bg-gray-50 hover:border-red-300 hover:text-red-500'
+                                }`}>
+                                Remark
+                              </button>
+                              <button onClick={() => setFieldChecks(p => ({ ...p, [fkey]: { ok: true, remark: p[fkey]?.remark || '' } }))}
+                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 border border-gray-200 bg-gray-50 hover:border-[#933d18] hover:text-[#933d18] hover:bg-[#933d18]/5 px-2.5 py-1 rounded-lg transition-colors">
+                                Verify
+                              </button>
+                            </>
                         }
                       </div>
                     </div>
-                    {!isVerified && (
+                    {!isVerified && (check?.showRemark || check?.remark) && (
                       <div className="px-3 pb-3 pt-0">
                         <input
                           type="text"
-                          placeholder="Add remark (optional)..."
+                          autoFocus
+                          placeholder="Is field mein kya dikkat hai..."
                           value={check?.remark || ''}
-                          onChange={e => setFieldChecks(p => ({ ...p, [fkey]: { ok: false, remark: e.target.value } }))}
+                          onChange={e => setFieldChecks(p => ({ ...p, [fkey]: { ...(p[fkey] || {}), ok: false, remark: e.target.value } }))}
                           className="w-full text-xs text-gray-600 placeholder:text-gray-300 bg-transparent border-0 border-t border-gray-100 pt-2 focus:outline-none"
                         />
                       </div>
@@ -805,6 +825,28 @@ export default function DocumentDepartment() {
             })()}
           </Modal>
 
+          {/* Reject Center Modal — requires remarks */}
+          <Modal isOpen={!!dcRejectModal} onClose={() => setDCRejectModal(null)} title="Reject Center Registration">
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                <strong>{dcRejectModal?.center_name}</strong> ka registration reject karna chahte ho? Center ko reason dikhega.
+              </p>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Rejection Reason <span className="text-red-500">*</span></label>
+                <textarea
+                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-red-400 resize-none"
+                  rows={3}
+                  placeholder="Document mein kya dikkat hai, likhein (required)..."
+                  value={dcRejectRemarks}
+                  onChange={e => setDCRejectRemarks(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button variant="danger" onClick={confirmDCReject} disabled={dcSaving}>{dcSaving ? 'Saving...' : 'Confirm Reject'}</Button>
+                <Button variant="outline" onClick={() => setDCRejectModal(null)}>Cancel</Button>
+              </div>
+            </div>
+          </Modal>
 
         </div>
       )}

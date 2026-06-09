@@ -439,13 +439,15 @@ export default function AccountDepartment() {
                   <Th>Phone</Th>
                   <Th>Email</Th>
                   <Th>Bank Account</Th>
+                  <Th>Payment</Th>
+                  <Th>Doc Remarks</Th>
                   <Th>Submitted</Th>
                   <Th>Actions</Th>
                 </tr>
               </Thead>
               <Tbody>
                 {approvals.length === 0 ? (
-                  <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No pending approvals</Td></Tr>
+                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No pending approvals</Td></Tr>
                 ) : approvals.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -465,6 +467,15 @@ export default function AccountDepartment() {
                       {c.bank_account_number ? `****${c.bank_account_number.slice(-4)}` : '—'}
                       {c.ifsc_code && <p className="text-gray-400">{c.ifsc_code}</p>}
                     </Td>
+                    <Td className="text-xs">
+                      <p className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</p>
+                      {c.utr_number && <p className="text-gray-400 font-mono">UTR: {c.utr_number}</p>}
+                      {c.payment_date && <p className="text-gray-400">{new Date(c.payment_date).toLocaleDateString('en-IN')}</p>}
+                      {c.payment_screenshot_url && (
+                        <a href={c.payment_screenshot_url} target="_blank" rel="noreferrer" className="text-[#933d18] font-semibold underline">View proof</a>
+                      )}
+                    </Td>
+                    <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={c.approval_notes}>{c.approval_notes || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
                     <Td>
                       <div className="flex gap-1">
