@@ -5,10 +5,59 @@ import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { Eye, Copy, ExternalLink, RefreshCw } from 'lucide-react'
+import { Eye, Copy, ExternalLink, RefreshCw, Check, PauseCircle, X } from 'lucide-react'
+
+const STAGES = ['Submitted', 'Document Verification', 'Account Department', 'Approved']
+
+function stageState(status) {
+  if (status === 'approved')     return { activeIndex: 3, mode: 'done' }
+  if (status === 'rejected')     return { activeIndex: 1, mode: 'rejected' }
+  if (status === 'hold')         return { activeIndex: 1, mode: 'hold' }
+  if (status === 'doc_verified') return { activeIndex: 2, mode: 'progress' }
+  return { activeIndex: 1, mode: 'progress' } // pending
+}
+
+function ProgressTracker({ status, full = false }) {
+  const { activeIndex, mode } = stageState(status)
+  return (
+    <div className="flex items-start w-full">
+      {STAGES.map((label, i) => {
+        const done = mode === 'done' || i < activeIndex
+        const isCurrent = i === activeIndex && mode !== 'done'
+        let node = 'bg-gray-200 text-gray-400 border-gray-200'
+        let icon = <span className="text-[10px] font-bold">{i + 1}</span>
+        if (done) { node = 'bg-emerald-500 text-white border-emerald-500'; icon = <Check size={full ? 14 : 11} /> }
+        if (isCurrent && mode === 'progress') { node = 'bg-[#933d18] text-white border-[#933d18] animate-pulse' }
+        if (isCurrent && mode === 'hold')     { node = 'bg-orange-500 text-white border-orange-500'; icon = <PauseCircle size={full ? 14 : 11} /> }
+        if (isCurrent && mode === 'rejected') { node = 'bg-red-500 text-white border-red-500'; icon = <X size={full ? 14 : 11} /> }
+        const connectorDone = mode === 'done' || i < activeIndex
+        return (
+          <div key={label} className="flex items-center flex-1 last:flex-none">
+            <div className="flex flex-col items-center shrink-0">
+              <div className={`flex items-center justify-center rounded-full border ${full ? 'w-7 h-7' : 'w-5 h-5'} ${node}`}>
+                {icon}
+              </div>
+              {full && (
+                <span className={`mt-1.5 text-[10px] font-semibold text-center leading-tight max-w-[80px] ${
+                  isCurrent && mode === 'hold' ? 'text-orange-600' :
+                  isCurrent && mode === 'rejected' ? 'text-red-600' :
+                  isCurrent ? 'text-[#933d18]' : done ? 'text-emerald-600' : 'text-gray-400'
+                }`}>{label}</span>
+              )}
+            </div>
+            {i < STAGES.length - 1 && (
+              <div className={`flex-1 h-0.5 mx-1 ${full ? 'mb-4' : ''} ${connectorDone ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 const STATUS_LABELS = {
   pending:      'Pending Doc Verify',
+  hold:         'On Hold — Action Needed',
   doc_verified: 'Pending Account Dept',
   approved:     'Approved',
   rejected:     'Rejected',
@@ -16,6 +65,7 @@ const STATUS_LABELS = {
 
 const STATUS_COLORS = {
   pending:      'bg-amber-50 text-amber-700 border-amber-200',
+  hold:         'bg-orange-50 text-orange-700 border-orange-200',
   doc_verified: 'bg-blue-50 text-blue-700 border-blue-200',
   approved:     'bg-emerald-50 text-emerald-700 border-emerald-200',
   rejected:     'bg-red-50 text-red-700 border-red-200',
@@ -94,6 +144,8 @@ export default function CenterApplications() {
         <span className="bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full">Pending Account Dept</span>
         <span className="text-gray-300">→</span>
         <span className="bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-full">Approved → My Centers</span>
+        <span className="text-gray-300">·</span>
+        <span className="bg-orange-100 text-orange-700 font-bold px-2 py-0.5 rounded-full">On Hold = correction needed</span>
       </div>
 
       {/* Registration link */}
@@ -154,10 +206,16 @@ export default function CenterApplications() {
                 <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
                 <Td className="text-gray-500">{c.phone || '—'}</Td>
                 <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
-                <Td>
+                <Td className="min-w-[200px]">
+                  <div className="w-[180px] mb-1.5"><ProgressTracker status={c.approval_status} /></div>
                   <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${STATUS_COLORS[c.approval_status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
                     {STATUS_LABELS[c.approval_status] || c.approval_status || 'Pending'}
                   </span>
+                  {(c.approval_status === 'hold' || c.approval_status === 'rejected') && c.approval_notes && (
+                    <p className={`text-[11px] mt-1 max-w-[180px] ${c.approval_status === 'hold' ? 'text-orange-600' : 'text-red-600'}`} title={c.approval_notes}>
+                      “{c.approval_notes}”
+                    </p>
+                  )}
                 </Td>
                 <Td>
                   <Button size="sm" variant="ghost" onClick={() => setViewCenter(c)} title="View Details">
@@ -177,6 +235,20 @@ export default function CenterApplications() {
             <div className={`rounded-xl p-4 border ${STATUS_COLORS[viewCenter.approval_status] || 'bg-gray-50 border-gray-200'}`}>
               <p className="font-bold text-gray-900 text-base">{viewCenter.center_name}</p>
               <p className="text-xs mt-1 font-semibold">{STATUS_LABELS[viewCenter.approval_status] || viewCenter.approval_status}</p>
+              {(viewCenter.approval_status === 'hold' || viewCenter.approval_status === 'rejected') && viewCenter.approval_notes && (
+                <div className="mt-2 pt-2 border-t border-current/10">
+                  <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">
+                    {viewCenter.approval_status === 'hold' ? 'Hold Remark — Please Correct' : 'Rejection Reason'}
+                  </p>
+                  <p className="text-sm font-medium mt-0.5 whitespace-pre-line">{viewCenter.approval_notes}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Full progress tracker */}
+            <div className="bg-white border border-gray-100 rounded-xl p-4">
+              <p className="text-[10px] font-bold text-[#933d18] uppercase tracking-widest mb-4">Application Progress</p>
+              <ProgressTracker status={viewCenter.approval_status} full />
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[

@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { CheckCircle, XCircle, Download, Eye, ExternalLink } from 'lucide-react'
+import { CheckCircle, XCircle, Download, Eye, ExternalLink, PauseCircle } from 'lucide-react'
 
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -38,6 +38,8 @@ export default function DocumentDepartment() {
   const [dcSaving, setDCSaving] = useState(false)
   const [dcRejectModal, setDCRejectModal] = useState(null)
   const [dcRejectRemarks, setDCRejectRemarks] = useState('')
+  const [dcHoldModal, setDCHoldModal] = useState(null)
+  const [dcHoldRemarks, setDCHoldRemarks] = useState('')
   const [fieldChecks, setFieldChecks] = useState({})
 
   useEffect(() => { fetchStudents() }, [statusFilter])
@@ -99,6 +101,21 @@ export default function DocumentDepartment() {
     if (error) { alert('Reject failed: ' + error.message); return }
     setDCRejectModal(null)
     setDCRejectRemarks('')
+    fetchDirectCenters()
+  }
+
+  async function confirmDCHold() {
+    if (!dcHoldRemarks.trim()) { alert('Hold karne ke liye remark likhna zaroori hai'); return }
+    setDCSaving(true)
+    const { error } = await supabase.from('centers')
+      .update({ approval_status: 'hold', status: 'Pending', approval_notes: dcHoldRemarks.trim() })
+      .eq('id', dcHoldModal.id)
+    setDCSaving(false)
+    if (error) { alert('Hold failed: ' + error.message); return }
+    setDCHoldModal(null)
+    setDCHoldRemarks('')
+    setDCVerifyModal(null)
+    setFieldChecks({})
     fetchDirectCenters()
   }
 
@@ -229,8 +246,18 @@ export default function DocumentDepartment() {
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                     <Td>
-                      <p className="font-semibold text-gray-900">{c.center_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-900">{c.center_name}</p>
+                        {c.approval_status === 'hold' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                            <PauseCircle size={10} /> On Hold
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-gray-400">{c.email}</p>
+                      {c.approval_status === 'hold' && c.approval_notes && (
+                        <p className="text-[11px] text-amber-600 mt-0.5 max-w-[200px] truncate" title={c.approval_notes}>“{c.approval_notes}”</p>
+                      )}
                     </Td>
                     <Td className="text-gray-500">{c.contact_person || '—'}</Td>
                     <Td className="text-gray-500 text-sm">{c.super_center_name || '—'}</Td>
@@ -245,6 +272,12 @@ export default function DocumentDepartment() {
                         <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks({}) }}>
                           <CheckCircle size={13} /> Verify
                         </Button>
+                        <button
+                          onClick={() => { setDCHoldModal(c); setDCHoldRemarks(c.approval_status === 'hold' ? (c.approval_notes || '') : '') }}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                          title="Hold — needs correction, not forwarded to Account Dept.">
+                          <PauseCircle size={13} /> Hold
+                        </button>
                         <Button size="sm" variant="danger" onClick={() => { setDCRejectModal(c); setDCRejectRemarks('') }}>
                           <XCircle size={13} />
                         </Button>
@@ -616,6 +649,14 @@ export default function DocumentDepartment() {
               const verifiedCount = Object.values(fieldChecks).filter(v => v.ok).length
               const pct = totalItems ? Math.round((verifiedCount / totalItems) * 100) : 0
 
+              const labelMap = {}
+              sections.forEach(s => s.fields.forEach(f => { labelMap[f.key] = f.label }))
+              docFields.forEach(d => { labelMap[d.key] = d.label })
+              const issueLines = Object.entries(fieldChecks)
+                .filter(([, v]) => !v.ok && v.remark && v.remark.trim())
+                .map(([k, v]) => `${labelMap[k] || k}: ${v.remark.trim()}`)
+              const composedHoldNote = [dcRemarks.trim(), ...issueLines].filter(Boolean).join('\n')
+
               function verifyAll() {
                 const next = {}
                 allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '' } })
@@ -814,6 +855,14 @@ export default function DocumentDepartment() {
                       {dcSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
                     </button>
                     <button
+                      onClick={() => { setDCHoldModal(c); setDCHoldRemarks(composedHoldNote) }}
+                      disabled={dcSaving}
+                      className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
+                      title="Documents verify nahi hue — center ko hold par bhejo, Account Dept. ko forward nahi hoga"
+                    >
+                      <PauseCircle size={15} /> Hold
+                    </button>
+                    <button
                       onClick={() => { setDCVerifyModal(null); setFieldChecks({}) }}
                       className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors whitespace-nowrap"
                     >
@@ -823,6 +872,36 @@ export default function DocumentDepartment() {
                 </div>
               )
             })()}
+          </Modal>
+
+          {/* Hold Center Modal — requires remarks, NOT forwarded to Account Dept. */}
+          <Modal isOpen={!!dcHoldModal} onClose={() => setDCHoldModal(null)} title="Hold Center — Send Back for Correction">
+            <div className="space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+                <strong>{dcHoldModal?.center_name}</strong> ko hold par bheja jayega. Yeh Account Dept. ko forward <strong>nahi</strong> hoga.
+                Center / Super Center ko yeh remark dikhega taaki woh correction kar sake.
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">Hold Remark <span className="text-red-500">*</span></label>
+                <textarea
+                  className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-400 resize-none"
+                  rows={4}
+                  placeholder="Kaunse documents/fields mein dikkat hai, likhein (required)..."
+                  value={dcHoldRemarks}
+                  onChange={e => setDCHoldRemarks(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={confirmDCHold}
+                  disabled={dcSaving}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                >
+                  <PauseCircle size={15} /> {dcSaving ? 'Saving...' : 'Confirm Hold'}
+                </button>
+                <Button variant="outline" onClick={() => setDCHoldModal(null)}>Cancel</Button>
+              </div>
+            </div>
           </Modal>
 
           {/* Reject Center Modal — requires remarks */}
