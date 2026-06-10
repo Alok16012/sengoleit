@@ -5,6 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
+import VerifyRow from '../../components/ui/VerifyRow'
 import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -1105,62 +1106,6 @@ export default function AccountDepartment() {
             setAccChecks(next)
           }
 
-          function VRow({ fkey, label, val }) {
-            const check = accChecks[fkey]
-            const isVerified = check?.ok
-            const missing = !val
-            return (
-              <div className={`rounded-xl border transition-all duration-150 ${
-                isVerified ? 'bg-emerald-50 border-emerald-200 shadow-sm'
-                  : missing ? 'bg-amber-50/60 border-dashed border-amber-200'
-                    : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
-              }`}>
-                <div className="flex items-start gap-3 p-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-tight">{label}</p>
-                    <p className="mt-1 text-sm font-semibold text-gray-900 break-words leading-snug">
-                      {val || <span className="text-gray-400 font-normal text-xs italic">Not provided</span>}
-                    </p>
-                  </div>
-                  <div className="shrink-0 mt-0.5 flex items-center gap-1.5">
-                    {isVerified
-                      ? <button onClick={() => setAccChecks(p => ({ ...p, [fkey]: { ...p[fkey], ok: false } }))}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-lg hover:bg-emerald-200 transition-colors">
-                          <CheckCircle size={11} /> Verified
-                        </button>
-                      : <>
-                          <button onClick={() => setAccChecks(p => ({ ...p, [fkey]: { ...(p[fkey] || {}), ok: false, showRemark: !p[fkey]?.showRemark } }))}
-                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
-                              check?.showRemark || check?.remark
-                                ? 'text-red-600 border-red-200 bg-red-50'
-                                : 'text-gray-400 border-gray-200 bg-gray-50 hover:border-red-300 hover:text-red-500'
-                            }`}>
-                            Remark
-                          </button>
-                          <button onClick={() => setAccChecks(p => ({ ...p, [fkey]: { ok: true, remark: p[fkey]?.remark || '' } }))}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 border border-gray-200 bg-gray-50 hover:border-[#933d18] hover:text-[#933d18] hover:bg-[#933d18]/5 px-2.5 py-1 rounded-lg transition-colors">
-                            Verify
-                          </button>
-                        </>
-                    }
-                  </div>
-                </div>
-                {!isVerified && (check?.showRemark || check?.remark) && (
-                  <div className="px-3 pb-3 pt-0">
-                    <input
-                      type="text"
-                      autoFocus
-                      placeholder="Is field mein kya dikkat hai..."
-                      value={check?.remark || ''}
-                      onChange={e => setAccChecks(p => ({ ...p, [fkey]: { ...(p[fkey] || {}), ok: false, remark: e.target.value } }))}
-                      className="w-full text-xs text-gray-600 placeholder:text-gray-300 bg-transparent border-0 border-t border-gray-100 pt-2 focus:outline-none"
-                    />
-                  </div>
-                )}
-              </div>
-            )
-          }
-
           return (
             <div className="flex flex-col h-full bg-gray-50">
               {/* Header */}
@@ -1212,7 +1157,7 @@ export default function AccountDepartment() {
                           </span>
                         </div>
                         <div className="p-4 grid grid-cols-2 gap-3">
-                          {visible.map(f => <VRow key={f.key} fkey={f.key} label={f.label} val={f.val} />)}
+                          {visible.map(f => <VerifyRow key={f.key} fkey={f.key} label={f.label} val={f.val} checks={accChecks} setChecks={setAccChecks} />)}
                         </div>
                       </div>
                     )
