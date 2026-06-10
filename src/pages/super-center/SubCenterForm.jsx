@@ -228,6 +228,10 @@ export default function SubCenterForm() {
         if (!form.contact_person.trim()) return 'Contact Person Name is required'
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
         if (form.aadhar_no.length < 12) return 'Aadhar must be 12 digits'
+        if (!form.state_id) return 'State is required'
+        if (!form.district_id) return 'District is required'
+        if (!form.pincode.trim()) return 'Pincode is required'
+        if (form.pincode.length < 6) return 'Pincode must be 6 digits'
         return null
       default:
         return null
@@ -427,6 +431,19 @@ export default function SubCenterForm() {
                 onChange={e => setField('contact_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
                 error={fe.contact_mobile} placeholder="10-digit mobile" required />
               <Input label="Email Address" type="email" value={form.contact_email} onChange={set('contact_email')} />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <Select label="State *" value={form.state_id} onChange={set('state_id')} required>
+                <option value="">Select State</option>
+                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+              <Select label="District *" value={form.district_id} onChange={set('district_id')} required>
+                <option value="">Select District</option>
+                {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
+              </Select>
+              <Input label="Pincode *" inputMode="numeric" maxLength={6} value={form.pincode}
+                onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                error={fe.pincode} placeholder="6-digit pincode" required />
             </div>
 
             {/* Professional Details */}
