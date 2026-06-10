@@ -107,7 +107,7 @@ export default function CenterApplications() {
     setLoading(true)
     const { data } = await supabase
       .from('centers')
-      .select('*, states(state_name)')
+      .select('*, states!state_id(state_name)')
       .eq('super_center_id', superCenterId)
       .neq('approval_status', 'approved')
       .order('created_at', { ascending: false })

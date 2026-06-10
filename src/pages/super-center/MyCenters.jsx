@@ -45,7 +45,7 @@ export default function MyCenters() {
   async function fetchCenters(superCenterId) {
     const { data } = await supabase
       .from('centers')
-      .select('*, states(state_name)')
+      .select('*, states!state_id(state_name)')
       .eq('super_center_id', superCenterId)
       .eq('approval_status', 'approved')
       .order('created_at', { ascending: false })
