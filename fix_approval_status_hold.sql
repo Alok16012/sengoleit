@@ -1,0 +1,20 @@
+-- ============================================================
+-- FIX: "centers_approval_status_check" violation when putting a
+--      center On Hold.
+-- ------------------------------------------------------------
+-- The old CHECK constraint only allowed:
+--   pending, doc_verified, approved, rejected
+-- but the Document/Account departments now also use 'hold'.
+-- Setting approval_status = 'hold' therefore fails.
+--
+-- Fix: recreate the constraint to include every status the app uses.
+--
+-- Run this in: Supabase Dashboard -> SQL Editor -> New query -> Run
+-- ============================================================
+
+ALTER TABLE centers DROP CONSTRAINT IF EXISTS centers_approval_status_check;
+
+ALTER TABLE centers ADD CONSTRAINT centers_approval_status_check
+  CHECK (approval_status IN ('pending', 'doc_verified', 'hold', 'approved', 'rejected'));
+
+SELECT 'approval_status now allows: pending, doc_verified, hold, approved, rejected' AS result;
