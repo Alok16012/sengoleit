@@ -138,7 +138,14 @@ export default function CenterForm() {
     })
     if (isEdit) {
       supabase.from('centers').select('*').eq('id', id).single()
-        .then(({ data }) => { if (data) setForm(prev => ({ ...prev, ...data })) })
+        .then(({ data }) => {
+          if (!data) return
+          const clean = { ...data }
+          // Strip nulls so inputs stay controlled, and normalise date for <input type="date">
+          Object.keys(clean).forEach(k => { if (clean[k] === null) clean[k] = '' })
+          if (clean.date_of_birth) clean.date_of_birth = String(clean.date_of_birth).slice(0, 10)
+          setForm(prev => ({ ...prev, ...clean }))
+        })
     }
   }, [id])
 
@@ -259,15 +266,21 @@ export default function CenterForm() {
       if (!isEdit) payload.approval_status = 'pending'
       const plainPassword = payload.generated_password
       delete payload.id; delete payload.created_at; delete payload.updated_at
+      // Password is only set at creation; never touch it on edit
+      if (isEdit) delete payload.generated_password
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id', 'super_center_id']
-      fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
+      fkFields.forEach(k => {
+        // FK columns can't take '' — on edit send null so the field can be cleared, on insert drop it
+        if (!payload[k]) { if (isEdit) payload[k] = null; else delete payload[k] }
+      })
       const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'virtual_balance',
         'num_classrooms', 'num_computers', 'num_faculty']
       numericFields.forEach(k => {
-        if (payload[k] === '' || payload[k] === null) delete payload[k]
+        if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
       })
-      Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+      // On insert, drop empty fields to keep DB defaults; on edit, send '' so cleared fields persist
+      if (!isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
 
       if (!isEdit && payload.email && plainPassword) {
         const { data: { session: adminSession } } = await supabase.auth.getSession()

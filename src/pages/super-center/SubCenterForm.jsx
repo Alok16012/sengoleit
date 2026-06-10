@@ -143,7 +143,13 @@ export default function SubCenterForm() {
     }
     if (isEdit) {
       supabase.from('centers').select('*').eq('id', id).single()
-        .then(({ data }) => { if (data) setForm(prev => ({ ...prev, ...data })) })
+        .then(({ data }) => {
+          if (!data) return
+          const clean = { ...data }
+          Object.keys(clean).forEach(k => { if (clean[k] === null) clean[k] = '' })
+          if (clean.date_of_birth) clean.date_of_birth = String(clean.date_of_birth).slice(0, 10)
+          setForm(prev => ({ ...prev, ...clean }))
+        })
     }
   }, [id, user])
 
@@ -267,14 +273,16 @@ export default function SubCenterForm() {
       const payload = { ...form, center_type: 'center', super_center_id: scId, approval_status: 'pending' }
       delete payload.id; delete payload.created_at; delete payload.updated_at
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id']
-      fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
+      fkFields.forEach(k => {
+        if (!payload[k]) { if (isEdit) payload[k] = null; else delete payload[k] }
+      })
       const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid',
         'num_classrooms', 'num_computers', 'num_faculty']
       numericFields.forEach(k => {
-        if (payload[k] === '' || payload[k] === null) delete payload[k]
+        if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
       })
-      Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+      if (!isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
 
       if (isEdit) {
         const { error: err } = await supabase.from('centers').update(payload).eq('id', id)

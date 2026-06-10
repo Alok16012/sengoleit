@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -39,6 +39,13 @@ export default function AccountDepartment() {
   const [caAccRemarks, setCAAccRemarks] = useState('')
   const [caSaving, setCASaving] = useState(false)
   const [caSuccess, setCASuccess] = useState(null)
+  // Account Dept payment verification (Pending Approvals)
+  const [accVerifyModal, setAccVerifyModal] = useState(null)
+  const [accChecks, setAccChecks] = useState({})
+  const [accRemarks, setAccRemarks] = useState('')
+  const [accSaving, setAccSaving] = useState(false)
+  const [accHoldModal, setAccHoldModal] = useState(null)
+  const [accHoldRemarks, setAccHoldRemarks] = useState('')
 
   useEffect(() => { fetchAll() }, [])
   useEffect(() => { if (tab === 'center_apps') fetchCenterApps() }, [tab])
@@ -221,14 +228,31 @@ export default function AccountDepartment() {
     return `SIU${String(next).padStart(3, '0')}`
   }
 
-  async function handleApprove(center) {
+  async function handleApprove(center, notes) {
+    setAccSaving(true)
     const centerCode = center.center_code || await generateNextCenterCode()
     await supabase.from('centers').update({
       approval_status: 'approved',
       status: 'Active',
       center_code: centerCode,
+      ...(notes && notes.trim() ? { approval_notes: notes.trim() } : {}),
     }).eq('id', center.id)
+    setAccSaving(false)
+    setAccVerifyModal(null)
+    setAccChecks({})
     setApprovedModal({ ...center, center_code: centerCode })
+    fetchAll()
+  }
+
+  async function confirmAccHold() {
+    if (!accHoldRemarks.trim()) { alert('Hold karne ke liye remark likhna zaroori hai'); return }
+    setAccSaving(true)
+    const { error } = await supabase.from('centers')
+      .update({ approval_status: 'hold', status: 'Pending', approval_notes: accHoldRemarks.trim() })
+      .eq('id', accHoldModal.id)
+    setAccSaving(false)
+    if (error) { alert('Hold failed: ' + error.message); return }
+    setAccHoldModal(null); setAccHoldRemarks(''); setAccVerifyModal(null); setAccChecks({})
     fetchAll()
   }
 
@@ -498,16 +522,21 @@ export default function AccountDepartment() {
                       <p className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</p>
                       {c.utr_number && <p className="text-gray-400 font-mono">UTR: {c.utr_number}</p>}
                       {c.payment_date && <p className="text-gray-400">{new Date(c.payment_date).toLocaleDateString('en-IN')}</p>}
-                      {c.payment_screenshot_url && (
-                        <a href={c.payment_screenshot_url} target="_blank" rel="noreferrer" className="text-[#933d18] font-semibold underline">View proof</a>
+                      {c.payment_screenshot_url ? (
+                        <a href={c.payment_screenshot_url} target="_blank" rel="noreferrer"
+                          className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold text-[#933d18] bg-[#933d18]/8 border border-[#933d18]/20 px-2 py-0.5 rounded-lg hover:bg-[#933d18]/15 transition-colors">
+                          <Eye size={11} /> View Receipt
+                        </a>
+                      ) : (
+                        <span className="inline-block mt-1 text-[11px] font-semibold text-amber-600">No receipt uploaded</span>
                       )}
                     </Td>
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={c.approval_notes}>{c.approval_notes || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
                     <Td>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="success" onClick={() => handleApprove(c)}>
-                          <CheckCircle size={13} /> Approve
+                        <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks('') }}>
+                          <CheckCircle size={13} /> Verify
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => handleReject(c)}>
                           <XCircle size={13} /> Reject
@@ -1032,6 +1061,268 @@ export default function AccountDepartment() {
             <Button onClick={() => setCASuccess(null)} className="w-full justify-center">Done</Button>
           </div>
         )}
+      </Modal>
+
+      {/* Verify Payment Modal (Account Dept) — Full Screen */}
+      <Modal isOpen={!!accVerifyModal} onClose={() => { setAccVerifyModal(null); setAccChecks({}) }} title="Verify Payment & Approve Center" size="fullscreen">
+        {accVerifyModal && (() => {
+          const c = accVerifyModal
+          const sections = [
+            { title: 'Center', icon: '🏢', fields: [
+              { key: 'f_center_name', label: 'Center Name',    val: c.center_name },
+              { key: 'f_contact',     label: 'Contact Person', val: c.contact_person },
+              { key: 'f_email',       label: 'Email',          val: c.email },
+              { key: 'f_phone',       label: 'Phone',          val: c.phone },
+            ]},
+            { title: 'Payment Details', icon: '💳', fields: [
+              { key: 'f_amount',     label: 'Amount Paid',     val: c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : null },
+              { key: 'f_utr',        label: 'UTR / Ref Number', val: c.utr_number },
+              { key: 'f_pay_date',   label: 'Payment Date',    val: c.payment_date ? new Date(c.payment_date).toLocaleDateString('en-IN') : null },
+              { key: 'f_pay_remark', label: 'Payment Remark',  val: c.payment_remark },
+            ]},
+            { title: 'Bank Details', icon: '🏦', fields: [
+              { key: 'f_acct_holder', label: 'Account Holder',  val: c.bank_account_holder },
+              { key: 'f_acct_no',     label: 'Account Number',  val: c.bank_account_number },
+              { key: 'f_ifsc',        label: 'IFSC Code',       val: c.ifsc_code },
+              { key: 'f_branch',      label: 'Bank Branch',     val: c.bank_branch },
+            ]},
+          ]
+          const allKeys = sections.flatMap(s => s.fields.filter(f => f.val).map(f => f.key))
+          const totalItems = allKeys.length
+          const verifiedCount = allKeys.filter(k => accChecks[k]?.ok).length
+          const pct = totalItems ? Math.round((verifiedCount / totalItems) * 100) : 0
+
+          const labelMap = {}
+          sections.forEach(s => s.fields.forEach(f => { labelMap[f.key] = f.label }))
+          const issueLines = Object.entries(accChecks)
+            .filter(([, v]) => !v.ok && v.remark && v.remark.trim())
+            .map(([k, v]) => `${labelMap[k] || k}: ${v.remark.trim()}`)
+          const composedHoldNote = [accRemarks.trim(), ...issueLines].filter(Boolean).join('\n')
+
+          function verifyAll() {
+            const next = {}
+            allKeys.forEach(k => { next[k] = { ok: true, remark: accChecks[k]?.remark || '' } })
+            setAccChecks(next)
+          }
+
+          function VRow({ fkey, label, val }) {
+            const check = accChecks[fkey]
+            const isVerified = check?.ok
+            const missing = !val
+            return (
+              <div className={`rounded-xl border transition-all duration-150 ${
+                isVerified ? 'bg-emerald-50 border-emerald-200 shadow-sm'
+                  : missing ? 'bg-amber-50/60 border-dashed border-amber-200'
+                    : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
+              }`}>
+                <div className="flex items-start gap-3 p-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-tight">{label}</p>
+                    <p className="mt-1 text-sm font-semibold text-gray-900 break-words leading-snug">
+                      {val || <span className="text-gray-400 font-normal text-xs italic">Not provided</span>}
+                    </p>
+                  </div>
+                  <div className="shrink-0 mt-0.5 flex items-center gap-1.5">
+                    {isVerified
+                      ? <button onClick={() => setAccChecks(p => ({ ...p, [fkey]: { ...p[fkey], ok: false } }))}
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-lg hover:bg-emerald-200 transition-colors">
+                          <CheckCircle size={11} /> Verified
+                        </button>
+                      : <>
+                          <button onClick={() => setAccChecks(p => ({ ...p, [fkey]: { ...(p[fkey] || {}), ok: false, showRemark: !p[fkey]?.showRemark } }))}
+                            className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
+                              check?.showRemark || check?.remark
+                                ? 'text-red-600 border-red-200 bg-red-50'
+                                : 'text-gray-400 border-gray-200 bg-gray-50 hover:border-red-300 hover:text-red-500'
+                            }`}>
+                            Remark
+                          </button>
+                          <button onClick={() => setAccChecks(p => ({ ...p, [fkey]: { ok: true, remark: p[fkey]?.remark || '' } }))}
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 border border-gray-200 bg-gray-50 hover:border-[#933d18] hover:text-[#933d18] hover:bg-[#933d18]/5 px-2.5 py-1 rounded-lg transition-colors">
+                            Verify
+                          </button>
+                        </>
+                    }
+                  </div>
+                </div>
+                {!isVerified && (check?.showRemark || check?.remark) && (
+                  <div className="px-3 pb-3 pt-0">
+                    <input
+                      type="text"
+                      autoFocus
+                      placeholder="Is field mein kya dikkat hai..."
+                      value={check?.remark || ''}
+                      onChange={e => setAccChecks(p => ({ ...p, [fkey]: { ...(p[fkey] || {}), ok: false, remark: e.target.value } }))}
+                      className="w-full text-xs text-gray-600 placeholder:text-gray-300 bg-transparent border-0 border-t border-gray-100 pt-2 focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          }
+
+          return (
+            <div className="flex flex-col h-full bg-gray-50">
+              {/* Header */}
+              <div className="shrink-0 bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-[#933d18]/10 flex items-center justify-center shrink-0 border border-[#933d18]/20">
+                    <span className="text-lg font-black text-[#933d18]">{c.center_name?.[0]?.toUpperCase() || 'C'}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-black text-gray-900 truncate">{c.center_name}</h2>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">{[c.contact_person, c.email, c.phone].filter(Boolean).join(' · ')}</p>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="text-right">
+                      <div className="flex items-baseline gap-1 justify-end">
+                        <span className="text-xl font-black text-gray-900">{verifiedCount}</span>
+                        <span className="text-sm text-gray-400 font-semibold">/ {totalItems}</span>
+                        <span className={`ml-1 text-xs font-bold ${pct === 100 ? 'text-emerald-600' : 'text-gray-400'}`}>{pct === 100 ? '✓ Complete' : `${pct}%`}</span>
+                      </div>
+                      <div className="w-40 h-1.5 bg-gray-100 rounded-full mt-1.5">
+                        <div className={`h-1.5 rounded-full transition-all duration-300 ${pct === 100 ? 'bg-emerald-500' : 'bg-[#933d18]'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <button onClick={verifyAll}
+                      className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm">
+                      <CheckCircle size={15} /> Verify All
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-hidden flex">
+                {/* Left — Field sections */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {sections.map(sec => {
+                    const visible = sec.fields.filter(f => f.val)
+                    if (!visible.length) return null
+                    const secVerified = visible.filter(f => accChecks[f.key]?.ok).length
+                    return (
+                      <div key={sec.title} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{sec.icon}</span>
+                            <p className="text-xs font-black text-gray-700 uppercase tracking-widest">{sec.title}</p>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${secVerified === visible.length ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {secVerified}/{visible.length} verified
+                          </span>
+                        </div>
+                        <div className="p-4 grid grid-cols-2 gap-3">
+                          {visible.map(f => <VRow key={f.key} fkey={f.key} label={f.label} val={f.val} />)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Right — Payment receipt */}
+                <div className="w-96 shrink-0 overflow-y-auto border-l border-gray-200 bg-white">
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <span className="text-sm">🧾</span>
+                      <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Payment Receipt</p>
+                    </div>
+                    {c.payment_screenshot_url ? (
+                      <div className="space-y-3">
+                        <a href={c.payment_screenshot_url} target="_blank" rel="noreferrer"
+                          className="block rounded-xl border border-gray-200 overflow-hidden bg-gray-50 hover:border-[#933d18]/40 transition-colors">
+                          <img src={c.payment_screenshot_url} alt="Payment receipt"
+                            className="w-full max-h-[60vh] object-contain bg-white"
+                            onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextSibling.style.display = 'flex' }} />
+                          <div style={{ display: 'none' }} className="h-40 items-center justify-center text-xs text-gray-500 flex-col gap-2">
+                            <FileText size={22} className="text-[#933d18]/60" />
+                            <span>Receipt file (PDF / doc)</span>
+                          </div>
+                        </a>
+                        <a href={c.payment_screenshot_url} target="_blank" rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#933d18] hover:underline">
+                          <ExternalLink size={12} /> Open full receipt
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border-2 border-dashed border-amber-200 bg-amber-50/60 p-6 text-center">
+                        <p className="text-sm font-bold text-amber-700">No receipt uploaded</p>
+                        <p className="text-xs text-amber-600/80 mt-1">Center ne payment proof attach nahi kiya. Hold karke remark dein.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center gap-3 shadow-sm">
+                <input
+                  type="text"
+                  placeholder="Overall remarks (optional)..."
+                  className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-gray-50 transition-all"
+                  value={accRemarks}
+                  onChange={e => setAccRemarks(e.target.value)}
+                />
+                <button
+                  onClick={() => handleApprove(c, accRemarks)}
+                  disabled={accSaving}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
+                >
+                  <CheckCircle size={15} /> {accSaving ? 'Saving...' : 'Verify & Approve'}
+                </button>
+                <button
+                  onClick={() => { setAccHoldModal(c); setAccHoldRemarks(composedHoldNote) }}
+                  disabled={accSaving}
+                  className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
+                  title="Payment galat hai — center ko hold par bhejo"
+                >
+                  <PauseCircle size={15} /> Hold
+                </button>
+                <button
+                  onClick={() => { setAccVerifyModal(null); setAccChecks({}); handleReject(c) }}
+                  disabled={accSaving}
+                  className="flex items-center gap-2 bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
+                >
+                  <XCircle size={15} /> Reject
+                </button>
+                <button
+                  onClick={() => { setAccVerifyModal(null); setAccChecks({}) }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+      </Modal>
+
+      {/* Hold Center Modal (Account Dept) — requires remarks */}
+      <Modal isOpen={!!accHoldModal} onClose={() => setAccHoldModal(null)} title="Hold Center — Send Back for Correction">
+        <div className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+            <strong>{accHoldModal?.center_name}</strong> ko hold par bheja jayega. Center / Super Center ko yeh remark dikhega taaki woh payment/details theek kar sake.
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Hold Remark <span className="text-red-500">*</span></label>
+            <textarea
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-400 resize-none"
+              rows={4}
+              placeholder="Payment / kis field mein dikkat hai, likhein (required)..."
+              value={accHoldRemarks}
+              onChange={e => setAccHoldRemarks(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={confirmAccHold}
+              disabled={accSaving}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            >
+              <PauseCircle size={15} /> {accSaving ? 'Saving...' : 'Confirm Hold'}
+            </button>
+            <Button variant="outline" onClick={() => setAccHoldModal(null)}>Cancel</Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Reject Modal */}
