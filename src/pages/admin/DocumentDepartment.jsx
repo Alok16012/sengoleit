@@ -652,6 +652,15 @@ export default function DocumentDepartment() {
                 .map(([k, v]) => `${labelMap[k] || k}: ${v.remark.trim()}`)
               const composedHoldNote = [dcRemarks.trim(), ...issueLines].filter(Boolean).join('\n')
 
+              // Forward to Account Dept ONLY if every item is verified and no remark is noted.
+              // Any unverified box or any remark => must Hold instead.
+              const hasAnyRemark = Object.values(fieldChecks).some(v => v?.remark && v.remark.trim())
+              const allVerified = totalItems > 0 && allKeys.every(k => fieldChecks[k]?.ok)
+              const canForward = allVerified && !hasAnyRemark
+              const blockReason = !allVerified
+                ? `${totalItems - verifiedCount} field abhi verify nahi hue`
+                : hasAnyRemark ? 'Kuch fields par remark mention hai' : ''
+
               function verifyAll() {
                 const next = {}
                 allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '' } })
@@ -765,6 +774,11 @@ export default function DocumentDepartment() {
 
                   {/* Footer */}
                   <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center gap-3 shadow-sm">
+                    {!canForward && blockReason && (
+                      <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg whitespace-nowrap">
+                        {blockReason} — Account Dept. ko forward nahi hoga, Hold karo
+                      </span>
+                    )}
                     <input
                       type="text"
                       placeholder="Overall remarks (optional)..."
@@ -773,9 +787,16 @@ export default function DocumentDepartment() {
                       onChange={e => setDCRemarks(e.target.value)}
                     />
                     <button
-                      onClick={handleDCVerify}
-                      disabled={dcSaving}
-                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
+                      onClick={() => {
+                        if (!canForward) {
+                          alert(`Account Dept. ko forward nahi kar sakte — ${blockReason}.\n\nSaare fields verify karo aur koi remark mat chhodo, ya phir center ko Hold karo.`)
+                          return
+                        }
+                        handleDCVerify()
+                      }}
+                      disabled={dcSaving || !canForward}
+                      title={canForward ? '' : `${blockReason} — Hold karo`}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
                     >
                       <CheckCircle size={15} />
                       {dcSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
