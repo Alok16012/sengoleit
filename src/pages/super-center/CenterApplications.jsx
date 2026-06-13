@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { Eye, Copy, ExternalLink, RefreshCw, Check, PauseCircle, X } from 'lucide-react'
+import { Eye, Copy, ExternalLink, RefreshCw, Check, PauseCircle, X, Pencil } from 'lucide-react'
 
 const STAGES = ['Submitted', 'Document Verification', 'Account Department', 'Approved']
 
@@ -83,6 +84,7 @@ function DocLink({ url, label }) {
 
 export default function CenterApplications() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [myCenter, setMyCenter] = useState(null)
   const [centers, setCenters] = useState([])
   const [loading, setLoading] = useState(true)
@@ -218,9 +220,18 @@ export default function CenterApplications() {
                   )}
                 </Td>
                 <Td>
-                  <Button size="sm" variant="ghost" onClick={() => setViewCenter(c)} title="View Details">
-                    <Eye size={13} className="text-[#933d18]" />
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" variant="ghost" onClick={() => setViewCenter(c)} title="View Details">
+                      <Eye size={13} className="text-[#933d18]" />
+                    </Button>
+                    {c.approval_status === 'hold' && (
+                      <button onClick={() => navigate(`/super-center/centers/edit/${c.id}`)}
+                        title="Edit & Resubmit"
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-orange-500 hover:bg-orange-600 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap">
+                        <Pencil size={12} /> Edit & Resubmit
+                      </button>
+                    )}
+                  </div>
                 </Td>
               </Tr>
             ))}
@@ -296,7 +307,15 @@ export default function CenterApplications() {
                 ))}
               </div>
             </div>
-            <Button variant="outline" onClick={() => setViewCenter(null)} className="w-full justify-center">Close</Button>
+            <div className="flex gap-3">
+              {viewCenter.approval_status === 'hold' && (
+                <button onClick={() => navigate(`/super-center/centers/edit/${viewCenter.id}`)}
+                  className="flex-1 inline-flex items-center justify-center gap-2 font-bold text-sm text-white bg-orange-500 hover:bg-orange-600 rounded-xl px-4 py-2.5 transition-all">
+                  <Pencil size={14} /> Edit & Resubmit
+                </button>
+              )}
+              <Button variant="outline" onClick={() => setViewCenter(null)} className="flex-1 justify-center">Close</Button>
+            </div>
           </div>
         )}
       </Modal>

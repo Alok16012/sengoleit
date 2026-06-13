@@ -118,6 +118,10 @@ export default function SubCenterForm() {
   const [stepError, setStepError] = useState('')
   const [sameAddress, setSameAddress] = useState(false)
   const [fe, setFe] = useState({}) // field errors
+  const [loadedStatus, setLoadedStatus] = useState(null) // original approval_status when editing
+  const [holdRemark, setHoldRemark] = useState('')        // doc dept remark to show on resubmit
+  const isResubmit = isEdit && ['hold', 'rejected', 'pending'].includes(loadedStatus)
+  const backDest = isResubmit ? '/super-center/center-applications' : '/super-center/centers'
 
   const handleSameAddress = (checked) => {
     setSameAddress(checked)
@@ -145,6 +149,8 @@ export default function SubCenterForm() {
       supabase.from('centers').select('*').eq('id', id).single()
         .then(({ data }) => {
           if (!data) return
+          setLoadedStatus(data.approval_status || null)
+          if (data.approval_status === 'hold') setHoldRemark(data.approval_notes || '')
           const clean = { ...data }
           Object.keys(clean).forEach(k => { if (clean[k] === null) clean[k] = '' })
           if (clean.date_of_birth) clean.date_of_birth = String(clean.date_of_birth).slice(0, 10)
@@ -270,8 +276,18 @@ export default function SubCenterForm() {
       }
       if (!scId) throw new Error('Super center account not found. Please contact admin.')
 
-      const payload = { ...form, center_type: 'center', super_center_id: scId, approval_status: 'pending' }
+      // A fresh create, or editing a held/rejected/pending center, goes (back) to Doc Dept as a
+      // pending application — and any old hold remark is cleared so it is verified again from scratch.
+      // Editing an already-approved / doc-verified center must NOT silently demote it to pending.
+      const resubmit = !isEdit || ['hold', 'rejected', 'pending'].includes(loadedStatus) || !loadedStatus
+      const payload = { ...form, center_type: 'center', super_center_id: scId }
       delete payload.id; delete payload.created_at; delete payload.updated_at
+      if (resubmit) {
+        payload.approval_status = 'pending'
+        payload.approval_notes = null
+      } else {
+        payload.approval_status = loadedStatus
+      }
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id']
       fkFields.forEach(k => {
         if (!payload[k]) { if (isEdit) payload[k] = null; else delete payload[k] }
@@ -291,7 +307,7 @@ export default function SubCenterForm() {
         const { error: err } = await supabase.from('centers').insert(payload)
         if (err) throw err
       }
-      navigate(isEdit ? '/super-center/centers' : '/super-center/center-applications')
+      navigate(resubmit ? '/super-center/center-applications' : '/super-center/centers')
     } catch (err) {
       const msg = err.message || ''
       if (msg.includes('centers_center_code_key') || msg.includes('center_code')) {
@@ -324,11 +340,28 @@ export default function SubCenterForm() {
 
   return (
     <div className="p-4 lg:p-6 pb-20">
-      <PageHeader title={isEdit ? 'Edit Center' : 'Create Center'} backTo="/super-center/centers" />
+      <PageHeader title={isResubmit ? 'Resubmit Application' : isEdit ? 'Edit Center' : 'Create Center'} backTo={backDest} />
 
-      <div className="mt-3 mb-4 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
-        This center will be created under your Super Center and sent for university approval.
-      </div>
+      {loadedStatus === 'hold' ? (
+        <div className="mt-3 mb-4 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-orange-700">
+            <AlertCircle size={15} className="shrink-0" /> Document Department ne is application ko hold kiya hai
+          </div>
+          {holdRemark && (
+            <p className="mt-1.5 text-sm text-orange-800 whitespace-pre-line">
+              <span className="font-semibold">Remark:</span> {holdRemark}
+            </p>
+          )}
+          <p className="mt-1.5 text-xs text-orange-600">
+            Zaroori fields theek karein / documents dobara upload karein aur submit karein. Resubmit karne par application
+            wapas Document Department ke paas verification ke liye jayegi.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-3 mb-4 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
+          This center will be created under your Super Center and sent for university approval.
+        </div>
+      )}
 
       {/* Step header */}
       <div className="sticky top-0 z-20 mb-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden">
@@ -750,14 +783,14 @@ export default function SubCenterForm() {
             )}
           </div>
           <div className="flex gap-3">
-            <Button type="button" variant="outline" onClick={() => navigate('/super-center/centers')}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => navigate(backDest)}>Cancel</Button>
             {step < STEPS.length - 1 ? (
               <Button type="button" onClick={handleNext}>
                 Next <ArrowRight size={14} />
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmit} disabled={loading}>
-                {loading ? 'Saving...' : isEdit ? 'Update Center' : 'Create Center'}
+                {loading ? 'Saving...' : loadedStatus === 'hold' ? 'Resubmit Application' : isEdit ? 'Update Center' : 'Create Center'}
               </Button>
             )}
           </div>
