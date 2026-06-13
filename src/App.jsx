@@ -29,6 +29,7 @@ import FeeManagement from './pages/admin/FeeManagement'
 import Boards from './pages/admin/Boards'
 import WalletSummary from './pages/admin/WalletSummary'
 import CouponManagement from './pages/admin/CouponManagement'
+import CenterPricing from './pages/admin/CenterPricing'
 
 // Super Center portal
 import SuperCenterDashboard from './pages/super-center/SuperCenterDashboard'
@@ -152,6 +153,7 @@ export default function App() {
             <Route path="/admin/boards" element={<Boards />} />
             <Route path="/admin/wallet-summary" element={<WalletSummary />} />
             <Route path="/admin/coupons" element={<CouponManagement />} />
+            <Route path="/admin/center-pricing" element={<CenterPricing />} />
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />

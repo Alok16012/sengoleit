@@ -238,11 +238,35 @@ export default function AccountDepartment() {
       center_code: centerCode,
       ...(notes && notes.trim() ? { approval_notes: notes.trim() } : {}),
     }).eq('id', center.id)
+    await creditCommissionOnApproval(center.id)
     setAccSaving(false)
     setAccVerifyModal(null)
     setAccChecks({})
     setApprovedModal({ ...center, center_code: centerCode })
     fetchAll()
+  }
+
+  // On approval: credit the center's base_fee to its own wallet (admission credit) and
+  // the surplus (amount_paid − base_fee) to the parent super center as commission.
+  // Guarded by commission_credited so re-approval never double-credits.
+  async function creditCommissionOnApproval(centerId) {
+    const { data: c } = await supabase.from('centers')
+      .select('id, super_center_id, amount_paid, base_fee, virtual_balance, commission_credited')
+      .eq('id', centerId).single()
+    if (!c || c.commission_credited) return
+    const base = Number(c.base_fee || 0)
+    const paid = Number(c.amount_paid || 0)
+    const commission = Math.max(0, paid - base)
+    await supabase.from('centers').update({
+      virtual_balance: Number(c.virtual_balance || 0) + base,
+      commission_credited: true,
+    }).eq('id', c.id)
+    if (c.super_center_id && commission > 0) {
+      const { data: sc } = await supabase.from('centers').select('virtual_balance').eq('id', c.super_center_id).single()
+      await supabase.from('centers').update({
+        virtual_balance: Number(sc?.virtual_balance || 0) + commission,
+      }).eq('id', c.super_center_id)
+    }
   }
 
   async function confirmAccHold() {

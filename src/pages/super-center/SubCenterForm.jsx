@@ -50,6 +50,7 @@ const emptyForm = {
   cancel_cheque_url: '', bank_passbook_url: '',
   // Payment
   amount_paid: '', utr_number: '', payment_date: '', payment_screenshot_url: '', payment_remark: '',
+  letter_type: '', base_fee: '',
   center_type: 'center',
   approval_status: 'pending',
 }
@@ -120,6 +121,7 @@ export default function SubCenterForm() {
   const [fe, setFe] = useState({}) // field errors
   const [loadedStatus, setLoadedStatus] = useState(null) // original approval_status when editing
   const [holdRemark, setHoldRemark] = useState('')        // doc dept remark to show on resubmit
+  const [pricing, setPricing] = useState(null)            // admin-set { with_letter_price, without_letter_price }
   const isResubmit = isEdit && ['hold', 'rejected', 'pending'].includes(loadedStatus)
   const backDest = isResubmit ? '/super-center/center-applications' : '/super-center/centers'
 
@@ -145,6 +147,8 @@ export default function SubCenterForm() {
       supabase.from('centers').select('id').eq('email', user.email).eq('center_type', 'super_center').single()
         .then(({ data }) => setSuperCenterId(data?.id))
     }
+    supabase.from('center_pricing').select('with_letter_price, without_letter_price').eq('id', 1).maybeSingle()
+      .then(({ data }) => setPricing(data || { with_letter_price: 0, without_letter_price: 0 }))
     if (isEdit) {
       supabase.from('centers').select('*').eq('id', id).single()
         .then(({ data }) => {
@@ -179,6 +183,16 @@ export default function SubCenterForm() {
   }, [form.org_state_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+
+  // Pricing / commission derivations for the Payment step
+  const basePrice = form.letter_type === 'with'
+    ? Number(pricing?.with_letter_price || 0)
+    : form.letter_type === 'without'
+      ? Number(pricing?.without_letter_price || 0)
+      : 0
+  const amountPaidNum = Number(form.amount_paid || 0)
+  const commissionPreview = Math.max(0, amountPaidNum - basePrice)
+  const belowMin = !!form.letter_type && form.amount_paid !== '' && amountPaidNum < basePrice
 
   function validateField(key, val) {
     switch (key) {
@@ -245,6 +259,11 @@ export default function SubCenterForm() {
         if (!form.pincode.trim()) return 'Pincode is required'
         if (form.pincode.length < 6) return 'Pincode must be 6 digits'
         return null
+      case 5:
+        if (!form.letter_type) return 'Please select a letter type (With Letter / Without Letter)'
+        if (form.amount_paid === '' || isNaN(amountPaidNum)) return 'Amount Paid is required'
+        if (amountPaidNum < basePrice) return `Amount Paid must be at least ₹${basePrice.toLocaleString()} (the ${form.letter_type === 'with' ? 'with-letter' : 'without-letter'} base fee)`
+        return null
       default:
         return null
     }
@@ -280,7 +299,7 @@ export default function SubCenterForm() {
       // pending application — and any old hold remark is cleared so it is verified again from scratch.
       // Editing an already-approved / doc-verified center must NOT silently demote it to pending.
       const resubmit = !isEdit || ['hold', 'rejected', 'pending'].includes(loadedStatus) || !loadedStatus
-      const payload = { ...form, center_type: 'center', super_center_id: scId }
+      const payload = { ...form, center_type: 'center', super_center_id: scId, base_fee: basePrice }
       delete payload.id; delete payload.created_at; delete payload.updated_at
       if (resubmit) {
         payload.approval_status = 'pending'
@@ -292,7 +311,7 @@ export default function SubCenterForm() {
       fkFields.forEach(k => {
         if (!payload[k]) { if (isEdit) payload[k] = null; else delete payload[k] }
       })
-      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid',
+      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid', 'base_fee',
         'num_classrooms', 'num_computers', 'num_faculty']
       numericFields.forEach(k => {
         if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
@@ -671,16 +690,66 @@ export default function SubCenterForm() {
         {/* STEP 5: Payment */}
         {step === 5 && (
           <FormSection title="Payment Details" icon={<Wallet size={16} />}
-            subtitle="Record registration / initial payment made by the applicant">
+            subtitle="Choose the letter type and record the payment received from the center applicant">
+
+            {/* Letter type selector */}
+            <div>
+              <p className="text-xs font-bold text-gray-500 mb-2">Letter Type *</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { key: 'with', label: 'With Letter', price: Number(pricing?.with_letter_price || 0) },
+                  { key: 'without', label: 'Without Letter', price: Number(pricing?.without_letter_price || 0) },
+                ].map(opt => {
+                  const active = form.letter_type === opt.key
+                  return (
+                    <button key={opt.key} type="button"
+                      onClick={() => setForm(f => ({ ...f, letter_type: opt.key }))}
+                      className={`text-left rounded-xl border-2 px-4 py-3 transition-all ${
+                        active ? 'border-[#933d18] bg-[#933d18]/5' : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-sm font-bold ${active ? 'text-[#933d18]' : 'text-gray-700'}`}>{opt.label}</span>
+                        {active && <CheckCircle2 size={15} className="text-[#933d18]" />}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Base fee: <span className="font-bold text-gray-800">₹{opt.price.toLocaleString()}</span></p>
+                    </button>
+                  )
+                })}
+              </div>
+              {form.letter_type && (
+                <p className="text-[11px] text-gray-400 mt-2">
+                  Minimum you must charge: <span className="font-bold text-gray-600">₹{basePrice.toLocaleString()}</span>.
+                  This amount becomes the center's admission credit; anything extra is your commission.
+                </p>
+              )}
+            </div>
+
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 font-medium">
               Enter the payment details received from the center applicant before their center is activated.
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Amount Paid (₹)" type="number" placeholder="e.g. 5000"
-                value={form.amount_paid} onChange={set('amount_paid')} />
+              <Input label="Amount Paid (₹)" type="number" placeholder={form.letter_type ? `Min ₹${basePrice.toLocaleString()}` : 'e.g. 5000'}
+                value={form.amount_paid} onChange={set('amount_paid')}
+                error={belowMin ? `Must be at least ₹${basePrice.toLocaleString()}` : undefined} />
               <Input label="UTR / Transaction Number" placeholder="Bank reference number"
                 value={form.utr_number} onChange={set('utr_number')} />
             </div>
+
+            {/* Commission preview */}
+            {form.letter_type && form.amount_paid !== '' && !belowMin && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                  <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Center Admission Credit</p>
+                  <p className="text-lg font-black text-emerald-700 mt-0.5">₹{basePrice.toLocaleString()}</p>
+                  <p className="text-[11px] text-emerald-600/80">Added to center's wallet on approval</p>
+                </div>
+                <div className="bg-[#933d18]/5 border border-[#933d18]/15 rounded-xl p-3">
+                  <p className="text-[11px] font-bold text-[#933d18] uppercase tracking-wide">Your Commission</p>
+                  <p className="text-lg font-black text-[#933d18] mt-0.5">₹{commissionPreview.toLocaleString()}</p>
+                  <p className="text-[11px] text-[#933d18]/70">Credited to your wallet on approval</p>
+                </div>
+              </div>
+            )}
             <Input label="Payment Date" type="date"
               value={form.payment_date} onChange={set('payment_date')} />
             <Textarea label="Remark" placeholder="e.g. Registration fee received, partial payment, pending balance, etc."

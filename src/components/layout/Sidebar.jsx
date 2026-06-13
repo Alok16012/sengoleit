@@ -29,6 +29,7 @@ const adminLinks = [
   { to: '/admin/wallet-summary', icon: TrendingUp, label: 'Wallet Summary' },
   { to: '/admin/coupons', icon: Ticket, label: 'Coupon Management' },
   { to: '/admin/fee-management', icon: IndianRupee, label: 'Fee Management' },
+  { to: '/admin/center-pricing', icon: Tag, label: 'Center Pricing' },
 ]
 
 const reportItems = (base) => [
