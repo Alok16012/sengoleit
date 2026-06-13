@@ -218,20 +218,18 @@ export default function CenterApplications() {
                       “{c.approval_notes}”
                     </p>
                   )}
+                  {(c.approval_status === 'hold' || c.approval_status === 'rejected') && (
+                    <button onClick={() => navigate(`/super-center/centers/edit/${c.id}`)}
+                      title="Edit & Resubmit"
+                      className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-white bg-orange-500 hover:bg-orange-600 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap">
+                      <Pencil size={12} /> Edit & Resubmit
+                    </button>
+                  )}
                 </Td>
                 <Td>
-                  <div className="flex items-center gap-1.5">
-                    <Button size="sm" variant="ghost" onClick={() => setViewCenter(c)} title="View Details">
-                      <Eye size={13} className="text-[#933d18]" />
-                    </Button>
-                    {c.approval_status === 'hold' && (
-                      <button onClick={() => navigate(`/super-center/centers/edit/${c.id}`)}
-                        title="Edit & Resubmit"
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-orange-500 hover:bg-orange-600 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap">
-                        <Pencil size={12} /> Edit & Resubmit
-                      </button>
-                    )}
-                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => setViewCenter(c)} title="View Details">
+                    <Eye size={13} className="text-[#933d18]" />
+                  </Button>
                 </Td>
               </Tr>
             ))}
@@ -308,7 +306,7 @@ export default function CenterApplications() {
               </div>
             </div>
             <div className="flex gap-3">
-              {viewCenter.approval_status === 'hold' && (
+              {(viewCenter.approval_status === 'hold' || viewCenter.approval_status === 'rejected') && (
                 <button onClick={() => navigate(`/super-center/centers/edit/${viewCenter.id}`)}
                   className="flex-1 inline-flex items-center justify-center gap-2 font-bold text-sm text-white bg-orange-500 hover:bg-orange-600 rounded-xl px-4 py-2.5 transition-all">
                   <Pencil size={14} /> Edit & Resubmit

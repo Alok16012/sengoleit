@@ -150,7 +150,7 @@ export default function SubCenterForm() {
         .then(({ data }) => {
           if (!data) return
           setLoadedStatus(data.approval_status || null)
-          if (data.approval_status === 'hold') setHoldRemark(data.approval_notes || '')
+          if (data.approval_status === 'hold' || data.approval_status === 'rejected') setHoldRemark(data.approval_notes || '')
           const clean = { ...data }
           Object.keys(clean).forEach(k => { if (clean[k] === null) clean[k] = '' })
           if (clean.date_of_birth) clean.date_of_birth = String(clean.date_of_birth).slice(0, 10)
@@ -342,10 +342,13 @@ export default function SubCenterForm() {
     <div className="p-4 lg:p-6 pb-20">
       <PageHeader title={isResubmit ? 'Resubmit Application' : isEdit ? 'Edit Center' : 'Create Center'} backTo={backDest} />
 
-      {loadedStatus === 'hold' ? (
+      {(loadedStatus === 'hold' || loadedStatus === 'rejected') ? (
         <div className="mt-3 mb-4 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
           <div className="flex items-center gap-2 text-sm font-bold text-orange-700">
-            <AlertCircle size={15} className="shrink-0" /> Document Department ne is application ko hold kiya hai
+            <AlertCircle size={15} className="shrink-0" />
+            {loadedStatus === 'hold'
+              ? 'Document Department ne is application ko hold kiya hai'
+              : 'Document Department ne is application ko reject kiya hai'}
           </div>
           {holdRemark && (
             <p className="mt-1.5 text-sm text-orange-800 whitespace-pre-line">
@@ -790,7 +793,7 @@ export default function SubCenterForm() {
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmit} disabled={loading}>
-                {loading ? 'Saving...' : loadedStatus === 'hold' ? 'Resubmit Application' : isEdit ? 'Update Center' : 'Create Center'}
+                {loading ? 'Saving...' : isResubmit ? 'Resubmit Application' : isEdit ? 'Update Center' : 'Create Center'}
               </Button>
             )}
           </div>
