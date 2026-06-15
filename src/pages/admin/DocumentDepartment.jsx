@@ -911,6 +911,18 @@ export default function DocumentDepartment() {
                 setFieldChecks(next)
               }
 
+              function unverifyAll() {
+                const next = {}
+                // Undo Verify All — reset everything to unverified, but locked
+                // (pre-verified resubmit) fields stay verified & locked.
+                allKeys.forEach(k => {
+                  next[k] = fieldChecks[k]?.locked
+                    ? { ok: true, remark: '', locked: true }
+                    : { ok: false, remark: fieldChecks[k]?.remark || '' }
+                })
+                setFieldChecks(next)
+              }
+
               return (
                 <div className="flex flex-col h-full bg-gray-50">
 
@@ -950,6 +962,13 @@ export default function DocumentDepartment() {
                           className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm"
                         >
                           <CheckCircle size={15} /> Verify All
+                        </button>
+                        <button
+                          onClick={unverifyAll}
+                          className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-600 border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm"
+                          title="Undo Verify All — sab unverified kar do"
+                        >
+                          <XCircle size={15} /> Unverify All
                         </button>
                       </div>
                     </div>
