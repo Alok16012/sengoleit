@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
@@ -259,6 +259,10 @@ export default function CenterForm() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    // Guard: this form is multi-step and the <form> wraps every step. If the user
+    // presses Enter (or submit fires) before the last step, treat it as "Next" so we
+    // never insert a half-filled center and navigate away prematurely.
+    if (step < STEPS.length - 1) { handleNext(); return }
     setLoading(true)
     setError(null)
     try {
@@ -283,24 +287,41 @@ export default function CenterForm() {
       if (!isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
 
       if (!isEdit && payload.email && plainPassword) {
-        const { data: { session: adminSession } } = await supabase.auth.getSession()
-        const { data: authData, error: authErr } = await supabase.auth.signUp({
-          email: payload.email,
-          password: plainPassword,
-          options: { data: { role: payload.center_type === 'super_center' ? 'super_center' : 'center' } }
-        })
-        if (authErr && !authErr.message.includes('already registered')) throw authErr
-        if (authData?.user) {
-          await supabase.from('profiles').upsert({
-            id: authData.user.id,
-            role: payload.center_type === 'super_center' ? 'super_center' : 'center'
+        const role = payload.center_type === 'super_center' ? 'super_center' : 'center'
+        if (supabaseAdmin) {
+          // Preferred: create the login with the service-role client (persistSession:false).
+          // This NEVER touches the admin's session, so the admin stays logged in and is
+          // not redirected to the new center's dashboard. (supabase.auth.signUp would
+          // sign the admin in AS the new user — that was the redirect bug.)
+          const { data: created, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+            email: payload.email,
+            password: plainPassword,
+            email_confirm: true,
+            user_metadata: { role },
           })
-        }
-        if (adminSession?.access_token) {
-          await supabase.auth.setSession({
-            access_token: adminSession.access_token,
-            refresh_token: adminSession.refresh_token,
+          if (authErr && !/already.*regist|already been|exists/i.test(authErr.message || '')) throw authErr
+          if (created?.user) {
+            await supabase.from('profiles').upsert({ id: created.user.id, role })
+          }
+        } else {
+          // Fallback when no service key is configured: signUp swaps the session to the
+          // new user, so we capture the admin session first and restore it afterwards.
+          const { data: { session: adminSession } } = await supabase.auth.getSession()
+          const { data: authData, error: authErr } = await supabase.auth.signUp({
+            email: payload.email,
+            password: plainPassword,
+            options: { data: { role } },
           })
+          if (authErr && !authErr.message.includes('already registered')) throw authErr
+          if (authData?.user) {
+            await supabase.from('profiles').upsert({ id: authData.user.id, role })
+          }
+          if (adminSession?.access_token) {
+            await supabase.auth.setSession({
+              access_token: adminSession.access_token,
+              refresh_token: adminSession.refresh_token,
+            })
+          }
         }
       }
 
