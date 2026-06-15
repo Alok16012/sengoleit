@@ -16,6 +16,7 @@ const CENTER_STATUS_FILTERS = ['Pending', 'Hold', 'Forwarded', 'Approved', 'Reje
 const MAIN_TABS = [
   { key: 'students', label: 'Student Applications' },
   { key: 'centers', label: 'Center Applications' },
+  { key: 'super_centers', label: 'Super Center Applications' },
 ]
 
 // Map a center's approval_status to one of the CENTER_STATUS_FILTERS buckets.
@@ -213,7 +214,7 @@ export default function DocumentDepartment() {
 
   useEffect(() => { fetchStudents() }, [statusFilter])
   useEffect(() => { fetchDirectCenters() }, [])
-  useEffect(() => { if (mainTab === 'centers') fetchDirectCenters() }, [mainTab])
+  useEffect(() => { if (mainTab === 'centers' || mainTab === 'super_centers') fetchDirectCenters() }, [mainTab])
 
   async function fetchDirectCenters() {
     setDcLoading(true)
@@ -375,8 +376,16 @@ export default function DocumentDepartment() {
   }
 
   const pendingCount = students.filter(s => s.status === 'Pending').length
-  const pendingCenterCount = directCenters.filter(c => !c.approval_status || c.approval_status === 'pending').length
-  const filteredCenters = directCenters.filter(c => centerMatchesFilter(c, centerStatusFilter))
+  // Centers and super centers are shown in separate main tabs.
+  const isSuperTab = mainTab === 'super_centers'
+  const centerRows = directCenters.filter(c => c.center_type !== 'super_center')
+  const superCenterRows = directCenters.filter(c => c.center_type === 'super_center')
+  const baseCenters = isSuperTab ? superCenterRows : centerRows
+  const isPending = c => !c.approval_status || c.approval_status === 'pending'
+  const pendingCenterCount = centerRows.filter(isPending).length
+  const pendingSuperCenterCount = superCenterRows.filter(isPending).length
+  const pendingBaseCount = baseCenters.filter(isPending).length
+  const filteredCenters = baseCenters.filter(c => centerMatchesFilter(c, centerStatusFilter))
 
   return (
     <div className="p-6">
@@ -393,17 +402,20 @@ export default function DocumentDepartment() {
             {t.key === 'centers' && pendingCenterCount > 0 && (
               <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCenterCount}</span>
             )}
+            {t.key === 'super_centers' && pendingSuperCenterCount > 0 && (
+              <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingSuperCenterCount}</span>
+            )}
           </button>
         ))}
       </div>
 
-      {/* Center Applications Tab */}
-      {mainTab === 'centers' && (
+      {/* Center / Super Center Applications Tab (same UI, filtered by type) */}
+      {(mainTab === 'centers' || mainTab === 'super_centers') && (
         <div>
           {/* Center status filter tabs */}
           <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
             {CENTER_STATUS_FILTERS.map(s => {
-              const count = directCenters.filter(c => centerMatchesFilter(c, s)).length
+              const count = baseCenters.filter(c => centerMatchesFilter(c, s)).length
               return (
                 <button
                   key={s}
@@ -413,8 +425,8 @@ export default function DocumentDepartment() {
                   }`}
                 >
                   {s}
-                  {s === 'Pending' && pendingCenterCount > 0 && (
-                    <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCenterCount}</span>
+                  {s === 'Pending' && pendingBaseCount > 0 && (
+                    <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingBaseCount}</span>
                   )}
                   {s !== 'Pending' && count > 0 && (
                     <span className="ml-1.5 bg-gray-200 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
