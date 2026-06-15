@@ -103,6 +103,20 @@ function flaggedFormFields(fieldChecks) {
   return [...out]
 }
 
+// When a previously-held center is resubmitted, only the fields it was sent back to fix
+// need re-verification. Everything else was already verified, so pre-mark those boxes as
+// verified — the admin only re-checks the corrected fields instead of the whole form.
+function preVerifiedChecks(correctionFields) {
+  if (!Array.isArray(correctionFields) || correctionFields.length === 0) return {}
+  const flagged = new Set(correctionFields)
+  const checks = {}
+  Object.entries(CHECK_TO_FORM_FIELDS).forEach(([key, formFields]) => {
+    const wasFlagged = formFields.some(f => flagged.has(f))
+    if (!wasFlagged) checks[key] = { ok: true, remark: '' }
+  })
+  return checks
+}
+
 
 export default function DocumentDepartment() {
   const [mainTab, setMainTab] = useState('students')
@@ -184,7 +198,7 @@ export default function DocumentDepartment() {
     if (!dcRejectRemarks.trim()) { alert('Rejection ka karan likhna zaroori hai'); return }
     setDCSaving(true)
     const { error } = await supabase.from('centers')
-      .update({ approval_status: 'rejected', status: 'Inactive', approval_notes: dcRejectRemarks })
+      .update({ approval_status: 'rejected', status: 'Inactive', approval_notes: dcRejectRemarks, correction_fields: null })
       .eq('id', dcRejectModal.id)
     setDCSaving(false)
     if (error) { alert('Reject failed: ' + error.message); return }
@@ -407,7 +421,7 @@ export default function DocumentDepartment() {
                         {/* Verify / Hold / Reject only make sense while the center still needs doc verification */}
                         {(!c.approval_status || c.approval_status === 'pending' || c.approval_status === 'hold') && (
                           <>
-                            <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks({}) }}>
+                            <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks(preVerifiedChecks(c.correction_fields)) }}>
                               <CheckCircle size={13} /> Verify
                             </Button>
                             <button
@@ -672,7 +686,7 @@ export default function DocumentDepartment() {
                 {/* Footer CTA */}
                 <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between gap-3">
                   <p className="text-xs text-gray-400">Review all details before proceeding to verification.</p>
-                  <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks({}) }}>
+                  <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks(preVerifiedChecks(viewDC?.correction_fields)) }}>
                     <CheckCircle size={14} /> Verify Documents
                   </Button>
                 </div>
@@ -799,6 +813,19 @@ export default function DocumentDepartment() {
                 ? `${totalItems - verifiedCount} field abhi verify nahi hue`
                 : hasAnyRemark ? 'Kuch fields par remark mention hai' : ''
 
+              // Hold is only allowed after the WHOLE form is reviewed — every visible field and
+              // every document must be either Verified or have a Remark. This forces a complete
+              // one-pass review so nothing is held back without being looked at.
+              const reviewableKeys = [
+                ...sections.flatMap(s => s.fields.filter(f => f.val).map(f => f.key)),
+                ...allDocKeys,
+              ]
+              const unreviewedKeys = reviewableKeys.filter(
+                k => !(fieldChecks[k]?.ok || (fieldChecks[k]?.remark && fieldChecks[k].remark.trim()))
+              )
+              const allReviewed = unreviewedKeys.length === 0
+              const hasIssueForHold = issueLines.length > 0
+
               function verifyAll() {
                 const next = {}
                 allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '' } })
@@ -912,7 +939,11 @@ export default function DocumentDepartment() {
 
                   {/* Footer */}
                   <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center gap-3 shadow-sm">
-                    {!canForward && blockReason && (
+                    {!allReviewed ? (
+                      <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg whitespace-nowrap">
+                        {unreviewedKeys.length} field abhi review nahi hue — pehle poora form Verify / Remark karo
+                      </span>
+                    ) : !canForward && blockReason && (
                       <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg whitespace-nowrap">
                         {blockReason} — Account Dept. ko forward nahi hoga, Hold karo
                       </span>
@@ -940,12 +971,22 @@ export default function DocumentDepartment() {
                       {dcSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
                     </button>
                     <button
-                      onClick={() => { setDCHoldModal(c); setDCHoldRemarks(composedHoldNote); setDCHoldFields(flaggedFormFields(fieldChecks)) }}
+                      onClick={() => {
+                        if (!allReviewed) {
+                          alert(`Pehle poora form review karo — ${unreviewedKeys.length} field/document abhi tak na verify hue na unpar remark hai.\n\nHar field ko ya to Verify karo, ya jisme dikkat hai uspar Remark likho. Tabhi Hold kar sakte ho.`)
+                          return
+                        }
+                        if (!hasIssueForHold) {
+                          alert('Hold karne ke liye kam se kam ek field par remark likhna zaroori hai (jo correction chahiye). Agar sab sahi hai to Account Dept. ko forward karo.')
+                          return
+                        }
+                        setDCHoldModal(c); setDCHoldRemarks(composedHoldNote); setDCHoldFields(flaggedFormFields(fieldChecks))
+                      }}
                       disabled={dcSaving}
-                      className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
-                      title="Documents verify nahi hue — center ko hold par bhejo, Account Dept. ko forward nahi hoga"
+                      className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
+                      title={!allReviewed ? `${unreviewedKeys.length} field abhi review nahi hue — sab verify ya remark karo` : 'Remark wale fields correction ke liye bheje jayenge'}
                     >
-                      <PauseCircle size={15} /> Hold
+                      <PauseCircle size={15} /> Hold{!allReviewed ? ` (${unreviewedKeys.length} left)` : ''}
                     </button>
                     <button
                       onClick={() => { setDCVerifyModal(null); setFieldChecks({}) }}
