@@ -352,7 +352,7 @@ export default function SubCenterForm() {
         if (form.date_of_birth) {
           const y = Number(String(form.date_of_birth).slice(0, 4))
           if (String(form.date_of_birth).slice(0, 4).length !== 4 || y < 1900) return 'Date of Birth ka year 4 digit ka hona chahiye'
-          if (form.date_of_birth >= new Date().toISOString().slice(0, 10)) return 'Date of Birth current date se pehle hona chahiye'
+          if (y >= new Date().getFullYear()) return 'Date of Birth ka year current year se kam hona chahiye'
         }
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
         if (form.aadhar_no.length < 12) return 'Aadhar must be 12 digits'
@@ -602,7 +602,7 @@ export default function SubCenterForm() {
               <Input label="Father / Mother Name *" value={form.father_mother_name} onChange={set('father_mother_name')} disabled={isLocked('father_mother_name')} required />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Input label="Date of Birth *" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={form.date_of_birth} onChange={set('date_of_birth')} disabled={isLocked('date_of_birth')} required />
+              <Input label="Date of Birth *" type="date" min="1900-01-01" max={`${new Date().getFullYear() - 1}-12-31`} value={form.date_of_birth} onChange={set('date_of_birth')} disabled={isLocked('date_of_birth')} required />
               <Select label="Gender *" value={form.gender} onChange={set('gender')} disabled={isLocked('gender')} required>
                 <option value="">Select</option>
                 <option value="Male">Male</option>

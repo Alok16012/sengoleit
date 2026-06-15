@@ -451,7 +451,7 @@ export default function CenterForm() {
               <Input label="Father / Mother Name *" value={form.father_mother_name} onChange={set('father_mother_name')} required />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Input label="Date of Birth *" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={form.date_of_birth} onChange={set('date_of_birth')} required />
+              <Input label="Date of Birth *" type="date" min="1900-01-01" max={`${new Date().getFullYear() - 1}-12-31`} value={form.date_of_birth} onChange={set('date_of_birth')} required />
               <Select label="Gender *" value={form.gender} onChange={set('gender')} required>
                 <option value="">Select</option>
                 <option value="Male">Male</option>
