@@ -166,6 +166,22 @@ function preVerifiedChecks(correctionFields, approvalNotes) {
   return checks
 }
 
+// Every verify key marked verified AND locked. Used for centers that are already
+// forwarded / approved — nothing should be editable, the whole form stays locked.
+function allLockedChecks() {
+  const checks = {}
+  Object.keys(CHECK_TO_FORM_FIELDS).forEach(key => { checks[key] = { ok: true, remark: '', locked: true } })
+  return checks
+}
+
+// Initial verify-modal state for a center: fully locked once forwarded/approved,
+// otherwise pre-verify the already-checked fields and leave the flagged ones actionable.
+function initialChecksForCenter(c) {
+  const st = c?.approval_status
+  if (st === 'doc_verified' || st === 'approved') return allLockedChecks()
+  return preVerifiedChecks(c?.correction_fields, c?.approval_notes)
+}
+
 
 export default function DocumentDepartment() {
   const [mainTab, setMainTab] = useState('students')
@@ -470,7 +486,7 @@ export default function DocumentDepartment() {
                         {/* Verify / Hold / Reject only make sense while the center still needs doc verification */}
                         {(!c.approval_status || c.approval_status === 'pending' || c.approval_status === 'hold') && (
                           <>
-                            <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks(preVerifiedChecks(c.correction_fields, c.approval_notes)) }}>
+                            <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks(initialChecksForCenter(c)) }}>
                               <CheckCircle size={13} /> Verify
                             </Button>
                             <button
@@ -735,7 +751,7 @@ export default function DocumentDepartment() {
                 {/* Footer CTA */}
                 <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between gap-3">
                   <p className="text-xs text-gray-400">Review all details before proceeding to verification.</p>
-                  <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks(preVerifiedChecks(viewDC?.correction_fields, viewDC?.approval_notes)) }}>
+                  <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks(initialChecksForCenter(viewDC)) }}>
                     <CheckCircle size={14} /> Verify Documents
                   </Button>
                 </div>
