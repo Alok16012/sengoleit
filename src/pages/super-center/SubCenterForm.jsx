@@ -201,6 +201,7 @@ export default function SubCenterForm() {
   const [holdRemark, setHoldRemark] = useState('')        // doc dept remark to show on resubmit
   const [pricing, setPricing] = useState(null)            // admin-set { with_letter_price, without_letter_price }
   const [correctionFields, setCorrectionFields] = useState([]) // fields Doc Dept flagged for edit
+  const [payNow, setPayNow] = useState(false)             // super center is paying offline at creation time
   const isResubmit = isEdit && ['hold', 'rejected', 'pending'].includes(loadedStatus)
   const backDest = isResubmit ? '/super-center/center-applications' : '/super-center/centers'
 
@@ -252,6 +253,7 @@ export default function SubCenterForm() {
           setLoadedStatus(data.approval_status || null)
           if (data.approval_status === 'hold' || data.approval_status === 'rejected') setHoldRemark(data.approval_notes || '')
           setCorrectionFields(Array.isArray(data.correction_fields) ? data.correction_fields : [])
+          if (data.utr_number || data.payment_screenshot_url) setPayNow(true)
           const clean = { ...data }
           Object.keys(clean).forEach(k => { if (clean[k] === null) clean[k] = '' })
           if (clean.date_of_birth) clean.date_of_birth = String(clean.date_of_birth).slice(0, 10)
@@ -356,6 +358,11 @@ export default function SubCenterForm() {
         return null
       case 5:
         if (!form.letter_type) return 'Please select a letter type (With Letter / Without Letter)'
+        if (payNow) {
+          if (!String(form.amount_paid).trim() || Number(form.amount_paid) <= 0) return 'Enter the amount you paid'
+          if (!form.utr_number.trim()) return 'Enter the UTR / transaction reference number'
+          if (!form.payment_screenshot_url) return 'Upload the payment receipt / screenshot'
+        }
         return null
       default:
         return null
@@ -394,6 +401,19 @@ export default function SubCenterForm() {
       const resubmit = !isEdit || ['hold', 'rejected', 'pending'].includes(loadedStatus) || !loadedStatus
       const payload = { ...form, center_type: 'center', super_center_id: scId, base_fee: basePrice, payment_amount: basePrice }
       delete payload.id; delete payload.created_at; delete payload.updated_at
+      // Offline payment recorded at creation: keep the amount/UTR/receipt and flag it for the
+      // Account Dept to verify. If not paying now, drop those fields so the pay-link flow runs.
+      if (payNow) {
+        payload.amount_paid = Number(form.amount_paid) || basePrice
+        payload.payment_status = 'offline_review'
+      } else {
+        // Not paying now — don't send the offline-payment columns at all, so center
+        // creation keeps working even before add_center_offline_payment.sql is run.
+        delete payload.utr_number
+        delete payload.payment_date
+        delete payload.payment_screenshot_url
+        delete payload.payment_remark
+      }
       if (resubmit) {
         payload.approval_status = 'pending'
         payload.approval_notes = null
@@ -854,11 +874,59 @@ export default function SubCenterForm() {
               </div>
             )}
 
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 leading-relaxed">
-              You don't pay now. When the Account Department verifies this center, a secure payment link for the
-              above amount will be generated. Once you pay it, the receipt is recorded automatically and the center
-              is activated.
-            </div>
+            {/* Pay now toggle */}
+            {form.letter_type && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={payNow}
+                    onChange={e => setPayNow(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-[#933d18]" />
+                  <span>
+                    <span className="text-sm font-bold text-gray-800">Abhi payment kar rahe ho? (Pay now)</span>
+                    <span className="block text-[11px] text-gray-500 mt-0.5">
+                      Agar abhi offline (bank/UPI) pay kar diya hai, to amount, UTR number aur receipt yahan daalein.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {/* Offline payment fields */}
+            {form.letter_type && payNow && (
+              <div className="rounded-xl border border-[#933d18]/15 bg-[#933d18]/5 p-4 flex flex-col gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <Input label="Amount Paid (₹) *" type="number" min="0"
+                    value={form.amount_paid} onChange={set('amount_paid')}
+                    placeholder={String(basePrice)} />
+                  <Input label="Payment Date" type="date"
+                    value={form.payment_date} onChange={set('payment_date')} />
+                </div>
+                <Input label="UTR / Transaction Reference Number *"
+                  value={form.utr_number} onChange={set('utr_number')}
+                  placeholder="e.g. 1234567890 / UPI ref" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 ml-0.5 mb-1">Payment Receipt / Screenshot *</p>
+                  <FileCard label="Receipt / Screenshot" fieldKey="payment_screenshot_url"
+                    accept="image/*,application/pdf" isImage value={form.payment_screenshot_url}
+                    onUpload={handleFileUpload} isUploading={!!uploading.payment_screenshot_url}
+                    hint="Bank/UPI receipt ya screenshot" />
+                </div>
+                <Textarea label="Remark (optional)" value={form.payment_remark}
+                  onChange={set('payment_remark')} placeholder="Koi note (optional)" rows={2} />
+                <p className="text-[11px] text-[#933d18]/80 leading-relaxed">
+                  Account Department aapke UTR + receipt ko verify karega, phir center activate hoga.
+                </p>
+              </div>
+            )}
+
+            {/* Pay-later note */}
+            {form.letter_type && !payNow && (
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 leading-relaxed">
+                Abhi pay nahi kar rahe — koi baat nahi. Account Department jab is center ko verify karega tab upar wale
+                amount ka ek secure payment link ban jayega. Pay karte hi receipt automatically record ho jayega aur center
+                activate ho jayega.
+              </div>
+            )}
           </FormSection>
         )}
 
