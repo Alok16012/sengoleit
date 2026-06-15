@@ -16,6 +16,7 @@ const TABS = [
   { key: 'super_approvals', label: 'Super Center Applications' },
   { key: 'recharges', label: 'Recharge Requests' },
   { key: 'centers', label: 'Centers Management' },
+  { key: 'super_centers_mgmt', label: 'Super Centers Management' },
 ]
 
 export default function AccountDepartment() {
@@ -420,6 +421,9 @@ export default function AccountDepartment() {
   const centerApprovals = approvals.filter(c => c.center_type !== 'super_center')
   const superApprovals = approvals.filter(c => c.center_type === 'super_center')
   const approvalsList = tab === 'super_approvals' ? superApprovals : centerApprovals
+  const managedCenters = centers.filter(c => c.center_type !== 'super_center')
+  const managedSuperCenters = centers.filter(c => c.center_type === 'super_center')
+  const centersList = tab === 'super_centers_mgmt' ? managedSuperCenters : managedCenters
   const pendingCount = centerApprovals.length
   const pendingSuperApprovals = superApprovals.length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
@@ -710,12 +714,12 @@ export default function AccountDepartment() {
           )}
 
           {/* CENTERS MANAGEMENT TAB */}
-          {tab === 'centers' && (
+          {(tab === 'centers' || tab === 'super_centers_mgmt') && (
             <Table>
               <Thead>
                 <tr>
                   <Th>#</Th>
-                  <Th>Center Name</Th>
+                  <Th>{tab === 'super_centers_mgmt' ? 'Super Center Name' : 'Center Name'}</Th>
                   <Th>Type</Th>
                   <Th>Code</Th>
                   <Th>Password</Th>
@@ -729,9 +733,9 @@ export default function AccountDepartment() {
                 </tr>
               </Thead>
               <Tbody>
-                {centers.length === 0 ? (
-                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No centers</Td></Tr>
-                ) : centers.map((c, i) => (
+                {centersList.length === 0 ? (
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {tab === 'super_centers_mgmt' ? 'super centers' : 'centers'}</Td></Tr>
+                ) : centersList.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                     <Td>
