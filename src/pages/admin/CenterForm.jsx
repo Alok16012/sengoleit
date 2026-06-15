@@ -6,7 +6,7 @@ import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import {
-  Building2, User, Briefcase, CreditCard, GraduationCap, ShieldCheck,
+  Building2, User, Briefcase, CreditCard, GraduationCap,
   Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft
 } from 'lucide-react'
 
@@ -17,7 +17,6 @@ const STEPS = [
   { label: 'Bank Details',       icon: CreditCard },
   { label: 'Education',          icon: GraduationCap },
   { label: 'Documents',          icon: Upload },
-  { label: 'KYC & Status',       icon: ShieldCheck },
 ]
 
 const emptyForm = {
@@ -227,7 +226,6 @@ export default function CenterForm() {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return 'Enter a valid email'
         if (!form.phone.trim()) return 'Phone is required'
         if (form.phone.length < 10) return 'Phone must be 10 digits'
-        if (!isEdit && !form.generated_password.trim()) return 'Login Password is required'
         return null
       case 1:
         if (!form.contact_person.trim()) return 'Contact Person Name is required'
@@ -268,9 +266,9 @@ export default function CenterForm() {
     try {
       const payload = { ...form }
       if (!isEdit) payload.approval_status = 'pending'
-      const plainPassword = payload.generated_password
       delete payload.id; delete payload.created_at; delete payload.updated_at
-      // Password is only set at creation; never touch it on edit
+      // Login ID & password are NOT created here. The center stays login-less until the
+      // Account Department verifies it and generates the credentials (savePassword there).
       if (isEdit) delete payload.generated_password
       const fkFields = ['country_id', 'state_id', 'district_id', 'org_country_id', 'org_state_id', 'org_district_id', 'super_center_id']
       fkFields.forEach(k => {
@@ -288,45 +286,6 @@ export default function CenterForm() {
       // is invalid for those types — "invalid input syntax for type numeric: """).
       if (isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') payload[k] = null })
       else Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
-
-      if (!isEdit && payload.email && plainPassword) {
-        const role = payload.center_type === 'super_center' ? 'super_center' : 'center'
-        if (supabaseAdmin) {
-          // Preferred: create the login with the service-role client (persistSession:false).
-          // This NEVER touches the admin's session, so the admin stays logged in and is
-          // not redirected to the new center's dashboard. (supabase.auth.signUp would
-          // sign the admin in AS the new user — that was the redirect bug.)
-          const { data: created, error: authErr } = await supabaseAdmin.auth.admin.createUser({
-            email: payload.email,
-            password: plainPassword,
-            email_confirm: true,
-            user_metadata: { role },
-          })
-          if (authErr && !/already.*regist|already been|exists/i.test(authErr.message || '')) throw authErr
-          if (created?.user) {
-            await supabase.from('profiles').upsert({ id: created.user.id, role })
-          }
-        } else {
-          // Fallback when no service key is configured: signUp swaps the session to the
-          // new user, so we capture the admin session first and restore it afterwards.
-          const { data: { session: adminSession } } = await supabase.auth.getSession()
-          const { data: authData, error: authErr } = await supabase.auth.signUp({
-            email: payload.email,
-            password: plainPassword,
-            options: { data: { role } },
-          })
-          if (authErr && !authErr.message.includes('already registered')) throw authErr
-          if (authData?.user) {
-            await supabase.from('profiles').upsert({ id: authData.user.id, role })
-          }
-          if (adminSession?.access_token) {
-            await supabase.auth.setSession({
-              access_token: adminSession.access_token,
-              refresh_token: adminSession.refresh_token,
-            })
-          }
-        }
-      }
 
       const { error: err } = isEdit
         ? await supabase.from('centers').update(payload).eq('id', id)
@@ -433,7 +392,9 @@ export default function CenterForm() {
                 onChange={e => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))} error={fe.phone} />
             </div>
             {!isEdit && (
-              <Input label="Login Password *" type="text" placeholder="Set password for center portal login" value={form.generated_password} onChange={set('generated_password')} />
+              <div className="bg-blue-50/60 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700">
+                Login ID &amp; password Account Department dwara verify hone ke baad generate honge.
+              </div>
             )}
             {form.center_type !== 'super_center' && (
               <Select label="Super Center (Parent)" value={form.super_center_id} onChange={set('super_center_id')}>
@@ -770,43 +731,32 @@ export default function CenterForm() {
           </div>
         )}
 
-        {/* STEP 6: KYC & Status */}
-        {step === 6 && (
-          <FormSection title="KYC & Status" icon={<ShieldCheck size={16} />}>
-            <div className="grid grid-cols-2 gap-4">
-              <Select label="Center Status" value={form.status} onChange={set('status')}>
-                <option value="Pending">Pending</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </Select>
-              <Select label="KYC Status" value={form.kyc_status} onChange={set('kyc_status')}>
-                <option value="Pending">Pending</option>
-                <option value="Verified">Verified</option>
-              </Select>
+        {/* Final review summary on the last (Documents) step */}
+        {step === 5 && (
+          <div className="bg-[#933d18]/5 border border-[#933d18]/20 rounded-xl p-4 mt-2">
+            <p className="text-xs font-bold text-[#933d18] uppercase tracking-widest mb-3">Form Summary</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {[
+                ['Center Name', form.center_name],
+                ['Center Type', form.center_type === 'super_center' ? 'Super Center' : 'Center'],
+                ['Email', form.email],
+                ['Phone', form.phone],
+                ['Contact Person', form.contact_person],
+                ['City', form.city],
+                ['Organization', form.organization_name],
+                ['Documents', `${docsUploaded}/10 uploaded`],
+              ].map(([label, val]) => (
+                <div key={label} className="flex gap-2">
+                  <span className="text-gray-400 text-xs">{label}:</span>
+                  <span className="text-gray-800 text-xs font-semibold truncate">{val || '—'}</span>
+                </div>
+              ))}
             </div>
-
-            {/* Final summary */}
-            <div className="bg-[#933d18]/5 border border-[#933d18]/20 rounded-xl p-4 mt-2">
-              <p className="text-xs font-bold text-[#933d18] uppercase tracking-widest mb-3">Form Summary</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {[
-                  ['Center Name', form.center_name],
-                  ['Center Type', form.center_type === 'super_center' ? 'Super Center' : 'Center'],
-                  ['Email', form.email],
-                  ['Phone', form.phone],
-                  ['Contact Person', form.contact_person],
-                  ['City', form.city],
-                  ['Organization', form.organization_name],
-                  ['Documents', `${docsUploaded}/10 uploaded`],
-                ].map(([label, val]) => (
-                  <div key={label} className="flex gap-2">
-                    <span className="text-gray-400 text-xs">{label}:</span>
-                    <span className="text-gray-800 text-xs font-semibold truncate">{val || '—'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </FormSection>
+            <p className="text-[11px] text-gray-500 mt-3">
+              Submit ke baad yeh application Document Dept &amp; Account Dept verification ke liye jayegi.
+              Approve hone par Login ID &amp; password generate honge.
+            </p>
+          </div>
         )}
 
         {/* Error */}
