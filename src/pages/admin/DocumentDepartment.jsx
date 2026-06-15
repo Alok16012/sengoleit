@@ -159,7 +159,9 @@ function preVerifiedChecks(correctionFields, approvalNotes) {
   const checks = {}
   Object.entries(CHECK_TO_FORM_FIELDS).forEach(([key, formFields]) => {
     const wasFlagged = formFields.some(f => flagged.has(f))
-    if (!wasFlagged) checks[key] = { ok: true, remark: '' }
+    // Already-verified fields are pre-marked verified AND locked, so the admin can't
+    // accidentally un-verify them — only the flagged fields stay actionable.
+    if (!wasFlagged) checks[key] = { ok: true, remark: '', locked: true }
   })
   return checks
 }

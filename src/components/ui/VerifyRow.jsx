@@ -1,4 +1,4 @@
-import { CheckCircle, ExternalLink } from 'lucide-react'
+import { CheckCircle, ExternalLink, Lock } from 'lucide-react'
 
 // Single verifiable field/document row used in the Document & Account
 // department verify modals. Kept at module scope (stable identity) so that
@@ -7,12 +7,15 @@ import { CheckCircle, ExternalLink } from 'lucide-react'
 export default function VerifyRow({ fkey, label, val, url, checks, setChecks }) {
   const check = checks[fkey]
   const isVerified = check?.ok
+  const isLocked = check?.locked
   const isDoc = url !== undefined
   const missing = isDoc ? !url : !val
   return (
     <div className={`rounded-xl border transition-all duration-150 ${
       isVerified
-        ? 'bg-emerald-50 border-emerald-200 shadow-sm'
+        ? isLocked
+          ? 'bg-gray-50 border-gray-200'
+          : 'bg-emerald-50 border-emerald-200 shadow-sm'
         : missing
           ? 'bg-amber-50/60 border-dashed border-amber-200'
           : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
@@ -36,10 +39,15 @@ export default function VerifyRow({ fkey, label, val, url, checks, setChecks }) 
         </div>
         <div className="shrink-0 mt-0.5 flex items-center gap-1.5">
           {isVerified
-            ? <button onClick={() => setChecks(p => ({ ...p, [fkey]: { ...p[fkey], ok: false } }))}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-lg hover:bg-emerald-200 transition-colors">
-                <CheckCircle size={11} /> Verified
-              </button>
+            ? isLocked
+              ? <span title="Pehle se verified — locked"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 bg-gray-100 border border-gray-300 px-2.5 py-1 rounded-lg cursor-not-allowed">
+                  <Lock size={10} /> Verified
+                </span>
+              : <button onClick={() => setChecks(p => ({ ...p, [fkey]: { ...p[fkey], ok: false } }))}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-lg hover:bg-emerald-200 transition-colors">
+                  <CheckCircle size={11} /> Verified
+                </button>
             : <>
                 <button onClick={() => setChecks(p => ({ ...p, [fkey]: { ...(p[fkey] || {}), ok: false, showRemark: !p[fkey]?.showRemark } }))}
                   className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-colors ${
