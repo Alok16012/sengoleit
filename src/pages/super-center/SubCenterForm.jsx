@@ -55,6 +55,78 @@ const emptyForm = {
   approval_status: 'pending',
 }
 
+// Maps the labels the Document Dept uses in its hold remark (e.g. "Aadhar Card: ...")
+// back to the form field name(s). Used as a fallback to derive which fields to keep
+// editable when the center's correction_fields column isn't populated (e.g. it was held
+// before that feature existed). Keep in sync with DocumentDepartment's labels.
+const LABEL_TO_FORM_FIELDS = {
+  'Center Name': ['center_name'],
+  'Email Address': ['email'],
+  'Phone Number': ['phone'],
+  'Contact Person': ['contact_person'],
+  'Father / Mother Name': ['father_mother_name'],
+  'Date of Birth': ['date_of_birth'],
+  'Gender': ['gender'],
+  'Nationality': ['nationality'],
+  'Contact Mobile': ['contact_mobile'],
+  'Contact Email': ['contact_email'],
+  'Current Occupation': ['current_occupation'],
+  'Prev. Experience (Admissions)': ['previous_experience_admissions'],
+  'Permanent Address': ['permanent_address'],
+  'Current Address': ['current_address'],
+  'Address Line 1': ['address_line1'],
+  'Landmark': ['landmark'],
+  'Post Office': ['post_office'],
+  'City': ['city'],
+  'State': ['state_id', 'district_id'],
+  'Pincode': ['pincode'],
+  'Aadhar Number': ['aadhar_no'],
+  'PAN Number': ['pan_no'],
+  'Organization Name': ['organization_name'],
+  'Org Type': ['org_type'],
+  'Registration Number': ['registration_number'],
+  'GST / PAN': ['gst_pan'],
+  'Premises Type': ['premises_type'],
+  'Org Address': ['org_address'],
+  'Org Post Office': ['org_post_office'],
+  'Org City': ['org_city'],
+  'Org Pincode': ['org_pincode'],
+  'Reception Desk': ['facility_reception_desk'],
+  'Waiting Area': ['facility_waiting_area'],
+  'Meeting Room': ['facility_meeting_room'],
+  'Rent Agreement': ['rent_agreement_attached', 'agreement_url'],
+  'Photos Attached': ['photos_attached', 'premises_photo_url'],
+  'Account Holder': ['bank_account_holder'],
+  'Account Number': ['bank_account_number'],
+  'IFSC Code': ['ifsc_code'],
+  'Bank Branch': ['bank_branch'],
+  'Owner Photo': ['owner_photo_url'],
+  'Owner Signature': ['owner_signature_url'],
+  'Aadhar Card': ['owner_aadhar_url'],
+  'PAN Card': ['owner_pan_url'],
+  'Registration Cert.': ['center_reg_url'],
+  'Premises Photo': ['premises_photo_url'],
+  'GST Certificate': ['gst_url'],
+  'Agreement': ['agreement_url'],
+  'Cancel Cheque': ['cancel_cheque_url'],
+  'Bank Passbook': ['bank_passbook_url'],
+}
+
+// Parse a hold remark ("Label: detail" per line) into the set of form fields it refers to.
+function fieldsFromRemark(remark) {
+  if (!remark) return []
+  const out = new Set()
+  String(remark).split('\n').forEach(line => {
+    const idx = line.indexOf(':')
+    if (idx === -1) return
+    const label = line.slice(0, idx).trim()
+    const match = LABEL_TO_FORM_FIELDS[label]
+      || Object.entries(LABEL_TO_FORM_FIELDS).find(([l]) => l.toLowerCase() === label.toLowerCase())?.[1]
+    if (match) match.forEach(f => out.add(f))
+  })
+  return [...out]
+}
+
 function FileCard({ label, fieldKey, accept, isImage, value, onUpload, isUploading, hint, locked }) {
   return (
     <div className={`rounded-xl border ${locked ? 'bg-gray-100/70 border-gray-200' : 'bg-gray-50/60 border-gray-100'}`}>
@@ -133,8 +205,12 @@ export default function SubCenterForm() {
   const backDest = isResubmit ? '/super-center/center-applications' : '/super-center/centers'
 
   // When a held center is sent back with specific flagged fields, ONLY those fields are
-  // editable on resubmit — every verified field stays locked.
-  const correctionSet = new Set(correctionFields || [])
+  // editable on resubmit — every verified field stays locked. Prefer the structured
+  // correction_fields column; fall back to parsing the hold remark for older holds.
+  const effectiveCorrection = (correctionFields && correctionFields.length)
+    ? correctionFields
+    : fieldsFromRemark(holdRemark)
+  const correctionSet = new Set(effectiveCorrection)
   const lockMode = loadedStatus === 'hold' && correctionSet.size > 0
   const isLocked = (name) => lockMode && !correctionSet.has(name)
 
