@@ -258,11 +258,11 @@ export default function CenterForm() {
   }
 
   async function handleSubmit(e) {
-    e.preventDefault()
-    // Guard: this form is multi-step and the <form> wraps every step. If the user
-    // presses Enter (or submit fires) before the last step, treat it as "Next" so we
-    // never insert a half-filled center and navigate away prematurely.
-    if (step < STEPS.length - 1) { handleNext(); return }
+    e?.preventDefault()
+    // Extra guard: only ever run the real insert from the last (KYC) step. This is
+    // called exclusively from the "Add Center" button's onClick, so a stray Enter
+    // keypress or implicit form submit can never create/redirect prematurely.
+    if (step < STEPS.length - 1) return
     setLoading(true)
     setError(null)
     try {
@@ -403,7 +403,7 @@ export default function CenterForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+      <form onSubmit={e => e.preventDefault()} noValidate className="flex flex-col gap-5">
 
         {/* STEP 0: Center Identity */}
         {step === 0 && (
@@ -839,7 +839,7 @@ export default function CenterForm() {
                 Next <ArrowRight size={14} />
               </Button>
             ) : (
-              <Button type="submit" disabled={loading}>
+              <Button type="button" onClick={handleSubmit} disabled={loading}>
                 {loading ? 'Saving...' : isEdit ? 'Update Center' : 'Add Center'}
               </Button>
             )}
