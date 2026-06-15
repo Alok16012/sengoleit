@@ -878,18 +878,10 @@ export default function DocumentDepartment() {
               function verifyAll() {
                 const next = {}
                 // Verify All marks every field verified AND locks it, so nothing can be
-                // accidentally un-verified afterwards. To re-check, use "Unlock all".
+                // accidentally un-verified afterwards.
                 allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '', locked: true } })
                 setFieldChecks(next)
               }
-              function unlockAll() {
-                setFieldChecks(p => {
-                  const next = {}
-                  Object.entries(p).forEach(([k, v]) => { next[k] = { ...v, locked: false } })
-                  return next
-                })
-              }
-              const anyLocked = Object.values(fieldChecks).some(v => v?.locked)
 
               return (
                 <div className="flex flex-col h-full bg-gray-50">
@@ -925,22 +917,12 @@ export default function DocumentDepartment() {
                             />
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {anyLocked && (
-                            <button
-                              onClick={unlockAll}
-                              className="flex items-center gap-1.5 bg-white hover:bg-gray-50 text-gray-600 border border-gray-300 px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-                            >
-                              Unlock all
-                            </button>
-                          )}
-                          <button
-                            onClick={verifyAll}
-                            className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm"
-                          >
-                            <CheckCircle size={15} /> Verify All
-                          </button>
-                        </div>
+                        <button
+                          onClick={verifyAll}
+                          className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm"
+                        >
+                          <CheckCircle size={15} /> Verify All
+                        </button>
                       </div>
                     </div>
                   </div>
