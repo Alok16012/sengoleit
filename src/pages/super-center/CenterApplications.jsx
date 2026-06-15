@@ -10,6 +10,19 @@ import { Eye, Copy, ExternalLink, RefreshCw, Check, PauseCircle, X, Pencil } fro
 
 const STAGES = ['Submitted', 'Document Verification', 'Account Department', 'Approved']
 
+const STATUS_TABS = ['Pending', 'Hold', 'Forwarded', 'Approved', 'Rejected']
+
+// Map a center's approval_status to one of the STATUS_TABS buckets.
+function matchesTab(c, tab) {
+  const st = c.approval_status
+  if (tab === 'Pending')   return !st || st === 'pending'
+  if (tab === 'Hold')      return st === 'hold'
+  if (tab === 'Forwarded') return st === 'doc_verified'
+  if (tab === 'Approved')  return st === 'approved'
+  if (tab === 'Rejected')  return st === 'rejected'
+  return true
+}
+
 function stageState(status) {
   if (status === 'approved')     return { activeIndex: 3, mode: 'done' }
   if (status === 'rejected')     return { activeIndex: 1, mode: 'rejected' }
@@ -90,6 +103,7 @@ export default function CenterApplications() {
   const [loading, setLoading] = useState(true)
   const [viewCenter, setViewCenter] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [tab, setTab] = useState('Pending')
 
   useEffect(() => {
     if (!user) return
@@ -111,7 +125,6 @@ export default function CenterApplications() {
       .from('centers')
       .select('*, states!state_id(state_name)')
       .eq('super_center_id', superCenterId)
-      .neq('approval_status', 'approved')
       .order('created_at', { ascending: false })
     setCenters(data || [])
     setLoading(false)
@@ -125,7 +138,8 @@ export default function CenterApplications() {
     })
   }
 
-  const pendingCount = centers.filter(c => c.approval_status === 'pending').length
+  const pendingCount = centers.filter(c => matchesTab(c, 'Pending')).length
+  const filteredCenters = centers.filter(c => matchesTab(c, tab))
 
   return (
     <div className="p-6">
@@ -168,6 +182,30 @@ export default function CenterApplications() {
         </div>
       )}
 
+      {/* Status filter tabs */}
+      <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
+        {STATUS_TABS.map(s => {
+          const count = centers.filter(c => matchesTab(c, s)).length
+          return (
+            <button
+              key={s}
+              onClick={() => setTab(s)}
+              className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                tab === s ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {s}
+              {s === 'Pending' && pendingCount > 0 && (
+                <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+              )}
+              {s !== 'Pending' && count > 0 && (
+                <span className="ml-1.5 bg-gray-200 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
       {/* Centers table */}
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
@@ -187,16 +225,16 @@ export default function CenterApplications() {
             </tr>
           </Thead>
           <Tbody>
-            {centers.length === 0 ? (
+            {filteredCenters.length === 0 ? (
               <Tr>
                 <Td colSpan={9} className="text-center text-gray-400 py-12">
-                  No pending applications.
+                  No applications in “{tab}”.
                   {myCenter?.approval_status !== 'approved' && (
                     <p className="text-amber-600 text-xs mt-1 font-medium">Your super center must be approved before creating centers.</p>
                   )}
                 </Td>
               </Tr>
-            ) : centers.map((c, i) => (
+            ) : filteredCenters.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
