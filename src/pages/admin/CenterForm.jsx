@@ -393,7 +393,7 @@ export default function CenterForm() {
             </div>
             {!isEdit && (
               <div className="bg-blue-50/60 border border-blue-100 rounded-xl px-4 py-3 text-xs text-blue-700">
-                Login ID &amp; password Account Department dwara verify hone ke baad generate honge.
+                Login ID &amp; password will be generated after verification by the Account Department.
               </div>
             )}
             {form.center_type !== 'super_center' && (
@@ -753,8 +753,8 @@ export default function CenterForm() {
               ))}
             </div>
             <p className="text-[11px] text-gray-500 mt-3">
-              Submit ke baad yeh application Document Dept &amp; Account Dept verification ke liye jayegi.
-              Approve hone par Login ID &amp; password generate honge.
+              After submitting, this application will be sent to the Document Dept &amp; Account Dept for verification.
+              Login ID &amp; password will be generated once approved.
             </p>
           </div>
         )}
