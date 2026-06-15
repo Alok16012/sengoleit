@@ -12,7 +12,8 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
-  { key: 'approvals', label: 'Pending Approvals' },
+  { key: 'approvals', label: 'Center Approvals' },
+  { key: 'super_approvals', label: 'Super Center Approvals' },
   { key: 'recharges', label: 'Recharge Requests' },
   { key: 'center_apps', label: 'Center Applications' },
   { key: 'centers', label: 'Centers Management' },
@@ -417,7 +418,11 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
-  const pendingCount = approvals.length
+  const centerApprovals = approvals.filter(c => c.center_type !== 'super_center')
+  const superApprovals = approvals.filter(c => c.center_type === 'super_center')
+  const approvalsList = tab === 'super_approvals' ? superApprovals : centerApprovals
+  const pendingCount = centerApprovals.length
+  const pendingSuperApprovals = superApprovals.length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
   const holdCount = holdStudents.length
   const pendingCenterApps = centerApps.length
@@ -442,6 +447,9 @@ export default function AccountDepartment() {
             )}
             {t.key === 'approvals' && pendingCount > 0 && (
               <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+            )}
+            {t.key === 'super_approvals' && pendingSuperApprovals > 0 && (
+              <span className="ml-2 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingSuperApprovals}</span>
             )}
             {t.key === 'recharges' && pendingRecharges > 0 && (
               <span className="ml-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingRecharges}</span>
@@ -519,13 +527,13 @@ export default function AccountDepartment() {
             </Table>
           )}
 
-          {/* APPROVALS TAB */}
-          {tab === 'approvals' && (
+          {/* APPROVALS TAB (Center + Super Center) */}
+          {(tab === 'approvals' || tab === 'super_approvals') && (
             <Table>
               <Thead>
                 <tr>
                   <Th>#</Th>
-                  <Th>Center / Super Center</Th>
+                  <Th>{tab === 'super_approvals' ? 'Super Center' : 'Center'}</Th>
                   <Th>Type</Th>
                   <Th>Contact Person</Th>
                   <Th>Phone</Th>
@@ -538,9 +546,9 @@ export default function AccountDepartment() {
                 </tr>
               </Thead>
               <Tbody>
-                {approvals.length === 0 ? (
-                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No pending approvals</Td></Tr>
-                ) : approvals.map((c, i) => (
+                {approvalsList.length === 0 ? (
+                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No pending {tab === 'super_approvals' ? 'super center' : 'center'} approvals</Td></Tr>
+                ) : approvalsList.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                     <Td>
