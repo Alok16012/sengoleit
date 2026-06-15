@@ -12,10 +12,22 @@ import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
 const STATUS_FILTERS = ['Pending', 'Hold', 'Approved', 'Rejected']
+const CENTER_STATUS_FILTERS = ['Pending', 'Hold', 'Forwarded', 'Approved', 'Rejected']
 const MAIN_TABS = [
   { key: 'students', label: 'Student Applications' },
   { key: 'centers', label: 'Center Applications' },
 ]
+
+// Map a center's approval_status to one of the CENTER_STATUS_FILTERS buckets.
+function centerMatchesFilter(c, filter) {
+  const st = c.approval_status
+  if (filter === 'Pending') return !st || st === 'pending'
+  if (filter === 'Hold') return st === 'hold'
+  if (filter === 'Forwarded') return st === 'doc_verified'
+  if (filter === 'Approved') return st === 'approved'
+  if (filter === 'Rejected') return st === 'rejected'
+  return true
+}
 
 
 export default function DocumentDepartment() {
@@ -31,8 +43,9 @@ export default function DocumentDepartment() {
   const [viewStudent, setViewStudent] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
 
-  // All pending centers (from centers table)
+  // All centers (from centers table)
   const [directCenters, setDirectCenters] = useState([])
+  const [centerStatusFilter, setCenterStatusFilter] = useState('Pending')
   const [dcLoading, setDcLoading] = useState(false)
   const [viewDC, setViewDC] = useState(null)
   const [dcVerifyModal, setDCVerifyModal] = useState(null)
@@ -55,10 +68,9 @@ export default function DocumentDepartment() {
       .select('*')
       .order('created_at', { ascending: false })
     if (error) console.error('fetchDirectCenters error:', error)
-    // Filter in JS — pending/null = needs doc verification; approved/rejected already processed
-    const rows = (data || []).filter(r =>
-      r.approval_status !== 'approved' && r.approval_status !== 'rejected' && r.approval_status !== 'doc_verified'
-    )
+    // Show only actual center applications (exclude super centers). All statuses are kept
+    // and bucketed into the Pending / Hold / Forwarded / Approved / Rejected sub-tabs.
+    const rows = (data || []).filter(r => r.center_type !== 'super_center')
     // Fetch state names
     const stateIds = [...new Set(rows.map(r => r.state_id).filter(Boolean))]
     let stateMap = {}
@@ -202,6 +214,8 @@ export default function DocumentDepartment() {
   }
 
   const pendingCount = students.filter(s => s.status === 'Pending').length
+  const pendingCenterCount = directCenters.filter(c => !c.approval_status || c.approval_status === 'pending').length
+  const filteredCenters = directCenters.filter(c => centerMatchesFilter(c, centerStatusFilter))
 
   return (
     <div className="p-6">
@@ -215,8 +229,8 @@ export default function DocumentDepartment() {
               mainTab === t.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
             }`}>
             {t.label}
-            {t.key === 'centers' && directCenters.length > 0 && (
-              <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{directCenters.length}</span>
+            {t.key === 'centers' && pendingCenterCount > 0 && (
+              <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCenterCount}</span>
             )}
           </button>
         ))}
@@ -225,6 +239,30 @@ export default function DocumentDepartment() {
       {/* Center Applications Tab */}
       {mainTab === 'centers' && (
         <div>
+          {/* Center status filter tabs */}
+          <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
+            {CENTER_STATUS_FILTERS.map(s => {
+              const count = directCenters.filter(c => centerMatchesFilter(c, s)).length
+              return (
+                <button
+                  key={s}
+                  onClick={() => setCenterStatusFilter(s)}
+                  className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    centerStatusFilter === s ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {s}
+                  {s === 'Pending' && pendingCenterCount > 0 && (
+                    <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCenterCount}</span>
+                  )}
+                  {s !== 'Pending' && count > 0 && (
+                    <span className="ml-1.5 bg-gray-200 text-gray-600 text-[10px] font-bold px-1.5 py-0.5 rounded-full">{count}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
           {dcLoading ? (
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
           ) : (
@@ -238,13 +276,14 @@ export default function DocumentDepartment() {
                   <Th>State</Th>
                   <Th>Amount Paid</Th>
                   <Th>Submitted</Th>
+                  <Th>Status</Th>
                   <Th>Actions</Th>
                 </tr>
               </Thead>
               <Tbody>
-                {directCenters.length === 0 ? (
-                  <Tr><Td colSpan={8} className="text-center text-gray-400 py-12">No centers pending document verification.</Td></Tr>
-                ) : directCenters.map((c, i) => (
+                {filteredCenters.length === 0 ? (
+                  <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No centers in “{centerStatusFilter}”.</Td></Tr>
+                ) : filteredCenters.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                     <Td>
@@ -267,22 +306,40 @@ export default function DocumentDepartment() {
                     <Td className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</Td>
                     <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
                     <Td>
+                      {(() => {
+                        const st = c.approval_status
+                        const map = {
+                          hold: ['On Hold', 'bg-amber-100 text-amber-700 border-amber-200'],
+                          doc_verified: ['Forwarded', 'bg-blue-100 text-blue-700 border-blue-200'],
+                          approved: ['Approved', 'bg-emerald-100 text-emerald-700 border-emerald-200'],
+                          rejected: ['Rejected', 'bg-red-100 text-red-700 border-red-200'],
+                        }
+                        const [label, cls] = map[st] || ['Pending', 'bg-gray-100 text-gray-600 border-gray-200']
+                        return <span className={`inline-flex text-[10px] font-bold px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
+                      })()}
+                    </Td>
+                    <Td>
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost" onClick={() => setViewDC(c)} title="View Details">
                           <Eye size={13} className="text-[#933d18]" />
                         </Button>
-                        <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks({}) }}>
-                          <CheckCircle size={13} /> Verify
-                        </Button>
-                        <button
-                          onClick={() => { setDCHoldModal(c); setDCHoldRemarks(c.approval_status === 'hold' ? (c.approval_notes || '') : '') }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
-                          title="Hold — needs correction, not forwarded to Account Dept.">
-                          <PauseCircle size={13} /> Hold
-                        </button>
-                        <Button size="sm" variant="danger" onClick={() => { setDCRejectModal(c); setDCRejectRemarks('') }}>
-                          <XCircle size={13} />
-                        </Button>
+                        {/* Verify / Hold / Reject only make sense while the center still needs doc verification */}
+                        {(!c.approval_status || c.approval_status === 'pending' || c.approval_status === 'hold') && (
+                          <>
+                            <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks({}) }}>
+                              <CheckCircle size={13} /> Verify
+                            </Button>
+                            <button
+                              onClick={() => { setDCHoldModal(c); setDCHoldRemarks(c.approval_status === 'hold' ? (c.approval_notes || '') : '') }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+                              title="Hold — needs correction, not forwarded to Account Dept.">
+                              <PauseCircle size={13} /> Hold
+                            </button>
+                            <Button size="sm" variant="danger" onClick={() => { setDCRejectModal(c); setDCRejectRemarks('') }}>
+                              <XCircle size={13} />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </Td>
                   </Tr>
