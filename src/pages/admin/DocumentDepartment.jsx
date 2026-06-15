@@ -877,7 +877,9 @@ export default function DocumentDepartment() {
 
               function verifyAll() {
                 const next = {}
-                allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '' } })
+                // Keep the locked flag on pre-verified fields so they stay locked even after
+                // Verify All — only the freshly-verified (flagged) fields stay toggleable.
+                allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '', locked: fieldChecks[k]?.locked || false } })
                 setFieldChecks(next)
               }
 
