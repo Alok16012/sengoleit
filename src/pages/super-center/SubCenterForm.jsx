@@ -413,12 +413,14 @@ export default function SubCenterForm() {
         if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
       })
-      // Date columns reject "" — send null instead (an empty string is not a valid date).
-      const dateFields = ['date_of_birth', 'payment_date']
-      dateFields.forEach(k => {
-        if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
-      })
-      if (!isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+      // On edit the form was loaded with select('*'), so it carries EVERY column — including
+      // date / timestamp / uuid columns whose null values became "". Postgres rejects "" for
+      // those types, so convert every empty string to null. On create, just drop empties.
+      if (isEdit) {
+        Object.keys(payload).forEach(k => { if (payload[k] === '') payload[k] = null })
+      } else {
+        Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+      }
 
       if (isEdit) {
         const { error: err } = await supabase.from('centers').update(payload).eq('id', id)
