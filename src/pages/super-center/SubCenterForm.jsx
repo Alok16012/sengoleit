@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import {
   Building2, User, Briefcase, CreditCard, GraduationCap,
-  Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, Wallet
+  Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, Wallet, Lock
 } from 'lucide-react'
 
 const STEPS = [
@@ -55,12 +55,16 @@ const emptyForm = {
   approval_status: 'pending',
 }
 
-function FileCard({ label, fieldKey, accept, isImage, value, onUpload, isUploading, hint }) {
+function FileCard({ label, fieldKey, accept, isImage, value, onUpload, isUploading, hint, locked }) {
   return (
-    <div className="bg-gray-50/60 rounded-xl border border-gray-100">
+    <div className={`rounded-xl border ${locked ? 'bg-gray-100/70 border-gray-200' : 'bg-gray-50/60 border-gray-100'}`}>
       <div className="px-4 pt-3 pb-1 flex items-center justify-between">
         <p className="text-xs font-bold text-gray-700">{label}</p>
-        {value && (
+        {locked ? (
+          <span className="text-[10px] font-bold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Lock size={10} /> Verified
+          </span>
+        ) : value && (
           <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1">
             <CheckCircle2 size={10} /> Uploaded
           </span>
@@ -81,13 +85,15 @@ function FileCard({ label, fieldKey, accept, isImage, value, onUpload, isUploadi
           </div>
         )}
         <div className="flex items-center gap-2">
-          <label className={`cursor-pointer flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-semibold transition-all
-            ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-[#933d18]/30 text-[#933d18] hover:bg-[#933d18]/5 bg-white'}`}>
-            <Upload size={11} />
-            {isUploading ? 'Uploading...' : value ? 'Replace' : 'Upload'}
-            <input type="file" accept={accept} className="hidden" disabled={isUploading}
-              onChange={e => e.target.files[0] && onUpload(fieldKey, e.target.files[0])} />
-          </label>
+          {!locked && (
+            <label className={`cursor-pointer flex items-center gap-1.5 px-3 py-2 border rounded-xl text-xs font-semibold transition-all
+              ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-[#933d18]/30 text-[#933d18] hover:bg-[#933d18]/5 bg-white'}`}>
+              <Upload size={11} />
+              {isUploading ? 'Uploading...' : value ? 'Replace' : 'Upload'}
+              <input type="file" accept={accept} className="hidden" disabled={isUploading}
+                onChange={e => e.target.files[0] && onUpload(fieldKey, e.target.files[0])} />
+            </label>
+          )}
           {value && (
             <a href={value} target="_blank" rel="noreferrer"
               className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-all">
@@ -122,8 +128,15 @@ export default function SubCenterForm() {
   const [loadedStatus, setLoadedStatus] = useState(null) // original approval_status when editing
   const [holdRemark, setHoldRemark] = useState('')        // doc dept remark to show on resubmit
   const [pricing, setPricing] = useState(null)            // admin-set { with_letter_price, without_letter_price }
+  const [correctionFields, setCorrectionFields] = useState([]) // fields Doc Dept flagged for edit
   const isResubmit = isEdit && ['hold', 'rejected', 'pending'].includes(loadedStatus)
   const backDest = isResubmit ? '/super-center/center-applications' : '/super-center/centers'
+
+  // When a held center is sent back with specific flagged fields, ONLY those fields are
+  // editable on resubmit — every verified field stays locked.
+  const correctionSet = new Set(correctionFields || [])
+  const lockMode = loadedStatus === 'hold' && correctionSet.size > 0
+  const isLocked = (name) => lockMode && !correctionSet.has(name)
 
   const handleSameAddress = (checked) => {
     setSameAddress(checked)
@@ -162,6 +175,7 @@ export default function SubCenterForm() {
           if (!data) return
           setLoadedStatus(data.approval_status || null)
           if (data.approval_status === 'hold' || data.approval_status === 'rejected') setHoldRemark(data.approval_notes || '')
+          setCorrectionFields(Array.isArray(data.correction_fields) ? data.correction_fields : [])
           const clean = { ...data }
           Object.keys(clean).forEach(k => { if (clean[k] === null) clean[k] = '' })
           if (clean.date_of_birth) clean.date_of_birth = String(clean.date_of_birth).slice(0, 10)
@@ -307,6 +321,7 @@ export default function SubCenterForm() {
       if (resubmit) {
         payload.approval_status = 'pending'
         payload.approval_notes = null
+        payload.correction_fields = null
       } else {
         payload.approval_status = loadedStatus
       }
@@ -381,6 +396,15 @@ export default function SubCenterForm() {
             Zaroori fields theek karein / documents dobara upload karein aur submit karein. Resubmit karne par application
             wapas Document Department ke paas verification ke liye jayegi.
           </p>
+          {lockMode && (
+            <div className="mt-2.5 flex items-start gap-2 bg-white/70 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
+              <Lock size={13} className="shrink-0 mt-0.5" />
+              <span>
+                Verified fields <strong>lock</strong> kar diye gaye hain. Sirf wahi {correctionSet.size} field(s) editable hain
+                jinhe Document Department ne correction ke liye flag kiya hai.
+              </span>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mt-3 mb-4 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
@@ -437,18 +461,20 @@ export default function SubCenterForm() {
         {step === 0 && (
           <FormSection title="Center Identity" icon={<Building2 size={16} />}>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Center Name *" value={form.center_name} onChange={set('center_name')} required />
+              <Input label="Center Name *" value={form.center_name} onChange={set('center_name')} disabled={isLocked('center_name')} required />
               <Input label="Center Code (Auto-generated on approval)" placeholder="Will be assigned after approval" value={form.center_code} readOnly className="bg-gray-50 cursor-not-allowed text-gray-400" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Email *" type="email" value={form.email}
                 error={fe.email}
                 onChange={e => setField('email', e.target.value)}
+                disabled={isLocked('email')}
                 placeholder="name@example.com" required />
               <Input label="Phone *" type="tel" value={form.phone}
                 error={fe.phone}
                 inputMode="numeric"
                 onChange={e => setField('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                disabled={isLocked('phone')}
                 placeholder="10-digit number" maxLength={10} required />
             </div>
           </FormSection>
@@ -458,64 +484,68 @@ export default function SubCenterForm() {
         {step === 1 && (
           <FormSection title="Contact Person Details" icon={<User size={16} />}>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Contact Person Name *" value={form.contact_person} onChange={set('contact_person')} required />
-              <Input label="Father / Mother Name *" value={form.father_mother_name} onChange={set('father_mother_name')} required />
+              <Input label="Contact Person Name *" value={form.contact_person} onChange={set('contact_person')} disabled={isLocked('contact_person')} required />
+              <Input label="Father / Mother Name *" value={form.father_mother_name} onChange={set('father_mother_name')} disabled={isLocked('father_mother_name')} required />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Input label="Date of Birth *" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} required />
-              <Select label="Gender *" value={form.gender} onChange={set('gender')} required>
+              <Input label="Date of Birth *" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} disabled={isLocked('date_of_birth')} required />
+              <Select label="Gender *" value={form.gender} onChange={set('gender')} disabled={isLocked('gender')} required>
                 <option value="">Select</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
                 <option value="Other">Other</option>
               </Select>
-              <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} required />
+              <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} disabled={isLocked('nationality')} required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" value={form.aadhar_no}
                 error={fe.aadhar_no}
                 inputMode="numeric"
                 onChange={e => setField('aadhar_no', e.target.value.replace(/\D/g, '').slice(0, 12))}
+                disabled={isLocked('aadhar_no')}
                 maxLength={12} required />
-              <Input label="PAN No *" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} required />
+              <Input label="PAN No *" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} disabled={isLocked('pan_no')} required />
             </div>
 
             {/* Contact Details */}
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Contact Details</p>
             <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-end">
-              <Input label="Current Address *" value={form.current_address} onChange={handleCurrentAddress} />
+              <Input label="Current Address *" value={form.current_address} onChange={handleCurrentAddress} disabled={isLocked('current_address')} />
               <div className="pb-2.5 flex flex-col items-center gap-1">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider whitespace-nowrap">Same</span>
                 <input type="checkbox" checked={sameAddress} onChange={e => handleSameAddress(e.target.checked)}
+                  disabled={isLocked('permanent_address') && isLocked('current_address')}
                   className="w-4 h-4 accent-[#933d18] cursor-pointer" />
               </div>
               <Input label="Permanent Address *" value={form.permanent_address} onChange={set('permanent_address')}
-                disabled={sameAddress} placeholder={sameAddress ? 'Same as current address' : ''} />
+                disabled={sameAddress || isLocked('permanent_address')} placeholder={sameAddress ? 'Same as current address' : ''} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Mobile Number *" inputMode="numeric" maxLength={10} value={form.contact_mobile}
                 onChange={e => setField('contact_mobile', e.target.value.replace(/\D/g, '').slice(0, 10))}
+                disabled={isLocked('contact_mobile')}
                 error={fe.contact_mobile} placeholder="10-digit mobile" required />
-              <Input label="Email Address" type="email" value={form.contact_email} onChange={set('contact_email')} />
+              <Input label="Email Address" type="email" value={form.contact_email} onChange={set('contact_email')} disabled={isLocked('contact_email')} />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Select label="State *" value={form.state_id} onChange={set('state_id')} required>
+              <Select label="State *" value={form.state_id} onChange={set('state_id')} disabled={isLocked('state_id')} required>
                 <option value="">Select State</option>
                 {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
               </Select>
-              <Select label="District *" value={form.district_id} onChange={set('district_id')} required>
+              <Select label="District *" value={form.district_id} onChange={set('district_id')} disabled={isLocked('district_id')} required>
                 <option value="">Select District</option>
                 {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
               <Input label="Pincode *" inputMode="numeric" maxLength={6} value={form.pincode}
                 onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                disabled={isLocked('pincode')}
                 error={fe.pincode} placeholder="6-digit pincode" required />
             </div>
 
             {/* Professional Details */}
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Professional Details</p>
-            <Input label="Current Occupation" value={form.current_occupation} onChange={set('current_occupation')} />
-            <Input label="Previous Experience in Admissions (if any)" value={form.previous_experience_admissions} onChange={set('previous_experience_admissions')} />
+            <Input label="Current Occupation" value={form.current_occupation} onChange={set('current_occupation')} disabled={isLocked('current_occupation')} />
+            <Input label="Previous Experience in Admissions (if any)" value={form.previous_experience_admissions} onChange={set('previous_experience_admissions')} disabled={isLocked('previous_experience_admissions')} />
           </FormSection>
         )}
 
@@ -523,8 +553,8 @@ export default function SubCenterForm() {
         {step === 2 && (
           <FormSection title="Organization Details" icon={<Briefcase size={16} />}>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Organization Name *" value={form.organization_name} onChange={set('organization_name')} required />
-              <Select label="Organization Type *" value={form.org_type} onChange={set('org_type')} required>
+              <Input label="Organization Name *" value={form.organization_name} onChange={set('organization_name')} disabled={isLocked('organization_name')} required />
+              <Select label="Organization Type *" value={form.org_type} onChange={set('org_type')} disabled={isLocked('org_type')} required>
                 <option value="">Select</option>
                 <option value="Education Consultancy">Education Consultancy</option>
                 <option value="Institute">Institute</option>
@@ -533,59 +563,59 @@ export default function SubCenterForm() {
                 <option value="Others">Others</option>
               </Select>
             </div>
-            <Textarea label="Organization Address" value={form.org_address} onChange={set('org_address')} />
+            <Textarea label="Organization Address" value={form.org_address} onChange={set('org_address')} disabled={isLocked('org_address')} />
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} />
-              <Input label="Org City" value={form.org_city} onChange={set('org_city')} />
+              <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} disabled={isLocked('org_post_office')} />
+              <Input label="Org City" value={form.org_city} onChange={set('org_city')} disabled={isLocked('org_city')} />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Select label="Org State" value={form.org_state_id} onChange={set('org_state_id')}>
+              <Select label="Org State" value={form.org_state_id} onChange={set('org_state_id')} disabled={isLocked('org_state_id')}>
                 <option value="">Select State</option>
                 {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
               </Select>
-              <Select label="Org District" value={form.org_district_id} onChange={set('org_district_id')}>
+              <Select label="Org District" value={form.org_district_id} onChange={set('org_district_id')} disabled={isLocked('org_district_id')}>
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
-              <Input label="Org Pincode" value={form.org_pincode} onChange={set('org_pincode')} />
+              <Input label="Org Pincode" value={form.org_pincode} onChange={set('org_pincode')} disabled={isLocked('org_pincode')} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Registration Number *" value={form.registration_number} onChange={set('registration_number')} required />
-              <Input label="GST / PAN (Org)" value={form.gst_pan} onChange={set('gst_pan')} />
+              <Input label="Registration Number *" value={form.registration_number} onChange={set('registration_number')} disabled={isLocked('registration_number')} required />
+              <Input label="GST / PAN (Org)" value={form.gst_pan} onChange={set('gst_pan')} disabled={isLocked('gst_pan')} />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Select label="Premises Type" value={form.premises_type} onChange={set('premises_type')}>
+              <Select label="Premises Type" value={form.premises_type} onChange={set('premises_type')} disabled={isLocked('premises_type')}>
                 <option value="Owned">Owned</option>
                 <option value="Rented">Rented</option>
                 <option value="Leased">Leased</option>
               </Select>
-              <Input label="Office Area (sqft)" type="number" value={form.office_area_sqft} onChange={set('office_area_sqft')} />
-              <Input label="Student Capacity" type="number" value={form.student_capacity} onChange={set('student_capacity')} />
+              <Input label="Office Area (sqft)" type="number" value={form.office_area_sqft} onChange={set('office_area_sqft')} disabled={isLocked('office_area_sqft')} />
+              <Input label="Student Capacity" type="number" value={form.student_capacity} onChange={set('student_capacity')} disabled={isLocked('student_capacity')} />
             </div>
 
             {/* Infrastructure */}
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Infrastructure</p>
             <div className="grid grid-cols-3 gap-4">
-              <Input label="No. of Class Rooms" type="number" min="0" value={form.num_classrooms} onChange={set('num_classrooms')} />
-              <Input label="No. of Faculty" type="number" min="0" value={form.num_faculty} onChange={set('num_faculty')} />
-              <Input label="Internet Speed" placeholder="e.g. 100 Mbps" value={form.internet_speed} onChange={set('internet_speed')} />
+              <Input label="No. of Class Rooms" type="number" min="0" value={form.num_classrooms} onChange={set('num_classrooms')} disabled={isLocked('num_classrooms')} />
+              <Input label="No. of Faculty" type="number" min="0" value={form.num_faculty} onChange={set('num_faculty')} disabled={isLocked('num_faculty')} />
+              <Input label="Internet Speed" placeholder="e.g. 100 Mbps" value={form.internet_speed} onChange={set('internet_speed')} disabled={isLocked('internet_speed')} />
             </div>
             <div className="grid grid-cols-3 gap-4 items-end">
-              <Select label="Computer Lab" value={form.has_computer_lab ? 'yes' : 'no'}
+              <Select label="Computer Lab" value={form.has_computer_lab ? 'yes' : 'no'} disabled={isLocked('has_computer_lab')}
                 onChange={e => setForm(f => ({ ...f, has_computer_lab: e.target.value === 'yes', ...(e.target.value === 'no' ? { num_computers: '' } : {}) }))}>
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
               </Select>
               {form.has_computer_lab && (
-                <Input label="No. of Computers" type="number" min="0" value={form.num_computers} onChange={set('num_computers')} />
+                <Input label="No. of Computers" type="number" min="0" value={form.num_computers} onChange={set('num_computers')} disabled={isLocked('num_computers')} />
               )}
-              <Select label="CCTV Camera" value={form.has_cctv ? 'yes' : 'no'}
+              <Select label="CCTV Camera" value={form.has_cctv ? 'yes' : 'no'} disabled={isLocked('has_cctv')}
                 onChange={e => setForm(f => ({ ...f, has_cctv: e.target.value === 'yes' }))}>
                 <option value="no">No</option>
                 <option value="yes">Yes</option>
               </Select>
             </div>
-            <Textarea label="Current Courses Offered" placeholder="List the courses currently offered at this centre" value={form.current_courses_offered} onChange={set('current_courses_offered')} />
+            <Textarea label="Current Courses Offered" placeholder="List the courses currently offered at this centre" value={form.current_courses_offered} onChange={set('current_courses_offered')} disabled={isLocked('current_courses_offered')} />
 
             {/* Facilities Available */}
             <div>
@@ -597,7 +627,7 @@ export default function SubCenterForm() {
                   ['facility_meeting_room', 'Meeting Room'],
                 ].map(([key, label]) => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={!!form[key]}
+                    <input type="checkbox" checked={!!form[key]} disabled={isLocked(key)}
                       onChange={e => setForm(f => ({ ...f, [key]: e.target.checked }))}
                       className="w-4 h-4 accent-[#933d18]" />
                     <span className="text-sm text-gray-700">{label}</span>
@@ -614,7 +644,7 @@ export default function SubCenterForm() {
                   {[['true', 'Yes'], ['false', 'No']].map(([val, label]) => (
                     <label key={val} className="flex items-center gap-2 cursor-pointer">
                       <input type="radio" name="photos_attached_sc" value={val}
-                        checked={String(!!form.photos_attached) === val}
+                        checked={String(!!form.photos_attached) === val} disabled={isLocked('photos_attached')}
                         onChange={() => setForm(f => ({ ...f, photos_attached: val === 'true' }))}
                         className="accent-[#933d18]" />
                       <span className="text-sm text-gray-700">{label}</span>
@@ -625,6 +655,7 @@ export default function SubCenterForm() {
                   <div className="mt-3 max-w-xs">
                     <FileCard label="Premises Photo" fieldKey="premises_photo_url" accept="image/*" isImage
                       value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url}
+                      locked={isLocked('premises_photo_url')}
                       hint="Upload center building / office photo" />
                   </div>
                 )}
@@ -635,7 +666,7 @@ export default function SubCenterForm() {
                   {['Attached', 'Not Attached'].map(v => (
                     <label key={v} className="flex items-center gap-2 cursor-pointer">
                       <input type="radio" name="rent_agreement_sc" value={v}
-                        checked={form.rent_agreement_attached === v}
+                        checked={form.rent_agreement_attached === v} disabled={isLocked('rent_agreement_attached')}
                         onChange={() => setForm(f => ({ ...f, rent_agreement_attached: v }))}
                         className="accent-[#933d18]" />
                       <span className="text-sm text-gray-700">{v}</span>
@@ -646,6 +677,7 @@ export default function SubCenterForm() {
                   <div className="mt-3 max-w-xs">
                     <FileCard label="Rent Agreement / Ownership Proof" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false}
                       value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url}
+                      locked={isLocked('agreement_url')}
                       hint="Upload rent agreement / ownership document (PDF or image)" />
                   </div>
                 )}
@@ -658,12 +690,12 @@ export default function SubCenterForm() {
         {step === 3 && (
           <FormSection title="Bank Details" icon={<CreditCard size={16} />}>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Account Holder Name *" value={form.bank_account_holder} onChange={set('bank_account_holder')} required />
-              <Input label="Account Number *" value={form.bank_account_number} onChange={set('bank_account_number')} required />
+              <Input label="Account Holder Name *" value={form.bank_account_holder} onChange={set('bank_account_holder')} disabled={isLocked('bank_account_holder')} required />
+              <Input label="Account Number *" value={form.bank_account_number} onChange={set('bank_account_number')} disabled={isLocked('bank_account_number')} required />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="IFSC Code *" value={form.ifsc_code} onChange={set('ifsc_code')} required />
-              <Input label="Bank Branch *" value={form.bank_branch} onChange={set('bank_branch')} required />
+              <Input label="IFSC Code *" value={form.ifsc_code} onChange={set('ifsc_code')} disabled={isLocked('ifsc_code')} required />
+              <Input label="Bank Branch *" value={form.bank_branch} onChange={set('bank_branch')} disabled={isLocked('bank_branch')} required />
             </div>
           </FormSection>
         )}
@@ -681,9 +713,9 @@ export default function SubCenterForm() {
               <div key={level}>
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{level}</p>
                 <div className="grid grid-cols-3 gap-4 mb-4">
-                  <Input label="Institute Name" value={form[f[0]]} onChange={set(f[0])} />
-                  <Input label="Board / University" value={form[f[1]]} onChange={set(f[1])} />
-                  <Input label="Passing Year" type="number" value={form[f[2]]} onChange={set(f[2])} />
+                  <Input label="Institute Name" value={form[f[0]]} onChange={set(f[0])} disabled={isLocked(f[0])} />
+                  <Input label="Board / University" value={form[f[1]]} onChange={set(f[1])} disabled={isLocked(f[1])} />
+                  <Input label="Passing Year" type="number" value={form[f[2]]} onChange={set(f[2])} disabled={isLocked(f[2])} />
                 </div>
               </div>
             ))}
@@ -704,12 +736,13 @@ export default function SubCenterForm() {
                   { key: 'without', label: 'Without Letter', price: Number(pricing?.without_letter_price || 0) },
                 ].map(opt => {
                   const active = form.letter_type === opt.key
+                  const ltLocked = isLocked('letter_type')
                   return (
-                    <button key={opt.key} type="button"
-                      onClick={() => setForm(f => ({ ...f, letter_type: opt.key }))}
+                    <button key={opt.key} type="button" disabled={ltLocked}
+                      onClick={() => { if (!ltLocked) setForm(f => ({ ...f, letter_type: opt.key })) }}
                       className={`text-left rounded-xl border-2 px-4 py-3 transition-all ${
                         active ? 'border-[#933d18] bg-[#933d18]/5' : 'border-gray-200 hover:border-gray-300 bg-white'
-                      }`}>
+                      } ${ltLocked ? 'opacity-60 cursor-not-allowed' : ''}`}>
                       <div className="flex items-center justify-between">
                         <span className={`text-sm font-bold ${active ? 'text-[#933d18]' : 'text-gray-700'}`}>{opt.label}</span>
                         {active && <CheckCircle2 size={15} className="text-[#933d18]" />}
@@ -751,10 +784,10 @@ export default function SubCenterForm() {
                 <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0' }}>Owner's personal identity documents</p>
               </div>
               <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-                <FileCard label="Owner Photo *" fieldKey="owner_photo_url" accept="image/*" isImage value={form.owner_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_photo_url} hint="Passport-size photo" />
-                <FileCard label="Owner Signature *" fieldKey="owner_signature_url" accept="image/*" isImage value={form.owner_signature_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_signature_url} hint="On white paper" />
-                <FileCard label="Aadhar Card *" fieldKey="owner_aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.owner_aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_aadhar_url} hint="Front & back" />
-                <FileCard label="PAN Card *" fieldKey="owner_pan_url" accept="image/*,application/pdf" isImage={false} value={form.owner_pan_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_pan_url} hint="Owner's PAN card" />
+                <FileCard label="Owner Photo *" fieldKey="owner_photo_url" accept="image/*" isImage value={form.owner_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_photo_url} locked={isLocked('owner_photo_url')} hint="Passport-size photo" />
+                <FileCard label="Owner Signature *" fieldKey="owner_signature_url" accept="image/*" isImage value={form.owner_signature_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_signature_url} locked={isLocked('owner_signature_url')} hint="On white paper" />
+                <FileCard label="Aadhar Card *" fieldKey="owner_aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.owner_aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_aadhar_url} locked={isLocked('owner_aadhar_url')} hint="Front & back" />
+                <FileCard label="PAN Card *" fieldKey="owner_pan_url" accept="image/*,application/pdf" isImage={false} value={form.owner_pan_url} onUpload={handleFileUpload} isUploading={!!uploading.owner_pan_url} locked={isLocked('owner_pan_url')} hint="Owner's PAN card" />
               </div>
             </div>
 
@@ -765,10 +798,10 @@ export default function SubCenterForm() {
                 <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0' }}>Organization and premises documents</p>
               </div>
               <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-                <FileCard label="Registration Cert. *" fieldKey="center_reg_url" accept="image/*,application/pdf" isImage={false} value={form.center_reg_url} onUpload={handleFileUpload} isUploading={!!uploading.center_reg_url} hint="Society / company reg." />
-                <FileCard label="Premises Photo *" fieldKey="premises_photo_url" accept="image/*" isImage value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url} hint="Center building/office" />
-                <FileCard label="GST Certificate" fieldKey="gst_url" accept="image/*,application/pdf" isImage={false} value={form.gst_url} onUpload={handleFileUpload} isUploading={!!uploading.gst_url} hint="If applicable" />
-                <FileCard label="Agreement Doc *" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false} value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url} hint="Signed MOU" />
+                <FileCard label="Registration Cert. *" fieldKey="center_reg_url" accept="image/*,application/pdf" isImage={false} value={form.center_reg_url} onUpload={handleFileUpload} isUploading={!!uploading.center_reg_url} locked={isLocked('center_reg_url')} hint="Society / company reg." />
+                <FileCard label="Premises Photo *" fieldKey="premises_photo_url" accept="image/*" isImage value={form.premises_photo_url} onUpload={handleFileUpload} isUploading={!!uploading.premises_photo_url} locked={isLocked('premises_photo_url')} hint="Center building/office" />
+                <FileCard label="GST Certificate" fieldKey="gst_url" accept="image/*,application/pdf" isImage={false} value={form.gst_url} onUpload={handleFileUpload} isUploading={!!uploading.gst_url} locked={isLocked('gst_url')} hint="If applicable" />
+                <FileCard label="Agreement Doc *" fieldKey="agreement_url" accept="image/*,application/pdf" isImage={false} value={form.agreement_url} onUpload={handleFileUpload} isUploading={!!uploading.agreement_url} locked={isLocked('agreement_url')} hint="Signed MOU" />
               </div>
             </div>
 
@@ -779,8 +812,8 @@ export default function SubCenterForm() {
                 <p style={{ fontSize: '12px', color: '#9ca3af', margin: '2px 0 0' }}>Bank verification documents</p>
               </div>
               <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-                <FileCard label="Cancel Cheque *" fieldKey="cancel_cheque_url" accept="image/*,application/pdf" isImage={false} value={form.cancel_cheque_url} onUpload={handleFileUpload} isUploading={!!uploading.cancel_cheque_url} hint="Cancelled cheque" />
-                <FileCard label="Bank Passbook *" fieldKey="bank_passbook_url" accept="image/*,application/pdf" isImage={false} value={form.bank_passbook_url} onUpload={handleFileUpload} isUploading={!!uploading.bank_passbook_url} hint="First page / statement" />
+                <FileCard label="Cancel Cheque *" fieldKey="cancel_cheque_url" accept="image/*,application/pdf" isImage={false} value={form.cancel_cheque_url} onUpload={handleFileUpload} isUploading={!!uploading.cancel_cheque_url} locked={isLocked('cancel_cheque_url')} hint="Cancelled cheque" />
+                <FileCard label="Bank Passbook *" fieldKey="bank_passbook_url" accept="image/*,application/pdf" isImage={false} value={form.bank_passbook_url} onUpload={handleFileUpload} isUploading={!!uploading.bank_passbook_url} locked={isLocked('bank_passbook_url')} hint="First page / statement" />
               </div>
             </div>
 

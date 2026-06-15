@@ -56,6 +56,7 @@ export function Textarea({ label, error, hint, className = '', ...props }) {
         rows={3}
         className={`w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 placeholder-gray-400
           focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] transition-all resize-none
+          disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed
           ${error ? 'border-red-400' : ''}
           ${className}`}
         {...props}

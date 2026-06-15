@@ -29,6 +29,80 @@ function centerMatchesFilter(c, filter) {
   return true
 }
 
+// Maps a verify-modal check key (f_* / doc_*) to the SubCenterForm field name(s) it
+// corresponds to. Used when holding a center: the fields the Doc Dept flagged for
+// correction are saved so that — on resubmit — only those fields stay editable.
+const CHECK_TO_FORM_FIELDS = {
+  f_center_name: ['center_name'],
+  f_email: ['email'],
+  f_phone: ['phone'],
+  f_contact_person: ['contact_person'],
+  f_father_mother: ['father_mother_name'],
+  f_dob: ['date_of_birth'],
+  f_gender: ['gender'],
+  f_nationality: ['nationality'],
+  f_contact_mobile: ['contact_mobile'],
+  f_contact_email: ['contact_email'],
+  f_occupation: ['current_occupation'],
+  f_experience: ['previous_experience_admissions'],
+  f_perm_address: ['permanent_address'],
+  f_curr_address: ['current_address'],
+  f_addr1: ['address_line1'],
+  f_landmark: ['landmark'],
+  f_po: ['post_office'],
+  f_city: ['city'],
+  f_state: ['state_id', 'district_id'],
+  f_pincode: ['pincode'],
+  f_aadhar: ['aadhar_no'],
+  f_pan: ['pan_no'],
+  f_org_name: ['organization_name'],
+  f_org_type: ['org_type'],
+  f_reg_number: ['registration_number'],
+  f_gst_pan: ['gst_pan'],
+  f_premises_type: ['premises_type'],
+  f_org_address: ['org_address'],
+  f_org_po: ['org_post_office'],
+  f_org_city: ['org_city'],
+  f_org_pincode: ['org_pincode'],
+  f_reception: ['facility_reception_desk'],
+  f_waiting: ['facility_waiting_area'],
+  f_meeting: ['facility_meeting_room'],
+  f_rent_agreement: ['rent_agreement_attached', 'agreement_url'],
+  f_photos: ['photos_attached', 'premises_photo_url'],
+  f_acct_holder: ['bank_account_holder'],
+  f_acct_no: ['bank_account_number'],
+  f_ifsc: ['ifsc_code'],
+  f_bank_branch: ['bank_branch'],
+  f_edu_10th: ['edu_10th_institute', 'edu_10th_board', 'edu_10th_year'],
+  f_edu_12th: ['edu_12th_institute', 'edu_12th_board', 'edu_12th_year'],
+  f_edu_ug: ['edu_ug_institute', 'edu_ug_board', 'edu_ug_year'],
+  f_edu_pg: ['edu_pg_institute', 'edu_pg_board', 'edu_pg_year'],
+  f_edu_diploma: ['edu_diploma_institute', 'edu_diploma_board', 'edu_diploma_year'],
+  doc_owner_photo: ['owner_photo_url'],
+  doc_signature: ['owner_signature_url'],
+  doc_aadhar: ['owner_aadhar_url'],
+  doc_pan: ['owner_pan_url'],
+  doc_reg: ['center_reg_url'],
+  doc_premises: ['premises_photo_url'],
+  doc_gst: ['gst_url'],
+  doc_agreement: ['agreement_url'],
+  doc_cheque: ['cancel_cheque_url'],
+  doc_passbook: ['bank_passbook_url'],
+}
+
+// From the verify-modal fieldChecks, collect the form-field names that were explicitly
+// flagged for correction — a box that is NOT verified AND has a remark. These are the
+// only fields the super center may edit on resubmit; everything else stays locked.
+function flaggedFormFields(fieldChecks) {
+  const out = new Set()
+  Object.entries(fieldChecks || {}).forEach(([key, v]) => {
+    if (!v || v.ok) return
+    if (!v.remark || !v.remark.trim()) return
+    ;(CHECK_TO_FORM_FIELDS[key] || []).forEach(f => out.add(f))
+  })
+  return [...out]
+}
+
 
 export default function DocumentDepartment() {
   const [mainTab, setMainTab] = useState('students')
@@ -55,6 +129,7 @@ export default function DocumentDepartment() {
   const [dcRejectRemarks, setDCRejectRemarks] = useState('')
   const [dcHoldModal, setDCHoldModal] = useState(null)
   const [dcHoldRemarks, setDCHoldRemarks] = useState('')
+  const [dcHoldFields, setDCHoldFields] = useState([]) // form-field names flagged for correction
   const [fieldChecks, setFieldChecks] = useState({})
 
   useEffect(() => { fetchStudents() }, [statusFilter])
@@ -96,7 +171,7 @@ export default function DocumentDepartment() {
   async function handleDCVerify() {
     setDCSaving(true)
     const { error } = await supabase.from('centers')
-      .update({ approval_status: 'doc_verified', approval_notes: dcRemarks || null })
+      .update({ approval_status: 'doc_verified', approval_notes: dcRemarks || null, correction_fields: null })
       .eq('id', dcVerifyModal.id)
     if (error) { alert('Verify failed: ' + error.message); setDCSaving(false); return }
     setDCSaving(false)
@@ -122,12 +197,18 @@ export default function DocumentDepartment() {
     if (!dcHoldRemarks.trim()) { alert('Hold karne ke liye remark likhna zaroori hai'); return }
     setDCSaving(true)
     const { error } = await supabase.from('centers')
-      .update({ approval_status: 'hold', status: 'Pending', approval_notes: dcHoldRemarks.trim() })
+      .update({
+        approval_status: 'hold',
+        status: 'Pending',
+        approval_notes: dcHoldRemarks.trim(),
+        correction_fields: dcHoldFields.length ? dcHoldFields : null,
+      })
       .eq('id', dcHoldModal.id)
     setDCSaving(false)
     if (error) { alert('Hold failed: ' + error.message); return }
     setDCHoldModal(null)
     setDCHoldRemarks('')
+    setDCHoldFields([])
     setDCVerifyModal(null)
     setFieldChecks({})
     fetchDirectCenters()
@@ -330,7 +411,7 @@ export default function DocumentDepartment() {
                               <CheckCircle size={13} /> Verify
                             </Button>
                             <button
-                              onClick={() => { setDCHoldModal(c); setDCHoldRemarks(c.approval_status === 'hold' ? (c.approval_notes || '') : '') }}
+                              onClick={() => { setDCHoldModal(c); setDCHoldRemarks(c.approval_status === 'hold' ? (c.approval_notes || '') : ''); setDCHoldFields(Array.isArray(c.correction_fields) ? c.correction_fields : []) }}
                               className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
                               title="Hold — needs correction, not forwarded to Account Dept.">
                               <PauseCircle size={13} /> Hold
@@ -859,7 +940,7 @@ export default function DocumentDepartment() {
                       {dcSaving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
                     </button>
                     <button
-                      onClick={() => { setDCHoldModal(c); setDCHoldRemarks(composedHoldNote) }}
+                      onClick={() => { setDCHoldModal(c); setDCHoldRemarks(composedHoldNote); setDCHoldFields(flaggedFormFields(fieldChecks)) }}
                       disabled={dcSaving}
                       className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
                       title="Documents verify nahi hue — center ko hold par bhejo, Account Dept. ko forward nahi hoga"
@@ -885,6 +966,15 @@ export default function DocumentDepartment() {
                 <strong>{dcHoldModal?.center_name}</strong> ko hold par bheja jayega. Yeh Account Dept. ko forward <strong>nahi</strong> hoga.
                 Center / Super Center ko yeh remark dikhega taaki woh correction kar sake.
               </div>
+              {dcHoldFields.length > 0 ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
+                  Resubmit par sirf <strong>{dcHoldFields.length}</strong> flagged field(s) editable rahenge — baaki sab verified maan kar lock ho jayenge.
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-500">
+                  Koi specific field flag nahi hua — resubmit par poora form editable rahega. (Field lock ke liye verify modal me box ko uncheck karke us par remark likhein.)
+                </div>
+              )}
               <div>
                 <label className="text-xs font-semibold text-gray-600 mb-1 block">Hold Remark <span className="text-red-500">*</span></label>
                 <textarea
