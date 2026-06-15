@@ -222,9 +222,10 @@ export default function DocumentDepartment() {
       .select('*')
       .order('created_at', { ascending: false })
     if (error) console.error('fetchDirectCenters error:', error)
-    // Show only actual center applications (exclude super centers). All statuses are kept
-    // and bucketed into the Pending / Hold / Forwarded / Approved / Rejected sub-tabs.
-    const rows = (data || []).filter(r => r.center_type !== 'super_center')
+    // Show both center AND super center applications — super centers must also pass
+    // through Document Dept verification before going to Account Dept. All statuses
+    // are kept and bucketed into the Pending / Hold / Forwarded / Approved / Rejected sub-tabs.
+    const rows = (data || [])
     // Fetch state names
     const stateIds = [...new Set(rows.map(r => r.state_id).filter(Boolean))]
     let stateMap = {}
@@ -449,6 +450,9 @@ export default function DocumentDepartment() {
                     <Td>
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-gray-900">{c.center_name}</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${c.center_type === 'super_center' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                          {c.center_type === 'super_center' ? 'Super Center' : 'Center'}
+                        </span>
                         {c.approval_status === 'hold' && (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
                             <PauseCircle size={10} /> On Hold
