@@ -162,7 +162,7 @@ export default function AddCenter() {
               <Input label="Father's / Mother's Name" value={form.fathers_mothers_name} onChange={set('fathers_mothers_name')} />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Input label="Date of Birth" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} />
+              <Input label="Date of Birth" type="date" min="1900-01-01" max={new Date().toISOString().slice(0, 10)} value={form.date_of_birth} onChange={set('date_of_birth')} />
               <Select label="Gender" value={form.gender} onChange={set('gender')}>
                 <option value="">Select</option>
                 <option value="Male">Male</option>
