@@ -15,8 +15,6 @@ const TABS = [
   { key: 'approvals', label: 'Center Applications' },
   { key: 'super_approvals', label: 'Super Center Applications' },
   { key: 'recharges', label: 'Recharge Requests' },
-  { key: 'centers', label: 'Centers Management' },
-  { key: 'super_centers_mgmt', label: 'Super Centers Management' },
 ]
 
 export default function AccountDepartment() {
@@ -421,9 +419,6 @@ export default function AccountDepartment() {
   const centerApprovals = approvals.filter(c => c.center_type !== 'super_center')
   const superApprovals = approvals.filter(c => c.center_type === 'super_center')
   const approvalsList = tab === 'super_approvals' ? superApprovals : centerApprovals
-  const managedCenters = centers.filter(c => c.center_type !== 'super_center')
-  const managedSuperCenters = centers.filter(c => c.center_type === 'super_center')
-  const centersList = tab === 'super_centers_mgmt' ? managedSuperCenters : managedCenters
   const pendingCount = centerApprovals.length
   const pendingSuperApprovals = superApprovals.length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
@@ -713,115 +708,6 @@ export default function AccountDepartment() {
             </Table>
           )}
 
-          {/* CENTERS MANAGEMENT TAB */}
-          {(tab === 'centers' || tab === 'super_centers_mgmt') && (
-            <Table>
-              <Thead>
-                <tr>
-                  <Th>#</Th>
-                  <Th>{tab === 'super_centers_mgmt' ? 'Super Center Name' : 'Center Name'}</Th>
-                  <Th>Type</Th>
-                  <Th>Code</Th>
-                  <Th>Password</Th>
-                  <Th>State</Th>
-                  <Th>Virtual Balance</Th>
-                  <Th>KYC</Th>
-                  <Th>Approval</Th>
-                  <Th>Status</Th>
-                  <Th>Activate/Deactivate</Th>
-                  <Th>Delete</Th>
-                </tr>
-              </Thead>
-              <Tbody>
-                {centersList.length === 0 ? (
-                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {tab === 'super_centers_mgmt' ? 'super centers' : 'centers'}</Td></Tr>
-                ) : centersList.map((c, i) => (
-                  <Tr key={c.id}>
-                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                    <Td>
-                      <p className="font-semibold text-gray-900">{c.center_name}</p>
-                      {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
-                    </Td>
-                    <Td>
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                        {c.center_type === 'super_center' ? 'Super Center' : 'Center'}
-                      </span>
-                    </Td>
-                    <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
-                    <Td>
-                      {editingPassword.hasOwnProperty(c.id) ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            autoFocus
-                            type="text"
-                            value={editingPassword[c.id]}
-                            onChange={e => setEditingPassword(prev => ({ ...prev, [c.id]: e.target.value }))}
-                            onKeyDown={e => { if (e.key === 'Enter') savePassword(c.id); if (e.key === 'Escape') setEditingPassword(prev => { const n = { ...prev }; delete n[c.id]; return n }) }}
-                            className="border border-[#933d18]/40 rounded-lg px-2 py-1 text-xs w-28 focus:outline-none focus:border-[#933d18]"
-                            placeholder="New password"
-                          />
-                          <button onClick={() => savePassword(c.id)} className="text-emerald-600 hover:text-emerald-700">
-                            <Save size={13} />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs text-gray-800">
-                            {c.generated_password
-                              ? (visiblePasswords[c.id] ? c.generated_password : '••••••••')
-                              : <span className="text-gray-300 text-xs">not set</span>}
-                          </span>
-                          {c.generated_password && (
-                            <button onClick={() => setVisiblePasswords(prev => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-gray-400 hover:text-[#933d18] transition-colors">
-                              {visiblePasswords[c.id] ? <EyeOff size={12} /> : <Eye size={12} />}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setEditingPassword(prev => ({ ...prev, [c.id]: c.generated_password || '' }))}
-                            className="text-gray-300 hover:text-[#933d18] transition-colors"
-                            title="Set / Edit password"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                        </div>
-                      )}
-                    </Td>
-                    <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
-                    <Td>
-                      <span className="font-bold text-emerald-700">₹{Number(c.virtual_balance || 0).toLocaleString()}</span>
-                    </Td>
-                    <Td><Badge status={c.kyc_status?.toLowerCase()}>{c.kyc_status || 'Pending'}</Badge></Td>
-                    <Td>
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.approval_status === 'approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                        {c.approval_status || 'pending'}
-                      </span>
-                    </Td>
-                    <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Inactive'}</Badge></Td>
-                    <Td>
-                      <button
-                        onClick={() => toggleCenterStatus(c)}
-                        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
-                          c.status === 'Active'
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                            : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                        }`}
-                      >
-                        {c.status === 'Active' ? <><ToggleRight size={14} /> Deactivate</> : <><ToggleLeft size={14} /> Activate</>}
-                      </button>
-                    </Td>
-                    <Td>
-                      <button
-                        onClick={() => handleDeleteCenter(c.id, c.center_name)}
-                        className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all"
-                      >
-                        <XCircle size={14} /> Delete
-                      </button>
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          )}
         </>
       )}
 

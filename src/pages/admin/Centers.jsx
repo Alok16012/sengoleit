@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Edit, Trash2, Plus, Search } from 'lucide-react'
+import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
 
 const APPROVAL_COLORS = {
   pending: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -17,6 +17,8 @@ export default function Centers() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [visiblePasswords, setVisiblePasswords] = useState({})
+  const [editingPassword, setEditingPassword] = useState({})
   const navigate = useNavigate()
 
   useEffect(() => { fetchData() }, [])
@@ -37,6 +39,84 @@ export default function Centers() {
     if (!confirm(`"${name}" ko delete karna chahte ho? Ye wapas nahi aayega.`)) return
     const { error } = await supabase.from('centers').delete().eq('id', id)
     if (error) { alert('Delete failed: ' + error.message); return }
+    fetchData()
+  }
+
+  async function toggleCenterStatus(center) {
+    const newStatus = center.status === 'Active' ? 'Inactive' : 'Active'
+    await supabase.from('centers').update({ status: newStatus }).eq('id', center.id)
+    fetchData()
+  }
+
+  async function savePassword(centerId) {
+    const newPass = editingPassword[centerId]?.trim()
+    if (!newPass) return
+    const center = data.find(c => c.id === centerId)
+    if (!center?.email) { alert('Center ka email nahi hai.'); return }
+
+    const role = 'center'
+
+    // Save password to DB for display
+    await supabase.from('centers').update({ generated_password: newPass }).eq('id', centerId)
+
+    // Preferred path — service-role admin API can change an EXISTING user's password.
+    if (supabaseAdmin) {
+      let userId = null
+      try {
+        const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+        userId = list?.users?.find(u => u.email?.toLowerCase() === center.email.toLowerCase())?.id || null
+      } catch (_) { /* fall through to create */ }
+
+      if (userId) {
+        const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+          password: newPass,
+          user_metadata: { role },
+        })
+        if (updErr) { alert('Password update failed: ' + updErr.message); return }
+        await supabase.from('profiles').upsert({ id: userId, role })
+        alert(`✓ Password update ho gaya! Ab ${center.email} + naya password se login hoga.`)
+      } else {
+        const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
+          email: center.email,
+          password: newPass,
+          email_confirm: true,
+          user_metadata: { role },
+        })
+        if (cErr) { alert('User create failed: ' + cErr.message); return }
+        if (created?.user) await supabase.from('profiles').upsert({ id: created.user.id, role })
+        alert(`✓ Account ban gaya! Ab ${center.email} + password se login hoga.`)
+      }
+      setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
+      fetchData()
+      return
+    }
+
+    // Fallback (no service key) — signUp can only create NEW users, not change existing passwords.
+    const { data: { session: adminSession } } = await supabase.auth.getSession()
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      email: center.email,
+      password: newPass,
+      options: { data: { role } }
+    })
+    if (!signUpErr && signUpData?.user) {
+      await supabase.from('profiles').upsert({ id: signUpData.user.id, role })
+    }
+    if (adminSession?.access_token) {
+      await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      })
+    }
+
+    if (signUpErr && signUpErr.message.toLowerCase().includes('already registered')) {
+      alert(`Password actually change NAHI hua — yeh email already registered hai aur existing user ka password sirf service key se badalta hai.\n\nAbhi ke liye: Supabase Dashboard → Authentication → Users → "${center.email}" → Reset/Update password.\n\nPermanent fix: .env mein asli VITE_SUPABASE_SERVICE_KEY daalo.`)
+    } else if (signUpErr) {
+      alert('Error: ' + signUpErr.message)
+    } else {
+      alert(`✓ Password set! Ab ${center.email} + password se login hoga.`)
+    }
+
+    setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
     fetchData()
   }
 
@@ -71,13 +151,13 @@ export default function Centers() {
               <Th>#</Th>
               <Th>Center Name</Th>
               <Th>Code</Th>
-              <Th>Super Center</Th>
+              <Th>Login ID / Password</Th>
               <Th>Contact Person</Th>
               <Th>State</Th>
-              <Th>Phone</Th>
               <Th>Virtual Balance</Th>
               <Th>Approval</Th>
               <Th>Status</Th>
+              <Th>Activate/Deactivate</Th>
               <Th>Actions</Th>
             </tr>
           </Thead>
@@ -92,10 +172,47 @@ export default function Centers() {
                   {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
-                <Td className="text-gray-500 text-xs">{c.super?.center_name || '—'}</Td>
+                <Td>
+                  <p className="text-xs text-gray-600 font-mono mb-1">{c.email || '—'}</p>
+                  {editingPassword.hasOwnProperty(c.id) ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editingPassword[c.id]}
+                        onChange={e => setEditingPassword(prev => ({ ...prev, [c.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') savePassword(c.id); if (e.key === 'Escape') setEditingPassword(prev => { const n = { ...prev }; delete n[c.id]; return n }) }}
+                        className="border border-[#933d18]/40 rounded-lg px-2 py-1 text-xs w-28 focus:outline-none focus:border-[#933d18]"
+                        placeholder="New password"
+                      />
+                      <button onClick={() => savePassword(c.id)} className="text-emerald-600 hover:text-emerald-700">
+                        <Save size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs text-gray-800">
+                        {c.generated_password
+                          ? (visiblePasswords[c.id] ? c.generated_password : '••••••••')
+                          : <span className="text-gray-300 text-xs">not set</span>}
+                      </span>
+                      {c.generated_password && (
+                        <button onClick={() => setVisiblePasswords(prev => ({ ...prev, [c.id]: !prev[c.id] }))} className="text-gray-400 hover:text-[#933d18] transition-colors">
+                          {visiblePasswords[c.id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setEditingPassword(prev => ({ ...prev, [c.id]: c.generated_password || '' }))}
+                        className="text-gray-300 hover:text-[#933d18] transition-colors"
+                        title="Set / Edit password"
+                      >
+                        <Pencil size={12} />
+                      </button>
+                    </div>
+                  )}
+                </Td>
                 <Td className="text-gray-500">{c.contact_person || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
-                <Td className="text-gray-500">{c.phone || '—'}</Td>
                 <Td>
                   <span className="font-semibold text-emerald-700">
                     ₹{Number(c.virtual_balance || 0).toLocaleString()}
@@ -107,6 +224,18 @@ export default function Centers() {
                   </span>
                 </Td>
                 <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
+                <Td>
+                  <button
+                    onClick={() => toggleCenterStatus(c)}
+                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                      c.status === 'Active'
+                        ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                        : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {c.status === 'Active' ? <><ToggleRight size={14} /> Deactivate</> : <><ToggleLeft size={14} /> Activate</>}
+                  </button>
+                </Td>
                 <Td>
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/centers/edit/${c.id}`)}>
