@@ -144,11 +144,18 @@ export default function SubCenterForm() {
       setStates(s.data || [])
     })
     if (user) {
-      supabase.from('centers').select('id').eq('email', user.email).eq('center_type', 'super_center').single()
-        .then(({ data }) => setSuperCenterId(data?.id))
+      // Load this super center's own id AND its admin-set pricing in one go
+      supabase.from('centers')
+        .select('id, with_letter_price, without_letter_price')
+        .eq('email', user.email).eq('center_type', 'super_center').single()
+        .then(({ data }) => {
+          setSuperCenterId(data?.id)
+          setPricing({
+            with_letter_price: data?.with_letter_price || 0,
+            without_letter_price: data?.without_letter_price || 0,
+          })
+        })
     }
-    supabase.from('center_pricing').select('with_letter_price, without_letter_price').eq('id', 1).maybeSingle()
-      .then(({ data }) => setPricing(data || { with_letter_price: 0, without_letter_price: 0 }))
     if (isEdit) {
       supabase.from('centers').select('*').eq('id', id).single()
         .then(({ data }) => {
