@@ -17,6 +17,7 @@ export default function SuperCenters() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({})
   const navigate = useNavigate()
@@ -120,9 +121,18 @@ export default function SuperCenters() {
     fetchData()
   }
 
-  const filtered = data.filter(c =>
-    `${c.center_name} ${c.center_code} ${c.contact_person} ${c.phone}`.toLowerCase().includes(search.toLowerCase())
-  )
+  const verifiedCount = data.filter(c => c.approval_status === 'approved').length
+  const unverifiedCount = data.length - verifiedCount
+
+  const filtered = data
+    .filter(c =>
+      statusFilter === 'all' ? true :
+      statusFilter === 'verified' ? c.approval_status === 'approved' :
+      c.approval_status !== 'approved'
+    )
+    .filter(c =>
+      `${c.center_name} ${c.center_code} ${c.contact_person} ${c.phone}`.toLowerCase().includes(search.toLowerCase())
+    )
 
   return (
     <div className="p-6">
@@ -131,6 +141,27 @@ export default function SuperCenters() {
         subtitle={`${data.length} super centers`}
         action={{ label: <><Plus size={15} /> Add Super Center</>, onClick: () => navigate('/admin/super-centers/new') }}
       />
+
+      <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+        {[
+          { key: 'all', label: 'All', count: data.length },
+          { key: 'verified', label: 'Verified', count: verifiedCount },
+          { key: 'unverified', label: 'Not Verified', count: unverifiedCount },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => setStatusFilter(t.key)}
+            className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              statusFilter === t.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+            {t.count > 0 && (
+              <span className={`ml-2 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${t.key === 'verified' ? 'bg-emerald-500' : t.key === 'unverified' ? 'bg-amber-500' : 'bg-gray-400'}`}>{t.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-4 relative max-w-sm">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
