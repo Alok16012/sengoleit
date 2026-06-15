@@ -748,13 +748,24 @@ export default function DocumentDepartment() {
                   </div>
                 </div>
 
-                {/* Footer CTA */}
-                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between gap-3">
-                  <p className="text-xs text-gray-400">Review all details before proceeding to verification.</p>
-                  <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks(initialChecksForCenter(viewDC)) }}>
-                    <CheckCircle size={14} /> Verify Documents
-                  </Button>
-                </div>
+                {/* Footer CTA — verify only while the center still needs doc verification.
+                    Once forwarded / approved / rejected it is view-only. */}
+                {(!viewDC.approval_status || viewDC.approval_status === 'pending' || viewDC.approval_status === 'hold') ? (
+                  <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between gap-3">
+                    <p className="text-xs text-gray-400">Review all details before proceeding to verification.</p>
+                    <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks(initialChecksForCenter(viewDC)) }}>
+                      <CheckCircle size={14} /> Verify Documents
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-end gap-3">
+                    <p className="text-xs text-gray-400">
+                      {viewDC.approval_status === 'doc_verified' ? 'Already forwarded to Account Dept — view only.'
+                        : viewDC.approval_status === 'approved' ? 'Already approved — view only.'
+                        : 'Rejected — view only.'}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </Modal>
