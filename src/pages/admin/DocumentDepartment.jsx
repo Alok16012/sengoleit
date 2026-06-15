@@ -904,9 +904,10 @@ export default function DocumentDepartment() {
 
               function verifyAll() {
                 const next = {}
-                // Verify All marks every field verified AND locks it, so nothing can be
-                // accidentally un-verified afterwards.
-                allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '', locked: true } })
+                // Verify All marks every field verified but keeps them editable — the admin can
+                // still change anything until "Verify & Forward to Account Dept" is clicked.
+                // Pre-verified (resubmit) fields keep their existing locked flag.
+                allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '', locked: fieldChecks[k]?.locked || false } })
                 setFieldChecks(next)
               }
 
@@ -1065,6 +1066,14 @@ export default function DocumentDepartment() {
                       title={!allReviewed ? `${unreviewedKeys.length} field abhi review nahi hue — sab verify ya remark karo` : 'Remark wale fields correction ke liye bheje jayenge'}
                     >
                       <PauseCircle size={15} /> Hold{!allReviewed ? ` (${unreviewedKeys.length} left)` : ''}
+                    </button>
+                    <button
+                      onClick={() => { setDCVerifyModal(null); setDCRejectModal(c); setDCRejectRemarks('') }}
+                      disabled={dcSaving}
+                      className="flex items-center gap-2 bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-red-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
+                      title="Reject this center registration"
+                    >
+                      <XCircle size={15} /> Reject
                     </button>
                     <button
                       onClick={() => { setDCVerifyModal(null); setFieldChecks({}) }}
