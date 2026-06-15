@@ -103,12 +103,59 @@ function flaggedFormFields(fieldChecks) {
   return [...out]
 }
 
+// A hold remark is written as "Label: detail" per line. This maps each label back to the
+// SubCenterForm field name(s) it refers to, so when a held center has no structured
+// correction_fields we can still recover which fields were flagged from the remark text.
+const LABEL_TO_FORM_FIELDS = {}
+;[
+  ['Center Name', ['center_name']], ['Email Address', ['email']], ['Phone Number', ['phone']],
+  ['Contact Person', ['contact_person']], ['Father / Mother Name', ['father_mother_name']],
+  ['Date of Birth', ['date_of_birth']], ['Gender', ['gender']], ['Nationality', ['nationality']],
+  ['Contact Mobile', ['contact_mobile']], ['Contact Email', ['contact_email']],
+  ['Current Occupation', ['current_occupation']], ['Prev. Experience (Admissions)', ['previous_experience_admissions']],
+  ['Permanent Address', ['permanent_address']], ['Current Address', ['current_address']],
+  ['Address Line 1', ['address_line1']], ['Landmark', ['landmark']], ['Post Office', ['post_office']],
+  ['City', ['city']], ['State', ['state_id', 'district_id']], ['Pincode', ['pincode']],
+  ['Aadhar Number', ['aadhar_no']], ['PAN Number', ['pan_no']], ['Organization Name', ['organization_name']],
+  ['Org Type', ['org_type']], ['Registration Number', ['registration_number']], ['GST / PAN', ['gst_pan']],
+  ['Premises Type', ['premises_type']], ['Org Address', ['org_address']], ['Org Post Office', ['org_post_office']],
+  ['Org City', ['org_city']], ['Org Pincode', ['org_pincode']], ['Reception Desk', ['facility_reception_desk']],
+  ['Waiting Area', ['facility_waiting_area']], ['Meeting Room', ['facility_meeting_room']],
+  ['Rent Agreement', ['rent_agreement_attached', 'agreement_url']], ['Photos Attached', ['photos_attached', 'premises_photo_url']],
+  ['Account Holder', ['bank_account_holder']], ['Account Number', ['bank_account_number']],
+  ['IFSC Code', ['ifsc_code']], ['Bank Branch', ['bank_branch']],
+  ['Owner Photo', ['owner_photo_url']], ['Owner Signature', ['owner_signature_url']],
+  ['Aadhar Card', ['owner_aadhar_url']], ['PAN Card', ['owner_pan_url']],
+  ['Registration Cert.', ['center_reg_url']], ['Premises Photo', ['premises_photo_url']],
+  ['GST Certificate', ['gst_url']], ['Agreement', ['agreement_url']],
+  ['Cancel Cheque', ['cancel_cheque_url']], ['Bank Passbook', ['bank_passbook_url']],
+].forEach(([label, fields]) => { LABEL_TO_FORM_FIELDS[label] = fields })
+
+// Parse a hold remark ("Label: detail" per line) into the set of form fields it refers to.
+function fieldsFromRemark(remark) {
+  if (!remark) return []
+  const out = new Set()
+  String(remark).split('\n').forEach(line => {
+    const idx = line.indexOf(':')
+    if (idx === -1) return
+    const label = line.slice(0, idx).trim()
+    const match = LABEL_TO_FORM_FIELDS[label]
+      || Object.entries(LABEL_TO_FORM_FIELDS).find(([l]) => l.toLowerCase() === label.toLowerCase())?.[1]
+    if (match) match.forEach(f => out.add(f))
+  })
+  return [...out]
+}
+
 // When a previously-held center is resubmitted, only the fields it was sent back to fix
 // need re-verification. Everything else was already verified, so pre-mark those boxes as
 // verified — the admin only re-checks the corrected fields instead of the whole form.
-function preVerifiedChecks(correctionFields) {
-  if (!Array.isArray(correctionFields) || correctionFields.length === 0) return {}
-  const flagged = new Set(correctionFields)
+// Uses the structured correction_fields if present, else falls back to parsing the hold
+// remark so it works even for centers held before that column existed.
+function preVerifiedChecks(correctionFields, approvalNotes) {
+  let fields = Array.isArray(correctionFields) ? correctionFields : []
+  if (fields.length === 0) fields = fieldsFromRemark(approvalNotes)
+  if (fields.length === 0) return {}
+  const flagged = new Set(fields)
   const checks = {}
   Object.entries(CHECK_TO_FORM_FIELDS).forEach(([key, formFields]) => {
     const wasFlagged = formFields.some(f => flagged.has(f))
@@ -421,7 +468,7 @@ export default function DocumentDepartment() {
                         {/* Verify / Hold / Reject only make sense while the center still needs doc verification */}
                         {(!c.approval_status || c.approval_status === 'pending' || c.approval_status === 'hold') && (
                           <>
-                            <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks(preVerifiedChecks(c.correction_fields)) }}>
+                            <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks(preVerifiedChecks(c.correction_fields, c.approval_notes)) }}>
                               <CheckCircle size={13} /> Verify
                             </Button>
                             <button
@@ -686,7 +733,7 @@ export default function DocumentDepartment() {
                 {/* Footer CTA */}
                 <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between gap-3">
                   <p className="text-xs text-gray-400">Review all details before proceeding to verification.</p>
-                  <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks(preVerifiedChecks(viewDC?.correction_fields)) }}>
+                  <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks(preVerifiedChecks(viewDC?.correction_fields, viewDC?.approval_notes)) }}>
                     <CheckCircle size={14} /> Verify Documents
                   </Button>
                 </div>

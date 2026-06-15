@@ -397,9 +397,13 @@ export default function SubCenterForm() {
       if (resubmit) {
         payload.approval_status = 'pending'
         payload.approval_notes = null
-        // Keep correction_fields so the Document Dept only re-verifies the corrected fields
-        // (the rest stay auto-verified). It is cleared once the center is finally verified.
-        payload.correction_fields = loadedStatus === 'hold' ? (correctionFields?.length ? correctionFields : null) : null
+        // Persist which fields were flagged so the Document Dept only re-verifies those on
+        // resubmit (the rest stay auto-verified). Use the stored correction_fields if present,
+        // otherwise derive them from the hold remark text — this way it works even for centers
+        // held before the correction_fields column existed. Cleared once finally verified.
+        payload.correction_fields = loadedStatus === 'hold' && effectiveCorrection.length
+          ? effectiveCorrection
+          : null
       } else {
         payload.approval_status = loadedStatus
       }
