@@ -413,6 +413,11 @@ export default function SubCenterForm() {
         if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
       })
+      // Date columns reject "" — send null instead (an empty string is not a valid date).
+      const dateFields = ['date_of_birth', 'payment_date']
+      dateFields.forEach(k => {
+        if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
+      })
       if (!isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
 
       if (isEdit) {
