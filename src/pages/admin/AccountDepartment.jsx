@@ -47,6 +47,9 @@ export default function AccountDepartment() {
   const [accSaving, setAccSaving] = useState(false)
   const [accHoldModal, setAccHoldModal] = useState(null)
   const [accHoldRemarks, setAccHoldRemarks] = useState('')
+  const [payLinkLoading, setPayLinkLoading] = useState(false)
+  const [payLinkError, setPayLinkError] = useState(null)
+  const [payRefreshing, setPayRefreshing] = useState(false)
 
   useEffect(() => { fetchAll() }, [])
   useEffect(() => { if (tab === 'center_apps') fetchCenterApps() }, [tab])
@@ -238,7 +241,6 @@ export default function AccountDepartment() {
       center_code: centerCode,
       ...(notes && notes.trim() ? { approval_notes: notes.trim() } : {}),
     }).eq('id', center.id)
-    await creditCommissionOnApproval(center.id)
     setAccSaving(false)
     setAccVerifyModal(null)
     setAccChecks({})
@@ -246,27 +248,41 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
-  // On approval: credit the center's base_fee to its own wallet (admission credit) and
-  // the surplus (amount_paid − base_fee) to the parent super center as commission.
-  // Guarded by commission_credited so re-approval never double-credits.
-  async function creditCommissionOnApproval(centerId) {
-    const { data: c } = await supabase.from('centers')
-      .select('id, super_center_id, amount_paid, base_fee, virtual_balance, commission_credited')
-      .eq('id', centerId).single()
-    if (!c || c.commission_credited) return
-    const base = Number(c.base_fee || 0)
-    const paid = Number(c.amount_paid || 0)
-    const commission = Math.max(0, paid - base)
-    await supabase.from('centers').update({
-      virtual_balance: Number(c.virtual_balance || 0) + base,
-      commission_credited: true,
-    }).eq('id', c.id)
-    if (c.super_center_id && commission > 0) {
-      const { data: sc } = await supabase.from('centers').select('virtual_balance').eq('id', c.super_center_id).single()
-      await supabase.from('centers').update({
-        virtual_balance: Number(sc?.virtual_balance || 0) + commission,
-      }).eq('id', c.super_center_id)
+  // Generate a Razorpay payment link for the center's letter-type fee via the
+  // create-payment-link edge function, and send it to the super center.
+  async function generatePayLink(center) {
+    setPayLinkError(null)
+    setPayLinkLoading(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('create-payment-link', {
+        body: { center_id: center.id },
+      })
+      if (error) throw new Error(error.message || 'Failed to create payment link')
+      if (data?.error) throw new Error(data.error)
+      // Reflect the new link/status in the open modal without a full reload
+      const updated = {
+        ...center,
+        payment_status: 'link_sent',
+        payment_link_url: data.short_url || data.payment_link_url,
+        payment_link_id: data.payment_link_id,
+        payment_amount: data.amount ?? center.payment_amount,
+      }
+      setAccVerifyModal(updated)
+      fetchAll()
+    } catch (err) {
+      setPayLinkError(err.message || 'Could not create payment link')
     }
+    setPayLinkLoading(false)
+  }
+
+  // Re-fetch this center's payment fields (webhook updates them asynchronously after paying).
+  async function refreshPayStatus(center) {
+    setPayRefreshing(true)
+    const { data } = await supabase.from('centers')
+      .select('payment_status, payment_amount, payment_link_url, payment_link_id, payment_id, payment_paid_at')
+      .eq('id', center.id).single()
+    if (data) setAccVerifyModal({ ...center, ...data })
+    setPayRefreshing(false)
   }
 
   async function confirmAccHold() {
@@ -1188,8 +1204,69 @@ export default function AccountDepartment() {
                   })}
                 </div>
 
-                {/* Right — Payment receipt */}
+                {/* Right — Letter fee payment + receipt */}
                 <div className="w-96 shrink-0 overflow-y-auto border-l border-gray-200 bg-white">
+                  {/* Letter fee payment (Razorpay pay link) */}
+                  <div className="p-5 border-b border-gray-100">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm">💸</span>
+                      <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Letter Fee Payment</p>
+                    </div>
+                    {(() => {
+                      const amount = Number(c.payment_amount || c.base_fee || 0)
+                      const status = c.payment_status || 'unpaid'
+                      const isPaid = status === 'paid'
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                            <div>
+                              <p className="text-[11px] text-gray-400 font-semibold uppercase">Amount</p>
+                              <p className="text-lg font-black text-gray-900">₹{amount.toLocaleString()}</p>
+                              {c.letter_type && <p className="text-[11px] text-gray-400 capitalize">{c.letter_type} letter</p>}
+                            </div>
+                            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full capitalize ${
+                              isPaid ? 'bg-emerald-50 text-emerald-700'
+                              : status === 'link_sent' ? 'bg-blue-50 text-blue-700'
+                              : 'bg-amber-50 text-amber-700'
+                            }`}>{isPaid ? 'Paid' : status === 'link_sent' ? 'Link Sent' : 'Unpaid'}</span>
+                          </div>
+
+                          {payLinkError && <p className="text-xs text-red-600">{payLinkError}</p>}
+
+                          {isPaid ? (
+                            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
+                              <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5"><CheckCircle size={13} /> Payment received</p>
+                              {c.payment_id && <p className="text-[11px] text-emerald-600/80 mt-1 font-mono">{c.payment_id}</p>}
+                              {c.payment_paid_at && <p className="text-[11px] text-emerald-600/80">{new Date(c.payment_paid_at).toLocaleString('en-IN')}</p>}
+                            </div>
+                          ) : (
+                            <>
+                              {amount > 0 ? (
+                                <button onClick={() => generatePayLink(c)} disabled={payLinkLoading}
+                                  className="w-full flex items-center justify-center gap-2 bg-[#933d18] hover:bg-[#7a3215] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
+                                  <ExternalLink size={14} /> {payLinkLoading ? 'Generating...' : c.payment_link_url ? 'Regenerate Pay Link' : 'Generate & Send Pay Link'}
+                                </button>
+                              ) : (
+                                <p className="text-xs text-amber-600">No fee set for this center's letter type. Set pricing in Center Pricing.</p>
+                              )}
+                              {c.payment_link_url && (
+                                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-1.5">
+                                  <p className="text-[11px] font-bold text-blue-700">Payment link (share with super center)</p>
+                                  <a href={c.payment_link_url} target="_blank" rel="noreferrer"
+                                    className="block text-xs text-blue-700 underline break-all">{c.payment_link_url}</a>
+                                </div>
+                              )}
+                              <button onClick={() => refreshPayStatus(c)} disabled={payRefreshing}
+                                className="w-full text-xs font-semibold text-gray-500 hover:text-[#933d18] py-1.5 transition-colors">
+                                {payRefreshing ? 'Checking...' : '↻ Refresh payment status'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+
                   <div className="p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <span className="text-sm">🧾</span>
@@ -1231,13 +1308,20 @@ export default function AccountDepartment() {
                   value={accRemarks}
                   onChange={e => setAccRemarks(e.target.value)}
                 />
-                <button
-                  onClick={() => handleApprove(c, accRemarks)}
-                  disabled={accSaving}
-                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
-                >
-                  <CheckCircle size={15} /> {accSaving ? 'Saving...' : 'Verify & Approve'}
-                </button>
+                {(() => {
+                  const feeAmount = Number(c.payment_amount || c.base_fee || 0)
+                  const needsPayment = feeAmount > 0 && c.payment_status !== 'paid'
+                  return (
+                    <button
+                      onClick={() => handleApprove(c, accRemarks)}
+                      disabled={accSaving || needsPayment}
+                      title={needsPayment ? 'Letter fee payment pending — generate the pay link and wait for payment' : undefined}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
+                    >
+                      <CheckCircle size={15} /> {accSaving ? 'Saving...' : needsPayment ? 'Payment Pending' : 'Verify & Approve'}
+                    </button>
+                  )
+                })()}
                 <button
                   onClick={() => { setAccHoldModal(c); setAccHoldRemarks(composedHoldNote) }}
                   disabled={accSaving}

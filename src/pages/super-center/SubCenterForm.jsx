@@ -191,15 +191,13 @@ export default function SubCenterForm() {
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
 
-  // Pricing / commission derivations for the Payment step
+  // Fee for the chosen letter type (set by admin on this super center).
+  // This amount is collected at Account Dept verification via a payment link.
   const basePrice = form.letter_type === 'with'
     ? Number(pricing?.with_letter_price || 0)
     : form.letter_type === 'without'
       ? Number(pricing?.without_letter_price || 0)
       : 0
-  const amountPaidNum = Number(form.amount_paid || 0)
-  const commissionPreview = Math.max(0, amountPaidNum - basePrice)
-  const belowMin = !!form.letter_type && form.amount_paid !== '' && amountPaidNum < basePrice
 
   function validateField(key, val) {
     switch (key) {
@@ -268,8 +266,6 @@ export default function SubCenterForm() {
         return null
       case 5:
         if (!form.letter_type) return 'Please select a letter type (With Letter / Without Letter)'
-        if (form.amount_paid === '' || isNaN(amountPaidNum)) return 'Amount Paid is required'
-        if (amountPaidNum < basePrice) return `Amount Paid must be at least ₹${basePrice.toLocaleString()} (the ${form.letter_type === 'with' ? 'with-letter' : 'without-letter'} base fee)`
         return null
       default:
         return null
@@ -306,7 +302,7 @@ export default function SubCenterForm() {
       // pending application — and any old hold remark is cleared so it is verified again from scratch.
       // Editing an already-approved / doc-verified center must NOT silently demote it to pending.
       const resubmit = !isEdit || ['hold', 'rejected', 'pending'].includes(loadedStatus) || !loadedStatus
-      const payload = { ...form, center_type: 'center', super_center_id: scId, base_fee: basePrice }
+      const payload = { ...form, center_type: 'center', super_center_id: scId, base_fee: basePrice, payment_amount: basePrice }
       delete payload.id; delete payload.created_at; delete payload.updated_at
       if (resubmit) {
         payload.approval_status = 'pending'
@@ -318,7 +314,7 @@ export default function SubCenterForm() {
       fkFields.forEach(k => {
         if (!payload[k]) { if (isEdit) payload[k] = null; else delete payload[k] }
       })
-      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid', 'base_fee',
+      const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid', 'base_fee', 'payment_amount',
         'num_classrooms', 'num_computers', 'num_faculty']
       numericFields.forEach(k => {
         if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
@@ -694,10 +690,10 @@ export default function SubCenterForm() {
           </FormSection>
         )}
 
-        {/* STEP 5: Payment */}
+        {/* STEP 5: Letter Type & Fee */}
         {step === 5 && (
-          <FormSection title="Payment Details" icon={<Wallet size={16} />}
-            subtitle="Choose the letter type and record the payment received from the center applicant">
+          <FormSection title="Letter Type & Fee" icon={<Wallet size={16} />}
+            subtitle="Choose the letter type — the fee is collected at Account Department verification">
 
             {/* Letter type selector */}
             <div>
@@ -718,58 +714,28 @@ export default function SubCenterForm() {
                         <span className={`text-sm font-bold ${active ? 'text-[#933d18]' : 'text-gray-700'}`}>{opt.label}</span>
                         {active && <CheckCircle2 size={15} className="text-[#933d18]" />}
                       </div>
-                      <p className="text-xs text-gray-500 mt-1">Base fee: <span className="font-bold text-gray-800">₹{opt.price.toLocaleString()}</span></p>
+                      <p className="text-xs text-gray-500 mt-1">Fee: <span className="font-bold text-gray-800">₹{opt.price.toLocaleString()}</span></p>
                     </button>
                   )
                 })}
               </div>
-              {form.letter_type && (
-                <p className="text-[11px] text-gray-400 mt-2">
-                  Minimum you must charge: <span className="font-bold text-gray-600">₹{basePrice.toLocaleString()}</span>.
-                  This amount becomes the center's admission credit; anything extra is your commission.
+            </div>
+
+            {/* Auto-filled amount (read-only) */}
+            {form.letter_type && (
+              <div className="bg-[#933d18]/5 border border-[#933d18]/15 rounded-xl p-4">
+                <p className="text-[11px] font-bold text-[#933d18] uppercase tracking-wide">Amount Payable</p>
+                <p className="text-2xl font-black text-[#933d18] mt-1">₹{basePrice.toLocaleString()}</p>
+                <p className="text-[11px] text-[#933d18]/70 mt-1">
+                  {form.letter_type === 'with' ? 'With Letter' : 'Without Letter'} fee, set by admin for your super center.
                 </p>
-              )}
-            </div>
-
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 font-medium">
-              Enter the payment details received from the center applicant before their center is activated.
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Amount Paid (₹)" type="number" placeholder={form.letter_type ? `Min ₹${basePrice.toLocaleString()}` : 'e.g. 5000'}
-                value={form.amount_paid} onChange={set('amount_paid')}
-                error={belowMin ? `Must be at least ₹${basePrice.toLocaleString()}` : undefined} />
-              <Input label="UTR / Transaction Number" placeholder="Bank reference number"
-                value={form.utr_number} onChange={set('utr_number')} />
-            </div>
-
-            {/* Commission preview */}
-            {form.letter_type && form.amount_paid !== '' && !belowMin && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
-                  <p className="text-[11px] font-bold text-emerald-700 uppercase tracking-wide">Center Admission Credit</p>
-                  <p className="text-lg font-black text-emerald-700 mt-0.5">₹{basePrice.toLocaleString()}</p>
-                  <p className="text-[11px] text-emerald-600/80">Added to center's wallet on approval</p>
-                </div>
-                <div className="bg-[#933d18]/5 border border-[#933d18]/15 rounded-xl p-3">
-                  <p className="text-[11px] font-bold text-[#933d18] uppercase tracking-wide">Your Commission</p>
-                  <p className="text-lg font-black text-[#933d18] mt-0.5">₹{commissionPreview.toLocaleString()}</p>
-                  <p className="text-[11px] text-[#933d18]/70">Credited to your wallet on approval</p>
-                </div>
               </div>
             )}
-            <Input label="Payment Date" type="date"
-              value={form.payment_date} onChange={set('payment_date')} />
-            <Textarea label="Remark" placeholder="e.g. Registration fee received, partial payment, pending balance, etc."
-              value={form.payment_remark} onChange={set('payment_remark')} rows={3} />
-            <div>
-              <p className="text-xs font-bold text-gray-500 mb-2">Payment Screenshot / Proof</p>
-              <div className="max-w-xs">
-                <FileCard label="Payment Screenshot" fieldKey="payment_screenshot_url"
-                  accept="image/*,application/pdf" isImage
-                  value={form.payment_screenshot_url} onUpload={handleFileUpload}
-                  isUploading={!!uploading.payment_screenshot_url}
-                  hint="Screenshot of bank transfer / UTR proof" />
-              </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 leading-relaxed">
+              You don't pay now. When the Account Department verifies this center, a secure payment link for the
+              above amount will be generated. Once you pay it, the receipt is recorded automatically and the center
+              is activated.
             </div>
           </FormSection>
         )}
