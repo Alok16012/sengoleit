@@ -12,10 +12,10 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
-  { key: 'approvals', label: 'Center Approvals' },
-  { key: 'super_approvals', label: 'Super Center Approvals' },
+  { key: 'approvals', label: 'Center Applications' },
+  { key: 'super_approvals', label: 'Super Center Applications' },
   { key: 'recharges', label: 'Recharge Requests' },
-  { key: 'center_apps', label: 'Center Applications' },
+  { key: 'center_apps', label: 'Sub-Center Applications' },
   { key: 'centers', label: 'Centers Management' },
 ]
 
@@ -449,7 +449,7 @@ export default function AccountDepartment() {
               <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
             )}
             {t.key === 'super_approvals' && pendingSuperApprovals > 0 && (
-              <span className="ml-2 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingSuperApprovals}</span>
+              <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingSuperApprovals}</span>
             )}
             {t.key === 'recharges' && pendingRecharges > 0 && (
               <span className="ml-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingRecharges}</span>
