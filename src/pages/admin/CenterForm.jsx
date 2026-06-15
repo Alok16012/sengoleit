@@ -283,8 +283,11 @@ export default function CenterForm() {
         if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
       })
-      // On insert, drop empty fields to keep DB defaults; on edit, send '' so cleared fields persist
-      if (!isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+      // On insert, drop empty fields to keep DB defaults; on edit, convert '' to null so
+      // cleared fields persist WITHOUT breaking numeric/date/uuid columns (an empty string
+      // is invalid for those types — "invalid input syntax for type numeric: """).
+      if (isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') payload[k] = null })
+      else Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
 
       if (!isEdit && payload.email && plainPassword) {
         const role = payload.center_type === 'super_center' ? 'super_center' : 'center'
