@@ -202,8 +202,13 @@ export default function SubCenterForm() {
   const [pricing, setPricing] = useState(null)            // admin-set { with_letter_price, without_letter_price }
   const [correctionFields, setCorrectionFields] = useState([]) // fields Doc Dept flagged for edit
   const [payNow, setPayNow] = useState(false)             // super center is paying offline at creation time
-  const isResubmit = isEdit && ['hold', 'rejected', 'pending'].includes(loadedStatus)
+  const isResubmit = isEdit && ['hold', 'account_hold', 'rejected', 'pending'].includes(loadedStatus)
   const backDest = isResubmit ? '/super-center/center-applications' : '/super-center/centers'
+
+  // Account Dept hold ('account_hold'): the Document Dept already verified everything, so ONLY
+  // the payment section stays editable — all other fields are locked.
+  const isAccountHold = loadedStatus === 'account_hold'
+  const PAYMENT_FIELDS = ['amount_paid', 'utr_number', 'payment_date', 'payment_screenshot_url', 'payment_remark']
 
   // When a held center is sent back with specific flagged fields, ONLY those fields are
   // editable on resubmit — every verified field stays locked. Prefer the structured
@@ -212,8 +217,12 @@ export default function SubCenterForm() {
     ? correctionFields
     : fieldsFromRemark(holdRemark)
   const correctionSet = new Set(effectiveCorrection)
-  const lockMode = loadedStatus === 'hold' && correctionSet.size > 0
-  const isLocked = (name) => lockMode && !correctionSet.has(name)
+  const docLockMode = loadedStatus === 'hold' && correctionSet.size > 0
+  const lockMode = docLockMode || isAccountHold
+  const isLocked = (name) =>
+    isAccountHold ? !PAYMENT_FIELDS.includes(name)
+    : docLockMode ? !correctionSet.has(name)
+    : false
 
   const handleSameAddress = (checked) => {
     setSameAddress(checked)
@@ -251,9 +260,12 @@ export default function SubCenterForm() {
         .then(({ data }) => {
           if (!data) return
           setLoadedStatus(data.approval_status || null)
-          if (data.approval_status === 'hold' || data.approval_status === 'rejected') setHoldRemark(data.approval_notes || '')
+          if (data.approval_status === 'hold' || data.approval_status === 'account_hold' || data.approval_status === 'rejected') setHoldRemark(data.approval_notes || '')
           setCorrectionFields(Array.isArray(data.correction_fields) ? data.correction_fields : [])
           if (data.utr_number || data.payment_screenshot_url) setPayNow(true)
+          // Account Dept hold = only payment needs fixing → force the payment section open and
+          // land the user straight on the Payment step.
+          if (data.approval_status === 'account_hold') { setPayNow(true); setStep(5) }
           const clean = { ...data }
           Object.keys(clean).forEach(k => { if (clean[k] === null) clean[k] = '' })
           if (clean.date_of_birth) clean.date_of_birth = String(clean.date_of_birth).slice(0, 10)
@@ -403,7 +415,7 @@ export default function SubCenterForm() {
       // A fresh create, or editing a held/rejected/pending center, goes (back) to Doc Dept as a
       // pending application — and any old hold remark is cleared so it is verified again from scratch.
       // Editing an already-approved / doc-verified center must NOT silently demote it to pending.
-      const resubmit = !isEdit || ['hold', 'rejected', 'pending'].includes(loadedStatus) || !loadedStatus
+      const resubmit = !isEdit || ['hold', 'account_hold', 'rejected', 'pending'].includes(loadedStatus) || !loadedStatus
       const payload = { ...form, center_type: 'center', super_center_id: scId, base_fee: basePrice, payment_amount: basePrice }
       delete payload.id; delete payload.created_at; delete payload.updated_at
       // Offline payment recorded at creation: keep the amount/UTR/receipt and flag it for the
@@ -420,7 +432,9 @@ export default function SubCenterForm() {
         delete payload.payment_remark
       }
       if (resubmit) {
-        payload.approval_status = 'pending'
+        // Account Dept hold → only payment was fixed, docs already verified, so send it straight
+        // BACK to the Account Dept ('doc_verified'), not back to Doc Dept ('pending').
+        payload.approval_status = isAccountHold ? 'doc_verified' : 'pending'
         payload.approval_notes = null
         // Persist which fields were flagged so the Document Dept only re-verifies those on
         // resubmit (the rest stay auto-verified). Use the stored correction_fields if present,
@@ -493,7 +507,26 @@ export default function SubCenterForm() {
     <div className="p-4 lg:p-6 pb-20">
       <PageHeader title={isResubmit ? 'Resubmit Application' : isEdit ? 'Edit Center' : 'Create Center'} backTo={backDest} />
 
-      {(loadedStatus === 'hold' || loadedStatus === 'rejected') ? (
+      {isAccountHold ? (
+        <div className="mt-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-bold text-amber-700">
+            <AlertCircle size={15} className="shrink-0" />
+            Account Department ne payment verify ke liye hold kiya hai
+          </div>
+          {holdRemark && (
+            <p className="mt-1.5 text-sm text-amber-800 whitespace-pre-line">
+              <span className="font-semibold">Remark:</span> {holdRemark}
+            </p>
+          )}
+          <div className="mt-2.5 flex items-start gap-2 bg-white/70 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
+            <Lock size={13} className="shrink-0 mt-0.5" />
+            <span>
+              Documents Document Department ne already verify kar diye hain — woh sab <strong>lock</strong> hain.
+              Sirf <strong>Payment</strong> section editable hai. Sahi amount, UTR aur receipt daal kar resubmit karein.
+            </span>
+          </div>
+        </div>
+      ) : (loadedStatus === 'hold' || loadedStatus === 'rejected') ? (
         <div className="mt-3 mb-4 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
           <div className="flex items-center gap-2 text-sm font-bold text-orange-700">
             <AlertCircle size={15} className="shrink-0" />
@@ -510,7 +543,7 @@ export default function SubCenterForm() {
             Zaroori fields theek karein / documents dobara upload karein aur submit karein. Resubmit karne par application
             wapas Document Department ke paas verification ke liye jayegi.
           </p>
-          {lockMode && (
+          {docLockMode && (
             <div className="mt-2.5 flex items-start gap-2 bg-white/70 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
               <Lock size={13} className="shrink-0 mt-0.5" />
               <span>

@@ -16,7 +16,7 @@ const STATUS_TABS = ['Pending', 'Hold', 'Forwarded', 'Approved', 'Rejected']
 function matchesTab(c, tab) {
   const st = c.approval_status
   if (tab === 'Pending')   return !st || st === 'pending'
-  if (tab === 'Hold')      return st === 'hold'
+  if (tab === 'Hold')      return st === 'hold' || st === 'account_hold'
   if (tab === 'Forwarded') return st === 'doc_verified'
   if (tab === 'Approved')  return st === 'approved'
   if (tab === 'Rejected')  return st === 'rejected'
@@ -27,6 +27,7 @@ function stageState(status) {
   if (status === 'approved')     return { activeIndex: 3, mode: 'done' }
   if (status === 'rejected')     return { activeIndex: 1, mode: 'rejected' }
   if (status === 'hold')         return { activeIndex: 1, mode: 'hold' }
+  if (status === 'account_hold') return { activeIndex: 2, mode: 'hold' }
   if (status === 'doc_verified') return { activeIndex: 2, mode: 'progress' }
   return { activeIndex: 1, mode: 'progress' } // pending
 }
@@ -72,6 +73,7 @@ function ProgressTracker({ status, full = false }) {
 const STATUS_LABELS = {
   pending:      'Pending Doc Verify',
   hold:         'On Hold — Action Needed',
+  account_hold: 'Payment Hold — Action Needed',
   doc_verified: 'Pending Account Dept',
   approved:     'Approved',
   rejected:     'Rejected',
@@ -80,6 +82,7 @@ const STATUS_LABELS = {
 const STATUS_COLORS = {
   pending:      'bg-amber-50 text-amber-700 border-amber-200',
   hold:         'bg-orange-50 text-orange-700 border-orange-200',
+  account_hold: 'bg-amber-50 text-amber-700 border-amber-200',
   doc_verified: 'bg-blue-50 text-blue-700 border-blue-200',
   approved:     'bg-emerald-50 text-emerald-700 border-emerald-200',
   rejected:     'bg-red-50 text-red-700 border-red-200',
@@ -251,12 +254,12 @@ export default function CenterApplications() {
                   <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${STATUS_COLORS[c.approval_status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
                     {STATUS_LABELS[c.approval_status] || c.approval_status || 'Pending'}
                   </span>
-                  {(c.approval_status === 'hold' || c.approval_status === 'rejected') && c.approval_notes && (
-                    <p className={`text-[11px] mt-1 max-w-[180px] ${c.approval_status === 'hold' ? 'text-orange-600' : 'text-red-600'}`} title={c.approval_notes}>
+                  {(c.approval_status === 'hold' || c.approval_status === 'account_hold' || c.approval_status === 'rejected') && c.approval_notes && (
+                    <p className={`text-[11px] mt-1 max-w-[180px] ${c.approval_status === 'rejected' ? 'text-red-600' : c.approval_status === 'account_hold' ? 'text-amber-600' : 'text-orange-600'}`} title={c.approval_notes}>
                       “{c.approval_notes}”
                     </p>
                   )}
-                  {(c.approval_status === 'hold' || c.approval_status === 'rejected') && (
+                  {(c.approval_status === 'hold' || c.approval_status === 'account_hold' || c.approval_status === 'rejected') && (
                     <button onClick={() => navigate(`/super-center/centers/edit/${c.id}`)}
                       title="Edit & Resubmit"
                       className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-white bg-orange-500 hover:bg-orange-600 px-2.5 py-1.5 rounded-lg transition-all whitespace-nowrap">
@@ -282,10 +285,10 @@ export default function CenterApplications() {
             <div className={`rounded-xl p-4 border ${STATUS_COLORS[viewCenter.approval_status] || 'bg-gray-50 border-gray-200'}`}>
               <p className="font-bold text-gray-900 text-base">{viewCenter.center_name}</p>
               <p className="text-xs mt-1 font-semibold">{STATUS_LABELS[viewCenter.approval_status] || viewCenter.approval_status}</p>
-              {(viewCenter.approval_status === 'hold' || viewCenter.approval_status === 'rejected') && viewCenter.approval_notes && (
+              {(viewCenter.approval_status === 'hold' || viewCenter.approval_status === 'account_hold' || viewCenter.approval_status === 'rejected') && viewCenter.approval_notes && (
                 <div className="mt-2 pt-2 border-t border-current/10">
                   <p className="text-[10px] font-bold uppercase tracking-wider opacity-70">
-                    {viewCenter.approval_status === 'hold' ? 'Hold Remark — Please Correct' : 'Rejection Reason'}
+                    {viewCenter.approval_status === 'rejected' ? 'Rejection Reason' : viewCenter.approval_status === 'account_hold' ? 'Payment Hold — Please Correct' : 'Hold Remark — Please Correct'}
                   </p>
                   <p className="text-sm font-medium mt-0.5 whitespace-pre-line">{viewCenter.approval_notes}</p>
                 </div>
@@ -344,7 +347,7 @@ export default function CenterApplications() {
               </div>
             </div>
             <div className="flex gap-3">
-              {(viewCenter.approval_status === 'hold' || viewCenter.approval_status === 'rejected') && (
+              {(viewCenter.approval_status === 'hold' || viewCenter.approval_status === 'account_hold' || viewCenter.approval_status === 'rejected') && (
                 <button onClick={() => navigate(`/super-center/centers/edit/${viewCenter.id}`)}
                   className="flex-1 inline-flex items-center justify-center gap-2 font-bold text-sm text-white bg-orange-500 hover:bg-orange-600 rounded-xl px-4 py-2.5 transition-all">
                   <Pencil size={14} /> Edit & Resubmit
