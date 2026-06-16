@@ -136,11 +136,12 @@ export default function AccountDepartment() {
 
   async function fetchAll() {
     setLoading(true)
-    // Pending Approvals: all centers with approval_status = 'doc_verified' (passed through doc dept)
+    // Pending Approvals: centers forwarded by doc dept ('doc_verified') OR held by THIS dept ('account_hold').
+    // 'account_hold' is distinct from doc dept's 'hold' so held centers stay inside Account Dept, not Doc Dept.
     const [docVerified, rech, ctr, holdStu] = await Promise.all([
-      supabase.from('centers').select('*').eq('approval_status', 'doc_verified').order('created_at', { ascending: false }),
+      supabase.from('centers').select('*').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*').order('created_at', { ascending: false }),
-      supabase.from('centers').select('*').not('approval_status', 'in', '(pending,doc_verified,hold)').order('created_at', { ascending: false }),
+      supabase.from('centers').select('*').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, programs(program_name, enrollment_code), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
@@ -309,7 +310,7 @@ export default function AccountDepartment() {
     if (!accHoldRemarks.trim()) { alert('Hold karne ke liye remark likhna zaroori hai'); return }
     setAccSaving(true)
     const { error } = await supabase.from('centers')
-      .update({ approval_status: 'hold', status: 'Pending', approval_notes: accHoldRemarks.trim() })
+      .update({ approval_status: 'account_hold', status: 'Pending', approval_notes: accHoldRemarks.trim() })
       .eq('id', accHoldModal.id)
     setAccSaving(false)
     if (error) { alert('Hold failed: ' + error.message); return }
@@ -568,7 +569,14 @@ export default function AccountDepartment() {
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                     <Td>
-                      <p className="font-semibold text-gray-900">{c.center_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-900">{c.center_name}</p>
+                        {c.approval_status === 'account_hold' && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                            <PauseCircle size={10} /> On Hold
+                          </span>
+                        )}
+                      </div>
                       {c.organization_name && <p className="text-xs text-gray-400 mt-0.5">{c.organization_name}</p>}
                     </Td>
                     <Td>
