@@ -591,7 +591,7 @@ export default function AccountDepartment() {
                   <Th>#</Th>
                   <Th>{tab === 'super_approvals' ? 'Super Center' : 'Center'}</Th>
                   <Th>Type</Th>
-                  <Th>Created Under</Th>
+                  <Th>Super Center Name</Th>
                   <Th>Contact Person</Th>
                   <Th>Phone</Th>
                   <Th>Email</Th>
