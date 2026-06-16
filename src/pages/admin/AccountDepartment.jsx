@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import VerifyRow from '../../components/ui/VerifyRow'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -44,6 +44,7 @@ export default function AccountDepartment() {
   const [accChecks, setAccChecks] = useState({})
   const [accRemarks, setAccRemarks] = useState('')
   const [couponRate, setCouponRate] = useState('')
+  const [openLockedSecs, setOpenLockedSecs] = useState({})
   const [accSaving, setAccSaving] = useState(false)
   const [accHoldModal, setAccHoldModal] = useState(null)
   const [accHoldRemarks, setAccHoldRemarks] = useState('')
@@ -599,7 +600,7 @@ export default function AccountDepartment() {
                     <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
                     <Td>
                       <div className="flex gap-1">
-                        <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate('') }}>
+                        <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate(''); setOpenLockedSecs({}) }}>
                           <CheckCircle size={13} /> Verify
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => handleReject(c)}>
@@ -1117,10 +1118,20 @@ export default function AccountDepartment() {
                     const visible = sec.fields.filter(f => f.val)
                     if (!visible.length) return null
                     const secVerified = visible.filter(f => accChecks[f.key]?.ok).length
+                    const isLocked = !sec.verify
+                    const isOpen = sec.verify || !!openLockedSecs[sec.title]
                     return (
                       <div key={sec.title} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                        <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
+                        <button
+                          type="button"
+                          disabled={!isLocked}
+                          onClick={() => isLocked && setOpenLockedSecs(prev => ({ ...prev, [sec.title]: !prev[sec.title] }))}
+                          className={`w-full flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100 text-left ${isLocked ? 'cursor-pointer hover:bg-gray-100 transition-colors' : 'cursor-default'}`}
+                        >
                           <div className="flex items-center gap-2">
+                            {isLocked && (isOpen
+                              ? <ChevronDown size={14} className="text-gray-400" />
+                              : <ChevronRight size={14} className="text-gray-400" />)}
                             <span className="text-sm">{sec.icon}</span>
                             <p className="text-xs font-black text-gray-700 uppercase tracking-widest">{sec.title}</p>
                           </div>
@@ -1130,20 +1141,22 @@ export default function AccountDepartment() {
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
-                              <EyeOff size={10} /> Locked (Doc Dept verified)
+                              <EyeOff size={10} /> {isOpen ? 'Locked (Doc Dept verified)' : 'Hidden — tap to view'}
                             </span>
                           )}
-                        </div>
-                        <div className="p-4 grid grid-cols-2 gap-3">
-                          {sec.verify
-                            ? visible.map(f => <VerifyRow key={f.key} fkey={f.key} label={f.label} val={f.val} checks={accChecks} setChecks={setAccChecks} />)
-                            : visible.map(f => (
-                                <div key={f.key} className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
-                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{f.label}</p>
-                                  <p className="text-sm font-semibold text-gray-700 mt-0.5 break-words">{f.val}</p>
-                                </div>
-                              ))}
-                        </div>
+                        </button>
+                        {isOpen && (
+                          <div className="p-4 grid grid-cols-2 gap-3">
+                            {sec.verify
+                              ? visible.map(f => <VerifyRow key={f.key} fkey={f.key} label={f.label} val={f.val} checks={accChecks} setChecks={setAccChecks} />)
+                              : visible.map(f => (
+                                  <div key={f.key} className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{f.label}</p>
+                                    <p className="text-sm font-semibold text-gray-700 mt-0.5 break-words">{f.val}</p>
+                                  </div>
+                                ))}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
