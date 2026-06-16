@@ -140,9 +140,9 @@ export default function AccountDepartment() {
     // Pending Approvals: centers forwarded by doc dept ('doc_verified') OR held by THIS dept ('account_hold').
     // 'account_hold' is distinct from doc dept's 'hold' so held centers stay inside Account Dept, not Doc Dept.
     const [docVerified, rech, ctr, holdStu] = await Promise.all([
-      supabase.from('centers').select('*').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
+      supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*').order('created_at', { ascending: false }),
-      supabase.from('centers').select('*').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
+      supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, programs(program_name, enrollment_code), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
@@ -591,6 +591,7 @@ export default function AccountDepartment() {
                   <Th>#</Th>
                   <Th>{tab === 'super_approvals' ? 'Super Center' : 'Center'}</Th>
                   <Th>Type</Th>
+                  <Th>Created Under</Th>
                   <Th>Contact Person</Th>
                   <Th>Phone</Th>
                   <Th>Email</Th>
@@ -603,7 +604,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {approvalsList.length === 0 ? (
-                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No {appStatusFilter} {tab === 'super_approvals' ? 'super center' : 'center'} applications</Td></Tr>
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {appStatusFilter} {tab === 'super_approvals' ? 'super center' : 'center'} applications</Td></Tr>
                 ) : approvalsList.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -622,6 +623,16 @@ export default function AccountDepartment() {
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
                         {c.center_type === 'super_center' ? 'Super Center' : 'Center'}
                       </span>
+                    </Td>
+                    <Td className="text-xs">
+                      {c.super_center ? (
+                        <>
+                          <p className="font-semibold text-purple-700">{c.super_center.center_name}</p>
+                          {c.super_center.center_code && <p className="text-gray-400 font-mono">{c.super_center.center_code}</p>}
+                        </>
+                      ) : (
+                        <span className="text-gray-400">Direct (Admin)</span>
+                      )}
                     </Td>
                     <Td className="text-gray-500">{c.contact_person || '—'}</Td>
                     <Td className="text-gray-500">{c.phone || '—'}</Td>
