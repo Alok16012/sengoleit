@@ -19,6 +19,7 @@ const TABS = [
 
 export default function AccountDepartment() {
   const [tab, setTab] = useState('students')
+  const [appStatusFilter, setAppStatusFilter] = useState('pending')
   const [approvals, setApprovals] = useState([])
   const [recharges, setRecharges] = useState([])
   const [centers, setCenters] = useState([])
@@ -438,11 +439,27 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
-  const centerApprovals = approvals.filter(c => c.center_type !== 'super_center')
-  const superApprovals = approvals.filter(c => c.center_type === 'super_center')
-  const approvalsList = tab === 'super_approvals' ? superApprovals : centerApprovals
-  const pendingCount = centerApprovals.length
-  const pendingSuperApprovals = superApprovals.length
+  // Every center-type application the Account Dept handles, across all statuses:
+  // approvals = doc_verified (to verify) + account_hold (held); centers = approved + rejected.
+  const allCenterApps = [...approvals, ...centers]
+  const APP_STATUS_MATCH = {
+    pending:  c => c.approval_status === 'doc_verified',
+    hold:     c => c.approval_status === 'account_hold',
+    approved: c => c.approval_status === 'approved',
+    rejected: c => c.approval_status === 'rejected',
+  }
+  const typeFiltered = allCenterApps.filter(c =>
+    tab === 'super_approvals' ? c.center_type === 'super_center' : c.center_type !== 'super_center'
+  )
+  const appStatusCounts = {
+    pending:  typeFiltered.filter(APP_STATUS_MATCH.pending).length,
+    hold:     typeFiltered.filter(APP_STATUS_MATCH.hold).length,
+    approved: typeFiltered.filter(APP_STATUS_MATCH.approved).length,
+    rejected: typeFiltered.filter(APP_STATUS_MATCH.rejected).length,
+  }
+  const approvalsList = typeFiltered.filter(APP_STATUS_MATCH[appStatusFilter] || (() => true))
+  const pendingCount = approvals.filter(c => c.center_type !== 'super_center' && c.approval_status === 'doc_verified').length
+  const pendingSuperApprovals = approvals.filter(c => c.center_type === 'super_center' && c.approval_status === 'doc_verified').length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
   const holdCount = holdStudents.length
   const pendingCenterApps = centerApps.length
@@ -546,6 +563,28 @@ export default function AccountDepartment() {
 
           {/* APPROVALS TAB (Center + Super Center) */}
           {(tab === 'approvals' || tab === 'super_approvals') && (
+            <>
+            <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+              {[
+                { key: 'pending',  label: 'To Verify', color: 'bg-amber-500' },
+                { key: 'hold',     label: 'Hold',      color: 'bg-orange-500' },
+                { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
+                { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
+              ].map(s => (
+                <button
+                  key={s.key}
+                  onClick={() => setAppStatusFilter(s.key)}
+                  className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    appStatusFilter === s.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {s.label}
+                  {appStatusCounts[s.key] > 0 && (
+                    <span className={`ml-2 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.color}`}>{appStatusCounts[s.key]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
             <Table>
               <Thead>
                 <tr>
@@ -564,7 +603,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {approvalsList.length === 0 ? (
-                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No pending {tab === 'super_approvals' ? 'super center' : 'center'} approvals</Td></Tr>
+                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No {appStatusFilter} {tab === 'super_approvals' ? 'super center' : 'center'} applications</Td></Tr>
                 ) : approvalsList.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -607,19 +646,30 @@ export default function AccountDepartment() {
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={c.approval_notes}>{c.approval_notes || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
                     <Td>
-                      <div className="flex gap-1">
-                        <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate(''); setOpenLockedSecs({}) }}>
-                          <CheckCircle size={13} /> Verify
-                        </Button>
-                        <Button size="sm" variant="danger" onClick={() => handleReject(c)}>
-                          <XCircle size={13} /> Reject
-                        </Button>
-                      </div>
+                      {c.approval_status === 'approved' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle size={12} /> Approved
+                        </span>
+                      ) : c.approval_status === 'rejected' ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
+                          <XCircle size={12} /> Rejected
+                        </span>
+                      ) : (
+                        <div className="flex gap-1">
+                          <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate(''); setOpenLockedSecs({}) }}>
+                            <CheckCircle size={13} /> {c.approval_status === 'account_hold' ? 'Re-Verify' : 'Verify'}
+                          </Button>
+                          <Button size="sm" variant="danger" onClick={() => handleReject(c)}>
+                            <XCircle size={13} /> Reject
+                          </Button>
+                        </div>
+                      )}
                     </Td>
                   </Tr>
                 ))}
               </Tbody>
             </Table>
+            </>
           )}
 
           {/* RECHARGES TAB */}
