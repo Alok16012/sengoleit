@@ -43,6 +43,7 @@ export default function AccountDepartment() {
   const [accVerifyModal, setAccVerifyModal] = useState(null)
   const [accChecks, setAccChecks] = useState({})
   const [accRemarks, setAccRemarks] = useState('')
+  const [couponRate, setCouponRate] = useState('')
   const [accSaving, setAccSaving] = useState(false)
   const [accHoldModal, setAccHoldModal] = useState(null)
   const [accHoldRemarks, setAccHoldRemarks] = useState('')
@@ -231,7 +232,7 @@ export default function AccountDepartment() {
     return `SIU${String(next).padStart(3, '0')}`
   }
 
-  async function handleApprove(center, notes) {
+  async function handleApprove(center, notes, rate, amount) {
     setAccSaving(true)
     const centerCode = center.center_code || await generateNextCenterCode()
     await supabase.from('centers').update({
@@ -240,10 +241,29 @@ export default function AccountDepartment() {
       center_code: centerCode,
       ...(notes && notes.trim() ? { approval_notes: notes.trim() } : {}),
     }).eq('id', center.id)
+
+    // Issue coupons into the center's coupon wallet:
+    //   number of coupons = paid amount ÷ per-coupon rate (admin enters the rate).
+    let issuedCoupons = 0
+    const rateNum = Math.round(Number(rate) || 0)
+    const amountNum = Math.round(Number(amount) || 0)
+    if (rateNum > 0 && amountNum > 0) {
+      issuedCoupons = Math.floor(amountNum / rateNum)
+      if (issuedCoupons > 0) {
+        const rows = Array.from({ length: issuedCoupons }, () => ({
+          center_id: center.id,
+          face_value: rateNum,
+        }))
+        const { error: cpErr } = await supabase.from('coupons').insert(rows)
+        if (cpErr) { alert('Coupon generate karne mein error: ' + cpErr.message) }
+      }
+    }
+
     setAccSaving(false)
     setAccVerifyModal(null)
     setAccChecks({})
-    setApprovedModal({ ...center, center_code: centerCode })
+    setCouponRate('')
+    setApprovedModal({ ...center, center_code: centerCode, issuedCoupons, couponRate: rateNum })
     fetchAll()
   }
 
@@ -579,7 +599,7 @@ export default function AccountDepartment() {
                     <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
                     <Td>
                       <div className="flex gap-1">
-                        <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks('') }}>
+                        <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate('') }}>
                           <CheckCircle size={13} /> Verify
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => handleReject(c)}>
@@ -740,6 +760,16 @@ export default function AccountDepartment() {
               <span className="font-mono font-bold text-gray-900">{approvedModal?.generated_password || '(Set by center at registration)'}</span>
             </div>
           </div>
+
+          {approvedModal?.issuedCoupons > 0 && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Coupon Wallet</p>
+                <p className="text-xs text-emerald-600/80 mt-0.5">@ ₹{approvedModal.couponRate} per coupon</p>
+              </div>
+              <span className="text-2xl font-black text-emerald-700">{approvedModal.issuedCoupons} <span className="text-sm font-bold">coupons</span></span>
+            </div>
+          )}
 
           <p className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3">
             Ye credentials center ko share karo. Woh portal pe login karke apna dashboard access kar sakte hain.
@@ -999,33 +1029,41 @@ export default function AccountDepartment() {
       </Modal>
 
       {/* Verify Payment Modal (Account Dept) — Full Screen */}
-      <Modal isOpen={!!accVerifyModal} onClose={() => { setAccVerifyModal(null); setAccChecks({}) }} title="Verify Payment & Approve Center" size="fullscreen">
+      <Modal isOpen={!!accVerifyModal} onClose={() => { setAccVerifyModal(null); setAccChecks({}); setCouponRate('') }} title="Verify Payment & Approve Center" size="fullscreen">
         {accVerifyModal && (() => {
           const c = accVerifyModal
+          // Account Dept only verifies PAYMENT. Center & Bank details are already
+          // verified by the Document Dept, so they stay locked (read-only) here.
           const sections = [
-            { title: 'Center', icon: '🏢', fields: [
+            { title: 'Center', icon: '🏢', verify: false, fields: [
               { key: 'f_center_name', label: 'Center Name',    val: c.center_name },
               { key: 'f_contact',     label: 'Contact Person', val: c.contact_person },
               { key: 'f_email',       label: 'Email',          val: c.email },
               { key: 'f_phone',       label: 'Phone',          val: c.phone },
             ]},
-            { title: 'Payment Details', icon: '💳', fields: [
+            { title: 'Payment Details', icon: '💳', verify: true, fields: [
               { key: 'f_amount',     label: 'Amount Paid',     val: c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : null },
               { key: 'f_utr',        label: 'UTR / Ref Number', val: c.utr_number },
               { key: 'f_pay_date',   label: 'Payment Date',    val: c.payment_date ? new Date(c.payment_date).toLocaleDateString('en-IN') : null },
               { key: 'f_pay_remark', label: 'Payment Remark',  val: c.payment_remark },
             ]},
-            { title: 'Bank Details', icon: '🏦', fields: [
+            { title: 'Bank Details', icon: '🏦', verify: false, fields: [
               { key: 'f_acct_holder', label: 'Account Holder',  val: c.bank_account_holder },
               { key: 'f_acct_no',     label: 'Account Number',  val: c.bank_account_number },
               { key: 'f_ifsc',        label: 'IFSC Code',       val: c.ifsc_code },
               { key: 'f_branch',      label: 'Bank Branch',     val: c.bank_branch },
             ]},
           ]
-          const allKeys = sections.flatMap(s => s.fields.filter(f => f.val).map(f => f.key))
+          // Only the payment section counts toward verification progress.
+          const allKeys = sections.filter(s => s.verify).flatMap(s => s.fields.filter(f => f.val).map(f => f.key))
           const totalItems = allKeys.length
           const verifiedCount = allKeys.filter(k => accChecks[k]?.ok).length
           const pct = totalItems ? Math.round((verifiedCount / totalItems) * 100) : 0
+
+          // Coupon wallet: paid amount funds the coupons; admin enters per-coupon rate.
+          const couponBase = Math.round(Number(c.amount_paid || c.payment_amount || 0))
+          const rateNum = Math.round(Number(couponRate) || 0)
+          const couponCount = rateNum > 0 ? Math.floor(couponBase / rateNum) : 0
 
           const labelMap = {}
           sections.forEach(s => s.fields.forEach(f => { labelMap[f.key] = f.label }))
@@ -1086,12 +1124,25 @@ export default function AccountDepartment() {
                             <span className="text-sm">{sec.icon}</span>
                             <p className="text-xs font-black text-gray-700 uppercase tracking-widest">{sec.title}</p>
                           </div>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${secVerified === visible.length ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                            {secVerified}/{visible.length} verified
-                          </span>
+                          {sec.verify ? (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${secVerified === visible.length ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {secVerified}/{visible.length} verified
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
+                              <EyeOff size={10} /> Locked (Doc Dept verified)
+                            </span>
+                          )}
                         </div>
                         <div className="p-4 grid grid-cols-2 gap-3">
-                          {visible.map(f => <VerifyRow key={f.key} fkey={f.key} label={f.label} val={f.val} checks={accChecks} setChecks={setAccChecks} />)}
+                          {sec.verify
+                            ? visible.map(f => <VerifyRow key={f.key} fkey={f.key} label={f.label} val={f.val} checks={accChecks} setChecks={setAccChecks} />)
+                            : visible.map(f => (
+                                <div key={f.key} className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
+                                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{f.label}</p>
+                                  <p className="text-sm font-semibold text-gray-700 mt-0.5 break-words">{f.val}</p>
+                                </div>
+                              ))}
                         </div>
                       </div>
                     )
@@ -1161,6 +1212,41 @@ export default function AccountDepartment() {
                     })()}
                   </div>
 
+                  {/* Coupon wallet — issue coupons against the paid amount */}
+                  <div className="p-5 border-b border-gray-100">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm">🎟️</span>
+                      <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Issue Coupons (Coupon Wallet)</p>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                        <p className="text-[11px] text-gray-400 font-semibold uppercase">Paid Amount</p>
+                        <p className="text-lg font-black text-gray-900">₹{couponBase.toLocaleString('en-IN')}</p>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Per Coupon Rate (₹)</label>
+                        <input
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 100 or 200"
+                          value={couponRate}
+                          onChange={e => setCouponRate(e.target.value)}
+                          className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+                        />
+                      </div>
+                      <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                        <p className="text-[11px] font-bold text-emerald-700 uppercase">Coupons to Issue</p>
+                        {rateNum > 0 ? (
+                          <p className="text-sm text-emerald-800 mt-0.5">
+                            ₹{couponBase.toLocaleString('en-IN')} ÷ ₹{rateNum} = <span className="text-xl font-black">{couponCount}</span> coupons
+                          </p>
+                        ) : (
+                          <p className="text-xs text-emerald-600/80 mt-0.5">Rate dalo to coupon count dikhega.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <span className="text-sm">🧾</span>
@@ -1205,14 +1291,19 @@ export default function AccountDepartment() {
                 {(() => {
                   const feeAmount = Number(c.payment_amount || c.base_fee || 0)
                   const needsPayment = feeAmount > 0 && c.payment_status !== 'paid'
+                  const needsRate = couponBase > 0 && couponCount < 1
+                  const blocked = accSaving || needsPayment || needsRate
+                  const title = needsPayment ? 'Letter fee payment pending — generate the pay link and wait for payment'
+                    : needsRate ? 'Per-coupon rate dalo (₹100/₹200) taaki coupons issue ho sakein'
+                    : undefined
                   return (
                     <button
-                      onClick={() => handleApprove(c, accRemarks)}
-                      disabled={accSaving || needsPayment}
-                      title={needsPayment ? 'Letter fee payment pending — generate the pay link and wait for payment' : undefined}
+                      onClick={() => handleApprove(c, accRemarks, rateNum, couponBase)}
+                      disabled={blocked}
+                      title={title}
                       className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
                     >
-                      <CheckCircle size={15} /> {accSaving ? 'Saving...' : needsPayment ? 'Payment Pending' : 'Verify & Approve'}
+                      <CheckCircle size={15} /> {accSaving ? 'Saving...' : needsPayment ? 'Payment Pending' : needsRate ? 'Set Coupon Rate' : `Verify & Approve${couponCount > 0 ? ` (+${couponCount} coupons)` : ''}`}
                     </button>
                   )
                 })()}
