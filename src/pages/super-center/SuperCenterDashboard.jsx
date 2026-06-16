@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { Users, Building2, Wallet, Clock, UserPlus, FileText, Truck, FileCheck, UserCheck } from 'lucide-react'
+import { Users, Building2, Wallet, Clock, UserPlus, FileText, Truck, FileCheck, UserCheck, PauseCircle } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 
@@ -46,8 +46,9 @@ export default function SuperCenterDashboard() {
             supabase.from('centers').select('id', { count: 'exact', head: true }).eq('super_center_id', data.id),
             supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id),
             supabase.from('recharge_requests').select('id', { count: 'exact', head: true }).eq('center_id', data.id).eq('status', 'pending'),
-          ]).then(([ctrs, studs, pending]) => {
-            setStats({ centers: ctrs.count, students: studs.count, pendingRecharges: pending.count })
+            supabase.from('centers').select('center_name, center_code, approval_status, approval_notes').eq('super_center_id', data.id).in('approval_status', ['hold', 'account_hold']),
+          ]).then(([ctrs, studs, pending, held]) => {
+            setStats({ centers: ctrs.count, students: studs.count, pendingRecharges: pending.count, heldCenters: held.data || [] })
           })
         }
       })
@@ -89,6 +90,42 @@ export default function SuperCenterDashboard() {
         <div className="bg-red-50 border border-red-200 rounded-2xl p-5 mb-6">
           <p className="font-semibold text-red-800">Application Rejected</p>
           {center.approval_notes && <p className="text-sm text-red-600 mt-1">Reason: {center.approval_notes}</p>}
+        </div>
+      )}
+
+      {/* Held centers alert — surfaces sub-centers returned on hold by the Doc / Account Dept */}
+      {stats.heldCenters?.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 mb-6">
+          <div className="flex items-start gap-3">
+            <PauseCircle size={20} className="text-orange-500 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="font-bold text-orange-800">
+                {stats.heldCenters.length} center{stats.heldCenters.length > 1 ? 's' : ''} on hold — action needed
+              </p>
+              <p className="text-sm text-orange-600 mt-0.5">
+                A department has returned these for correction. Open Center Applications to fix &amp; resubmit.
+              </p>
+              <div className="mt-3 space-y-1.5">
+                {stats.heldCenters.map((h, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-semibold text-gray-900">{h.center_name}</span>
+                    {h.center_code && <span className="font-mono text-xs text-gray-500">{h.center_code}</span>}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      h.approval_status === 'account_hold'
+                        ? 'bg-amber-50 text-amber-700 border-amber-200'
+                        : 'bg-orange-100 text-orange-700 border-orange-200'
+                    }`}>
+                      {h.approval_status === 'account_hold' ? 'Payment Hold (Account Dept)' : 'On Hold (Document Dept)'}
+                    </span>
+                    {h.approval_notes && <span className="text-xs text-orange-600 italic">“{h.approval_notes}”</span>}
+                  </div>
+                ))}
+              </div>
+              <Button size="sm" className="mt-3" onClick={() => navigate('/super-center/center-applications')}>
+                <FileText size={14} /> Open Center Applications
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
