@@ -140,9 +140,9 @@ export default function AccountDepartment() {
     // Pending Approvals: centers forwarded by doc dept ('doc_verified') OR held by THIS dept ('account_hold').
     // 'account_hold' is distinct from doc dept's 'hold' so held centers stay inside Account Dept, not Doc Dept.
     const [docVerified, rech, ctr, holdStu] = await Promise.all([
-      supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
+      supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*').order('created_at', { ascending: false }),
-      supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
+      supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, programs(program_name, enrollment_code), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
@@ -1105,23 +1105,101 @@ export default function AccountDepartment() {
           // Account Dept only verifies PAYMENT. Center & Bank details are already
           // verified by the Document Dept, so they stay locked (read-only) here.
           const sections = [
-            { title: 'Center', icon: '🏢', verify: false, fields: [
-              { key: 'f_center_name', label: 'Center Name',    val: c.center_name },
-              { key: 'f_contact',     label: 'Contact Person', val: c.contact_person },
-              { key: 'f_email',       label: 'Email',          val: c.email },
-              { key: 'f_phone',       label: 'Phone',          val: c.phone },
-            ]},
+            // Only verifiable section for the Account Dept.
             { title: 'Payment Details', icon: '💳', verify: true, fields: [
               { key: 'f_amount',     label: 'Amount Paid',     val: c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : null },
               { key: 'f_utr',        label: 'UTR / Ref Number', val: c.utr_number },
               { key: 'f_pay_date',   label: 'Payment Date',    val: c.payment_date ? new Date(c.payment_date).toLocaleDateString('en-IN') : null },
               { key: 'f_pay_remark', label: 'Payment Remark',  val: c.payment_remark },
             ]},
-            { title: 'Bank Details', icon: '🏦', verify: false, fields: [
-              { key: 'f_acct_holder', label: 'Account Holder',  val: c.bank_account_holder },
-              { key: 'f_acct_no',     label: 'Account Number',  val: c.bank_account_number },
-              { key: 'f_ifsc',        label: 'IFSC Code',       val: c.ifsc_code },
-              { key: 'f_branch',      label: 'Bank Branch',     val: c.bank_branch },
+            // Everything below is the FULL detail already verified by the Document
+            // Dept — shown locked/read-only so the Account Dept has full context.
+            { title: 'Basic Information', icon: '🏢', verify: false, fields: [
+              { key: 'f_center_name',    label: 'Center Name',    val: c.center_name },
+              { key: 'f_center_code',    label: 'Center Code',    val: c.center_code },
+              { key: 'f_email',          label: 'Email Address',  val: c.email },
+              { key: 'f_phone',          label: 'Phone Number',   val: c.phone },
+              { key: 'f_contact_person', label: 'Contact Person', val: c.contact_person },
+            ]},
+            { title: 'Contact Person Details', icon: '👤', verify: false, fields: [
+              { key: 'f_father_mother',  label: 'Father / Mother Name',          val: c.father_mother_name },
+              { key: 'f_dob',            label: 'Date of Birth',                 val: c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString('en-IN') : null },
+              { key: 'f_gender',         label: 'Gender',                        val: c.gender },
+              { key: 'f_nationality',    label: 'Nationality',                   val: c.nationality },
+              { key: 'f_contact_mobile', label: 'Contact Mobile',                val: c.contact_mobile },
+              { key: 'f_contact_email',  label: 'Contact Email',                 val: c.contact_email },
+              { key: 'f_occupation',     label: 'Current Occupation',            val: c.current_occupation },
+              { key: 'f_experience',     label: 'Prev. Experience (Admissions)', val: c.previous_experience_admissions },
+              { key: 'f_perm_address',   label: 'Permanent Address',             val: c.permanent_address },
+              { key: 'f_curr_address',   label: 'Current Address',               val: c.current_address },
+            ]},
+            { title: 'Center Address', icon: '📍', verify: false, fields: [
+              { key: 'f_addr1',    label: 'Address Line 1', val: c.address_line1 },
+              { key: 'f_landmark', label: 'Landmark',       val: c.landmark },
+              { key: 'f_po',       label: 'Post Office',    val: c.post_office },
+              { key: 'f_city',     label: 'City',           val: c.city },
+              { key: 'f_state',    label: 'State',          val: c.states?.state_name },
+              { key: 'f_pincode',  label: 'Pincode',        val: c.pincode },
+            ]},
+            { title: 'KYC Details', icon: '🪪', verify: false, fields: [
+              { key: 'f_aadhar', label: 'Aadhar Number', val: c.aadhar_no },
+              { key: 'f_pan',    label: 'PAN Number',    val: c.pan_no },
+            ]},
+            { title: 'Organization', icon: '🏛️', verify: false, fields: [
+              { key: 'f_org_name',      label: 'Organization Name',   val: c.organization_name },
+              { key: 'f_org_type',      label: 'Org Type',            val: c.org_type },
+              { key: 'f_reg_number',    label: 'Registration Number', val: c.registration_number },
+              { key: 'f_gst_pan',       label: 'GST / PAN',           val: c.gst_pan },
+              { key: 'f_premises_type', label: 'Premises Type',       val: c.premises_type },
+              { key: 'f_org_address',   label: 'Org Address',         val: c.org_address },
+              { key: 'f_org_po',        label: 'Org Post Office',      val: c.org_post_office },
+              { key: 'f_org_city',      label: 'Org City',            val: c.org_city },
+              { key: 'f_org_pincode',   label: 'Org Pincode',         val: c.org_pincode },
+            ]},
+            { title: 'Facilities', icon: '🏗️', verify: false, fields: [
+              { key: 'f_reception',      label: 'Reception Desk',  val: c.facility_reception_desk },
+              { key: 'f_waiting',        label: 'Waiting Area',    val: c.facility_waiting_area },
+              { key: 'f_meeting',        label: 'Meeting Room',    val: c.facility_meeting_room },
+              { key: 'f_rent_agreement', label: 'Rent Agreement',  val: c.rent_agreement_attached },
+              { key: 'f_photos',         label: 'Photos Attached', val: c.photos_attached },
+            ]},
+            ...[
+              ['10th', c.edu_10th_institute, c.edu_10th_board, c.edu_10th_year],
+              ['12th', c.edu_12th_institute, c.edu_12th_board, c.edu_12th_year],
+              ['UG',   c.edu_ug_institute,   c.edu_ug_board,   c.edu_ug_year],
+              ['PG',   c.edu_pg_institute,   c.edu_pg_board,   c.edu_pg_year],
+              ['Diploma', c.edu_diploma_institute, c.edu_diploma_board, c.edu_diploma_year],
+            ].filter(([, inst]) => inst).length > 0 ? [{
+              title: 'Education', icon: '🎓', verify: false,
+              fields: [
+                ['10th', c.edu_10th_institute, c.edu_10th_board, c.edu_10th_year],
+                ['12th', c.edu_12th_institute, c.edu_12th_board, c.edu_12th_year],
+                ['UG',   c.edu_ug_institute,   c.edu_ug_board,   c.edu_ug_year],
+                ['PG',   c.edu_pg_institute,   c.edu_pg_board,   c.edu_pg_year],
+                ['Diploma', c.edu_diploma_institute, c.edu_diploma_board, c.edu_diploma_year],
+              ].filter(([, inst]) => inst).map(([level, inst, board, year]) => ({
+                key: `f_edu_${level.toLowerCase()}`,
+                label: `${level} — ${inst}`,
+                val: [board, year].filter(Boolean).join(' · ') || inst,
+              })),
+            }] : [],
+            { title: 'Banking Details', icon: '🏦', verify: false, fields: [
+              { key: 'f_acct_holder', label: 'Account Holder', val: c.bank_account_holder },
+              { key: 'f_acct_no',     label: 'Account Number', val: c.bank_account_number },
+              { key: 'f_ifsc',        label: 'IFSC Code',      val: c.ifsc_code },
+              { key: 'f_branch',      label: 'Bank Branch',    val: c.bank_branch },
+            ]},
+            { title: 'Documents', icon: '📎', verify: false, fields: [
+              { key: 'doc_owner_photo', label: 'Owner Photo',        val: c.owner_photo_url,   isDoc: true },
+              { key: 'doc_signature',   label: 'Owner Signature',    val: c.owner_signature_url, isDoc: true },
+              { key: 'doc_aadhar',      label: 'Aadhar Card',        val: c.owner_aadhar_url,  isDoc: true },
+              { key: 'doc_pan',         label: 'PAN Card',           val: c.owner_pan_url,     isDoc: true },
+              { key: 'doc_reg',         label: 'Registration Cert.', val: c.center_reg_url,    isDoc: true },
+              { key: 'doc_premises',    label: 'Premises Photo',     val: c.premises_photo_url, isDoc: true },
+              { key: 'doc_gst',         label: 'GST Certificate',    val: c.gst_url,           isDoc: true },
+              { key: 'doc_agreement',   label: 'Agreement',          val: c.agreement_url,     isDoc: true },
+              { key: 'doc_cheque',      label: 'Cancel Cheque',      val: c.cancel_cheque_url, isDoc: true },
+              { key: 'doc_passbook',    label: 'Bank Passbook',      val: c.bank_passbook_url, isDoc: true },
             ]},
           ]
           // Only the payment section counts toward verification progress.
@@ -1221,7 +1299,14 @@ export default function AccountDepartment() {
                               : visible.map(f => (
                                   <div key={f.key} className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2">
                                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{f.label}</p>
-                                    <p className="text-sm font-semibold text-gray-700 mt-0.5 break-words">{f.val}</p>
+                                    {f.isDoc ? (
+                                      <a href={f.val} target="_blank" rel="noopener noreferrer"
+                                        className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-[#933d18] hover:underline">
+                                        <ExternalLink size={11} /> View
+                                      </a>
+                                    ) : (
+                                      <p className="text-sm font-semibold text-gray-700 mt-0.5 break-words">{f.val}</p>
+                                    )}
                                   </div>
                                 ))}
                           </div>
