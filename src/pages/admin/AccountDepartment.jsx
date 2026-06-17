@@ -235,38 +235,28 @@ export default function AccountDepartment() {
     return `SIU${String(next).padStart(3, '0')}`
   }
 
-  async function handleApprove(center, notes, rate, amount) {
+  async function handleApprove(center, notes, walletAmount) {
     setAccSaving(true)
     const centerCode = center.center_code || await generateNextCenterCode()
+
+    // Deposit the paid amount into the center's coupon wallet. Minting the actual
+    // coupons (amount ÷ per-coupon rate) happens later in Coupon Management.
+    const depositNum = Math.round(Number(walletAmount) || 0)
+    const newBalance = Math.round(Number(center.coupon_wallet_balance || 0)) + depositNum
+
     await supabase.from('centers').update({
       approval_status: 'approved',
       status: 'Active',
       center_code: centerCode,
+      coupon_wallet_balance: newBalance,
       ...(notes && notes.trim() ? { approval_notes: notes.trim() } : {}),
     }).eq('id', center.id)
-
-    // Issue coupons into the center's coupon wallet:
-    //   number of coupons = paid amount ÷ per-coupon rate (admin enters the rate).
-    let issuedCoupons = 0
-    const rateNum = Math.round(Number(rate) || 0)
-    const amountNum = Math.round(Number(amount) || 0)
-    if (rateNum > 0 && amountNum > 0) {
-      issuedCoupons = Math.floor(amountNum / rateNum)
-      if (issuedCoupons > 0) {
-        const rows = Array.from({ length: issuedCoupons }, () => ({
-          center_id: center.id,
-          face_value: rateNum,
-        }))
-        const { error: cpErr } = await supabase.from('coupons').insert(rows)
-        if (cpErr) { alert('Coupon generate karne mein error: ' + cpErr.message) }
-      }
-    }
 
     setAccSaving(false)
     setAccVerifyModal(null)
     setAccChecks({})
     setCouponRate('')
-    setApprovedModal({ ...center, center_code: centerCode, issuedCoupons, couponRate: rateNum })
+    setApprovedModal({ ...center, center_code: centerCode, walletDeposit: depositNum, couponWalletBalance: newBalance })
     fetchAll()
   }
 
@@ -831,13 +821,13 @@ export default function AccountDepartment() {
             </div>
           </div>
 
-          {approvedModal?.issuedCoupons > 0 && (
+          {approvedModal?.walletDeposit > 0 && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Coupon Wallet</p>
-                <p className="text-xs text-emerald-600/80 mt-0.5">@ ₹{approvedModal.couponRate} per coupon</p>
+                <p className="text-xs text-emerald-600/80 mt-0.5">Balance: ₹{Number(approvedModal.couponWalletBalance || 0).toLocaleString('en-IN')} · mint coupons in Coupon Management</p>
               </div>
-              <span className="text-2xl font-black text-emerald-700">{approvedModal.issuedCoupons} <span className="text-sm font-bold">coupons</span></span>
+              <span className="text-2xl font-black text-emerald-700">+₹{Number(approvedModal.walletDeposit).toLocaleString('en-IN')}</span>
             </div>
           )}
 
@@ -1208,10 +1198,12 @@ export default function AccountDepartment() {
           const verifiedCount = allKeys.filter(k => accChecks[k]?.ok).length
           const pct = totalItems ? Math.round((verifiedCount / totalItems) * 100) : 0
 
-          // Coupon wallet: paid amount funds the coupons; admin enters per-coupon rate.
+          // Coupon wallet: on approval the paid amount is DEPOSITED into the
+          // center's coupon wallet. The admin decides how many coupons to mint
+          // later, in Coupon Management. `couponRate` here just holds an optional
+          // override of the deposit amount (defaults to the paid amount).
           const couponBase = Math.round(Number(c.amount_paid || c.payment_amount || 0))
-          const rateNum = Math.round(Number(couponRate) || 0)
-          const couponCount = rateNum > 0 ? Math.floor(couponBase / rateNum) : 0
+          const walletDeposit = couponRate === '' ? couponBase : Math.round(Number(couponRate) || 0)
 
           const labelMap = {}
           sections.forEach(s => s.fields.forEach(f => { labelMap[f.key] = f.label }))
@@ -1379,11 +1371,12 @@ export default function AccountDepartment() {
                     })()}
                   </div>
 
-                  {/* Coupon wallet — issue coupons against the paid amount */}
+                  {/* Coupon wallet — deposit the paid amount. How many coupons to
+                      mint is decided later in Coupon Management. */}
                   <div className="p-5 border-b border-gray-100">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-sm">🎟️</span>
-                      <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Issue Coupons (Coupon Wallet)</p>
+                      <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Coupon Wallet Deposit</p>
                     </div>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
@@ -1391,25 +1384,23 @@ export default function AccountDepartment() {
                         <p className="text-lg font-black text-gray-900">₹{couponBase.toLocaleString('en-IN')}</p>
                       </div>
                       <div>
-                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Per Coupon Rate (₹)</label>
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Amount to Add (₹)</label>
                         <input
                           type="number"
-                          min="1"
-                          placeholder="e.g. 100 or 200"
+                          min="0"
+                          placeholder={`${couponBase}`}
                           value={couponRate}
                           onChange={e => setCouponRate(e.target.value)}
                           className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
                         />
+                        <p className="text-[11px] text-gray-400 mt-1">Khaali chhodo to paid amount (₹{couponBase.toLocaleString('en-IN')}) add hoga.</p>
                       </div>
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                        <p className="text-[11px] font-bold text-emerald-700 uppercase">Coupons to Issue</p>
-                        {rateNum > 0 ? (
-                          <p className="text-sm text-emerald-800 mt-0.5">
-                            ₹{couponBase.toLocaleString('en-IN')} ÷ ₹{rateNum} = <span className="text-xl font-black">{couponCount}</span> coupons
-                          </p>
-                        ) : (
-                          <p className="text-xs text-emerald-600/80 mt-0.5">Rate dalo to coupon count dikhega.</p>
-                        )}
+                        <p className="text-[11px] font-bold text-emerald-700 uppercase">Will Add to Wallet</p>
+                        <p className="text-sm text-emerald-800 mt-0.5">
+                          <span className="text-xl font-black">₹{walletDeposit.toLocaleString('en-IN')}</span>
+                        </p>
+                        <p className="text-[11px] text-emerald-600/80 mt-1">Kitne coupon banane hai voo Coupon Management mein decide hoga.</p>
                       </div>
                     </div>
                   </div>
@@ -1458,19 +1449,16 @@ export default function AccountDepartment() {
                 {(() => {
                   const feeAmount = Number(c.payment_amount || c.base_fee || 0)
                   const needsPayment = feeAmount > 0 && c.payment_status !== 'paid'
-                  const needsRate = couponBase > 0 && couponCount < 1
-                  const blocked = accSaving || needsPayment || needsRate
-                  const title = needsPayment ? 'Letter fee payment pending — generate the pay link and wait for payment'
-                    : needsRate ? 'Per-coupon rate dalo (₹100/₹200) taaki coupons issue ho sakein'
-                    : undefined
+                  const blocked = accSaving || needsPayment
+                  const title = needsPayment ? 'Letter fee payment pending — generate the pay link and wait for payment' : undefined
                   return (
                     <button
-                      onClick={() => handleApprove(c, accRemarks, rateNum, couponBase)}
+                      onClick={() => handleApprove(c, accRemarks, walletDeposit)}
                       disabled={blocked}
                       title={title}
                       className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
                     >
-                      <CheckCircle size={15} /> {accSaving ? 'Saving...' : needsPayment ? 'Payment Pending' : needsRate ? 'Set Coupon Rate' : `Verify & Approve${couponCount > 0 ? ` (+${couponCount} coupons)` : ''}`}
+                      <CheckCircle size={15} /> {accSaving ? 'Saving...' : needsPayment ? 'Payment Pending' : `Verify & Approve${walletDeposit > 0 ? ` (+₹${walletDeposit.toLocaleString('en-IN')})` : ''}`}
                     </button>
                   )
                 })()}

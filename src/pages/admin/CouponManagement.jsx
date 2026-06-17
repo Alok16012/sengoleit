@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
-import Badge from '../../components/ui/Badge'
+import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
-import { Ticket, CheckCircle, Clock, Hash } from 'lucide-react'
+import { Ticket, Wallet, Sparkles } from 'lucide-react'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -30,25 +30,29 @@ export default function CouponManagement() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [centerFilter, setCenterFilter] = useState('')
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true)
-      const [cpns, ctrs] = await Promise.all([
-        supabase
-          .from('coupons')
-          .select('*, centers(center_name, center_code, center_type)')
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('centers')
-          .select('id, center_name, center_code, center_type')
-          .order('center_name'),
-      ])
-      setCoupons(cpns.data || [])
-      setCenters(ctrs.data || [])
-      setLoading(false)
-    }
-    fetchData()
-  }, [])
+  // Coupon generation modal state
+  const [genCenter, setGenCenter] = useState(null)
+  const [genRate, setGenRate] = useState('')
+  const [genSaving, setGenSaving] = useState(false)
+
+  async function fetchData() {
+    setLoading(true)
+    const [cpns, ctrs] = await Promise.all([
+      supabase
+        .from('coupons')
+        .select('*, centers(center_name, center_code, center_type)')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('centers')
+        .select('id, center_name, center_code, center_type, coupon_wallet_balance')
+        .order('center_name'),
+    ])
+    setCoupons(cpns.data || [])
+    setCenters(ctrs.data || [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [])
 
   const filtered = coupons.filter(c => {
     const isUsed = !!(c.is_used || c.used_at)
@@ -61,14 +65,71 @@ export default function CouponManagement() {
   const totalUsed = coupons.filter(c => !!(c.is_used || c.used_at)).length
   const totalUnused = coupons.length - totalUsed
 
+  // Centers that have money deposited in their coupon wallet but not yet minted.
+  const walletCenters = centers.filter(c => Number(c.coupon_wallet_balance || 0) > 0)
+  const totalWallet = centers.reduce((sum, c) => sum + Number(c.coupon_wallet_balance || 0), 0)
+
+  const genBalance = Math.round(Number(genCenter?.coupon_wallet_balance || 0))
+  const genRateNum = Math.round(Number(genRate) || 0)
+  const genCount = genRateNum > 0 ? Math.floor(genBalance / genRateNum) : 0
+  const genMinted = genCount * genRateNum
+  const genRemaining = genBalance - genMinted
+
+  async function generateCoupons() {
+    if (!genCenter || genCount < 1) return
+    setGenSaving(true)
+    const rows = Array.from({ length: genCount }, () => ({
+      center_id: genCenter.id,
+      face_value: genRateNum,
+    }))
+    const { error: cpErr } = await supabase.from('coupons').insert(rows)
+    if (cpErr) { alert('Coupon generate karne mein error: ' + cpErr.message); setGenSaving(false); return }
+    // Deduct the minted money; any remainder (< 1 coupon) stays in the wallet.
+    const { error: balErr } = await supabase.from('centers')
+      .update({ coupon_wallet_balance: genRemaining })
+      .eq('id', genCenter.id)
+    if (balErr) { alert('Wallet balance update error: ' + balErr.message) }
+    setGenSaving(false)
+    setGenCenter(null)
+    setGenRate('')
+    fetchData()
+  }
+
   return (
     <div className="p-6">
       <PageHeader title="Coupon Management" subtitle="View and manage all admission & wallet coupons" />
 
-      <div className="grid grid-cols-3 gap-4 mt-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 mb-6">
         <StatCard label="Total Coupons" value={coupons.length} color="blue" />
         <StatCard label="Used" value={totalUsed} color="gray" />
         <StatCard label="Unused / Available" value={totalUnused} color="green" />
+        <StatCard label="Wallet Balance" value={`₹${totalWallet.toLocaleString('en-IN')}`} color="amber" />
+      </div>
+
+      {/* Coupon wallets — deposited money waiting to be minted into coupons */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Wallet size={16} className="text-[#933d18]" />
+          <h2 className="text-sm font-black text-gray-700 uppercase tracking-widest">Coupon Wallets — Mint Coupons</h2>
+        </div>
+        {walletCenters.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4 text-center">Kisi center ke coupon wallet mein abhi balance nahi hai.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {walletCenters.map(c => (
+              <div key={c.id} className="rounded-xl border border-amber-100 bg-amber-50/50 p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-900 truncate">{c.center_name}</p>
+                  {c.center_code && <p className="text-xs text-gray-400 font-mono">{c.center_code}</p>}
+                  <p className="text-lg font-black text-amber-700 mt-1">₹{Number(c.coupon_wallet_balance).toLocaleString('en-IN')}</p>
+                </div>
+                <Button size="sm" onClick={() => { setGenCenter(c); setGenRate('') }} className="shrink-0">
+                  <Sparkles size={13} /> Generate
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -150,6 +211,62 @@ export default function CouponManagement() {
           </Tbody>
         </Table>
       )}
+
+      {/* Generate coupons modal */}
+      <Modal isOpen={!!genCenter} onClose={() => { setGenCenter(null); setGenRate('') }} title="Generate Coupons">
+        {genCenter && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="font-bold text-gray-900">{genCenter.center_name}</p>
+              {genCenter.center_code && <p className="text-xs text-gray-400 font-mono">{genCenter.center_code}</p>}
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Wallet Balance</span>
+                <span className="text-lg font-black text-amber-700">₹{genBalance.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Per Coupon Rate (₹)</label>
+              <input
+                type="number"
+                min="1"
+                autoFocus
+                placeholder="e.g. 100 or 200"
+                value={genRate}
+                onChange={e => setGenRate(e.target.value)}
+                className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+              />
+            </div>
+
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+              <p className="text-[11px] font-bold text-emerald-700 uppercase">Coupons to Generate</p>
+              {genRateNum > 0 ? (
+                <>
+                  <p className="text-sm text-emerald-800 mt-0.5">
+                    ₹{genBalance.toLocaleString('en-IN')} ÷ ₹{genRateNum} = <span className="text-xl font-black">{genCount}</span> coupons
+                  </p>
+                  {genRemaining > 0 && (
+                    <p className="text-[11px] text-emerald-600/80 mt-1">₹{genRemaining.toLocaleString('en-IN')} wallet mein bachega (1 coupon se kam).</p>
+                  )}
+                </>
+              ) : (
+                <p className="text-xs text-emerald-600/80 mt-0.5">Rate dalo to coupon count dikhega.</p>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                onClick={generateCoupons}
+                disabled={genSaving || genCount < 1}
+                className="flex-1 justify-center"
+              >
+                <Sparkles size={14} /> {genSaving ? 'Generating...' : `Generate ${genCount > 0 ? genCount : ''} Coupons`}
+              </Button>
+              <Button variant="outline" onClick={() => { setGenCenter(null); setGenRate('') }} className="flex-1 justify-center">Cancel</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
