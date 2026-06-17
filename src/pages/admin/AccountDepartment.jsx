@@ -301,6 +301,25 @@ export default function AccountDepartment() {
     setPayLinkLoading(false)
   }
 
+  // Manually mark the letter fee as paid — used when payment was collected
+  // offline (UTR / super center wallet) or the Razorpay link flow is unavailable.
+  async function markPaidManually(center) {
+    const amount = Number(center.payment_amount || center.base_fee || 0)
+    if (!confirm(`₹${amount.toLocaleString('en-IN')} payment manually received mark karein? (offline / UTR)`)) return
+    setPayLinkError(null)
+    setPayLinkLoading(true)
+    const paidAt = new Date().toISOString()
+    const { error } = await supabase.from('centers').update({
+      payment_status: 'paid',
+      payment_amount: amount,
+      payment_paid_at: paidAt,
+    }).eq('id', center.id)
+    setPayLinkLoading(false)
+    if (error) { setPayLinkError('Manual mark-paid failed: ' + error.message); return }
+    setAccVerifyModal({ ...center, payment_status: 'paid', payment_amount: amount, payment_paid_at: paidAt })
+    fetchAll()
+  }
+
   // Re-fetch this center's payment fields (webhook updates them asynchronously after paying).
   async function refreshPayStatus(center) {
     setPayRefreshing(true)
@@ -1378,6 +1397,18 @@ export default function AccountDepartment() {
                                 className="w-full text-xs font-semibold text-gray-500 hover:text-[#933d18] py-1.5 transition-colors">
                                 {payRefreshing ? 'Checking...' : '↻ Refresh payment status'}
                               </button>
+
+                              {/* Manual fallback — record an offline / UTR payment so approval isn't
+                                  blocked when the Razorpay pay-link flow is unavailable. */}
+                              {amount > 0 && (
+                                <div className="pt-2 border-t border-dashed border-gray-200">
+                                  <button onClick={() => markPaidManually(c)} disabled={payLinkLoading}
+                                    className="w-full flex items-center justify-center gap-2 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors">
+                                    <CheckCircle size={13} /> Mark as Paid (manual / UTR)
+                                  </button>
+                                  <p className="text-[10px] text-gray-400 mt-1 text-center">Payment offline aaya ho to yahan se paid mark karo.</p>
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
