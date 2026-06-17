@@ -256,16 +256,20 @@ export default function SuperCenters() {
                 </Td>
                 <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
                 <Td>
-                  <button
-                    onClick={() => toggleCenterStatus(c)}
-                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
-                      c.status === 'Active'
-                        ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                        : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                    }`}
-                  >
-                    {c.status === 'Active' ? <><ToggleRight size={14} /> Deactivate</> : <><ToggleLeft size={14} /> Activate</>}
-                  </button>
+                  {c.approval_status === 'approved' ? (
+                    <button
+                      onClick={() => toggleCenterStatus(c)}
+                      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
+                        c.status === 'Active'
+                          ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                          : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                      }`}
+                    >
+                      {c.status === 'Active' ? <><ToggleRight size={14} /> Deactivate</> : <><ToggleLeft size={14} /> Activate</>}
+                    </button>
+                  ) : (
+                    <span className="text-gray-300 text-xs">—</span>
+                  )}
                 </Td>
                 <Td>
                   <div className="flex gap-1">
