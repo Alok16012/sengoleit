@@ -67,7 +67,7 @@ export default function AccountDepartment() {
     setCASaving(true)
     const app = caApproveModal
 
-    const centerCode = await generateNextCenterCode()
+    const centerCode = await generateNextCode('SIU') // sub-center created from application
     const newPassword = `Sg@${Math.random().toString(36).slice(-6).toUpperCase()}`
 
     const { data: newCenter, error: cErr } = await supabase.from('centers').insert({
@@ -225,19 +225,22 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
-  async function generateNextCenterCode() {
+  // Code structure: Super Center => CTR001, CTR002...  Center => SIU001, SIU002...
+  async function generateNextCode(prefix) {
     const { data } = await supabase.from('centers').select('center_code').not('center_code', 'is', null)
+    const re = new RegExp(`^${prefix}(\\d+)$`)
     const nums = (data || [])
-      .map(c => c.center_code?.match(/^SIU(\d+)$/)?.[1])
+      .map(c => c.center_code?.match(re)?.[1])
       .filter(Boolean)
       .map(Number)
     const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
-    return `SIU${String(next).padStart(3, '0')}`
+    return `${prefix}${String(next).padStart(3, '0')}`
   }
 
   async function handleApprove(center, notes, walletAmount) {
     setAccSaving(true)
-    const centerCode = center.center_code || await generateNextCenterCode()
+    const prefix = center.center_type === 'super_center' ? 'CTR' : 'SIU'
+    const centerCode = center.center_code || await generateNextCode(prefix)
 
     // Deposit the paid amount into the center's coupon wallet. Minting the actual
     // coupons (amount ÷ per-coupon rate) happens later in Coupon Management.
