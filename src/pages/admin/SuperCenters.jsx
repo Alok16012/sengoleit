@@ -28,7 +28,7 @@ export default function SuperCenters() {
     setLoading(true)
     const { data, error } = await supabase
       .from('centers')
-      .select('*')
+      .select('*, states:state_id(state_name)')
       .eq('center_type', 'super_center')
       .order('created_at', { ascending: false })
     if (error) console.error('SuperCenters fetch error:', error)
