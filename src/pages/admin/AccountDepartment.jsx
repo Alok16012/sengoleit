@@ -247,13 +247,24 @@ export default function AccountDepartment() {
     const depositNum = Math.round(Number(walletAmount) || 0)
     const newBalance = Math.round(Number(center.coupon_wallet_balance || 0)) + depositNum
 
-    await supabase.from('centers').update({
+    const { error: approveErr } = await supabase.from('centers').update({
       approval_status: 'approved',
       status: 'Active',
       center_code: centerCode,
       coupon_wallet_balance: newBalance,
       ...(notes && notes.trim() ? { approval_notes: notes.trim() } : {}),
     }).eq('id', center.id)
+
+    if (approveErr) {
+      setAccSaving(false)
+      alert(
+        'Approve nahi ho paya: ' + approveErr.message +
+        (/coupon_wallet_balance/.test(approveErr.message)
+          ? '\n\nLagta hai `coupon_wallet_balance` column DB mein nahi hai. Supabase SQL Editor mein add_coupon_wallet_balance.sql chalao.'
+          : '')
+      )
+      return
+    }
 
     setAccSaving(false)
     setAccVerifyModal(null)
