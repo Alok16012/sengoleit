@@ -248,7 +248,9 @@ export default function AccountDepartment() {
 
     // Deposit the paid amount into the center's coupon wallet. Minting the actual
     // coupons (amount ÷ per-coupon rate) happens later in Coupon Management.
-    const depositNum = Math.round(Number(walletAmount) || 0)
+    // The deposit can never exceed what the center actually paid.
+    const paidCap = Math.round(Number(center.amount_paid || center.payment_amount || 0))
+    const depositNum = Math.min(paidCap, Math.round(Number(walletAmount) || 0))
     const newBalance = Math.round(Number(center.coupon_wallet_balance || 0)) + depositNum
 
     const { error: approveErr } = await supabase.from('centers').update({
@@ -1294,8 +1296,14 @@ export default function AccountDepartment() {
           // center's coupon wallet. The admin decides how many coupons to mint
           // later, in Coupon Management. `couponRate` here just holds an optional
           // override of the deposit amount (defaults to the paid amount).
+          // The deposit can never EXCEED the paid amount — you cannot put more
+          // money into the wallet than the center actually paid.
           const couponBase = Math.round(Number(c.amount_paid || c.payment_amount || 0))
-          const walletDeposit = couponRate === '' ? couponBase : Math.round(Number(couponRate) || 0)
+          const walletDeposit = Math.min(
+            couponBase,
+            couponRate === '' ? couponBase : Math.round(Number(couponRate) || 0)
+          )
+          const couponOverCap = couponRate !== '' && Math.round(Number(couponRate) || 0) > couponBase
 
           // Payment route is decided by what the super center did at application time:
           //  - "pay now" → payment_status 'offline_review' with amount/UTR/receipt → Account
@@ -1548,12 +1556,17 @@ export default function AccountDepartment() {
                         <input
                           type="number"
                           min="0"
+                          max={couponBase}
                           placeholder={`${couponBase}`}
                           value={couponRate}
                           onChange={e => setCouponRate(e.target.value)}
-                          className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+                          className={`mt-1 w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 bg-white ${couponOverCap ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : 'border-gray-200 focus:border-[#933d18] focus:ring-[#933d18]/10'}`}
                         />
-                        <p className="text-[11px] text-gray-400 mt-1">Leave blank to add the paid amount (₹{couponBase.toLocaleString('en-IN')}).</p>
+                        {couponOverCap ? (
+                          <p className="text-[11px] text-red-600 mt-1 font-semibold">Cannot exceed the paid amount (₹{couponBase.toLocaleString('en-IN')}). It will be capped.</p>
+                        ) : (
+                          <p className="text-[11px] text-gray-400 mt-1">Leave blank to add the full paid amount (₹{couponBase.toLocaleString('en-IN')}). Cannot be more than this.</p>
+                        )}
                       </div>
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
                         <p className="text-[11px] font-bold text-emerald-700 uppercase">Will Add to Wallet</p>
