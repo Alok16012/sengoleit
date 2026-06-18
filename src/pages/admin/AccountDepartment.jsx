@@ -278,30 +278,64 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
-  // Generate a Razorpay payment link for the center's letter-type fee via the
-  // create-payment-link edge function, and send it to the super center.
+  // Build a short, human-friendly tracking reference number. The center enters
+  // their email + this number on the university website to pull up the link.
+  function makeRefNo() {
+    return 'SIU' + Date.now().toString(36).toUpperCase().slice(-5) + Math.random().toString(36).slice(2, 5).toUpperCase()
+  }
+
+  // Generate a payment link for the center's letter-type fee. We first try the
+  // create-payment-link edge function (real Razorpay link). If that isn't
+  // deployed/reachable, we fall back to a locally-generated link + reference
+  // number that is persisted to the DB, so the flow keeps working and the
+  // application can be looked up later by email + reference number.
   async function generatePayLink(center) {
     setPayLinkError(null)
     setPayLinkLoading(true)
+    const amount = Number(center.payment_amount || center.base_fee || 0)
     try {
       const { data, error } = await supabase.functions.invoke('create-payment-link', {
         body: { center_id: center.id },
       })
       if (error) throw new Error(error.message || 'Failed to create payment link')
       if (data?.error) throw new Error(data.error)
-      // Reflect the new link/status in the open modal without a full reload
-      const updated = {
-        ...center,
+      const ref = center.payment_reference_no || makeRefNo()
+      const patch = {
         payment_status: 'link_sent',
         payment_method: 'link',
         payment_link_url: data.short_url || data.payment_link_url,
         payment_link_id: data.payment_link_id,
         payment_amount: data.amount ?? center.payment_amount,
+        payment_reference_no: ref,
       }
-      setAccVerifyModal(updated)
+      // Persist the reference number so the public site can resolve it.
+      await supabase.from('centers').update({ payment_reference_no: ref, payment_method: 'link' }).eq('id', center.id)
+      setAccVerifyModal({ ...center, ...patch })
       fetchAll()
     } catch (err) {
-      setPayLinkError(err.message || 'Could not create payment link')
+      // Edge function not available — generate a dummy link + reference number
+      // locally and save them so the rest of the flow (and later lookup) works.
+      const ref = center.payment_reference_no || makeRefNo()
+      const dummyLink = `https://sengoleit.in/pay?ref=${ref}`
+      const patch = {
+        payment_status: 'link_sent',
+        payment_method: 'link',
+        payment_link_url: dummyLink,
+        payment_amount: amount,
+        payment_reference_no: ref,
+      }
+      const { error: saveErr } = await supabase.from('centers').update(patch).eq('id', center.id)
+      if (saveErr) {
+        setPayLinkError('Could not save payment link: ' + saveErr.message +
+          (/payment_reference_no|payment_link_url|payment_method/.test(saveErr.message)
+            ? '\n\nIt looks like the payment columns are missing. Run add_payment_method_fields.sql in the Supabase SQL Editor.'
+            : ''))
+        setPayLinkLoading(false)
+        return
+      }
+      setPayLinkError('Razorpay edge function unavailable — generated a test link instead. Deploy create-payment-link for real links.')
+      setAccVerifyModal({ ...center, ...patch })
+      fetchAll()
     }
     setPayLinkLoading(false)
   }
@@ -335,7 +369,7 @@ export default function AccountDepartment() {
   async function generateRefNo(center) {
     setRefNoSaving(true)
     setPayLinkError(null)
-    const ref = 'REF-' + Math.random().toString(36).slice(2, 8).toUpperCase()
+    const ref = makeRefNo()
     const patch = { payment_reference_no: ref, payment_method: 'link' }
     const { error } = await supabase.from('centers').update(patch).eq('id', center.id)
     setRefNoSaving(false)
