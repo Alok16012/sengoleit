@@ -47,7 +47,18 @@ export default function CouponManagement() {
         .select('id, center_name, center_code, center_type, coupon_wallet_balance')
         .order('center_name'),
     ])
-    setCoupons(cpns.data || [])
+    if (cpns.error) {
+      // The embedded centers(...) join can error (missing/ambiguous FK), which
+      // nulls the whole list and makes coupons look like they vanished. Fall
+      // back to a plain select so generated coupons still show.
+      console.error('coupons fetch (with join) failed:', cpns.error)
+      const plain = await supabase.from('coupons').select('*').order('created_at', { ascending: false })
+      if (plain.error) console.error('coupons plain fetch failed:', plain.error)
+      setCoupons(plain.data || [])
+    } else {
+      setCoupons(cpns.data || [])
+    }
+    if (ctrs.error) console.error('centers fetch failed:', ctrs.error)
     setCenters(ctrs.data || [])
     setLoading(false)
   }
@@ -82,17 +93,23 @@ export default function CouponManagement() {
       center_id: genCenter.id,
       face_value: genRateNum,
     }))
-    const { error: cpErr } = await supabase.from('coupons').insert(rows)
+    const { data: inserted, error: cpErr } = await supabase.from('coupons').insert(rows).select('id')
     if (cpErr) { alert('Coupon generate karne mein error: ' + cpErr.message); setGenSaving(false); return }
     // Deduct the minted money; any remainder (< 1 coupon) stays in the wallet.
     const { error: balErr } = await supabase.from('centers')
       .update({ coupon_wallet_balance: genRemaining })
       .eq('id', genCenter.id)
     if (balErr) { alert('Wallet balance update error: ' + balErr.message) }
+    const madeCount = inserted?.length ?? 0
     setGenSaving(false)
     setGenCenter(null)
     setGenRate('')
-    fetchData()
+    await fetchData()
+    if (madeCount === 0) {
+      alert('Insert to chala par 0 coupons mile — possibly RLS coupons table pe SELECT/INSERT block kar rahi hai. Check karo.')
+    } else {
+      alert(`${madeCount} coupons ban gaye (₹${genRateNum} each).`)
+    }
   }
 
   return (
