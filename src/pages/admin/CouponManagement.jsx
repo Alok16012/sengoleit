@@ -29,6 +29,7 @@ export default function CouponManagement() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('All')
   const [centerFilter, setCenterFilter] = useState('')
+  const [fetchErr, setFetchErr] = useState(null)
 
   // Coupon generation modal state
   const [genCenter, setGenCenter] = useState(null)
@@ -55,8 +56,10 @@ export default function CouponManagement() {
       const plain = await supabase.from('coupons').select('*').order('created_at', { ascending: false })
       if (plain.error) console.error('coupons plain fetch failed:', plain.error)
       setCoupons(plain.data || [])
+      setFetchErr(plain.error ? `Coupons load nahi ho rahe: ${plain.error.message}` : null)
     } else {
       setCoupons(cpns.data || [])
+      setFetchErr(null)
     }
     if (ctrs.error) console.error('centers fetch failed:', ctrs.error)
     setCenters(ctrs.data || [])
@@ -115,6 +118,17 @@ export default function CouponManagement() {
   return (
     <div className="p-6">
       <PageHeader title="Coupon Management" subtitle="View and manage all admission & wallet coupons" />
+
+      {fetchErr && (
+        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4">
+          <p className="text-sm font-bold text-red-700">Coupons load nahi ho rahe</p>
+          <p className="text-xs text-red-600 mt-1 font-mono break-all">{fetchErr}</p>
+          <p className="text-xs text-red-600/80 mt-2">
+            Agar ye "permission denied" / RLS jaisa hai to <span className="font-bold">coupons</span> table pe Row Level Security read ko block kar rahi hai.
+            Supabase SQL Editor mein <span className="font-mono">enable_coupons_read.sql</span> chalao.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 mb-6">
         <StatCard label="Total Coupons" value={coupons.length} color="blue" />
