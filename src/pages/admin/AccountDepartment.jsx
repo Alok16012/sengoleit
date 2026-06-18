@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import VerifyRow from '../../components/ui/VerifyRow'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink, ChevronDown, ChevronRight, Link2, Hash, Copy, Banknote } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -52,6 +52,11 @@ export default function AccountDepartment() {
   const [payLinkLoading, setPayLinkLoading] = useState(false)
   const [payLinkError, setPayLinkError] = useState(null)
   const [payRefreshing, setPayRefreshing] = useState(false)
+  // Payment method flow: '' (not chosen) | 'manual' (offline/UTR) | 'link' (Razorpay)
+  const [payMethod, setPayMethod] = useState('')
+  const [receiptVerified, setReceiptVerified] = useState(false)
+  const [manualUtr, setManualUtr] = useState('')
+  const [refNoSaving, setRefNoSaving] = useState(false)
 
   useEffect(() => { fetchAll() }, [])
   useEffect(() => { if (tab === 'center_apps') fetchCenterApps() }, [tab])
@@ -289,6 +294,7 @@ export default function AccountDepartment() {
       const updated = {
         ...center,
         payment_status: 'link_sent',
+        payment_method: 'link',
         payment_link_url: data.short_url || data.payment_link_url,
         payment_link_id: data.payment_link_id,
         payment_amount: data.amount ?? center.payment_amount,
@@ -301,22 +307,41 @@ export default function AccountDepartment() {
     setPayLinkLoading(false)
   }
 
-  // Manually mark the letter fee as paid — used when payment was collected
-  // offline (UTR / super center wallet) or the Razorpay link flow is unavailable.
-  async function markPaidManually(center) {
+  // Method 1 — Manual payment. Money was collected offline (UTR / super center
+  // wallet); the admin records the UTR, verifies the receipt, and marks it paid.
+  // The caller must already have receiptVerified === true (the button is gated).
+  async function markPaidManually(center, utr) {
     const amount = Number(center.payment_amount || center.base_fee || 0)
     if (!confirm(`₹${amount.toLocaleString('en-IN')} payment manually received mark karein? (offline / UTR)`)) return
     setPayLinkError(null)
     setPayLinkLoading(true)
     const paidAt = new Date().toISOString()
-    const { error } = await supabase.from('centers').update({
+    const patch = {
       payment_status: 'paid',
       payment_amount: amount,
       payment_paid_at: paidAt,
-    }).eq('id', center.id)
+      payment_method: 'manual',
+      ...(utr && utr.trim() ? { utr_number: utr.trim() } : {}),
+    }
+    const { error } = await supabase.from('centers').update(patch).eq('id', center.id)
     setPayLinkLoading(false)
     if (error) { setPayLinkError('Manual mark-paid failed: ' + error.message); return }
-    setAccVerifyModal({ ...center, payment_status: 'paid', payment_amount: amount, payment_paid_at: paidAt })
+    setAccVerifyModal({ ...center, ...patch })
+    fetchAll()
+  }
+
+  // Method 2 — Generate a tracking reference number for the payment link. The
+  // center enters their email + this reference number on the university website
+  // to pull up their application and pay via the stored link.
+  async function generateRefNo(center) {
+    setRefNoSaving(true)
+    setPayLinkError(null)
+    const ref = 'REF-' + Math.random().toString(36).slice(2, 8).toUpperCase()
+    const patch = { payment_reference_no: ref, payment_method: 'link' }
+    const { error } = await supabase.from('centers').update(patch).eq('id', center.id)
+    setRefNoSaving(false)
+    if (error) { setPayLinkError('Reference number save failed: ' + error.message); return }
+    setAccVerifyModal({ ...center, ...patch })
     fetchAll()
   }
 
@@ -690,7 +715,7 @@ export default function AccountDepartment() {
                         </span>
                       ) : (
                         <div className="flex gap-1">
-                          <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate(''); setOpenLockedSecs({}) }}>
+                          <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate(''); setOpenLockedSecs({}); setPayMethod(c.payment_method || ''); setReceiptVerified(false); setManualUtr(c.utr_number || ''); setPayLinkError(null) }}>
                             <CheckCircle size={13} /> {c.approval_status === 'account_hold' ? 'Re-Verify' : 'Verify'}
                           </Button>
                           <Button size="sm" variant="danger" onClick={() => handleReject(c)}>
@@ -1371,45 +1396,109 @@ export default function AccountDepartment() {
                           {payLinkError && <p className="text-xs text-red-600">{payLinkError}</p>}
 
                           {isPaid ? (
-                            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
+                            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 space-y-1">
                               <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5"><CheckCircle size={13} /> Payment received</p>
-                              {c.payment_id && <p className="text-[11px] text-emerald-600/80 mt-1 font-mono">{c.payment_id}</p>}
+                              {c.payment_method && <p className="text-[11px] text-emerald-700/90 capitalize">Method: {c.payment_method === 'manual' ? 'Manual / UTR' : 'Payment Link'}</p>}
+                              {c.utr_number && <p className="text-[11px] text-emerald-600/80 font-mono">UTR: {c.utr_number}</p>}
+                              {c.payment_id && <p className="text-[11px] text-emerald-600/80 font-mono">{c.payment_id}</p>}
+                              {c.payment_reference_no && <p className="text-[11px] text-emerald-600/80 font-mono">Ref: {c.payment_reference_no}</p>}
                               {c.payment_paid_at && <p className="text-[11px] text-emerald-600/80">{new Date(c.payment_paid_at).toLocaleString('en-IN')}</p>}
                             </div>
+                          ) : amount <= 0 ? (
+                            <p className="text-xs text-amber-600">No fee set for this center's letter type. Set pricing in Center Pricing.</p>
+                          ) : !payMethod ? (
+                            /* Method chooser — pick how the letter fee will be settled */
+                            <div className="space-y-2">
+                              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Payment kaise hua?</p>
+                              <button onClick={() => { setPayMethod('manual'); setReceiptVerified(false); setPayLinkError(null) }}
+                                className="w-full flex items-center gap-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50 px-4 py-3 text-left transition-colors">
+                                <Banknote size={18} className="text-emerald-600 shrink-0" />
+                                <span>
+                                  <span className="block text-sm font-bold text-gray-800">Manual / UTR</span>
+                                  <span className="block text-[11px] text-gray-400">Paisa already aa gaya — receipt verify karke mark karo</span>
+                                </span>
+                              </button>
+                              <button onClick={() => { setPayMethod('link'); setPayLinkError(null) }}
+                                className="w-full flex items-center gap-3 rounded-xl border border-gray-200 hover:border-[#933d18]/40 hover:bg-[#933d18]/5 px-4 py-3 text-left transition-colors">
+                                <Link2 size={18} className="text-[#933d18] shrink-0" />
+                                <span>
+                                  <span className="block text-sm font-bold text-gray-800">Payment Link</span>
+                                  <span className="block text-[11px] text-gray-400">Paisa nahi aaya — link + reference number bhejo</span>
+                                </span>
+                              </button>
+                            </div>
+                          ) : payMethod === 'manual' ? (
+                            /* Method 1 — Manual: record UTR, verify receipt, then mark paid.
+                               No pay-link option here. Forward gated on receipt verification. */
+                            <div className="space-y-3">
+                              <button onClick={() => setPayMethod('')} className="text-[11px] font-semibold text-gray-400 hover:text-[#933d18]">← Method change</button>
+                              <div>
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">UTR / Transaction No.</label>
+                                <input
+                                  type="text"
+                                  value={manualUtr}
+                                  onChange={e => setManualUtr(e.target.value)}
+                                  placeholder="e.g. 4032198765432"
+                                  className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+                                />
+                              </div>
+                              <label className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${receiptVerified ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
+                                <input type="checkbox" checked={receiptVerified} onChange={e => setReceiptVerified(e.target.checked)} className="mt-0.5 accent-emerald-600" />
+                                <span className="text-xs text-gray-700">
+                                  Maine payment receipt verify kar li hai{!c.payment_screenshot_url && <span className="text-amber-600"> (dhyaan: koi receipt upload nahi hai)</span>}
+                                </span>
+                              </label>
+                              <button onClick={() => markPaidManually(c, manualUtr)} disabled={payLinkLoading || !receiptVerified}
+                                title={!receiptVerified ? 'Pehle receipt verify karo' : undefined}
+                                className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
+                                <CheckCircle size={14} /> {payLinkLoading ? 'Saving...' : `Confirm Manual Payment (₹${amount.toLocaleString('en-IN')})`}
+                              </button>
+                              {!receiptVerified && <p className="text-[10px] text-gray-400 text-center">Receipt verify kiye bina forward nahi hoga.</p>}
+                            </div>
                           ) : (
-                            <>
-                              {amount > 0 ? (
-                                <button onClick={() => generatePayLink(c)} disabled={payLinkLoading}
-                                  className="w-full flex items-center justify-center gap-2 bg-[#933d18] hover:bg-[#7a3215] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
-                                  <ExternalLink size={14} /> {payLinkLoading ? 'Generating...' : c.payment_link_url ? 'Regenerate Pay Link' : 'Generate & Send Pay Link'}
-                                </button>
-                              ) : (
-                                <p className="text-xs text-amber-600">No fee set for this center's letter type. Set pricing in Center Pricing.</p>
-                              )}
+                            /* Method 2 — Payment Link: generate Razorpay link, then a
+                               reference number the center uses to track & pay. No manual mark here. */
+                            <div className="space-y-3">
+                              <button onClick={() => setPayMethod('')} className="text-[11px] font-semibold text-gray-400 hover:text-[#933d18]">← Method change</button>
+                              <button onClick={() => generatePayLink(c)} disabled={payLinkLoading}
+                                className="w-full flex items-center justify-center gap-2 bg-[#933d18] hover:bg-[#7a3215] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
+                                <ExternalLink size={14} /> {payLinkLoading ? 'Generating...' : c.payment_link_url ? 'Regenerate Pay Link' : 'Generate & Send Pay Link'}
+                              </button>
                               {c.payment_link_url && (
-                                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-1.5">
-                                  <p className="text-[11px] font-bold text-blue-700">Payment link (share with super center)</p>
-                                  <a href={c.payment_link_url} target="_blank" rel="noreferrer"
-                                    className="block text-xs text-blue-700 underline break-all">{c.payment_link_url}</a>
-                                </div>
+                                <>
+                                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-1.5">
+                                    <p className="text-[11px] font-bold text-blue-700">Payment link (share with super center)</p>
+                                    <a href={c.payment_link_url} target="_blank" rel="noreferrer"
+                                      className="block text-xs text-blue-700 underline break-all">{c.payment_link_url}</a>
+                                  </div>
+
+                                  {/* Reference number — center tracks application on the
+                                      university website with email + this number, then pays. */}
+                                  {c.payment_reference_no ? (
+                                    <div className="rounded-xl border border-[#933d18]/20 bg-[#933d18]/5 p-3">
+                                      <p className="text-[11px] font-bold text-[#933d18] uppercase flex items-center gap-1.5"><Hash size={12} /> Reference Number</p>
+                                      <div className="flex items-center justify-between gap-2 mt-1">
+                                        <span className="text-sm font-black font-mono text-gray-900">{c.payment_reference_no}</span>
+                                        <button onClick={() => navigator.clipboard?.writeText(c.payment_reference_no)}
+                                          className="text-gray-400 hover:text-[#933d18] transition-colors" title="Copy">
+                                          <Copy size={13} />
+                                        </button>
+                                      </div>
+                                      <p className="text-[10px] text-gray-500 mt-1.5">Center isse + apna email university website par daal ke payment kar sakta hai.</p>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => generateRefNo(c)} disabled={refNoSaving}
+                                      className="w-full flex items-center justify-center gap-2 border border-[#933d18]/30 bg-[#933d18]/5 hover:bg-[#933d18]/10 disabled:opacity-50 text-[#933d18] px-4 py-2 rounded-xl text-xs font-bold transition-colors">
+                                      <Hash size={13} /> {refNoSaving ? 'Generating...' : 'Generate Reference Number'}
+                                    </button>
+                                  )}
+                                </>
                               )}
                               <button onClick={() => refreshPayStatus(c)} disabled={payRefreshing}
                                 className="w-full text-xs font-semibold text-gray-500 hover:text-[#933d18] py-1.5 transition-colors">
                                 {payRefreshing ? 'Checking...' : '↻ Refresh payment status'}
                               </button>
-
-                              {/* Manual fallback — record an offline / UTR payment so approval isn't
-                                  blocked when the Razorpay pay-link flow is unavailable. */}
-                              {amount > 0 && (
-                                <div className="pt-2 border-t border-dashed border-gray-200">
-                                  <button onClick={() => markPaidManually(c)} disabled={payLinkLoading}
-                                    className="w-full flex items-center justify-center gap-2 border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 text-emerald-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors">
-                                    <CheckCircle size={13} /> Mark as Paid (manual / UTR)
-                                  </button>
-                                  <p className="text-[10px] text-gray-400 mt-1 text-center">Payment offline aaya ho to yahan se paid mark karo.</p>
-                                </div>
-                              )}
-                            </>
+                            </div>
                           )}
                         </div>
                       )
