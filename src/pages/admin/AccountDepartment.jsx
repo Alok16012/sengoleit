@@ -278,56 +278,56 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
-  // Build a short, human-friendly tracking reference number. The center enters
-  // their email + this number on the university website to pull up the link.
-  function makeRefNo() {
-    return 'SIU' + Date.now().toString(36).toUpperCase().slice(-5) + Math.random().toString(36).slice(2, 5).toUpperCase()
+  // The application number is generated when the center submits the application.
+  // For older applications created before that column existed, this builds one
+  // on demand so the link/lookup flow keeps working.
+  function makeApplicationNo() {
+    return `APP-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
   }
 
   // Generate a payment link for the center's letter-type fee. We first try the
   // create-payment-link edge function (real Razorpay link). If that isn't
-  // deployed/reachable, we fall back to a locally-generated link + reference
-  // number that is persisted to the DB, so the flow keeps working and the
-  // application can be looked up later by email + reference number.
+  // deployed/reachable, we fall back to a locally-generated link that is
+  // persisted to the DB, so the flow keeps working and the application can be
+  // looked up later by email + application number.
   async function generatePayLink(center) {
     setPayLinkError(null)
     setPayLinkLoading(true)
     const amount = Number(center.payment_amount || center.base_fee || 0)
+    const appNo = center.application_no || makeApplicationNo()
     try {
       const { data, error } = await supabase.functions.invoke('create-payment-link', {
         body: { center_id: center.id },
       })
       if (error) throw new Error(error.message || 'Failed to create payment link')
       if (data?.error) throw new Error(data.error)
-      const ref = center.payment_reference_no || makeRefNo()
       const patch = {
         payment_status: 'link_sent',
         payment_method: 'link',
         payment_link_url: data.short_url || data.payment_link_url,
         payment_link_id: data.payment_link_id,
         payment_amount: data.amount ?? center.payment_amount,
-        payment_reference_no: ref,
+        application_no: appNo,
       }
-      // Persist the reference number so the public site can resolve it.
-      await supabase.from('centers').update({ payment_reference_no: ref, payment_method: 'link' }).eq('id', center.id)
+      // Persist so the public site can resolve the application + link.
+      await supabase.from('centers').update({ payment_link_url: patch.payment_link_url, payment_link_id: patch.payment_link_id, payment_status: 'link_sent', payment_method: 'link', application_no: appNo }).eq('id', center.id)
       setAccVerifyModal({ ...center, ...patch })
       fetchAll()
     } catch (err) {
-      // Edge function not available — generate a dummy link + reference number
-      // locally and save them so the rest of the flow (and later lookup) works.
-      const ref = center.payment_reference_no || makeRefNo()
-      const dummyLink = `https://sengoleit.in/pay?ref=${ref}`
+      // Edge function not available — generate a dummy link locally and save it
+      // (with the application number) so the rest of the flow / lookup works.
+      const dummyLink = `https://sengoleit.in/pay?app=${appNo}`
       const patch = {
         payment_status: 'link_sent',
         payment_method: 'link',
         payment_link_url: dummyLink,
         payment_amount: amount,
-        payment_reference_no: ref,
+        application_no: appNo,
       }
       const { error: saveErr } = await supabase.from('centers').update(patch).eq('id', center.id)
       if (saveErr) {
         setPayLinkError('Could not save payment link: ' + saveErr.message +
-          (/payment_reference_no|payment_link_url|payment_method/.test(saveErr.message)
+          (/application_no|payment_link_url|payment_method/.test(saveErr.message)
             ? '\n\nIt looks like the payment columns are missing. Run add_payment_method_fields.sql in the Supabase SQL Editor.'
             : ''))
         setPayLinkLoading(false)
@@ -363,17 +363,18 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
-  // Method 2 — Generate a tracking reference number for the payment link. The
-  // center enters their email + this reference number on the university website
-  // to pull up their application and pay via the stored link.
+  // Fallback — assign an application number to an older application that doesn't
+  // have one yet (new applications get it at submit time). The center enters
+  // their email + this number on the university website to track their
+  // application and pay via the stored link.
   async function generateRefNo(center) {
     setRefNoSaving(true)
     setPayLinkError(null)
-    const ref = makeRefNo()
-    const patch = { payment_reference_no: ref, payment_method: 'link' }
+    const appNo = center.application_no || makeApplicationNo()
+    const patch = { application_no: appNo, payment_method: 'link' }
     const { error } = await supabase.from('centers').update(patch).eq('id', center.id)
     setRefNoSaving(false)
-    if (error) { setPayLinkError('Reference number save failed: ' + error.message); return }
+    if (error) { setPayLinkError('Application number save failed: ' + error.message); return }
     setAccVerifyModal({ ...center, ...patch })
     fetchAll()
   }
@@ -1443,7 +1444,7 @@ export default function AccountDepartment() {
                               {c.payment_method && <p className="text-[11px] text-emerald-700/90 capitalize">Method: {c.payment_method === 'manual' ? 'Manual / UTR' : 'Payment Link'}</p>}
                               {c.utr_number && <p className="text-[11px] text-emerald-600/80 font-mono">UTR: {c.utr_number}</p>}
                               {c.payment_id && <p className="text-[11px] text-emerald-600/80 font-mono">{c.payment_id}</p>}
-                              {c.payment_reference_no && <p className="text-[11px] text-emerald-600/80 font-mono">Ref: {c.payment_reference_no}</p>}
+                              {c.application_no && <p className="text-[11px] text-emerald-600/80 font-mono">Application No: {c.application_no}</p>}
                               {c.payment_paid_at && <p className="text-[11px] text-emerald-600/80">{new Date(c.payment_paid_at).toLocaleString('en-IN')}</p>}
                             </div>
                           ) : amount <= 0 ? (
@@ -1481,42 +1482,41 @@ export default function AccountDepartment() {
                               {!receiptVerified && <p className="text-[10px] text-gray-400 text-center">Forwarding is blocked until the receipt is verified.</p>}
                             </div>
                           ) : (
-                            /* No payment received — only a pay link + reference number.
-                               No receipt / UTR / verify UI. */
+                            /* No payment received — only a pay link. The application
+                               number (generated at submit) lets the center track it. */
                             <div className="space-y-3">
+                              {/* Application number — generated when the center submitted
+                                  the application. They enter it + their email on the
+                                  university website to track status and pay. */}
+                              {c.application_no ? (
+                                <div className="rounded-xl border border-[#933d18]/20 bg-[#933d18]/5 p-3">
+                                  <p className="text-[11px] font-bold text-[#933d18] uppercase flex items-center gap-1.5"><Hash size={12} /> Application Number</p>
+                                  <div className="flex items-center justify-between gap-2 mt-1">
+                                    <span className="text-sm font-black font-mono text-gray-900">{c.application_no}</span>
+                                    <button onClick={() => navigator.clipboard?.writeText(c.application_no)}
+                                      className="text-gray-400 hover:text-[#933d18] transition-colors" title="Copy">
+                                      <Copy size={13} />
+                                    </button>
+                                  </div>
+                                  <p className="text-[10px] text-gray-500 mt-1.5">The center can track status and pay by entering this number and their email on the university website.</p>
+                                </div>
+                              ) : (
+                                <button onClick={() => generateRefNo(c)} disabled={refNoSaving}
+                                  className="w-full flex items-center justify-center gap-2 border border-[#933d18]/30 bg-[#933d18]/5 hover:bg-[#933d18]/10 disabled:opacity-50 text-[#933d18] px-4 py-2 rounded-xl text-xs font-bold transition-colors">
+                                  <Hash size={13} /> {refNoSaving ? 'Generating...' : 'Generate Application Number'}
+                                </button>
+                              )}
+
                               <button onClick={() => generatePayLink(c)} disabled={payLinkLoading}
                                 className="w-full flex items-center justify-center gap-2 bg-[#933d18] hover:bg-[#7a3215] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
                                 <ExternalLink size={14} /> {payLinkLoading ? 'Generating...' : c.payment_link_url ? 'Regenerate Pay Link' : 'Generate & Send Pay Link'}
                               </button>
                               {c.payment_link_url && (
-                                <>
-                                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-1.5">
-                                    <p className="text-[11px] font-bold text-blue-700">Payment link (share with super center)</p>
-                                    <a href={c.payment_link_url} target="_blank" rel="noreferrer"
-                                      className="block text-xs text-blue-700 underline break-all">{c.payment_link_url}</a>
-                                  </div>
-
-                                  {/* Reference number — center tracks application on the
-                                      university website with email + this number, then pays. */}
-                                  {c.payment_reference_no ? (
-                                    <div className="rounded-xl border border-[#933d18]/20 bg-[#933d18]/5 p-3">
-                                      <p className="text-[11px] font-bold text-[#933d18] uppercase flex items-center gap-1.5"><Hash size={12} /> Reference Number</p>
-                                      <div className="flex items-center justify-between gap-2 mt-1">
-                                        <span className="text-sm font-black font-mono text-gray-900">{c.payment_reference_no}</span>
-                                        <button onClick={() => navigator.clipboard?.writeText(c.payment_reference_no)}
-                                          className="text-gray-400 hover:text-[#933d18] transition-colors" title="Copy">
-                                          <Copy size={13} />
-                                        </button>
-                                      </div>
-                                      <p className="text-[10px] text-gray-500 mt-1.5">The center can pay by entering this number and their email on the university website.</p>
-                                    </div>
-                                  ) : c.payment_link_url && (
-                                    <button onClick={() => generateRefNo(c)} disabled={refNoSaving}
-                                      className="w-full flex items-center justify-center gap-2 border border-[#933d18]/30 bg-[#933d18]/5 hover:bg-[#933d18]/10 disabled:opacity-50 text-[#933d18] px-4 py-2 rounded-xl text-xs font-bold transition-colors">
-                                      <Hash size={13} /> {refNoSaving ? 'Generating...' : 'Generate Reference Number'}
-                                    </button>
-                                  )}
-                                </>
+                                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 space-y-1.5">
+                                  <p className="text-[11px] font-bold text-blue-700">Payment link (share with super center)</p>
+                                  <a href={c.payment_link_url} target="_blank" rel="noreferrer"
+                                    className="block text-xs text-blue-700 underline break-all">{c.payment_link_url}</a>
+                                </div>
                               )}
                               <button onClick={() => refreshPayStatus(c)} disabled={payRefreshing}
                                 className="w-full text-xs font-semibold text-gray-500 hover:text-[#933d18] py-1.5 transition-colors">

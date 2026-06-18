@@ -465,6 +465,13 @@ export default function SubCenterForm() {
         Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
       }
 
+      // Application number — generated once, when the application is first
+      // submitted. The center later uses this number (+ email) to track the
+      // application status / payment. Existing applications keep their number.
+      if (!isEdit && !payload.application_no) {
+        payload.application_no = `APP-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+      }
+
       if (isEdit) {
         const { error: err } = await supabase.from('centers').update(payload).eq('id', id)
         if (err) throw err
