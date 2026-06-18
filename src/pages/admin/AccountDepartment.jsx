@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import VerifyRow from '../../components/ui/VerifyRow'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink, ChevronDown, ChevronRight, Link2, Hash, Copy, Banknote } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink, ChevronDown, ChevronRight, Hash, Copy } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -53,7 +53,6 @@ export default function AccountDepartment() {
   const [payLinkError, setPayLinkError] = useState(null)
   const [payRefreshing, setPayRefreshing] = useState(false)
   // Payment method flow: '' (not chosen) | 'manual' (offline/UTR) | 'link' (Razorpay)
-  const [payMethod, setPayMethod] = useState('')
   const [receiptVerified, setReceiptVerified] = useState(false)
   const [manualUtr, setManualUtr] = useState('')
   const [refNoSaving, setRefNoSaving] = useState(false)
@@ -715,7 +714,7 @@ export default function AccountDepartment() {
                         </span>
                       ) : (
                         <div className="flex gap-1">
-                          <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate(''); setOpenLockedSecs({}); setPayMethod(c.payment_method || ''); setReceiptVerified(false); setManualUtr(c.utr_number || ''); setPayLinkError(null) }}>
+                          <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate(''); setOpenLockedSecs({}); setReceiptVerified(false); setManualUtr(c.utr_number || ''); setPayLinkError(null) }}>
                             <CheckCircle size={13} /> {c.approval_status === 'account_hold' ? 'Re-Verify' : 'Verify'}
                           </Button>
                           <Button size="sm" variant="danger" onClick={() => handleReject(c)}>
@@ -1263,6 +1262,16 @@ export default function AccountDepartment() {
           const couponBase = Math.round(Number(c.amount_paid || c.payment_amount || 0))
           const walletDeposit = couponRate === '' ? couponBase : Math.round(Number(couponRate) || 0)
 
+          // Payment route is decided by what the super center did at application time:
+          //  - "pay now" → payment_status 'offline_review' with amount/UTR/receipt → Account
+          //    Dept just VERIFIES the receipt (manual). No pay link.
+          //  - "pay later" → no receipt/UTR → Account Dept generates a pay link + reference
+          //    number. No receipt/verify UI.
+          const payStatus = c.payment_status || 'unpaid'
+          const isPaidNow = payStatus === 'paid'
+          const paidOffline = !isPaidNow && (payStatus === 'offline_review' || !!(c.payment_screenshot_url || c.utr_number || Number(c.amount_paid) > 0))
+          const noPayment = !isPaidNow && !paidOffline
+
           const labelMap = {}
           sections.forEach(s => s.fields.forEach(f => { labelMap[f.key] = f.label }))
           const issueLines = Object.entries(accChecks)
@@ -1376,8 +1385,6 @@ export default function AccountDepartment() {
                     </div>
                     {(() => {
                       const amount = Number(c.payment_amount || c.base_fee || 0)
-                      const status = c.payment_status || 'unpaid'
-                      const isPaid = status === 'paid'
                       return (
                         <div className="space-y-3">
                           <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
@@ -1387,17 +1394,18 @@ export default function AccountDepartment() {
                               {c.letter_type && <p className="text-[11px] text-gray-400 capitalize">{c.letter_type} letter</p>}
                             </div>
                             <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full capitalize ${
-                              isPaid ? 'bg-emerald-50 text-emerald-700'
-                              : status === 'link_sent' ? 'bg-blue-50 text-blue-700'
-                              : 'bg-amber-50 text-amber-700'
-                            }`}>{isPaid ? 'Paid' : status === 'link_sent' ? 'Link Sent' : 'Unpaid'}</span>
+                              isPaidNow ? 'bg-emerald-50 text-emerald-700'
+                              : paidOffline ? 'bg-amber-50 text-amber-700'
+                              : payStatus === 'link_sent' ? 'bg-blue-50 text-blue-700'
+                              : 'bg-gray-100 text-gray-500'
+                            }`}>{isPaidNow ? 'Paid' : paidOffline ? 'Receipt review' : payStatus === 'link_sent' ? 'Link Sent' : 'Unpaid'}</span>
                           </div>
 
                           {payLinkError && <p className="text-xs text-red-600">{payLinkError}</p>}
 
-                          {isPaid ? (
+                          {isPaidNow ? (
                             <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 space-y-1">
-                              <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5"><CheckCircle size={13} /> Payment received</p>
+                              <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5"><CheckCircle size={13} /> Payment received & verified</p>
                               {c.payment_method && <p className="text-[11px] text-emerald-700/90 capitalize">Method: {c.payment_method === 'manual' ? 'Manual / UTR' : 'Payment Link'}</p>}
                               {c.utr_number && <p className="text-[11px] text-emerald-600/80 font-mono">UTR: {c.utr_number}</p>}
                               {c.payment_id && <p className="text-[11px] text-emerald-600/80 font-mono">{c.payment_id}</p>}
@@ -1406,32 +1414,15 @@ export default function AccountDepartment() {
                             </div>
                           ) : amount <= 0 ? (
                             <p className="text-xs text-amber-600">No fee set for this center's letter type. Set pricing in Center Pricing.</p>
-                          ) : !payMethod ? (
-                            /* Method chooser — pick how the letter fee will be settled */
-                            <div className="space-y-2">
-                              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Payment kaise hua?</p>
-                              <button onClick={() => { setPayMethod('manual'); setReceiptVerified(false); setPayLinkError(null) }}
-                                className="w-full flex items-center gap-3 rounded-xl border border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50 px-4 py-3 text-left transition-colors">
-                                <Banknote size={18} className="text-emerald-600 shrink-0" />
-                                <span>
-                                  <span className="block text-sm font-bold text-gray-800">Manual / UTR</span>
-                                  <span className="block text-[11px] text-gray-400">Paisa already aa gaya — receipt verify karke mark karo</span>
-                                </span>
-                              </button>
-                              <button onClick={() => { setPayMethod('link'); setPayLinkError(null) }}
-                                className="w-full flex items-center gap-3 rounded-xl border border-gray-200 hover:border-[#933d18]/40 hover:bg-[#933d18]/5 px-4 py-3 text-left transition-colors">
-                                <Link2 size={18} className="text-[#933d18] shrink-0" />
-                                <span>
-                                  <span className="block text-sm font-bold text-gray-800">Payment Link</span>
-                                  <span className="block text-[11px] text-gray-400">Paisa nahi aaya — link + reference number bhejo</span>
-                                </span>
-                              </button>
-                            </div>
-                          ) : payMethod === 'manual' ? (
-                            /* Method 1 — Manual: record UTR, verify receipt, then mark paid.
-                               No pay-link option here. Forward gated on receipt verification. */
+                          ) : paidOffline ? (
+                            /* Super center ne application ke time hi pay kar diya (offline).
+                               Account Dept sirf receipt VERIFY karta hai — no pay link. */
                             <div className="space-y-3">
-                              <button onClick={() => setPayMethod('')} className="text-[11px] font-semibold text-gray-400 hover:text-[#933d18]">← Method change</button>
+                              <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                                <p className="text-[11px] font-bold text-amber-700 uppercase">Offline payment — receipt verify karo</p>
+                                {Number(c.amount_paid) > 0 && <p className="text-[11px] text-amber-700/90 mt-1">Amount paid: ₹{Number(c.amount_paid).toLocaleString('en-IN')}</p>}
+                                {c.payment_date && <p className="text-[11px] text-amber-700/90">Date: {c.payment_date}</p>}
+                              </div>
                               <div>
                                 <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">UTR / Transaction No.</label>
                                 <input
@@ -1451,15 +1442,14 @@ export default function AccountDepartment() {
                               <button onClick={() => markPaidManually(c, manualUtr)} disabled={payLinkLoading || !receiptVerified}
                                 title={!receiptVerified ? 'Pehle receipt verify karo' : undefined}
                                 className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
-                                <CheckCircle size={14} /> {payLinkLoading ? 'Saving...' : `Confirm Manual Payment (₹${amount.toLocaleString('en-IN')})`}
+                                <CheckCircle size={14} /> {payLinkLoading ? 'Saving...' : 'Verify Receipt & Confirm Payment'}
                               </button>
                               {!receiptVerified && <p className="text-[10px] text-gray-400 text-center">Receipt verify kiye bina forward nahi hoga.</p>}
                             </div>
                           ) : (
-                            /* Method 2 — Payment Link: generate Razorpay link, then a
-                               reference number the center uses to track & pay. No manual mark here. */
+                            /* Koi payment nahi aaya — sirf pay link + reference number.
+                               No receipt / UTR / verify UI. */
                             <div className="space-y-3">
-                              <button onClick={() => setPayMethod('')} className="text-[11px] font-semibold text-gray-400 hover:text-[#933d18]">← Method change</button>
                               <button onClick={() => generatePayLink(c)} disabled={payLinkLoading}
                                 className="w-full flex items-center justify-center gap-2 bg-[#933d18] hover:bg-[#7a3215] disabled:opacity-50 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
                                 <ExternalLink size={14} /> {payLinkLoading ? 'Generating...' : c.payment_link_url ? 'Regenerate Pay Link' : 'Generate & Send Pay Link'}
@@ -1486,7 +1476,7 @@ export default function AccountDepartment() {
                                       </div>
                                       <p className="text-[10px] text-gray-500 mt-1.5">Center isse + apna email university website par daal ke payment kar sakta hai.</p>
                                     </div>
-                                  ) : (
+                                  ) : c.payment_link_url && (
                                     <button onClick={() => generateRefNo(c)} disabled={refNoSaving}
                                       className="w-full flex items-center justify-center gap-2 border border-[#933d18]/30 bg-[#933d18]/5 hover:bg-[#933d18]/10 disabled:opacity-50 text-[#933d18] px-4 py-2 rounded-xl text-xs font-bold transition-colors">
                                       <Hash size={13} /> {refNoSaving ? 'Generating...' : 'Generate Reference Number'}
@@ -1506,7 +1496,9 @@ export default function AccountDepartment() {
                   </div>
 
                   {/* Coupon wallet — deposit the paid amount. How many coupons to
-                      mint is decided later in Coupon Management. */}
+                      mint is decided later in Coupon Management. Sirf tab dikhao jab
+                      payment aa chuki ho (paid online ya offline receipt). */}
+                  {!noPayment && (
                   <div className="p-5 border-b border-gray-100">
                     <div className="flex items-center gap-2 mb-3">
                       <span className="text-sm">🎟️</span>
@@ -1538,7 +1530,11 @@ export default function AccountDepartment() {
                       </div>
                     </div>
                   </div>
+                  )}
 
+                  {/* Receipt sirf tab dikhao jab offline payment aaya ho. Koi
+                      payment nahi aaya to receipt section nahi chahiye. */}
+                  {!noPayment && (
                   <div className="p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <span className="text-sm">🧾</span>
@@ -1568,6 +1564,7 @@ export default function AccountDepartment() {
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
               </div>
 
@@ -1582,9 +1579,11 @@ export default function AccountDepartment() {
                 />
                 {(() => {
                   const feeAmount = Number(c.payment_amount || c.base_fee || 0)
-                  const needsPayment = feeAmount > 0 && c.payment_status !== 'paid'
+                  const needsPayment = feeAmount > 0 && !isPaidNow
                   const blocked = accSaving || needsPayment
-                  const title = needsPayment ? 'Letter fee payment pending — generate the pay link and wait for payment' : undefined
+                  const title = !needsPayment ? undefined
+                    : paidOffline ? 'Receipt verify karke "Verify Receipt & Confirm Payment" dabao — uske bina forward nahi hoga'
+                    : 'Pay link generate karo aur payment aane ka wait karo'
                   return (
                     <button
                       onClick={() => handleApprove(c, accRemarks, walletDeposit)}
