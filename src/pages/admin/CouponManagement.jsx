@@ -38,29 +38,30 @@ export default function CouponManagement() {
 
   async function fetchData() {
     setLoading(true)
-    const [cpns, ctrs] = await Promise.all([
-      supabase
-        .from('coupons')
-        .select('*, centers(center_name, center_code, center_type)')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('centers')
-        .select('id, center_name, center_code, center_type, coupon_wallet_balance')
-        .order('center_name'),
-    ])
-    if (cpns.error) {
-      // The embedded centers(...) join can error (missing/ambiguous FK), which
-      // nulls the whole list and makes coupons look like they vanished. Fall
-      // back to a plain select so generated coupons still show.
-      console.error('coupons fetch (with join) failed:', cpns.error)
-      const plain = await supabase.from('coupons').select('*').order('created_at', { ascending: false })
-      if (plain.error) console.error('coupons plain fetch failed:', plain.error)
-      setCoupons(plain.data || [])
-      setFetchErr(plain.error ? `Coupons load nahi ho rahe: ${plain.error.message}` : null)
-    } else {
-      setCoupons(cpns.data || [])
-      setFetchErr(null)
+
+    // Fetch coupons defensively. A missing column (e.g. created_at) or a bad
+    // embedded join would otherwise error and blank the whole list. Try the
+    // richest query first, then degrade until one works.
+    const attempts = [
+      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type)').order('created_at', { ascending: false }),
+      () => supabase.from('coupons').select('*').order('created_at', { ascending: false }),
+      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type)'),
+      () => supabase.from('coupons').select('*'),
+    ]
+    let cpData = null, cpErr = null
+    for (const run of attempts) {
+      const r = await run()
+      if (!r.error) { cpData = r.data; cpErr = null; break }
+      cpErr = r.error
     }
+    if (cpErr) console.error('coupons fetch failed:', cpErr)
+    setCoupons(cpData || [])
+    setFetchErr(cpErr ? `Coupons load nahi ho rahe: ${cpErr.message}` : null)
+
+    const ctrs = await supabase
+      .from('centers')
+      .select('id, center_name, center_code, center_type, coupon_wallet_balance')
+      .order('center_name')
     if (ctrs.error) console.error('centers fetch failed:', ctrs.error)
     setCenters(ctrs.data || [])
     setLoading(false)

@@ -19,8 +19,18 @@ export default function CouponView({ type = 'wallet' }) {
       .then(({ data, error: err }) => {
         if (err || !data) { setError('Center not found. Contact admin.'); setLoading(false); return }
         setCenter(data)
+        // Order by created_at if it exists, otherwise fall back to an
+        // unordered fetch so a missing column doesn't blank the list.
         supabase.from('coupons').select('*').eq('center_id', data.id).order('created_at', { ascending: false })
-          .then(({ data: cpns }) => { setCoupons(cpns || []); setLoading(false) })
+          .then(async ({ data: cpns, error: cpErr }) => {
+            if (cpErr) {
+              const plain = await supabase.from('coupons').select('*').eq('center_id', data.id)
+              setCoupons(plain.data || [])
+            } else {
+              setCoupons(cpns || [])
+            }
+            setLoading(false)
+          })
       })
   }, [user?.email])
 
