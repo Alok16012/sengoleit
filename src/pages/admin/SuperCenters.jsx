@@ -37,7 +37,7 @@ export default function SuperCenters() {
   }
 
   async function handleDelete(id, name) {
-    if (!confirm(`"${name}" ko delete karna chahte ho? Ye wapas nahi aayega.`)) return
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return
     const { error } = await supabase.from('centers').delete().eq('id', id)
     if (error) { alert('Delete failed: ' + error.message); return }
     fetchData()
@@ -53,7 +53,7 @@ export default function SuperCenters() {
     const newPass = editingPassword[centerId]?.trim()
     if (!newPass) return
     const center = data.find(c => c.id === centerId)
-    if (!center?.email) { alert('Super center ka email nahi hai.'); return }
+    if (!center?.email) { alert('This super center has no email address.'); return }
 
     const role = 'super_center'
 
@@ -75,7 +75,7 @@ export default function SuperCenters() {
         })
         if (updErr) { alert('Password update failed: ' + updErr.message); return }
         await supabase.from('profiles').upsert({ id: userId, role })
-        alert(`✓ Password update ho gaya! Ab ${center.email} + naya password se login hoga.`)
+        alert(`✓ Password updated! ${center.email} can now log in with the new password.`)
       } else {
         const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
           email: center.email,
@@ -85,7 +85,7 @@ export default function SuperCenters() {
         })
         if (cErr) { alert('User create failed: ' + cErr.message); return }
         if (created?.user) await supabase.from('profiles').upsert({ id: created.user.id, role })
-        alert(`✓ Account ban gaya! Ab ${center.email} + password se login hoga.`)
+        alert(`✓ Account created! ${center.email} can now log in with the password.`)
       }
       setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
       fetchData()
@@ -110,11 +110,11 @@ export default function SuperCenters() {
     }
 
     if (signUpErr && signUpErr.message.toLowerCase().includes('already registered')) {
-      alert(`Password actually change NAHI hua — yeh email already registered hai aur existing user ka password sirf service key se badalta hai.\n\nAbhi ke liye: Supabase Dashboard → Authentication → Users → "${center.email}" → Reset/Update password.\n\nPermanent fix: .env mein asli VITE_SUPABASE_SERVICE_KEY daalo.`)
+      alert(`The password was NOT actually changed — this email is already registered, and an existing user's password can only be changed using the service key.\n\nFor now: Supabase Dashboard → Authentication → Users → "${center.email}" → Reset/Update password.\n\nPermanent fix: add a real VITE_SUPABASE_SERVICE_KEY in .env.`)
     } else if (signUpErr) {
       alert('Error: ' + signUpErr.message)
     } else {
-      alert(`✓ Password set! Ab ${center.email} + password se login hoga.`)
+      alert(`✓ Password set! ${center.email} can now log in with the password.`)
     }
 
     setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })

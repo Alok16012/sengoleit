@@ -74,7 +74,7 @@ export default function Dashboard() {
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
           <p className="font-bold text-amber-800">Supabase Setup Required</p>
           <p className="text-amber-700 text-sm mt-1">
-            <code className="bg-amber-100 px-1 rounded">.env</code> file mein Supabase URL aur Anon Key daalo, phir server restart karo.
+            Add the Supabase URL and Anon Key to your <code className="bg-amber-100 px-1 rounded">.env</code> file, then restart the server.
           </p>
           <pre className="bg-amber-100 text-amber-900 text-xs mt-3 p-3 rounded-xl overflow-x-auto">{`VITE_SUPABASE_URL=https://xxxx.supabase.co\nVITE_SUPABASE_ANON_KEY=eyJxxx...`}</pre>
         </div>

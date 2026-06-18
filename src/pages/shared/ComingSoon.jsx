@@ -12,7 +12,7 @@ export default function ComingSoon({ title, description }) {
           <Construction size={32} className="text-amber-500" />
         </div>
         <h2 className="text-lg font-bold text-gray-800 mb-2">Feature Coming Soon</h2>
-        <p className="text-sm text-gray-400 max-w-xs">Yeh section abhi develop ho raha hai. Jald hi available hoga.</p>
+        <p className="text-sm text-gray-400 max-w-xs">This section is still under development. It will be available soon.</p>
       </div>
     </div>
   )

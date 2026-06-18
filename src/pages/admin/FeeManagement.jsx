@@ -248,7 +248,7 @@ export default function FeeManagement() {
         ) : masterList.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-gray-300">
             <GraduationCap size={52} className="mb-3" />
-            <p className="text-base font-semibold text-gray-400">Koi fee structure save nahi hua abhi tak</p>
+            <p className="text-base font-semibold text-gray-400">No fee structure has been saved yet</p>
             <button onClick={() => openEditor()} className="mt-4 bg-[#933d18] text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#7a3214]">
               + Add Fee Structure
             </button>

@@ -40,7 +40,7 @@ export default function VerifyRow({ fkey, label, val, url, checks, setChecks }) 
         <div className="shrink-0 mt-0.5 flex items-center gap-1.5">
           {isVerified
             ? isLocked
-              ? <span title="Pehle se verified — locked"
+              ? <span title="Already verified — locked"
                   className="inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 bg-gray-100 border border-gray-300 px-2.5 py-1 rounded-lg cursor-not-allowed">
                   <Lock size={10} /> Verified
                 </span>
@@ -69,7 +69,7 @@ export default function VerifyRow({ fkey, label, val, url, checks, setChecks }) 
         <div className="px-3 pb-3 pt-0">
           <input
             type="text"
-            placeholder="Is field mein kya dikkat hai..."
+            placeholder="What is the issue with this field..."
             value={check?.remark || ''}
             onChange={e => setChecks(p => ({ ...p, [fkey]: { ...(p[fkey] || {}), ok: false, remark: e.target.value } }))}
             className="w-full text-xs text-gray-600 placeholder:text-gray-300 bg-transparent border-0 border-t border-gray-100 pt-2 focus:outline-none"

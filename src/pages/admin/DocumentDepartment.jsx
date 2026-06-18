@@ -262,7 +262,7 @@ export default function DocumentDepartment() {
   }
 
   async function confirmDCReject() {
-    if (!dcRejectRemarks.trim()) { alert('Rejection ka karan likhna zaroori hai'); return }
+    if (!dcRejectRemarks.trim()) { alert('A reason for rejection is required'); return }
     setDCSaving(true)
     const { error } = await supabase.from('centers')
       .update({ approval_status: 'rejected', status: 'Inactive', approval_notes: dcRejectRemarks, correction_fields: null })
@@ -275,7 +275,7 @@ export default function DocumentDepartment() {
   }
 
   async function confirmDCHold() {
-    if (!dcHoldRemarks.trim()) { alert('Hold karne ke liye remark likhna zaroori hai'); return }
+    if (!dcHoldRemarks.trim()) { alert('A remark is required to put this on hold'); return }
     setDCSaving(true)
     const { error } = await supabase.from('centers')
       .update({
@@ -363,7 +363,7 @@ export default function DocumentDepartment() {
   }
 
   async function handleReject() {
-    if (!remarks.trim()) { alert('Remarks likhna zaroori hai rejection ke liye'); return }
+    if (!remarks.trim()) { alert('Remarks are required for rejection'); return }
     setSaving(true)
     await supabase.from('students').update({
       status: 'Rejected',
@@ -902,8 +902,8 @@ export default function DocumentDepartment() {
               const allVerified = totalItems > 0 && allKeys.every(k => fieldChecks[k]?.ok)
               const canForward = allVerified && !hasAnyRemark
               const blockReason = !allVerified
-                ? `${totalItems - verifiedCount} field abhi verify nahi hue`
-                : hasAnyRemark ? 'Kuch fields par remark mention hai' : ''
+                ? `${totalItems - verifiedCount} field(s) not yet verified`
+                : hasAnyRemark ? 'Some fields have a remark noted' : ''
 
               // Hold is only allowed after the WHOLE form is reviewed — every visible field and
               // every document must be either Verified or have a Remark. This forces a complete
@@ -982,7 +982,7 @@ export default function DocumentDepartment() {
                         <button
                           onClick={unverifyAll}
                           className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-600 border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm"
-                          title="Undo Verify All — sab unverified kar do"
+                          title="Undo Verify All — mark everything as unverified"
                         >
                           <XCircle size={15} /> Unverify All
                         </button>
@@ -1055,11 +1055,11 @@ export default function DocumentDepartment() {
                   <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center gap-3 shadow-sm">
                     {!allReviewed ? (
                       <span className="text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg whitespace-nowrap">
-                        {unreviewedKeys.length} field abhi review nahi hue — pehle poora form Verify / Remark karo
+                        {unreviewedKeys.length} field(s) not yet reviewed — Verify / add a Remark for the whole form first
                       </span>
                     ) : !canForward && blockReason && (
                       <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg whitespace-nowrap">
-                        {blockReason} — Account Dept. ko forward nahi hoga, Hold karo
+                        {blockReason} — cannot be forwarded to Account Dept., please Hold instead
                       </span>
                     )}
                     <input
@@ -1072,13 +1072,13 @@ export default function DocumentDepartment() {
                     <button
                       onClick={() => {
                         if (!canForward) {
-                          alert(`Account Dept. ko forward nahi kar sakte — ${blockReason}.\n\nSaare fields verify karo aur koi remark mat chhodo, ya phir center ko Hold karo.`)
+                          alert(`Cannot forward to Account Dept. — ${blockReason}.\n\nVerify all fields and leave no remarks, or put the center on Hold.`)
                           return
                         }
                         handleDCVerify()
                       }}
                       disabled={dcSaving || !canForward}
-                      title={canForward ? '' : `${blockReason} — Hold karo`}
+                      title={canForward ? '' : `${blockReason} — please Hold`}
                       className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
                     >
                       <CheckCircle size={15} />
@@ -1087,18 +1087,18 @@ export default function DocumentDepartment() {
                     <button
                       onClick={() => {
                         if (!allReviewed) {
-                          alert(`Pehle poora form review karo — ${unreviewedKeys.length} field/document abhi tak na verify hue na unpar remark hai.\n\nHar field ko ya to Verify karo, ya jisme dikkat hai uspar Remark likho. Tabhi Hold kar sakte ho.`)
+                          alert(`Review the whole form first — ${unreviewedKeys.length} field(s)/document(s) are neither verified nor have a remark.\n\nEither Verify each field, or add a Remark on the ones with issues. Only then can you Hold.`)
                           return
                         }
                         if (!hasIssueForHold) {
-                          alert('Hold karne ke liye kam se kam ek field par remark likhna zaroori hai (jo correction chahiye). Agar sab sahi hai to Account Dept. ko forward karo.')
+                          alert('To put this on hold, you must add a remark on at least one field that needs correction. If everything is correct, forward it to Account Dept.')
                           return
                         }
                         setDCHoldModal(c); setDCHoldRemarks(composedHoldNote); setDCHoldFields(flaggedFormFields(fieldChecks))
                       }}
                       disabled={dcSaving}
                       className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
-                      title={!allReviewed ? `${unreviewedKeys.length} field abhi review nahi hue — sab verify ya remark karo` : 'Remark wale fields correction ke liye bheje jayenge'}
+                      title={!allReviewed ? `${unreviewedKeys.length} field(s) not yet reviewed — verify or remark all of them` : 'Fields with a remark will be sent back for correction'}
                     >
                       <PauseCircle size={15} /> Hold{!allReviewed ? ` (${unreviewedKeys.length} left)` : ''}
                     </button>
@@ -1126,16 +1126,16 @@ export default function DocumentDepartment() {
           <Modal isOpen={!!dcHoldModal} onClose={() => setDCHoldModal(null)} title="Hold Center — Send Back for Correction">
             <div className="space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
-                <strong>{dcHoldModal?.center_name}</strong> ko hold par bheja jayega. Yeh Account Dept. ko forward <strong>nahi</strong> hoga.
-                Center / Super Center ko yeh remark dikhega taaki woh correction kar sake.
+                <strong>{dcHoldModal?.center_name}</strong> will be put on hold. It will <strong>not</strong> be forwarded to Account Dept.
+                The Center / Super Center will see this remark so they can make corrections.
               </div>
               {dcHoldFields.length > 0 ? (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
-                  Resubmit par sirf <strong>{dcHoldFields.length}</strong> flagged field(s) editable rahenge — baaki sab verified maan kar lock ho jayenge.
+                  On resubmit, only the <strong>{dcHoldFields.length}</strong> flagged field(s) will stay editable — everything else will be treated as verified and locked.
                 </div>
               ) : (
                 <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs text-gray-500">
-                  Koi specific field flag nahi hua — resubmit par poora form editable rahega. (Field lock ke liye verify modal me box ko uncheck karke us par remark likhein.)
+                  No specific field was flagged — the entire form will stay editable on resubmit. (To lock a field, uncheck its box in the verify modal and add a remark on it.)
                 </div>
               )}
               <div>
@@ -1143,7 +1143,7 @@ export default function DocumentDepartment() {
                 <textarea
                   className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-400 resize-none"
                   rows={4}
-                  placeholder="Kaunse documents/fields mein dikkat hai, likhein (required)..."
+                  placeholder="Describe which documents/fields have issues (required)..."
                   value={dcHoldRemarks}
                   onChange={e => setDCHoldRemarks(e.target.value)}
                 />
@@ -1165,14 +1165,14 @@ export default function DocumentDepartment() {
           <Modal isOpen={!!dcRejectModal} onClose={() => setDCRejectModal(null)} title="Reject Center Registration">
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
-                <strong>{dcRejectModal?.center_name}</strong> ka registration reject karna chahte ho? Center ko reason dikhega.
+                Are you sure you want to reject the registration for <strong>{dcRejectModal?.center_name}</strong>? The center will see the reason.
               </p>
               <div>
                 <label className="text-xs font-semibold text-gray-600 mb-1 block">Rejection Reason <span className="text-red-500">*</span></label>
                 <textarea
                   className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-red-400 resize-none"
                   rows={3}
-                  placeholder="Document mein kya dikkat hai, likhein (required)..."
+                  placeholder="Describe what is wrong with the document (required)..."
                   value={dcRejectRemarks}
                   onChange={e => setDCRejectRemarks(e.target.value)}
                 />
@@ -1395,7 +1395,7 @@ export default function DocumentDepartment() {
             <p className="text-xs text-gray-500 mt-1">{verifyModal?.programs?.program_name}</p>
           </div>
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-            Verify karne par ek <strong>Admission Number auto-generate</strong> hoga aur student <strong>Hold</strong> status mein Account Dept. ko jayega.
+            On verifying, an <strong>Admission Number will be auto-generated</strong> and the student will move to <strong>Hold</strong> status for the Account Dept.
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Remarks (optional)</label>
@@ -1418,14 +1418,14 @@ export default function DocumentDepartment() {
       <Modal isOpen={!!rejectModal} onClose={() => setRejectModal(null)} title="Reject Student Application">
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            <strong>{rejectModal?.student_name}</strong> ka application reject karna chahte ho?
+            Are you sure you want to reject the application for <strong>{rejectModal?.student_name}</strong>?
           </p>
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Rejection Reason <span className="text-red-500">*</span></label>
             <textarea
               className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-red-400 resize-none"
               rows={3}
-              placeholder="Rejection ka karan likhein (required)..."
+              placeholder="Enter the reason for rejection (required)..."
               value={remarks}
               onChange={e => setRemarks(e.target.value)}
             />

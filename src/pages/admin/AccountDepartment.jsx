@@ -160,7 +160,7 @@ export default function AccountDepartment() {
     const newPass = editingPassword[centerId]?.trim()
     if (!newPass) return
     const center = centers.find(c => c.id === centerId)
-    if (!center?.email) { alert('Center ka email nahi hai.'); return }
+    if (!center?.email) { alert('This center has no email address.'); return }
 
     const role = center.center_type === 'super_center' ? 'super_center' : 'center'
 
@@ -183,7 +183,7 @@ export default function AccountDepartment() {
         })
         if (updErr) { alert('Password update failed: ' + updErr.message); return }
         await supabase.from('profiles').upsert({ id: userId, role })
-        alert(`✓ Password update ho gaya! Ab ${center.email} + naya password se login hoga.`)
+        alert(`✓ Password updated! ${center.email} can now log in with the new password.`)
       } else {
         const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
           email: center.email,
@@ -193,7 +193,7 @@ export default function AccountDepartment() {
         })
         if (cErr) { alert('User create failed: ' + cErr.message); return }
         if (created?.user) await supabase.from('profiles').upsert({ id: created.user.id, role })
-        alert(`✓ Account ban gaya! Ab ${center.email} + password se login hoga.`)
+        alert(`✓ Account created! ${center.email} can now log in with the password.`)
       }
       setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
       fetchAll()
@@ -218,11 +218,11 @@ export default function AccountDepartment() {
     }
 
     if (signUpErr && signUpErr.message.toLowerCase().includes('already registered')) {
-      alert(`Password actually change NAHI hua — yeh email already registered hai aur existing user ka password sirf service key se badalta hai.\n\nAbhi ke liye: Supabase Dashboard → Authentication → Users → "${center.email}" → Reset/Update password.\n\nPermanent fix: .env mein asli VITE_SUPABASE_SERVICE_KEY daalo.`)
+      alert(`The password was NOT actually changed — this email is already registered, and an existing user's password can only be changed using the service key.\n\nFor now: Supabase Dashboard → Authentication → Users → "${center.email}" → Reset/Update password.\n\nPermanent fix: add the real VITE_SUPABASE_SERVICE_KEY to your .env file.`)
     } else if (signUpErr) {
       alert('Error: ' + signUpErr.message)
     } else {
-      alert(`✓ Password set! Ab ${center.email} + password se login hoga.`)
+      alert(`✓ Password set! ${center.email} can now log in with the password.`)
     }
 
     setEditingPassword(prev => { const n = { ...prev }; delete n[centerId]; return n })
@@ -262,9 +262,9 @@ export default function AccountDepartment() {
     if (approveErr) {
       setAccSaving(false)
       alert(
-        'Approve nahi ho paya: ' + approveErr.message +
+        'Approval failed: ' + approveErr.message +
         (/coupon_wallet_balance/.test(approveErr.message)
-          ? '\n\nLagta hai `coupon_wallet_balance` column DB mein nahi hai. Supabase SQL Editor mein add_coupon_wallet_balance.sql chalao.'
+          ? '\n\nIt looks like the `coupon_wallet_balance` column does not exist in the DB. Run add_coupon_wallet_balance.sql in the Supabase SQL Editor.'
           : '')
       )
       return
@@ -311,7 +311,7 @@ export default function AccountDepartment() {
   // The caller must already have receiptVerified === true (the button is gated).
   async function markPaidManually(center, utr) {
     const amount = Number(center.payment_amount || center.base_fee || 0)
-    if (!confirm(`₹${amount.toLocaleString('en-IN')} payment manually received mark karein? (offline / UTR)`)) return
+    if (!confirm(`Mark the ₹${amount.toLocaleString('en-IN')} payment as manually received? (offline / UTR)`)) return
     setPayLinkError(null)
     setPayLinkLoading(true)
     const paidAt = new Date().toISOString()
@@ -355,7 +355,7 @@ export default function AccountDepartment() {
   }
 
   async function confirmAccHold() {
-    if (!accHoldRemarks.trim()) { alert('Hold karne ke liye remark likhna zaroori hai'); return }
+    if (!accHoldRemarks.trim()) { alert('A remark is required to put this on hold'); return }
     setAccSaving(true)
     const { error } = await supabase.from('centers')
       .update({ approval_status: 'account_hold', status: 'Pending', approval_notes: accHoldRemarks.trim() })
@@ -452,7 +452,7 @@ export default function AccountDepartment() {
   async function confirmStudentAction() {
     const { student, type } = studentActionModal
     if (type === 'reject' && !studentRemarks.trim()) {
-      alert('Rejection ka reason likhna zaroori hai')
+      alert('A reason for rejection is required')
       return
     }
     if (type === 'approve') {
@@ -480,7 +480,7 @@ export default function AccountDepartment() {
   }
 
   async function handleDeleteCenter(id, name) {
-    if (!confirm(`"${name}" ko permanently delete karna chahte ho?`)) return
+    if (!confirm(`Are you sure you want to permanently delete "${name}"?`)) return
     const { error } = await supabase.from('centers').delete().eq('id', id)
     if (error) { alert('Delete failed: ' + error.message); return }
     fetchAll()
@@ -889,7 +889,7 @@ export default function AccountDepartment() {
           )}
 
           <p className="text-xs text-gray-400 bg-gray-50 rounded-lg p-3">
-            Ye credentials center ko share karo. Woh portal pe login karke apna dashboard access kar sakte hain.
+            Share these credentials with the center. They can log in to the portal and access their dashboard.
           </p>
           <Button onClick={() => setApprovedModal(null)} className="w-full justify-center">Done</Button>
         </div>
@@ -1059,7 +1059,7 @@ export default function AccountDepartment() {
           </div>
           {studentActionModal?.type === 'approve' && (
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-              Approve karne par student ka <strong>Enrollment Number</strong> aur <strong>Admission Number</strong> center/super center ko visible ho jayega.
+              On approval, the student's <strong>Enrollment Number</strong> and <strong>Admission Number</strong> will become visible to the center / super center.
             </div>
           )}
           <div>
@@ -1069,7 +1069,7 @@ export default function AccountDepartment() {
             <textarea
               className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#933d18] resize-none"
               rows={3}
-              placeholder={studentActionModal?.type === 'reject' ? 'Rejection ka karan likhein (required)...' : 'Any additional notes (optional)...'}
+              placeholder={studentActionModal?.type === 'reject' ? 'Enter the reason for rejection (required)...' : 'Any additional notes (optional)...'}
               value={studentRemarks}
               onChange={e => setStudentRemarks(e.target.value)}
             />
@@ -1415,11 +1415,11 @@ export default function AccountDepartment() {
                           ) : amount <= 0 ? (
                             <p className="text-xs text-amber-600">No fee set for this center's letter type. Set pricing in Center Pricing.</p>
                           ) : paidOffline ? (
-                            /* Super center ne application ke time hi pay kar diya (offline).
-                               Account Dept sirf receipt VERIFY karta hai — no pay link. */
+                            /* The super center already paid (offline) at application time.
+                               The Account Dept only VERIFIES the receipt — no pay link. */
                             <div className="space-y-3">
                               <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
-                                <p className="text-[11px] font-bold text-amber-700 uppercase">Offline payment — receipt verify karo</p>
+                                <p className="text-[11px] font-bold text-amber-700 uppercase">Offline payment — verify the receipt</p>
                                 {Number(c.amount_paid) > 0 && <p className="text-[11px] text-amber-700/90 mt-1">Amount paid: ₹{Number(c.amount_paid).toLocaleString('en-IN')}</p>}
                                 {c.payment_date && <p className="text-[11px] text-amber-700/90">Date: {c.payment_date}</p>}
                               </div>
@@ -1436,18 +1436,18 @@ export default function AccountDepartment() {
                               <label className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${receiptVerified ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
                                 <input type="checkbox" checked={receiptVerified} onChange={e => setReceiptVerified(e.target.checked)} className="mt-0.5 accent-emerald-600" />
                                 <span className="text-xs text-gray-700">
-                                  Maine payment receipt verify kar li hai{!c.payment_screenshot_url && <span className="text-amber-600"> (dhyaan: koi receipt upload nahi hai)</span>}
+                                  I have verified the payment receipt{!c.payment_screenshot_url && <span className="text-amber-600"> (note: no receipt has been uploaded)</span>}
                                 </span>
                               </label>
                               <button onClick={() => markPaidManually(c, manualUtr)} disabled={payLinkLoading || !receiptVerified}
-                                title={!receiptVerified ? 'Pehle receipt verify karo' : undefined}
+                                title={!receiptVerified ? 'Verify the receipt first' : undefined}
                                 className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors">
                                 <CheckCircle size={14} /> {payLinkLoading ? 'Saving...' : 'Verify Receipt & Confirm Payment'}
                               </button>
-                              {!receiptVerified && <p className="text-[10px] text-gray-400 text-center">Receipt verify kiye bina forward nahi hoga.</p>}
+                              {!receiptVerified && <p className="text-[10px] text-gray-400 text-center">Forwarding is blocked until the receipt is verified.</p>}
                             </div>
                           ) : (
-                            /* Koi payment nahi aaya — sirf pay link + reference number.
+                            /* No payment received — only a pay link + reference number.
                                No receipt / UTR / verify UI. */
                             <div className="space-y-3">
                               <button onClick={() => generatePayLink(c)} disabled={payLinkLoading}
@@ -1474,7 +1474,7 @@ export default function AccountDepartment() {
                                           <Copy size={13} />
                                         </button>
                                       </div>
-                                      <p className="text-[10px] text-gray-500 mt-1.5">Center isse + apna email university website par daal ke payment kar sakta hai.</p>
+                                      <p className="text-[10px] text-gray-500 mt-1.5">The center can pay by entering this number and their email on the university website.</p>
                                     </div>
                                   ) : c.payment_link_url && (
                                     <button onClick={() => generateRefNo(c)} disabled={refNoSaving}
@@ -1496,8 +1496,8 @@ export default function AccountDepartment() {
                   </div>
 
                   {/* Coupon wallet — deposit the paid amount. How many coupons to
-                      mint is decided later in Coupon Management. Sirf tab dikhao jab
-                      payment aa chuki ho (paid online ya offline receipt). */}
+                      mint is decided later in Coupon Management. Only show this once
+                      payment has been received (paid online or via offline receipt). */}
                   {!noPayment && (
                   <div className="p-5 border-b border-gray-100">
                     <div className="flex items-center gap-2 mb-3">
@@ -1519,21 +1519,21 @@ export default function AccountDepartment() {
                           onChange={e => setCouponRate(e.target.value)}
                           className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
                         />
-                        <p className="text-[11px] text-gray-400 mt-1">Khaali chhodo to paid amount (₹{couponBase.toLocaleString('en-IN')}) add hoga.</p>
+                        <p className="text-[11px] text-gray-400 mt-1">Leave blank to add the paid amount (₹{couponBase.toLocaleString('en-IN')}).</p>
                       </div>
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
                         <p className="text-[11px] font-bold text-emerald-700 uppercase">Will Add to Wallet</p>
                         <p className="text-sm text-emerald-800 mt-0.5">
                           <span className="text-xl font-black">₹{walletDeposit.toLocaleString('en-IN')}</span>
                         </p>
-                        <p className="text-[11px] text-emerald-600/80 mt-1">Kitne coupon banane hai voo Coupon Management mein decide hoga.</p>
+                        <p className="text-[11px] text-emerald-600/80 mt-1">How many coupons to mint is decided in Coupon Management.</p>
                       </div>
                     </div>
                   </div>
                   )}
 
-                  {/* Receipt sirf tab dikhao jab offline payment aaya ho. Koi
-                      payment nahi aaya to receipt section nahi chahiye. */}
+                  {/* Only show the receipt when an offline payment was received. If
+                      no payment was received, the receipt section is not needed. */}
                   {!noPayment && (
                   <div className="p-5">
                     <div className="flex items-center gap-2 mb-4">
@@ -1560,7 +1560,7 @@ export default function AccountDepartment() {
                     ) : (
                       <div className="rounded-xl border-2 border-dashed border-amber-200 bg-amber-50/60 p-6 text-center">
                         <p className="text-sm font-bold text-amber-700">No receipt uploaded</p>
-                        <p className="text-xs text-amber-600/80 mt-1">Center ne payment proof attach nahi kiya. Hold karke remark dein.</p>
+                        <p className="text-xs text-amber-600/80 mt-1">The center did not attach payment proof. Put it on hold and add a remark.</p>
                       </div>
                     )}
                   </div>
@@ -1582,8 +1582,8 @@ export default function AccountDepartment() {
                   const needsPayment = feeAmount > 0 && !isPaidNow
                   const blocked = accSaving || needsPayment
                   const title = !needsPayment ? undefined
-                    : paidOffline ? 'Receipt verify karke "Verify Receipt & Confirm Payment" dabao — uske bina forward nahi hoga'
-                    : 'Pay link generate karo aur payment aane ka wait karo'
+                    : paidOffline ? 'Verify the receipt and click "Verify Receipt & Confirm Payment" — forwarding is blocked until then'
+                    : 'Generate a pay link and wait for the payment to arrive'
                   return (
                     <button
                       onClick={() => handleApprove(c, accRemarks, walletDeposit)}
@@ -1599,7 +1599,7 @@ export default function AccountDepartment() {
                   onClick={() => { setAccHoldModal(c); setAccHoldRemarks(composedHoldNote) }}
                   disabled={accSaving}
                   className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
-                  title="Payment galat hai — center ko hold par bhejo"
+                  title="Payment is incorrect — put the center on hold"
                 >
                   <PauseCircle size={15} /> Hold
                 </button>
@@ -1626,14 +1626,14 @@ export default function AccountDepartment() {
       <Modal isOpen={!!accHoldModal} onClose={() => setAccHoldModal(null)} title="Hold Center — Send Back for Correction">
         <div className="space-y-4">
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
-            <strong>{accHoldModal?.center_name}</strong> ko hold par bheja jayega. Center / Super Center ko yeh remark dikhega taaki woh payment/details theek kar sake.
+            <strong>{accHoldModal?.center_name}</strong> will be put on hold. The Center / Super Center will see this remark so they can correct the payment / details.
           </div>
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Hold Remark <span className="text-red-500">*</span></label>
             <textarea
               className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-400 resize-none"
               rows={4}
-              placeholder="Payment / kis field mein dikkat hai, likhein (required)..."
+              placeholder="Describe the issue with the payment or which field needs fixing (required)..."
               value={accHoldRemarks}
               onChange={e => setAccHoldRemarks(e.target.value)}
             />

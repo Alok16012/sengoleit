@@ -10,10 +10,10 @@ import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
 const STATUS_META = {
-  Pending:  { color: 'amber',   label: 'Pending Students',  desc: 'Form submit ho gaye hain, Document Dept. ki verification baaki hai' },
-  Hold:     { color: 'indigo',  label: 'Hold Students',     desc: 'Documents verify ho gaye, Account Dept. ki approval baaki hai' },
-  Approved: { color: 'emerald', label: 'Approved Students', desc: 'Poori process complete — Admission confirm' },
-  Rejected: { color: 'red',     label: 'Rejected Students', desc: 'Application reject ho gayi hai' },
+  Pending:  { color: 'amber',   label: 'Pending Students',  desc: 'Forms have been submitted, awaiting Document Dept. verification' },
+  Hold:     { color: 'indigo',  label: 'Hold Students',     desc: 'Documents verified, awaiting Account Dept. approval' },
+  Approved: { color: 'emerald', label: 'Approved Students', desc: 'Entire process complete — Admission confirmed' },
+  Rejected: { color: 'red',     label: 'Rejected Students', desc: 'Application has been rejected' },
 }
 
 export default function StudentListReport({ status }) {
@@ -121,9 +121,9 @@ export default function StudentListReport({ status }) {
           <div className={`w-14 h-14 ${c.bg} rounded-2xl flex items-center justify-center mb-3`}>
             <FileX size={26} className={c.text} />
           </div>
-          <p className="font-bold text-gray-700">{search ? 'No results found' : `Koi ${status} student nahi hai`}</p>
+          <p className="font-bold text-gray-700">{search ? 'No results found' : `No ${status} students`}</p>
           <p className="text-xs text-gray-400 mt-1">
-            {search ? 'Search terms change karein' : `Abhi tak koi student ${status} status mein nahi hai`}
+            {search ? 'Try changing your search terms' : `No students are in ${status} status yet`}
           </p>
         </div>
       ) : (

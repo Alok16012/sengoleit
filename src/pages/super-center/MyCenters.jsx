@@ -54,7 +54,7 @@ export default function MyCenters() {
   }
 
   async function handleDelete(id, name) {
-    if (!confirm(`"${name}" ko delete karna chahte ho? Ye wapas nahi aayega.`)) return
+    if (!confirm(`Are you sure you want to delete "${name}"? This cannot be undone.`)) return
     const { error } = await supabase.from('centers').delete().eq('id', id)
     if (error) { alert('Delete failed: ' + error.message); return }
     setData(d => d.filter(c => c.id !== id))

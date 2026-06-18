@@ -56,7 +56,7 @@ export default function CouponManagement() {
     }
     if (cpErr) console.error('coupons fetch failed:', cpErr)
     setCoupons(cpData || [])
-    setFetchErr(cpErr ? `Coupons load nahi ho rahe: ${cpErr.message}` : null)
+    setFetchErr(cpErr ? `Unable to load coupons: ${cpErr.message}` : null)
 
     const ctrs = await supabase
       .from('centers')
@@ -98,7 +98,7 @@ export default function CouponManagement() {
       face_value: genRateNum,
     }))
     const { data: inserted, error: cpErr } = await supabase.from('coupons').insert(rows).select('id')
-    if (cpErr) { alert('Coupon generate karne mein error: ' + cpErr.message); setGenSaving(false); return }
+    if (cpErr) { alert('Error generating coupons: ' + cpErr.message); setGenSaving(false); return }
     // Deduct the minted money; any remainder (< 1 coupon) stays in the wallet.
     const { error: balErr } = await supabase.from('centers')
       .update({ coupon_wallet_balance: genRemaining })
@@ -110,9 +110,9 @@ export default function CouponManagement() {
     setGenRate('')
     await fetchData()
     if (madeCount === 0) {
-      alert('Insert to chala par 0 coupons mile — possibly RLS coupons table pe SELECT/INSERT block kar rahi hai. Check karo.')
+      alert('The insert ran but returned 0 coupons — RLS may be blocking SELECT/INSERT on the coupons table. Please check.')
     } else {
-      alert(`${madeCount} coupons ban gaye (₹${genRateNum} each).`)
+      alert(`${madeCount} coupons created (₹${genRateNum} each).`)
     }
   }
 
@@ -122,11 +122,11 @@ export default function CouponManagement() {
 
       {fetchErr && (
         <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4">
-          <p className="text-sm font-bold text-red-700">Coupons load nahi ho rahe</p>
+          <p className="text-sm font-bold text-red-700">Unable to load coupons</p>
           <p className="text-xs text-red-600 mt-1 font-mono break-all">{fetchErr}</p>
           <p className="text-xs text-red-600/80 mt-2">
-            Agar ye "permission denied" / RLS jaisa hai to <span className="font-bold">coupons</span> table pe Row Level Security read ko block kar rahi hai.
-            Supabase SQL Editor mein <span className="font-mono">enable_coupons_read.sql</span> chalao.
+            If this looks like "permission denied" / RLS, then Row Level Security is blocking reads on the <span className="font-bold">coupons</span> table.
+            Run <span className="font-mono">enable_coupons_read.sql</span> in the Supabase SQL Editor.
           </p>
         </div>
       )}
@@ -145,7 +145,7 @@ export default function CouponManagement() {
           <h2 className="text-sm font-black text-gray-700 uppercase tracking-widest">Coupon Wallets — Mint Coupons</h2>
         </div>
         {walletCenters.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">Kisi center ke coupon wallet mein abhi balance nahi hai.</p>
+          <p className="text-sm text-gray-400 py-4 text-center">No center currently has a balance in its coupon wallet.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {walletCenters.map(c => (
@@ -278,11 +278,11 @@ export default function CouponManagement() {
                     ₹{genBalance.toLocaleString('en-IN')} ÷ ₹{genRateNum} = <span className="text-xl font-black">{genCount}</span> coupons
                   </p>
                   {genRemaining > 0 && (
-                    <p className="text-[11px] text-emerald-600/80 mt-1">₹{genRemaining.toLocaleString('en-IN')} wallet mein bachega (1 coupon se kam).</p>
+                    <p className="text-[11px] text-emerald-600/80 mt-1">₹{genRemaining.toLocaleString('en-IN')} will remain in the wallet (less than 1 coupon).</p>
                   )}
                 </>
               ) : (
-                <p className="text-xs text-emerald-600/80 mt-0.5">Rate dalo to coupon count dikhega.</p>
+                <p className="text-xs text-emerald-600/80 mt-0.5">Enter a rate to see the coupon count.</p>
               )}
             </div>
 

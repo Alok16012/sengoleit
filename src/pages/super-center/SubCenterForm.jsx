@@ -363,8 +363,8 @@ export default function SubCenterForm() {
         if (!form.contact_person.trim()) return 'Contact Person Name is required'
         if (form.date_of_birth) {
           const y = Number(String(form.date_of_birth).slice(0, 4))
-          if (String(form.date_of_birth).slice(0, 4).length !== 4 || y < 1900) return 'Date of Birth ka year 4 digit ka hona chahiye'
-          if (y >= new Date().getFullYear()) return 'Date of Birth ka year current year se kam hona chahiye'
+          if (String(form.date_of_birth).slice(0, 4).length !== 4 || y < 1900) return 'Date of Birth year must be 4 digits'
+          if (y >= new Date().getFullYear()) return 'Date of Birth year must be earlier than the current year'
         }
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
         if (form.aadhar_no.length < 12) return 'Aadhar must be 12 digits'
@@ -511,7 +511,7 @@ export default function SubCenterForm() {
         <div className="mt-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
           <div className="flex items-center gap-2 text-sm font-bold text-amber-700">
             <AlertCircle size={15} className="shrink-0" />
-            Account Department ne payment verify ke liye hold kiya hai
+            The Account Department has put this on hold to verify the payment
           </div>
           {holdRemark && (
             <p className="mt-1.5 text-sm text-amber-800 whitespace-pre-line">
@@ -521,8 +521,8 @@ export default function SubCenterForm() {
           <div className="mt-2.5 flex items-start gap-2 bg-white/70 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
             <Lock size={13} className="shrink-0 mt-0.5" />
             <span>
-              Documents Document Department ne already verify kar diye hain — woh sab <strong>lock</strong> hain.
-              Sirf <strong>Payment</strong> section editable hai. Sahi amount, UTR aur receipt daal kar resubmit karein.
+              The Document Department has already verified the documents — they are all <strong>locked</strong>.
+              Only the <strong>Payment</strong> section is editable. Enter the correct amount, UTR and receipt, then resubmit.
             </span>
           </div>
         </div>
@@ -531,8 +531,8 @@ export default function SubCenterForm() {
           <div className="flex items-center gap-2 text-sm font-bold text-orange-700">
             <AlertCircle size={15} className="shrink-0" />
             {loadedStatus === 'hold'
-              ? 'Document Department ne is application ko hold kiya hai'
-              : 'Document Department ne is application ko reject kiya hai'}
+              ? 'The Document Department has put this application on hold'
+              : 'The Document Department has rejected this application'}
           </div>
           {holdRemark && (
             <p className="mt-1.5 text-sm text-orange-800 whitespace-pre-line">
@@ -540,15 +540,15 @@ export default function SubCenterForm() {
             </p>
           )}
           <p className="mt-1.5 text-xs text-orange-600">
-            Zaroori fields theek karein / documents dobara upload karein aur submit karein. Resubmit karne par application
-            wapas Document Department ke paas verification ke liye jayegi.
+            Fix the required fields / re-upload the documents and submit. On resubmit, the application
+            will go back to the Document Department for verification.
           </p>
           {docLockMode && (
             <div className="mt-2.5 flex items-start gap-2 bg-white/70 border border-orange-200 rounded-lg px-3 py-2 text-xs text-orange-700">
               <Lock size={13} className="shrink-0 mt-0.5" />
               <span>
-                Verified fields <strong>lock</strong> kar diye gaye hain. Sirf wahi {correctionSet.size} field(s) editable hain
-                jinhe Document Department ne correction ke liye flag kiya hai.
+                Verified fields have been <strong>locked</strong>. Only the {correctionSet.size} field(s)
+                that the Document Department flagged for correction are editable.
               </span>
             </div>
           )}
@@ -920,9 +920,9 @@ export default function SubCenterForm() {
                     onChange={e => setPayNow(e.target.checked)}
                     className="mt-0.5 w-4 h-4 accent-[#933d18]" />
                   <span>
-                    <span className="text-sm font-bold text-gray-800">Abhi payment kar rahe ho? (Pay now)</span>
+                    <span className="text-sm font-bold text-gray-800">Paying now? (Pay now)</span>
                     <span className="block text-[11px] text-gray-500 mt-0.5">
-                      Agar abhi offline (bank/UPI) pay kar diya hai, to amount, UTR number aur receipt yahan daalein.
+                      If you have already paid offline (bank/UPI), enter the amount, UTR number and receipt here.
                     </span>
                   </span>
                 </label>
@@ -947,12 +947,12 @@ export default function SubCenterForm() {
                   <FileCard label="Receipt / Screenshot" fieldKey="payment_screenshot_url"
                     accept="image/*,application/pdf" isImage value={form.payment_screenshot_url}
                     onUpload={handleFileUpload} isUploading={!!uploading.payment_screenshot_url}
-                    hint="Bank/UPI receipt ya screenshot" />
+                    hint="Bank/UPI receipt or screenshot" />
                 </div>
                 <Textarea label="Remark (optional)" value={form.payment_remark}
-                  onChange={set('payment_remark')} placeholder="Koi note (optional)" rows={2} />
+                  onChange={set('payment_remark')} placeholder="Any note (optional)" rows={2} />
                 <p className="text-[11px] text-[#933d18]/80 leading-relaxed">
-                  Account Department aapke UTR + receipt ko verify karega, phir center activate hoga.
+                  The Account Department will verify your UTR and receipt, then the center will be activated.
                 </p>
               </div>
             )}
@@ -960,9 +960,9 @@ export default function SubCenterForm() {
             {/* Pay-later note */}
             {form.letter_type && !payNow && (
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 leading-relaxed">
-                Abhi pay nahi kar rahe — koi baat nahi. Account Department jab is center ko verify karega tab upar wale
-                amount ka ek secure payment link ban jayega. Pay karte hi receipt automatically record ho jayega aur center
-                activate ho jayega.
+                Not paying now — that's fine. When the Account Department verifies this center, a secure payment link
+                for the amount above will be created. As soon as you pay, the receipt is recorded automatically and the
+                center is activated.
               </div>
             )}
           </FormSection>

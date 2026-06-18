@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signIn(email, password) {
-    if (!isConfigured) return { error: { message: 'Supabase configure nahi hai. .env file mein URL aur Key daalo.' } }
+    if (!isConfigured) return { error: { message: 'Supabase is not configured. Add the URL and Key to your .env file.' } }
     return supabase.auth.signInWithPassword({ email, password })
   }
 
@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
   }
 
   async function signUp(email, password, userData) {
-    if (!isConfigured) return { error: { message: 'Supabase configure nahi hai.' } }
+    if (!isConfigured) return { error: { message: 'Supabase is not configured.' } }
     const { data, error } = await supabase.auth.signUp({ email, password })
     if (!error && data.user) {
       await supabase.from('profiles').insert({ id: data.user.id, ...userData })
