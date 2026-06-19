@@ -8,6 +8,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import DateInput from '../../components/ui/DateInput'
+import { generateApplicationNo } from '../../utils/generateApplicationNo'
 import {
   Upload, CheckCircle, AlertCircle, Building2, User, MapPin,
   Briefcase, CreditCard, GraduationCap, Wallet, FileText, Eye, CheckCircle2
@@ -358,6 +359,8 @@ export default function CenterRegistrationForm() {
       Object.keys(payload).forEach(k => {
         if (payload[k] === '' || payload[k] === undefined) delete payload[k]
       })
+
+      if (!payload.application_no) payload.application_no = await generateApplicationNo()
 
       const { error: insErr } = await supabase.from('centers').insert(payload)
       if (insErr) throw insErr

@@ -7,6 +7,7 @@ import Input, { Select, Textarea } from '../../components/ui/Input'
 import DateInput from '../../components/ui/DateInput'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
+import { generateApplicationNo } from '../../utils/generateApplicationNo'
 import {
   Building2, User, Briefcase, CreditCard, GraduationCap,
   Upload, Eye, CheckCircle2, AlertCircle, ArrowRight, ArrowLeft, Wallet, Lock
@@ -470,7 +471,7 @@ export default function SubCenterForm() {
       // submitted. The center later uses this number (+ email) to track the
       // application status / payment. Existing applications keep their number.
       if (!isEdit && !payload.application_no) {
-        payload.application_no = `APP-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`
+        payload.application_no = await generateApplicationNo()
       }
 
       if (isEdit) {

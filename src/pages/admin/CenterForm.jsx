@@ -5,6 +5,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import DateInput from '../../components/ui/DateInput'
 import Button from '../../components/ui/Button'
+import { generateApplicationNo } from '../../utils/generateApplicationNo'
 import FormSection from '../../components/ui/FormSection'
 import {
   Building2, User, Briefcase, CreditCard, GraduationCap,
@@ -287,6 +288,10 @@ export default function CenterForm() {
       // is invalid for those types — "invalid input syntax for type numeric: """).
       if (isEdit) Object.keys(payload).forEach(k => { if (payload[k] === '') payload[k] = null })
       else Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
+
+      if (!isEdit && !payload.application_no) {
+        payload.application_no = await generateApplicationNo()
+      }
 
       const { error: err } = isEdit
         ? await supabase.from('centers').update(payload).eq('id', id)
