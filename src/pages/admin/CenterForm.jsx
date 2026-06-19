@@ -797,7 +797,7 @@ export default function CenterForm() {
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmit} disabled={loading}>
-                {loading ? 'Saving...' : isEdit ? 'Update Center' : 'Add Center'}
+                {loading ? 'Saving...' : isEdit ? 'Update Center' : 'Submit Form'}
               </Button>
             )}
           </div>
