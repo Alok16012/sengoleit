@@ -126,7 +126,7 @@ export function generateFeePDF(struct) {
   <title>Fee Structure — ${progName}</title>
   <style>
     * { box-sizing:border-box; margin:0; padding:0; }
-    body { font-family: Arial, Helvetica, sans-serif; background:#fff; color:#111; font-size:10px; }
+    body { font-family: "Times New Roman", Times, Georgia, serif; background:#fff; color:#111; font-size:10px; }
     @page { size:A4 landscape; margin:10mm; }
     @media print {
       body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }

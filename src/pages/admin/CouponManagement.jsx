@@ -264,7 +264,7 @@ export default function CouponManagement() {
                 type="number"
                 min="1"
                 autoFocus
-                placeholder="e.g. 100 or 200"
+                placeholder="E.g. 100 or 200"
                 value={genRate}
                 onChange={e => setGenRate(e.target.value)}
                 className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"

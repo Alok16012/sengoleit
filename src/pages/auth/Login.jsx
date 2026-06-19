@@ -100,7 +100,7 @@ export default function Login() {
                   <input
                     type="email"
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-4 focus:ring-[#933d18]/5 focus:border-[#933d18] focus:bg-white transition-all shadow-sm"
-                    placeholder="admin@university.com"
+                    placeholder="Admin@university.com"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     required

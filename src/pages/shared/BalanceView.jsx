@@ -207,13 +207,13 @@ export default function BalanceView() {
           <Input
             label="Amount (₹) *"
             type="number"
-            placeholder="e.g. 5000"
+            placeholder="E.g. 5000"
             value={form.amount}
             onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
           />
           <Input
             label="UTR / Transaction Number *"
-            placeholder="e.g. UTR123456789"
+            placeholder="E.g. UTR123456789"
             value={form.utr_number}
             onChange={e => setForm(f => ({ ...f, utr_number: e.target.value }))}
           />

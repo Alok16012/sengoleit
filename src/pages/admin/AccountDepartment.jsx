@@ -680,6 +680,7 @@ export default function AccountDepartment() {
                   <Th>Contact Person</Th>
                   <Th>Phone</Th>
                   <Th>Email</Th>
+                  <Th>City</Th>
                   <Th>Bank Account</Th>
                   <Th>Payment</Th>
                   <Th>Doc Remarks</Th>
@@ -689,7 +690,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {approvalsList.length === 0 ? (
-                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {appStatusFilter} {tab === 'super_approvals' ? 'super center' : 'center'} applications</Td></Tr>
+                  <Tr><Td colSpan={13} className="text-center text-gray-400 py-12">No {appStatusFilter} {tab === 'super_approvals' ? 'super center' : 'center'} applications</Td></Tr>
                 ) : approvalsList.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -722,6 +723,7 @@ export default function AccountDepartment() {
                     <Td className="text-gray-500">{c.contact_person || '—'}</Td>
                     <Td className="text-gray-500">{c.phone || '—'}</Td>
                     <Td className="text-gray-500 text-xs">{c.email || '—'}</Td>
+                    <Td className="text-gray-500 text-xs">{c.city || '—'}</Td>
                     <Td className="text-gray-500 text-xs">
                       {c.bank_account_number ? `****${c.bank_account_number.slice(-4)}` : '—'}
                       {c.ifsc_code && <p className="text-gray-400">{c.ifsc_code}</p>}
@@ -1473,7 +1475,7 @@ export default function AccountDepartment() {
                                   type="text"
                                   value={manualUtr}
                                   onChange={e => setManualUtr(e.target.value)}
-                                  placeholder="e.g. 4032198765432"
+                                  placeholder="E.g. 4032198765432"
                                   className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
                                 />
                               </div>

@@ -447,6 +447,7 @@ export default function DocumentDepartment() {
                   <Th>Center Name</Th>
                   <Th>Contact Person</Th>
                   <Th>Super Center</Th>
+                  <Th>City</Th>
                   <Th>State</Th>
                   <Th>Amount Paid</Th>
                   <Th>Submitted</Th>
@@ -456,7 +457,7 @@ export default function DocumentDepartment() {
               </Thead>
               <Tbody>
                 {filteredCenters.length === 0 ? (
-                  <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No centers in “{centerStatusFilter}”.</Td></Tr>
+                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No centers in “{centerStatusFilter}”.</Td></Tr>
                 ) : filteredCenters.map((c, i) => (
                   <Tr key={c.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -479,6 +480,7 @@ export default function DocumentDepartment() {
                     </Td>
                     <Td className="text-gray-500">{c.contact_person || '—'}</Td>
                     <Td className="text-gray-500 text-sm">{c.super_center_name || '—'}</Td>
+                    <Td className="text-gray-500 text-xs">{c.city || '—'}</Td>
                     <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
                     <Td className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</Td>
                     <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>

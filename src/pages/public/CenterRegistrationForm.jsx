@@ -449,12 +449,12 @@ export default function CenterRegistrationForm() {
                 <input className={inp()} value={form.center_name} onChange={e => set('center_name', e.target.value)} placeholder="Name of the center" />
               </Field>
               <Field label="Center Code">
-                <input className={inp()} value={form.center_code} onChange={e => set('center_code', e.target.value)} placeholder="e.g. CTR001 (optional)" />
+                <input className={inp()} value={form.center_code} onChange={e => set('center_code', e.target.value)} placeholder="E.g. CTR001 (optional)" />
               </Field>
               <Field label="Email" required error={fe.email}>
                 <input className={inp(fe.email)} type="email" value={form.email}
                   onChange={e => setField('email', e.target.value)}
-                  placeholder="name@example.com" />
+                  placeholder="Name@example.com" />
               </Field>
               <Field label="Phone" required error={fe.phone}>
                 <input className={inp(fe.phone)} type="tel" value={form.phone} inputMode="numeric"
@@ -524,7 +524,7 @@ export default function CenterRegistrationForm() {
               <Field label="Contact Email" error={fe.contact_email}>
                 <input className={inp(fe.contact_email)} type="email" value={form.contact_email}
                   onChange={e => setField('contact_email', e.target.value)}
-                  placeholder="name@example.com" />
+                  placeholder="Name@example.com" />
               </Field>
             </div>
 
@@ -672,7 +672,7 @@ export default function CenterRegistrationForm() {
                   <input className={inp()} type="number" min="0" value={form.num_faculty} onChange={e => set('num_faculty', e.target.value)} />
                 </Field>
                 <Field label="Internet Speed">
-                  <input className={inp()} placeholder="e.g. 100 Mbps" value={form.internet_speed} onChange={e => set('internet_speed', e.target.value)} />
+                  <input className={inp()} placeholder="E.g. 100 Mbps" value={form.internet_speed} onChange={e => set('internet_speed', e.target.value)} />
                 </Field>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -765,7 +765,7 @@ export default function CenterRegistrationForm() {
                 <input className={inp()} value={form.bank_account_number} onChange={e => set('bank_account_number', e.target.value)} />
               </Field>
               <Field label="IFSC Code">
-                <input className={inp()} value={form.ifsc_code} onChange={e => set('ifsc_code', e.target.value)} placeholder="e.g. SBIN0001234" />
+                <input className={inp()} value={form.ifsc_code} onChange={e => set('ifsc_code', e.target.value)} placeholder="E.g. SBIN0001234" />
               </Field>
               <Field label="Bank Branch">
                 <input className={inp()} value={form.bank_branch} onChange={e => set('bank_branch', e.target.value)} />
@@ -795,7 +795,7 @@ export default function CenterRegistrationForm() {
                     <input className={inp()} value={form[f[1]]} onChange={e => set(f[1], e.target.value)} />
                   </Field>
                   <Field label="Passing Year">
-                    <input className={inp()} type="number" value={form[f[2]]} onChange={e => set(f[2], e.target.value)} placeholder="e.g. 2020" />
+                    <input className={inp()} type="number" value={form[f[2]]} onChange={e => set(f[2], e.target.value)} placeholder="E.g. 2020" />
                   </Field>
                 </div>
               </div>
@@ -812,7 +812,7 @@ export default function CenterRegistrationForm() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Amount Paid (₹)">
-                <input className={inp()} type="number" value={form.amount_paid} onChange={e => set('amount_paid', e.target.value)} placeholder="e.g. 5000" />
+                <input className={inp()} type="number" value={form.amount_paid} onChange={e => set('amount_paid', e.target.value)} placeholder="E.g. 5000" />
               </Field>
               <Field label="UTR / Transaction Number">
                 <input className={inp()} value={form.utr_number} onChange={e => set('utr_number', e.target.value)} />
@@ -824,7 +824,7 @@ export default function CenterRegistrationForm() {
             <div className="mt-4">
               <Field label="Remark">
                 <textarea className={inp()} rows={3} value={form.payment_remark} onChange={e => set('payment_remark', e.target.value)}
-                  placeholder="e.g. Registration fee paid, partial payment, etc." />
+                  placeholder="E.g. Registration fee paid, partial payment, etc." />
               </Field>
             </div>
             <div className="mt-4">

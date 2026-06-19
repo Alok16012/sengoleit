@@ -220,6 +220,7 @@ export default function CenterApplications() {
               <Th>#</Th>
               <Th>Center Name</Th>
               <Th>Code</Th>
+              <Th>Application No</Th>
               <Th>Contact Person</Th>
               <Th>State</Th>
               <Th>Phone</Th>
@@ -231,7 +232,7 @@ export default function CenterApplications() {
           <Tbody>
             {filteredCenters.length === 0 ? (
               <Tr>
-                <Td colSpan={9} className="text-center text-gray-400 py-12">
+                <Td colSpan={10} className="text-center text-gray-400 py-12">
                   No applications in “{tab}”.
                   {myCenter?.approval_status !== 'approved' && (
                     <p className="text-amber-600 text-xs mt-1 font-medium">Your super center must be approved before creating centers.</p>
@@ -246,6 +247,7 @@ export default function CenterApplications() {
                   {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
                 </Td>
                 <Td className="font-mono text-xs text-gray-500">{c.center_code || '—'}</Td>
+                <Td className="font-mono text-xs text-gray-500">{c.application_no || '—'}</Td>
                 <Td className="text-gray-500">{c.contact_person || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
                 <Td className="text-gray-500">{c.phone || '—'}</Td>
@@ -307,6 +309,7 @@ export default function CenterApplications() {
                 ['Phone',        viewCenter.phone],
                 ['Contact Person', viewCenter.contact_person],
                 ['Center Code',  viewCenter.center_code],
+                ['Application No', viewCenter.application_no],
                 ['City',         viewCenter.city],
                 ['State',        viewCenter.states?.state_name],
                 ['Aadhar No',    viewCenter.aadhar_no],

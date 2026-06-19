@@ -4,11 +4,11 @@
   --color-primary: #933d18;
   --color-primary-dark: #6b2c12;
   --color-primary-light: #ab4e2a;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Times New Roman", Times, Georgia, serif;
 }
 
 body {
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  font-family: "Times New Roman", Times, Georgia, serif;
   -webkit-font-smoothing: antialiased;
 }
 

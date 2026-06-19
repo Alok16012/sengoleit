@@ -49,7 +49,7 @@ export default function SessionForm() {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <FormSection title="Session Details" icon={<CalendarDays size={16} />}>
-          <Input label="Session Name *" placeholder="e.g. January 2025 Session" value={form.session_name} onChange={set('session_name')} required />
+          <Input label="Session Name *" placeholder="E.g. January 2025 Session" value={form.session_name} onChange={set('session_name')} required />
           <div className="grid grid-cols-2 gap-4">
             <Input label="Session Period" placeholder="Jan–Jun 2025" value={form.session_period} onChange={set('session_period')} />
             <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} />

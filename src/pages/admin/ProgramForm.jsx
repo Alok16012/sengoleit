@@ -75,13 +75,13 @@ export default function ProgramForm() {
 
         <FormSection title="Program Identity" icon={<BookOpen size={16} />}>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Program Name *" placeholder="e.g. B.Tech in Computer Science" value={form.program_name} onChange={set('program_name')} required />
-            <Input label="Short Name" placeholder="e.g. B.Tech" value={form.short_name} onChange={set('short_name')} />
+            <Input label="Program Name *" placeholder="E.g. B.Tech in Computer Science" value={form.program_name} onChange={set('program_name')} required />
+            <Input label="Short Name" placeholder="E.g. B.Tech" value={form.short_name} onChange={set('short_name')} />
           </div>
           <div className="grid grid-cols-3 gap-4">
-            <Input label="Course Code" placeholder="e.g. SET101" value={form.course_code} onChange={set('course_code')} />
-            <Input label="Enrollment Code *" placeholder="e.g. PUCCC" value={form.enrollment_code} onChange={set('enrollment_code')} />
-            <Input label="Specialisation" placeholder="e.g. Computer Science" value={form.stream} onChange={set('stream')} />
+            <Input label="Course Code" placeholder="E.g. SET101" value={form.course_code} onChange={set('course_code')} />
+            <Input label="Enrollment Code *" placeholder="E.g. PUCCC" value={form.enrollment_code} onChange={set('enrollment_code')} />
+            <Input label="Specialisation" placeholder="E.g. Computer Science" value={form.stream} onChange={set('stream')} />
           </div>
         </FormSection>
 
@@ -139,7 +139,7 @@ export default function ProgramForm() {
         </FormSection>
 
         <FormSection title="Eligibility & Description" icon={<FileText size={16} />}>
-          <Input label="Eligibility" placeholder="e.g. 12th (PCM), 10+2 in any stream" value={form.eligibility} onChange={set('eligibility')} />
+          <Input label="Eligibility" placeholder="E.g. 12th (PCM), 10+2 in any stream" value={form.eligibility} onChange={set('eligibility')} />
           <Textarea label="Program Description" placeholder="Brief description about this program..." value={form.description} onChange={set('description')} />
         </FormSection>
 

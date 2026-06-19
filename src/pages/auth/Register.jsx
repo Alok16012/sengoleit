@@ -51,7 +51,7 @@ export default function Register() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Input label="Full Name" placeholder="Your full name" value={form.full_name} onChange={set('full_name')} required />
-            <Input label="Email Address" type="email" placeholder="you@example.com" value={form.email} onChange={set('email')} required />
+            <Input label="Email Address" type="email" placeholder="You@example.com" value={form.email} onChange={set('email')} required />
             <Input label="Phone Number" type="tel" placeholder="+91 XXXXX XXXXX" value={form.phone} onChange={set('phone')} />
             <Select label="Role" value={form.role} onChange={set('role')}>
               <option value="center">Center</option>

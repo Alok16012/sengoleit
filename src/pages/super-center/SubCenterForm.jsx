@@ -623,7 +623,7 @@ export default function SubCenterForm() {
                 error={fe.email}
                 onChange={e => setField('email', e.target.value)}
                 disabled={isLocked('email')}
-                placeholder="name@example.com" required />
+                placeholder="Name@example.com" required />
               <Input label="Phone *" type="tel" value={form.phone}
                 error={fe.phone}
                 inputMode="numeric"
@@ -752,7 +752,7 @@ export default function SubCenterForm() {
             <div className="grid grid-cols-3 gap-4">
               <Input label="No. of Class Rooms" type="number" min="0" value={form.num_classrooms} onChange={set('num_classrooms')} disabled={isLocked('num_classrooms')} />
               <Input label="No. of Faculty" type="number" min="0" value={form.num_faculty} onChange={set('num_faculty')} disabled={isLocked('num_faculty')} />
-              <Input label="Internet Speed" placeholder="e.g. 100 Mbps" value={form.internet_speed} onChange={set('internet_speed')} disabled={isLocked('internet_speed')} />
+              <Input label="Internet Speed" placeholder="E.g. 100 Mbps" value={form.internet_speed} onChange={set('internet_speed')} disabled={isLocked('internet_speed')} />
             </div>
             <div className="grid grid-cols-3 gap-4 items-end">
               <Select label="Computer Lab" value={form.has_computer_lab ? 'yes' : 'no'} disabled={isLocked('has_computer_lab')}
@@ -948,7 +948,7 @@ export default function SubCenterForm() {
                 </div>
                 <Input label="UTR / Transaction Reference Number *"
                   value={form.utr_number} onChange={set('utr_number')}
-                  placeholder="e.g. 1234567890 / UPI ref" />
+                  placeholder="E.g. 1234567890 / UPI ref" />
                 <div>
                   <p className="text-xs font-semibold text-gray-600 ml-0.5 mb-1">Payment Receipt / Screenshot *</p>
                   <FileCard label="Receipt / Screenshot" fieldKey="payment_screenshot_url"

@@ -182,6 +182,7 @@ export default function Centers() {
               <Th>#</Th>
               <Th>Center Name</Th>
               <Th>Code</Th>
+              <Th>Application No</Th>
               <Th>Login ID / Password</Th>
               <Th>Contact Person</Th>
               <Th>State</Th>
@@ -194,7 +195,7 @@ export default function Centers() {
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
+              <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
             ) : filtered.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -203,6 +204,7 @@ export default function Centers() {
                   {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
+                <Td className="text-gray-500 font-mono text-xs">{c.application_no || '—'}</Td>
                 <Td>
                   <p className="text-xs text-gray-600 font-mono mb-1">{c.email || '—'}</p>
                   {editingPassword.hasOwnProperty(c.id) ? (

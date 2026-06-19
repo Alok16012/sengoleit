@@ -520,7 +520,7 @@ export default function CenterForm() {
             <div className="grid grid-cols-3 gap-4">
               <Input label="No. of Class Rooms" type="number" min="0" value={form.num_classrooms} onChange={set('num_classrooms')} />
               <Input label="No. of Faculty" type="number" min="0" value={form.num_faculty} onChange={set('num_faculty')} />
-              <Input label="Internet Speed" placeholder="e.g. 100 Mbps" value={form.internet_speed} onChange={set('internet_speed')} />
+              <Input label="Internet Speed" placeholder="E.g. 100 Mbps" value={form.internet_speed} onChange={set('internet_speed')} />
             </div>
             <div className="grid grid-cols-3 gap-4 items-end">
               <Select label="Computer Lab" value={form.has_computer_lab ? 'yes' : 'no'}

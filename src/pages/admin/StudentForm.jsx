@@ -876,7 +876,7 @@ export default function StudentForm() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Input label="Guardian's Name" value={form.guardian_name} onChange={set('guardian_name')} readOnly={isReadOnly} />
               <Input label="Guardian's Occupation" value={form.guardian_occupation} onChange={set('guardian_occupation')} readOnly={isReadOnly} />
-              <Input label="Relation" placeholder="e.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} readOnly={isReadOnly} />
+              <Input label="Relation" placeholder="E.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} readOnly={isReadOnly} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Guardian Email Id" type="email" value={form.guardian_email} onChange={set('guardian_email')} readOnly={isReadOnly} />
