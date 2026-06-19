@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
-import { Ticket, CheckCircle2, Clock } from 'lucide-react'
+import { Ticket, CheckCircle2, Clock, Eye, EyeOff } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 export default function CouponView({ type = 'wallet' }) {
@@ -13,6 +13,7 @@ export default function CouponView({ type = 'wallet' }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('All')
+  const [hideTotal, setHideTotal] = useState(false)
 
   useEffect(() => {
     if (!user?.email) return
@@ -71,8 +72,18 @@ export default function CouponView({ type = 'wallet' }) {
       {center && (
         <div className="mt-4 mb-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-            <p className="text-xs font-bold uppercase tracking-widest text-blue-500 mb-1">Total Coupons</p>
-            <p className="text-2xl font-black text-blue-700">{total}</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-bold uppercase tracking-widest text-blue-500">Total Coupons</p>
+              <button
+                type="button"
+                onClick={() => setHideTotal(h => !h)}
+                title={hideTotal ? 'Show total' : 'Hide total'}
+                className="text-blue-400 hover:text-blue-600 transition-colors"
+              >
+                {hideTotal ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            <p className="text-2xl font-black text-blue-700">{hideTotal ? '••••' : total}</p>
           </div>
           <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5">
             <p className="text-xs font-bold uppercase tracking-widest text-emerald-500 mb-1">Available</p>
