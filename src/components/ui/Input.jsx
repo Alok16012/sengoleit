@@ -1,4 +1,18 @@
-export default function Input({ label, error, hint, className = '', ...props }) {
+export default function Input({ label, error, hint, className = '', type, onChange, capitalize, ...props }) {
+  // Auto-capitalise the first character of plain text fields (names, addresses…).
+  // Skipped for email/password/number/tel/url and when capitalize={false}.
+  const shouldCap = capitalize !== false && (!type || type === 'text')
+  const handleChange = onChange
+    ? (e) => {
+        if (shouldCap && e.target.value) {
+          const v = e.target.value
+          const cap = v.charAt(0).toUpperCase() + v.slice(1)
+          if (cap !== v) e.target.value = cap
+        }
+        onChange(e)
+      }
+    : undefined
+
   return (
     <div className="flex flex-col gap-1">
       {label && (
@@ -7,6 +21,8 @@ export default function Input({ label, error, hint, className = '', ...props }) 
         </label>
       )}
       <input
+        type={type}
+        onChange={handleChange}
         className={`w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 placeholder-gray-400
           focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] transition-all
           disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed
