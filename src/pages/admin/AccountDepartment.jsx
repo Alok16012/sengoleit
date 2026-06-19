@@ -1474,9 +1474,10 @@ export default function AccountDepartment() {
                                 <input
                                   type="text"
                                   value={manualUtr}
-                                  onChange={e => setManualUtr(e.target.value)}
-                                  placeholder="E.g. 4032198765432"
-                                  className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+                                  readOnly
+                                  placeholder="Not provided by center"
+                                  title="Submitted by the center — verify only, cannot be edited here"
+                                  className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono text-gray-700 bg-gray-50 cursor-not-allowed focus:outline-none"
                                 />
                               </div>
                               <label className={`flex items-start gap-2 rounded-xl border px-3 py-2.5 cursor-pointer transition-colors ${receiptVerified ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-gray-50'}`}>
