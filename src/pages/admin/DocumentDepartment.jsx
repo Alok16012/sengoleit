@@ -10,6 +10,7 @@ import { CheckCircle, XCircle, Download, Eye, ExternalLink, PauseCircle } from '
 
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { formatDate } from '../../utils/formatDate'
 
 const STATUS_FILTERS = ['Pending', 'Hold', 'Approved', 'Rejected']
 const CENTER_STATUS_FILTERS = ['Pending', 'Hold', 'Forwarded', 'Approved', 'Rejected']
@@ -480,7 +481,7 @@ export default function DocumentDepartment() {
                     <Td className="text-gray-500 text-sm">{c.super_center_name || '—'}</Td>
                     <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
                     <Td className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</Td>
-                    <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                     <Td>
                       {(() => {
                         const st = c.approval_status
@@ -578,7 +579,7 @@ export default function DocumentDepartment() {
                             <InfoGrid items={[
                               ['Contact Person', viewDC.contact_person],
                               ['Father / Mother Name', viewDC.father_mother_name],
-                              ['Date of Birth', viewDC.date_of_birth ? new Date(viewDC.date_of_birth).toLocaleDateString('en-IN') : null],
+                              ['Date of Birth', viewDC.date_of_birth ? formatDate(viewDC.date_of_birth) : null],
                               ['Gender', viewDC.gender],
                               ['Nationality', viewDC.nationality],
                               ['Contact Mobile', viewDC.contact_mobile],
@@ -676,7 +677,7 @@ export default function DocumentDepartment() {
                             <InfoGrid items={[
                               ['Amount Paid', viewDC.amount_paid ? `₹${Number(viewDC.amount_paid).toLocaleString()}` : null],
                               ['UTR Number', viewDC.utr_number, true],
-                              ['Payment Date', viewDC.payment_date ? new Date(viewDC.payment_date).toLocaleDateString('en-IN') : null],
+                              ['Payment Date', viewDC.payment_date ? formatDate(viewDC.payment_date) : null],
                               ['Payment Remark', viewDC.payment_remark],
                             ]} />
                           </div>
@@ -800,7 +801,7 @@ export default function DocumentDepartment() {
                 ]},
                 { title: 'Contact Person Details', icon: '👤', fields: [
                   { key: 'f_father_mother',  label: 'Father / Mother Name',         val: c.father_mother_name },
-                  { key: 'f_dob',            label: 'Date of Birth',                val: c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString('en-IN') : null },
+                  { key: 'f_dob',            label: 'Date of Birth',                val: c.date_of_birth ? formatDate(c.date_of_birth) : null },
                   { key: 'f_gender',         label: 'Gender',                       val: c.gender },
                   { key: 'f_nationality',    label: 'Nationality',                  val: c.nationality },
                   { key: 'f_contact_mobile', label: 'Contact Mobile',               val: c.contact_mobile },
@@ -1251,7 +1252,7 @@ export default function DocumentDepartment() {
                     {s.submitted_by === 'super_center' ? 'Super Center' : s.submitted_by === 'center' ? 'Center' : 'Admin'}
                   </span>
                 </Td>
-                <Td className="text-gray-400 text-xs">{s.created_at ? new Date(s.created_at).toLocaleDateString('en-IN') : '—'}</Td>
+                <Td className="text-gray-400 text-xs">{formatDate(s.created_at)}</Td>
                 <Td className="font-mono text-xs text-gray-700">{s.admission_number || '—'}</Td>
                 <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
                 <Td><Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge></Td>

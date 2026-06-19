@@ -6,6 +6,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
+import { formatDate } from '../../utils/formatDate'
 import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft
@@ -227,7 +228,7 @@ const STEPS = [
 
 function fmtDate(d) {
   if (!d) return ''
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return formatDate(d + 'T00:00:00')
 }
 
 export default function StudentForm() {

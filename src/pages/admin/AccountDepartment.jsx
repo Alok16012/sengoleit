@@ -9,6 +9,7 @@ import VerifyRow from '../../components/ui/VerifyRow'
 import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, ExternalLink, ChevronDown, ChevronRight, Hash, Copy } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { formatDate, formatDateTime } from '../../utils/formatDate'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
@@ -617,7 +618,7 @@ export default function AccountDepartment() {
                       {s.centers?.center_code && <p className="text-xs text-gray-400">{s.centers.center_code}</p>}
                     </Td>
                     <Td className="font-mono text-xs text-[#933d18] font-bold">{s.admission_number || '—'}</Td>
-                    <Td className="text-gray-400 text-xs">{s.doc_verified_at ? new Date(s.doc_verified_at).toLocaleDateString('en-IN') : '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(s.doc_verified_at)}</Td>
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
                     <Td>
                       <div className="flex gap-1">
@@ -728,7 +729,7 @@ export default function AccountDepartment() {
                     <Td className="text-xs">
                       <p className="font-bold text-gray-900">{c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : '—'}</p>
                       {c.utr_number && <p className="text-gray-400 font-mono">UTR: {c.utr_number}</p>}
-                      {c.payment_date && <p className="text-gray-400">{new Date(c.payment_date).toLocaleDateString('en-IN')}</p>}
+                      {c.payment_date && <p className="text-gray-400">{formatDate(c.payment_date)}</p>}
                       {c.payment_screenshot_url ? (
                         <a href={c.payment_screenshot_url} target="_blank" rel="noreferrer"
                           className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold text-[#933d18] bg-[#933d18]/8 border border-[#933d18]/20 px-2 py-0.5 rounded-lg hover:bg-[#933d18]/15 transition-colors">
@@ -739,7 +740,7 @@ export default function AccountDepartment() {
                       )}
                     </Td>
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={c.approval_notes}>{c.approval_notes || '—'}</Td>
-                    <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                     <Td>
                       {c.approval_status === 'approved' ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -809,7 +810,7 @@ export default function AccountDepartment() {
                       ) : '—'}
                     </Td>
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate">{r.notes || '—'}</Td>
-                    <Td className="text-gray-400 text-xs">{r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
                     <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
                     <Td>
                       {r.status === 'pending' && (
@@ -865,7 +866,7 @@ export default function AccountDepartment() {
                     <Td className="font-semibold text-blue-700">₹{Number(a.super_center_fee || 0).toLocaleString()}</Td>
                     <Td className="text-gray-500 text-xs max-w-[100px] truncate">{a.sc_remarks || '—'}</Td>
                     <Td className="text-gray-500 text-xs max-w-[100px] truncate">{a.doc_remarks || '—'}</Td>
-                    <Td className="text-gray-400 text-xs">{a.created_at ? new Date(a.created_at).toLocaleDateString('en-IN') : '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(a.created_at)}</Td>
                     <Td>
                       <div className="flex gap-1">
                         <Button size="sm" variant="success" onClick={() => { setCAApproveModal(a); setCAAccRemarks('') }}>
@@ -1193,7 +1194,7 @@ export default function AccountDepartment() {
             { title: 'Payment Details', icon: '💳', verify: true, fields: [
               { key: 'f_amount',     label: 'Amount Paid',     val: c.amount_paid ? `₹${Number(c.amount_paid).toLocaleString()}` : null },
               { key: 'f_utr',        label: 'UTR / Ref Number', val: c.utr_number },
-              { key: 'f_pay_date',   label: 'Payment Date',    val: c.payment_date ? new Date(c.payment_date).toLocaleDateString('en-IN') : null },
+              { key: 'f_pay_date',   label: 'Payment Date',    val: c.payment_date ? formatDate(c.payment_date) : null },
               { key: 'f_pay_remark', label: 'Payment Remark',  val: c.payment_remark },
             ]},
             // Everything below is the FULL detail already verified by the Document
@@ -1207,7 +1208,7 @@ export default function AccountDepartment() {
             ]},
             { title: 'Contact Person Details', icon: '👤', verify: false, fields: [
               { key: 'f_father_mother',  label: 'Father / Mother Name',          val: c.father_mother_name },
-              { key: 'f_dob',            label: 'Date of Birth',                 val: c.date_of_birth ? new Date(c.date_of_birth).toLocaleDateString('en-IN') : null },
+              { key: 'f_dob',            label: 'Date of Birth',                 val: c.date_of_birth ? formatDate(c.date_of_birth) : null },
               { key: 'f_gender',         label: 'Gender',                        val: c.gender },
               { key: 'f_nationality',    label: 'Nationality',                   val: c.nationality },
               { key: 'f_contact_mobile', label: 'Contact Mobile',                val: c.contact_mobile },
@@ -1453,7 +1454,7 @@ export default function AccountDepartment() {
                               {c.utr_number && <p className="text-[11px] text-emerald-600/80 font-mono">UTR: {c.utr_number}</p>}
                               {c.payment_id && <p className="text-[11px] text-emerald-600/80 font-mono">{c.payment_id}</p>}
                               {c.application_no && <p className="text-[11px] text-emerald-600/80 font-mono">Application No: {c.application_no}</p>}
-                              {c.payment_paid_at && <p className="text-[11px] text-emerald-600/80">{new Date(c.payment_paid_at).toLocaleString('en-IN')}</p>}
+                              {c.payment_paid_at && <p className="text-[11px] text-emerald-600/80">{formatDateTime(c.payment_paid_at)}</p>}
                             </div>
                           ) : amount <= 0 ? (
                             <p className="text-xs text-amber-600">No fee set for this center's letter type. Set pricing in Center Pricing.</p>

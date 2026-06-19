@@ -7,6 +7,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { Eye, Copy, ExternalLink, RefreshCw, Check, PauseCircle, X, Pencil } from 'lucide-react'
+import { formatDate } from '../../utils/formatDate'
 
 const STAGES = ['Submitted', 'Document Verification', 'Account Department', 'Approved']
 
@@ -248,7 +249,7 @@ export default function CenterApplications() {
                 <Td className="text-gray-500">{c.contact_person || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
                 <Td className="text-gray-500">{c.phone || '—'}</Td>
-                <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
+                <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                 <Td className="min-w-[200px]">
                   <div className="w-[180px] mb-1.5"><ProgressTracker status={c.approval_status} /></div>
                   <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${STATUS_COLORS[c.approval_status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>

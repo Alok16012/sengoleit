@@ -1,3 +1,5 @@
+import { formatDate } from './formatDate'
+
 const LOGO_URL = 'https://sengolinternationaluniversity.edu.in/images/logo.png'
 const UNI_NAME = 'Sengol International University'
 const UNI_SHORT = 'SIU'
@@ -13,9 +15,7 @@ function v(val) {
 }
 
 function fmtDate(d) {
-  if (!d) return '—'
-  try { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) }
-  catch { return String(d) }
+  return formatDate(d)
 }
 
 function addr(s) {
@@ -84,7 +84,7 @@ const baseStyle = `
 export function generateIDCard(s) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const validUpto = s.valid_upto
-    ? new Date(s.valid_upto).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    ? formatDate(s.valid_upto)
     : '—'
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>

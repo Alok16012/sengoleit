@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import { Ticket, CheckCircle2, Clock } from 'lucide-react'
+import { formatDate } from '../../utils/formatDate'
 
 export default function CouponView({ type = 'wallet' }) {
   const { user } = useAuth()
@@ -125,8 +126,8 @@ export default function CouponView({ type = 'wallet' }) {
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td className="font-mono text-xs font-bold text-gray-800">{c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
                 <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
-                <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
-                <Td className="text-gray-400 text-xs">{c.used_at ? new Date(c.used_at).toLocaleDateString('en-IN') : '—'}</Td>
+                <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
+                <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
                 <Td>
                   {isUsed ? (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">

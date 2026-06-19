@@ -5,6 +5,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
+import { formatDate } from '../../utils/formatDate'
 
 export default function CenterApplications() {
   const [data, setData] = useState([])
@@ -74,7 +75,7 @@ export default function CenterApplications() {
                   <Td><p className="font-medium text-gray-900">{a.full_name}</p><p className="text-xs text-gray-400">{a.email}</p></Td>
                   <Td>{a.organization_name || '—'}</Td>
                   <Td>{a.phone || '—'}</Td>
-                  <Td>{a.date_of_submission || (a.created_at ? new Date(a.created_at).toLocaleDateString() : '—')}</Td>
+                  <Td>{a.date_of_submission || formatDate(a.created_at)}</Td>
                   <Td><Badge status={a.status?.toLowerCase()}>{a.status || 'Pending'}</Badge></Td>
                   <Td>
                     {(!a.status || a.status === 'Pending') && (

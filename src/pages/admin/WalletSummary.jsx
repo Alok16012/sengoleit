@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
+import { formatDate } from '../../utils/formatDate'
 import { Wallet, TrendingUp, Clock, Building2 } from 'lucide-react'
 
 function StatCard({ label, value, sub, color = 'gray' }) {
@@ -162,8 +163,8 @@ export default function WalletSummary() {
                 <Td><span className="font-bold text-gray-900">₹{Number(r.amount || 0).toLocaleString('en-IN')}</span></Td>
                 <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
                 <Td className="text-gray-500 text-xs max-w-[120px] truncate">{r.notes || '—'}</Td>
-                <Td className="text-gray-400 text-xs">{r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '—'}</Td>
-                <Td className="text-gray-400 text-xs">{r.verified_at ? new Date(r.verified_at).toLocaleDateString('en-IN') : '—'}</Td>
+                <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
+                <Td className="text-gray-400 text-xs">{formatDate(r.verified_at)}</Td>
                 <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'pending'}</Badge></Td>
               </Tr>
             ))}

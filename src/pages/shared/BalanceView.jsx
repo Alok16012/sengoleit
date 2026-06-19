@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { formatDate } from '../../utils/formatDate'
 
 export default function BalanceView() {
   const { user } = useAuth()
@@ -184,15 +185,15 @@ export default function BalanceView() {
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td><span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span></Td>
                 <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
-                <Td className="text-gray-500 text-xs">{r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : '—'}</Td>
+                <Td className="text-gray-500 text-xs">{formatDate(r.payment_date)}</Td>
                 <Td>
                   {r.utr_screenshot_url ? (
                     <a href={r.utr_screenshot_url} target="_blank" rel="noreferrer" className="text-[#933d18] text-xs font-semibold underline">View</a>
                   ) : '—'}
                 </Td>
                 <Td className="text-gray-500 text-xs">{r.notes || '—'}</Td>
-                <Td className="text-gray-400 text-xs">{r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '—'}</Td>
-                <Td className="text-gray-400 text-xs">{r.verified_at ? new Date(r.verified_at).toLocaleDateString('en-IN') : '—'}</Td>
+                <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
+                <Td className="text-gray-400 text-xs">{formatDate(r.verified_at)}</Td>
                 <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
               </Tr>
             ))}

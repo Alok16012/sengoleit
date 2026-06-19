@@ -1,3 +1,5 @@
+import { formatDate } from './formatDate'
+
 const LOGO_URL = 'https://sengolinternationaluniversity.edu.in/images/logo.png'
 const UNI_NAME    = 'Sengol International University'
 const UNI_TAGLINE = 'Educate, Empower, Excel'
@@ -316,7 +318,7 @@ export function generateFeePDF(struct) {
   <div style="border-top:2px solid #933d18;margin-top:12px;padding-top:5px;text-align:center;">
     <p style="font-size:8px;color:#555;">${UNI_NAME} &nbsp;•&nbsp; ${UNI_ADDRESS}</p>
     <p style="font-size:8px;color:#933d18;margin-top:1px;font-weight:600;">${UNI_PHONE} &nbsp;|&nbsp; ${UNI_EMAIL} &nbsp;|&nbsp; ${UNI_WEB}</p>
-    <p style="font-size:7px;color:#bbb;margin-top:2px;">${UNI_ACT} &nbsp;•&nbsp; Generated: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+    <p style="font-size:7px;color:#bbb;margin-top:2px;">${UNI_ACT} &nbsp;•&nbsp; Generated: ${formatDate(new Date())}</p>
   </div>
 
 </div>

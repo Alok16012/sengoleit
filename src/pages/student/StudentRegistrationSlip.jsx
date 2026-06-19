@@ -4,6 +4,7 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { generateRegistrationCertificate } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { Receipt, Download, Hash, BookOpen, User, MapPin } from 'lucide-react'
+import { formatDate } from '../../utils/formatDate'
 
 export default function StudentRegistrationSlip() {
   const { student } = useStudentAuth()
@@ -95,7 +96,7 @@ export default function StudentRegistrationSlip() {
               { icon: BookOpen, label: 'University', value: 'Sengol International University' },
               { icon: BookOpen, label: 'Course Name', value: data.programs?.program_name },
               { icon: User, label: 'Student Name', value: data.student_name },
-              { icon: Hash, label: 'Date of Birth', value: data.date_of_birth ? new Date(data.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : '—' },
+              { icon: Hash, label: 'Date of Birth', value: formatDate(data.date_of_birth) },
               { icon: User, label: 'S/o D/o', value: data.fathers_name || data.mothers_name },
               { icon: MapPin, label: 'Address', value: addr },
               { icon: Hash, label: 'PIN No', value: data.perm_pin_code || data.student_perm_pin_code },

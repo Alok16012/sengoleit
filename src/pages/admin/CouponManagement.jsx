@@ -4,6 +4,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
+import { formatDate } from '../../utils/formatDate'
 import { Ticket, Wallet, Sparkles } from 'lucide-react'
 
 function StatCard({ label, value, color = 'gray' }) {
@@ -228,8 +229,8 @@ export default function CouponManagement() {
                   </Td>
                   <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
                   <Td className="font-mono text-xs text-gray-400">{c.application_id?.slice(0, 8) || '—'}</Td>
-                  <Td className="text-gray-400 text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString('en-IN') : '—'}</Td>
-                  <Td className="text-gray-400 text-xs">{c.used_at ? new Date(c.used_at).toLocaleDateString('en-IN') : '—'}</Td>
+                  <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
+                  <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
                   <Td>
                     {isUsed ? (
                       <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Used</span>

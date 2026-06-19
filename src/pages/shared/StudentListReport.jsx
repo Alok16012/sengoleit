@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import { Search, Download, FileX } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { formatDate } from '../../utils/formatDate'
 
 const STATUS_META = {
   Pending:  { color: 'amber',   label: 'Pending Students',  desc: 'Forms have been submitted, awaiting Document Dept. verification' },
@@ -176,7 +177,7 @@ export default function StudentListReport({ status }) {
                 )}
                 <Td className="text-gray-500">{s.mobile_no || '—'}</Td>
                 <Td className="text-gray-400 text-xs">
-                  {s.created_at ? new Date(s.created_at).toLocaleDateString('en-IN') : '—'}
+                  {formatDate(s.created_at)}
                 </Td>
                 {(status === 'Rejected' || status === 'Hold' || status === 'Approved') && (
                   <Td className="text-xs max-w-[130px] truncate" title={s.remarks}>

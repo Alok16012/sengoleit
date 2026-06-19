@@ -4,6 +4,7 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { BadgeCheck, Download, BookOpen, Hash, MapPin } from 'lucide-react'
+import { formatDate } from '../../utils/formatDate'
 
 export default function StudentAdmitCard() {
   const { student } = useStudentAuth()
@@ -89,7 +90,7 @@ export default function StudentAdmitCard() {
             {[
               { icon: BookOpen, label: 'Course Name', value: data.programs?.program_name },
               { icon: Hash, label: 'Student Name', value: data.student_name },
-              { icon: Hash, label: 'Date of Birth', value: data.date_of_birth ? new Date(data.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : '—' },
+              { icon: Hash, label: 'Date of Birth', value: formatDate(data.date_of_birth) },
               { icon: MapPin, label: 'Exam Center', value: data.centers?.center_name },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-start gap-2">
