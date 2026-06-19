@@ -971,7 +971,7 @@ export default function AccountDepartment() {
                   ['Mode', viewStudent.study_modes?.mode_name || viewStudent.mode_id],
                   ['Entry Type', viewStudent.entry_type],
                   ['Academic Year', viewStudent.academic_year],
-                  ['Submission Date', viewStudent.date_of_submission],
+                  ['Submission Date', viewStudent.date_of_submission ? formatDate(viewStudent.date_of_submission) : null],
                 ].map(([label, val]) => (
                   <div key={label} className="flex gap-2 text-xs py-0.5">
                     <span className="text-gray-400 w-28 shrink-0">{label}</span>
@@ -986,7 +986,7 @@ export default function AccountDepartment() {
               <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-2">Personal Information</p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                 {[
-                  ['Date of Birth', viewStudent.date_of_birth],
+                  ['Date of Birth', viewStudent.date_of_birth ? formatDate(viewStudent.date_of_birth) : null],
                   ['Aadhar No', viewStudent.aadhar_no],
                   ['Email', viewStudent.email],
                   ['WhatsApp', viewStudent.whatsapp_no],
@@ -1467,7 +1467,7 @@ export default function AccountDepartment() {
                               <div className="rounded-xl border border-amber-100 bg-amber-50 p-3">
                                 <p className="text-[11px] font-bold text-amber-700 uppercase">Offline payment — verify the receipt</p>
                                 {Number(c.amount_paid) > 0 && <p className="text-[11px] text-amber-700/90 mt-1">Amount paid: ₹{Number(c.amount_paid).toLocaleString('en-IN')}</p>}
-                                {c.payment_date && <p className="text-[11px] text-amber-700/90">Date: {c.payment_date}</p>}
+                                {c.payment_date && <p className="text-[11px] text-amber-700/90">Date: {formatDate(c.payment_date)}</p>}
                               </div>
                               <div>
                                 <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">UTR / Transaction No.</label>

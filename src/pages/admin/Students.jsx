@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { formatDate } from '../../utils/formatDate'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
 
@@ -232,7 +233,7 @@ export default function Students() {
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
                   <p className="font-semibold text-gray-900">{s.student_name}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{s.gender}{s.date_of_birth ? ` · ${s.date_of_birth}` : ''}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{s.gender}{s.date_of_birth ? ` · ${formatDate(s.date_of_birth)}` : ''}</p>
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{s.enrollment_no || '—'}</Td>
                 <Td className="text-gray-500 text-xs max-w-[150px] truncate">{s.programs?.program_name || '—'}</Td>
