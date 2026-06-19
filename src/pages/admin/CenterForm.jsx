@@ -33,7 +33,7 @@ const emptyForm = {
   country_id: '', state_id: '', district_id: '', pincode: '',
   organization_name: '', org_type: '', org_address: '', org_post_office: '', org_city: '',
   org_country_id: '', org_state_id: '', org_district_id: '', org_pincode: '',
-  registration_number: '', gst_pan: '',
+  registration_number: '', gst_pan: '', establishment_year: '',
   centre_address: '',
   num_classrooms: '', has_computer_lab: false, num_computers: '', internet_speed: '',
   has_cctv: false, current_courses_offered: '', num_faculty: '',
@@ -278,7 +278,7 @@ export default function CenterForm() {
         if (!payload[k]) { if (isEdit) payload[k] = null; else delete payload[k] }
       })
       const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'virtual_balance',
-        'num_classrooms', 'num_computers', 'num_faculty']
+        'num_classrooms', 'num_computers', 'num_faculty', 'establishment_year']
       numericFields.forEach(k => {
         if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
@@ -506,9 +506,10 @@ export default function CenterForm() {
               <Input label="Org Pincode *" inputMode="numeric" value={form.org_pincode}
                 onChange={e => setField('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))} error={fe.org_pincode} required />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Input label="Registration Number *" value={form.registration_number} onChange={set('registration_number')} required />
               <Input label="GST / PAN" value={form.gst_pan} onChange={set('gst_pan')} />
+              <Input label="Establishment Year" type="number" placeholder="2015" min="1900" max={new Date().getFullYear()} value={form.establishment_year} onChange={set('establishment_year')} />
             </div>
             <div className="grid grid-cols-3 gap-4">
               <Select label="Premises Type *" value={form.premises_type} onChange={set('premises_type')}>
