@@ -7,6 +7,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import DateInput from '../../components/ui/DateInput'
 import {
   Upload, CheckCircle, AlertCircle, Building2, User, MapPin,
   Briefcase, CreditCard, GraduationCap, Wallet, FileText, Eye, CheckCircle2
@@ -477,7 +478,7 @@ export default function CenterRegistrationForm() {
                 <input className={inp()} value={form.father_mother_name} onChange={e => set('father_mother_name', e.target.value)} />
               </Field>
               <Field label="Date of Birth">
-                <input className={inp()} type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
+                <DateInput bare className={inp()} value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
               </Field>
               <Field label="Gender">
                 <select className={inp()} value={form.gender} onChange={e => set('gender', e.target.value)}>
@@ -818,7 +819,7 @@ export default function CenterRegistrationForm() {
                 <input className={inp()} value={form.utr_number} onChange={e => set('utr_number', e.target.value)} />
               </Field>
               <Field label="Payment Date">
-                <input className={inp()} type="date" value={form.payment_date} onChange={e => set('payment_date', e.target.value)} />
+                <DateInput bare className={inp()} value={form.payment_date} onChange={e => set('payment_date', e.target.value)} />
               </Field>
             </div>
             <div className="mt-4">

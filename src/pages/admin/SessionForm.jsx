@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select } from '../../components/ui/Input'
+import DateInput from '../../components/ui/DateInput'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { CalendarDays } from 'lucide-react'
@@ -55,8 +56,8 @@ export default function SessionForm() {
             <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Start Date" type="date" value={form.start_date} onChange={set('start_date')} />
-            <Input label="End Date" type="date" value={form.end_date} onChange={set('end_date')} />
+            <DateInput label="Start Date" value={form.start_date} onChange={set('start_date')} />
+            <DateInput label="End Date" value={form.end_date} onChange={set('end_date')} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Select label="Status" value={form.status} onChange={set('status')}>

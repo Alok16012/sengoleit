@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
+import DateInput from '../../components/ui/DateInput'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { formatDate } from '../../utils/formatDate'
@@ -636,9 +637,8 @@ export default function StudentForm() {
               </Select>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input
+              <DateInput
                 label="Date of Submission *"
-                type="date"
                 value={form.date_of_submission}
                 onChange={set('date_of_submission')}
                 min={sessionMinDate || undefined}
@@ -650,9 +650,8 @@ export default function StudentForm() {
                     : 'Select a session first'
                 }
               />
-              <Input
+              <DateInput
                 label="Date of Admission"
-                type="date"
                 value={form.date_of_admission}
                 onChange={set('date_of_admission')}
                 min={sessionMinDate || undefined}
@@ -808,7 +807,7 @@ export default function StudentForm() {
           <FormSection title="Personal Information" icon={<User size={16} />}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Student Name *" value={form.student_name} onChange={set('student_name')} required readOnly={isReadOnly} />
-              <Input label="Date of Birth *" type="date" value={form.date_of_birth} onChange={set('date_of_birth')} required readOnly={isReadOnly} />
+              <DateInput label="Date of Birth *" value={form.date_of_birth} onChange={set('date_of_birth')} required readOnly={isReadOnly} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Select label="Profession *" value={form.profession} onChange={set('profession')} disabled={isReadOnly} required>

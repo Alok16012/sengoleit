@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
+import DateInput from '../../components/ui/DateInput'
 import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
@@ -217,9 +218,8 @@ export default function BalanceView() {
             value={form.utr_number}
             onChange={e => setForm(f => ({ ...f, utr_number: e.target.value }))}
           />
-          <Input
+          <DateInput
             label="Payment Date *"
-            type="date"
             value={form.payment_date}
             onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))}
           />

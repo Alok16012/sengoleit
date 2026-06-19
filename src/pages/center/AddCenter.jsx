@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import Input, { Select, Textarea } from '../../components/ui/Input'
+import DateInput from '../../components/ui/DateInput'
 import Button from '../../components/ui/Button'
 import PageHeader from '../../components/ui/PageHeader'
 
@@ -138,8 +139,8 @@ export default function AddCenter() {
         {step === 0 && (
           <Section title="Basic Entry">
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Date of Submission" type="date" value={form.date_of_submission} onChange={set('date_of_submission')} />
-              <Input label="Date of Creation" type="date" value={form.date_of_creation} onChange={set('date_of_creation')} />
+              <DateInput label="Date of Submission" value={form.date_of_submission} onChange={set('date_of_submission')} />
+              <DateInput label="Date of Creation" value={form.date_of_creation} onChange={set('date_of_creation')} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Select label="University *" value={form.university_id} onChange={set('university_id')}>
@@ -162,7 +163,7 @@ export default function AddCenter() {
               <Input label="Father's / Mother's Name" value={form.fathers_mothers_name} onChange={set('fathers_mothers_name')} />
             </div>
             <div className="grid grid-cols-3 gap-4">
-              <Input label="Date of Birth" type="date" min="1900-01-01" max={`${new Date().getFullYear() - 1}-12-31`} value={form.date_of_birth} onChange={set('date_of_birth')} />
+              <DateInput label="Date of Birth" min="1900-01-01" max={`${new Date().getFullYear() - 1}-12-31`} value={form.date_of_birth} onChange={set('date_of_birth')} />
               <Select label="Gender" value={form.gender} onChange={set('gender')}>
                 <option value="">Select</option>
                 <option value="Male">Male</option>
