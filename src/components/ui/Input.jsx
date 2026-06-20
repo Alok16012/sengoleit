@@ -1,12 +1,13 @@
 export default function Input({ label, error, hint, className = '', type, onChange, capitalize, ...props }) {
-  // Auto-capitalise the first character of plain text fields (names, addresses…).
+  // Auto-capitalise the first letter of every word in plain text fields
+  // (names, addresses…) — e.g. "alok kumar" -> "Alok Kumar".
   // Skipped for email/password/number/tel/url and when capitalize={false}.
   const shouldCap = capitalize !== false && (!type || type === 'text')
   const handleChange = onChange
     ? (e) => {
         if (shouldCap && e.target.value) {
           const v = e.target.value
-          const cap = v.charAt(0).toUpperCase() + v.slice(1)
+          const cap = v.replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
           if (cap !== v) e.target.value = cap
         }
         onChange(e)
