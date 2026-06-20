@@ -130,7 +130,7 @@ export default function CenterForm() {
   useEffect(() => {
     Promise.all([
       supabase.from('countries').select('id, country_name').order('country_name'),
-      supabase.from('states').select('id, state_name').order('state_name'),
+      supabase.from('states').select('id, state_name, country_id').order('state_name'),
       supabase.from('centers').select('id, center_name, center_code, center_type').order('center_name'),
     ]).then(([c, s, centers]) => {
       setCountries(c.data || [])
@@ -165,6 +165,12 @@ export default function CenterForm() {
   }, [form.org_state_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+
+  // Country -> State -> District cascade: changing a parent clears its children.
+  const setCountry = (e) => setForm(f => ({ ...f, country_id: e.target.value, state_id: '', district_id: '' }))
+  const setState = (e) => setForm(f => ({ ...f, state_id: e.target.value, district_id: '' }))
+  const setOrgCountry = (e) => setForm(f => ({ ...f, org_country_id: e.target.value, org_state_id: '', org_district_id: '' }))
+  const setOrgState = (e) => setForm(f => ({ ...f, org_state_id: e.target.value, org_district_id: '' }))
 
   function validateField(key, val) {
     switch (key) {
@@ -235,6 +241,7 @@ export default function CenterForm() {
         if (form.aadhar_no.length < 12) return 'Aadhar must be 12 digits'
         if (!form.contact_mobile.trim()) return 'Mobile number is required'
         if (form.contact_mobile.length < 10) return 'Mobile must be 10 digits'
+        if (!form.country_id) return 'Country is required'
         if (!form.state_id) return 'State is required'
         if (!form.district_id) return 'District is required'
         if (!form.pincode.trim()) return 'Pincode is required'
@@ -454,12 +461,18 @@ export default function CenterForm() {
               <Input label="Email Address" type="email" value={form.contact_email}
                 onChange={e => setField('contact_email', e.target.value)} error={fe.contact_email} />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="State *" value={form.state_id} onChange={set('state_id')} required>
-                <option value="">Select State</option>
-                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Country *" value={form.country_id} onChange={setCountry} required>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
               </Select>
-              <Select label="District *" value={form.district_id} onChange={set('district_id')} required>
+              <Select label="State *" value={form.state_id} onChange={setState} required disabled={!form.country_id}>
+                <option value="">Select State</option>
+                {states.filter(s => s.country_id === form.country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="District *" value={form.district_id} onChange={set('district_id')} required disabled={!form.state_id}>
                 <option value="">Select District</option>
                 {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
@@ -494,12 +507,18 @@ export default function CenterForm() {
               <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} />
               <Input label="Org City *" value={form.org_city} onChange={set('org_city')} required />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="Org State *" value={form.org_state_id} onChange={set('org_state_id')}>
-                <option value="">Select State</option>
-                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Org Country *" value={form.org_country_id} onChange={setOrgCountry}>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
               </Select>
-              <Select label="Org District" value={form.org_district_id} onChange={set('org_district_id')}>
+              <Select label="Org State *" value={form.org_state_id} onChange={setOrgState} disabled={!form.org_country_id}>
+                <option value="">Select State</option>
+                {states.filter(s => s.country_id === form.org_country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Org District" value={form.org_district_id} onChange={set('org_district_id')} disabled={!form.org_state_id}>
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>

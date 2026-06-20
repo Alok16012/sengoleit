@@ -13,9 +13,11 @@ import {
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft
 } from 'lucide-react'
 
-function AddressBlock({ prefix, label, form, onChange, setForm, states, districts, sameAsOptions, readOnly }) {
-  const uniqueStates = states.filter((s, i, arr) => arr.findIndex(x => x.state_name === s.state_name) === i)
-  const selectedStateIds = states.filter(s => s.state_name === form[`${prefix}_state`]).map(s => s.id)
+function AddressBlock({ prefix, label, form, onChange, setForm, countries = [], states, districts, sameAsOptions, readOnly }) {
+  const selectedCountry = countries.find(c => c.country_name === form[`${prefix}_country`])
+  const countryStates = selectedCountry ? states.filter(s => s.country_id === selectedCountry.id) : states
+  const uniqueStates = countryStates.filter((s, i, arr) => arr.findIndex(x => x.state_name === s.state_name) === i)
+  const selectedStateIds = countryStates.filter(s => s.state_name === form[`${prefix}_state`]).map(s => s.id)
   const filteredDistricts = selectedStateIds.length > 0
     ? districts.filter(d => selectedStateIds.includes(d.state_id))
     : districts
@@ -43,6 +45,16 @@ function AddressBlock({ prefix, label, form, onChange, setForm, states, district
         <Input label="PIN Code *" value={form[`${prefix}_pin_code`]} onChange={onChange(`${prefix}_pin_code`)} readOnly={readOnly} />
       </div>
       <div className="grid grid-cols-2 gap-4">
+        {countries.length > 0 ? (
+          <Select label="Country *" value={form[`${prefix}_country`] || ''}
+            onChange={e => setForm(f => ({ ...f, [`${prefix}_country`]: e.target.value, [`${prefix}_state`]: '', [`${prefix}_district`]: '' }))}
+            disabled={readOnly}>
+            <option value="">Select Country</option>
+            {countries.map(c => <option key={c.id} value={c.country_name}>{c.country_name}</option>)}
+          </Select>
+        ) : (
+          <Input label="Country *" value={form[`${prefix}_country`]} onChange={onChange(`${prefix}_country`)} readOnly={readOnly} />
+        )}
         {uniqueStates.length > 0 ? (
           <Select label="State *" value={form[`${prefix}_state`] || ''}
             onChange={e => setForm(f => ({ ...f, [`${prefix}_state`]: e.target.value, [`${prefix}_district`]: '' }))}
@@ -53,6 +65,8 @@ function AddressBlock({ prefix, label, form, onChange, setForm, states, district
         ) : (
           <Input label="State *" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} readOnly={readOnly} />
         )}
+      </div>
+      <div className="grid grid-cols-2 gap-4">
         {filteredDistricts.length > 0 ? (
           <Select label="District" value={form[`${prefix}_district`] || ''} onChange={onChange(`${prefix}_district`)} disabled={readOnly}>
             <option value="">Select District</option>
@@ -889,9 +903,9 @@ export default function StudentForm() {
           <FormSection title="Contact Information" icon={<MapPin size={16} />}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <AddressBlock prefix="student_perm" label="Student Permanent Address"
-                form={form} onChange={set} setForm={setForm} states={states} districts={districts} readOnly={isReadOnly} />
+                form={form} onChange={set} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly} />
               <AddressBlock prefix="student_pres" label="Student Present Address"
-                form={form} onChange={set} setForm={setForm} states={states} districts={districts} readOnly={isReadOnly}
+                form={form} onChange={set} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly}
                 sameAsOptions={[{
                   label: 'Same as Permanent Address',
                   checked: pressSameAsPerm,
@@ -899,7 +913,7 @@ export default function StudentForm() {
                   onToggle: v => setPressSameAsPerm(v),
                 }]} />
               <AddressBlock prefix="guardian_pres" label="Guardian Present Address"
-                form={form} onChange={set} setForm={setForm} states={states} districts={districts} readOnly={isReadOnly}
+                form={form} onChange={set} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly}
                 sameAsOptions={[{
                   label: "Same as Student's Present Address",
                   checked: guardianPresSameAsStudent,
@@ -907,7 +921,7 @@ export default function StudentForm() {
                   onToggle: v => setGuardianPresSameAsStudent(v),
                 }]} />
               <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address"
-                form={form} onChange={set} setForm={setForm} states={states} districts={districts} readOnly={isReadOnly}
+                form={form} onChange={set} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly}
                 sameAsOptions={[
                   {
                     label: 'Same as Guardian Present Address',

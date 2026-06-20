@@ -80,7 +80,7 @@ const LABEL_TO_FORM_FIELDS = {
   'Landmark': ['landmark'],
   'Post Office': ['post_office'],
   'City': ['city'],
-  'State': ['state_id', 'district_id'],
+  'State': ['country_id', 'state_id', 'district_id'],
   'Pincode': ['pincode'],
   'Aadhar Number': ['aadhar_no'],
   'PAN Number': ['pan_no'],
@@ -239,7 +239,7 @@ export default function SubCenterForm() {
   useEffect(() => {
     Promise.all([
       supabase.from('countries').select('id, country_name').order('country_name'),
-      supabase.from('states').select('id, state_name').order('state_name'),
+      supabase.from('states').select('id, state_name, country_id').order('state_name'),
     ]).then(([c, s]) => {
       setCountries(c.data || [])
       setStates(s.data || [])
@@ -296,6 +296,12 @@ export default function SubCenterForm() {
   }, [form.org_state_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+
+  // Country -> State -> District cascade: changing a parent clears its children.
+  const setCountry = (e) => setForm(f => ({ ...f, country_id: e.target.value, state_id: '', district_id: '' }))
+  const setState = (e) => setForm(f => ({ ...f, state_id: e.target.value, district_id: '' }))
+  const setOrgCountry = (e) => setForm(f => ({ ...f, org_country_id: e.target.value, org_state_id: '', org_district_id: '' }))
+  const setOrgState = (e) => setForm(f => ({ ...f, org_state_id: e.target.value, org_district_id: '' }))
 
   // Fee for the chosen letter type (set by admin on this super center).
   // This amount is collected at Account Dept verification via a payment link.
@@ -370,6 +376,7 @@ export default function SubCenterForm() {
         }
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
         if (form.aadhar_no.length < 12) return 'Aadhar must be 12 digits'
+        if (!form.country_id) return 'Country is required'
         if (!form.state_id) return 'State is required'
         if (!form.district_id) return 'District is required'
         if (!form.pincode.trim()) return 'Pincode is required'
@@ -683,12 +690,18 @@ export default function SubCenterForm() {
                 error={fe.contact_mobile} placeholder="10-digit mobile" required />
               <Input label="Email Address" type="email" value={form.contact_email} onChange={set('contact_email')} disabled={isLocked('contact_email')} />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="State *" value={form.state_id} onChange={set('state_id')} disabled={isLocked('state_id')} required>
-                <option value="">Select State</option>
-                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Country *" value={form.country_id} onChange={setCountry} disabled={isLocked('country_id')} required>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
               </Select>
-              <Select label="District *" value={form.district_id} onChange={set('district_id')} disabled={isLocked('district_id')} required>
+              <Select label="State *" value={form.state_id} onChange={setState} disabled={isLocked('state_id') || !form.country_id} required>
+                <option value="">Select State</option>
+                {states.filter(s => s.country_id === form.country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="District *" value={form.district_id} onChange={set('district_id')} disabled={isLocked('district_id') || !form.state_id} required>
                 <option value="">Select District</option>
                 {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
@@ -724,12 +737,18 @@ export default function SubCenterForm() {
               <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} disabled={isLocked('org_post_office')} />
               <Input label="Org City" value={form.org_city} onChange={set('org_city')} disabled={isLocked('org_city')} />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="Org State" value={form.org_state_id} onChange={set('org_state_id')} disabled={isLocked('org_state_id')}>
-                <option value="">Select State</option>
-                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Org Country" value={form.org_country_id} onChange={setOrgCountry} disabled={isLocked('org_country_id')}>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
               </Select>
-              <Select label="Org District" value={form.org_district_id} onChange={set('org_district_id')} disabled={isLocked('org_district_id')}>
+              <Select label="Org State" value={form.org_state_id} onChange={setOrgState} disabled={isLocked('org_state_id') || !form.org_country_id}>
+                <option value="">Select State</option>
+                {states.filter(s => s.country_id === form.org_country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Org District" value={form.org_district_id} onChange={set('org_district_id')} disabled={isLocked('org_district_id') || !form.org_state_id}>
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>

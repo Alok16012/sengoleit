@@ -34,7 +34,7 @@ const emptyForm = {
   address_line1: '', landmark: '', post_office: '', city: '',
   country_id: '', state_id: '', district_id: '', pincode: '',
   organization_name: '', org_type: '', org_address: '', org_post_office: '', org_city: '',
-  org_state_id: '', org_district_id: '', org_pincode: '',
+  org_country_id: '', org_state_id: '', org_district_id: '', org_pincode: '',
   registration_number: '', gst_pan: '',
   centre_address: '',
   num_classrooms: '', has_computer_lab: false, num_computers: '', internet_speed: '',
@@ -182,7 +182,7 @@ export default function CenterRegistrationForm() {
 
     Promise.all([
       supabase.from('countries').select('id, country_name').order('country_name'),
-      supabase.from('states').select('id, state_name').order('state_name'),
+      supabase.from('states').select('id, state_name, country_id').order('state_name'),
     ]).then(([c, s]) => {
       setCountries(c.data || [])
       setStates(s.data || [])
@@ -206,6 +206,10 @@ export default function CenterRegistrationForm() {
   useEffect(() => { window.scrollTo(0, 0) }, [step])
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+  const setCountry = (v) => setForm(f => ({ ...f, country_id: v, state_id: '', district_id: '' }))
+  const setState = (v) => setForm(f => ({ ...f, state_id: v, district_id: '' }))
+  const setOrgCountry = (v) => setForm(f => ({ ...f, org_country_id: v, org_state_id: '', org_district_id: '' }))
+  const setOrgState = (v) => setForm(f => ({ ...f, org_state_id: v, org_district_id: '' }))
 
   function handleFile(key, file) {
     setFiles(f => ({ ...f, [key]: file }))
@@ -344,6 +348,7 @@ export default function CenterRegistrationForm() {
       if (form.country_id) payload.country_id = form.country_id
       if (form.state_id) payload.state_id = form.state_id
       if (form.district_id) payload.district_id = form.district_id
+      if (form.org_country_id) payload.org_country_id = form.org_country_id
       if (form.org_state_id) payload.org_state_id = form.org_state_id
       if (form.org_district_id) payload.org_district_id = form.org_district_id
 
@@ -570,19 +575,19 @@ export default function CenterRegistrationForm() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Country">
-                  <select className={inp()} value={form.country_id} onChange={e => set('country_id', e.target.value)}>
+                  <select className={inp()} value={form.country_id} onChange={e => setCountry(e.target.value)}>
                     <option value="">Select Country</option>
                     {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
                   </select>
                 </Field>
                 <Field label="State">
-                  <select className={inp()} value={form.state_id} onChange={e => set('state_id', e.target.value)}>
+                  <select className={inp()} value={form.state_id} onChange={e => setState(e.target.value)} disabled={!form.country_id}>
                     <option value="">Select State</option>
-                    {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+                    {states.filter(s => s.country_id === form.country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
                   </select>
                 </Field>
                 <Field label="District">
-                  <select className={inp()} value={form.district_id} onChange={e => set('district_id', e.target.value)}>
+                  <select className={inp()} value={form.district_id} onChange={e => set('district_id', e.target.value)} disabled={!form.state_id}>
                     <option value="">Select District</option>
                     {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
                   </select>
@@ -623,15 +628,23 @@ export default function CenterRegistrationForm() {
                   <input className={inp()} value={form.org_city} onChange={e => set('org_city', e.target.value)} />
                 </Field>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Field label="Org State">
-                  <select className={inp()} value={form.org_state_id} onChange={e => set('org_state_id', e.target.value)}>
-                    <option value="">Select State</option>
-                    {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Org Country">
+                  <select className={inp()} value={form.org_country_id} onChange={e => setOrgCountry(e.target.value)}>
+                    <option value="">Select Country</option>
+                    {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
                   </select>
                 </Field>
+                <Field label="Org State">
+                  <select className={inp()} value={form.org_state_id} onChange={e => setOrgState(e.target.value)} disabled={!form.org_country_id}>
+                    <option value="">Select State</option>
+                    {states.filter(s => s.country_id === form.org_country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Org District">
-                  <select className={inp()} value={form.org_district_id} onChange={e => set('org_district_id', e.target.value)}>
+                  <select className={inp()} value={form.org_district_id} onChange={e => set('org_district_id', e.target.value)} disabled={!form.org_state_id}>
                     <option value="">Select District</option>
                     {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
                   </select>

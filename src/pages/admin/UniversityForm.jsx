@@ -27,7 +27,7 @@ export default function UniversityForm() {
 
   useEffect(() => {
     supabase.from('countries').select('id, country_name').order('country_name').then(({ data }) => setCountries(data || []))
-    supabase.from('states').select('id, state_name').order('state_name').then(({ data }) => setStates(data || []))
+    supabase.from('states').select('id, state_name, country_id').order('state_name').then(({ data }) => setStates(data || []))
     if (isEdit) {
       supabase.from('universities').select('*').eq('id', id).single()
         .then(({ data }) => { if (data) setForm(prev => ({ ...prev, ...data })) })
@@ -42,6 +42,8 @@ export default function UniversityForm() {
   }, [form.state_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+  const setCountry = (e) => setForm(f => ({ ...f, country_id: e.target.value, state_id: '', district_id: '' }))
+  const setState = (e) => setForm(f => ({ ...f, state_id: e.target.value, district_id: '' }))
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -103,17 +105,17 @@ export default function UniversityForm() {
           <Input label="Address Line 1" value={form.address_line1} onChange={set('address_line1')} />
           <Input label="Address Line 2" value={form.address_line2} onChange={set('address_line2')} />
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Country" value={form.country_id} onChange={set('country_id')}>
+            <Select label="Country" value={form.country_id} onChange={setCountry}>
               <option value="">Select Country</option>
               {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
             </Select>
-            <Select label="State" value={form.state_id} onChange={set('state_id')}>
+            <Select label="State" value={form.state_id} onChange={setState} disabled={!form.country_id}>
               <option value="">Select State</option>
-              {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              {states.filter(s => s.country_id === form.country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Select label="District" value={form.district_id} onChange={set('district_id')}>
+            <Select label="District" value={form.district_id} onChange={set('district_id')} disabled={!form.state_id}>
               <option value="">Select District</option>
               {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
             </Select>

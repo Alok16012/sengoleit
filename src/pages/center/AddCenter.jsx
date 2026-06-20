@@ -14,9 +14,9 @@ const emptyForm = {
   full_name: '', fathers_mothers_name: '', date_of_birth: '', gender: '', nationality: 'Indian',
   aadhar_no: '', pan_no: '', email: '', phone: '',
   permanent_address: '', permanent_post_office: '', permanent_city: '',
-  permanent_state_id: '', permanent_district_id: '', permanent_pin_code: '',
+  permanent_country_id: '', permanent_state_id: '', permanent_district_id: '', permanent_pin_code: '',
   organization_name: '', type_of_organization: '', organization_address: '',
-  org_post_office: '', org_city: '', org_state_id: '', org_district_id: '', org_pin_code: '',
+  org_post_office: '', org_city: '', org_country_id: '', org_state_id: '', org_district_id: '', org_pin_code: '',
   organization_registration_no: '', gst_pan_of_organization: '', premises_type: 'Owned', office_area_sq_ft: '',
   account_holder_name: '', account_no: '', ifc_code: '', branch: '',
   tenth_institute_name: '', tenth_board_university: '', tenth_passing_year: '',
@@ -33,6 +33,7 @@ export default function AddCenter() {
   const [form, setForm] = useState(emptyForm)
   const [universities, setUniversities] = useState([])
   const [superCenters, setSuperCenters] = useState([])
+  const [countries, setCountries] = useState([])
   const [states, setStates] = useState([])
   const [permDistricts, setPermDistricts] = useState([])
   const [orgDistricts, setOrgDistricts] = useState([])
@@ -42,12 +43,14 @@ export default function AddCenter() {
   useEffect(() => {
     Promise.all([
       supabase.from('universities').select('id, university_name').order('university_name'),
-      supabase.from('states').select('id, state_name').order('state_name'),
+      supabase.from('states').select('id, state_name, country_id').order('state_name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
-    ]).then(([unis, sts, cents]) => {
+      supabase.from('countries').select('id, country_name').order('country_name'),
+    ]).then(([unis, sts, cents, ctrs]) => {
       setUniversities(unis.data || [])
       setStates(sts.data || [])
       setSuperCenters(cents.data || [])
+      setCountries(ctrs.data || [])
     })
   }, [])
 
@@ -66,11 +69,15 @@ export default function AddCenter() {
   }, [form.org_state_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+  const setPermCountry = (e) => setForm(f => ({ ...f, permanent_country_id: e.target.value, permanent_state_id: '', permanent_district_id: '' }))
+  const setPermState = (e) => setForm(f => ({ ...f, permanent_state_id: e.target.value, permanent_district_id: '' }))
+  const setOrgCountry = (e) => setForm(f => ({ ...f, org_country_id: e.target.value, org_state_id: '', org_district_id: '' }))
+  const setOrgState = (e) => setForm(f => ({ ...f, org_state_id: e.target.value, org_district_id: '' }))
 
   async function handleSubmit() {
     setSubmitting(true)
     const payload = { ...form }
-    const fkFields = ['university_id', 'permanent_state_id', 'permanent_district_id', 'org_state_id', 'org_district_id']
+    const fkFields = ['university_id', 'permanent_country_id', 'permanent_state_id', 'permanent_district_id', 'org_country_id', 'org_state_id', 'org_district_id']
     fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
     const { error } = await supabase.from('center_applications').insert(payload)
     setSubmitting(false)
@@ -191,12 +198,18 @@ export default function AddCenter() {
               <Input label="Post Office" value={form.permanent_post_office} onChange={set('permanent_post_office')} />
               <Input label="City" value={form.permanent_city} onChange={set('permanent_city')} />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="State" value={form.permanent_state_id} onChange={set('permanent_state_id')}>
-                <option value="">Select State</option>
-                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Country" value={form.permanent_country_id} onChange={setPermCountry}>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
               </Select>
-              <Select label="District" value={form.permanent_district_id} onChange={set('permanent_district_id')}>
+              <Select label="State" value={form.permanent_state_id} onChange={setPermState} disabled={!form.permanent_country_id}>
+                <option value="">Select State</option>
+                {states.filter(s => s.country_id === form.permanent_country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="District" value={form.permanent_district_id} onChange={set('permanent_district_id')} disabled={!form.permanent_state_id}>
                 <option value="">Select District</option>
                 {permDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
@@ -223,12 +236,18 @@ export default function AddCenter() {
               <Input label="Post Office" value={form.org_post_office} onChange={set('org_post_office')} />
               <Input label="City" value={form.org_city} onChange={set('org_city')} />
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <Select label="State" value={form.org_state_id} onChange={set('org_state_id')}>
-                <option value="">Select State</option>
-                {states.map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="Country" value={form.org_country_id} onChange={setOrgCountry}>
+                <option value="">Select Country</option>
+                {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
               </Select>
-              <Select label="District" value={form.org_district_id} onChange={set('org_district_id')}>
+              <Select label="State" value={form.org_state_id} onChange={setOrgState} disabled={!form.org_country_id}>
+                <option value="">Select State</option>
+                {states.filter(s => s.country_id === form.org_country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Select label="District" value={form.org_district_id} onChange={set('org_district_id')} disabled={!form.org_state_id}>
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
