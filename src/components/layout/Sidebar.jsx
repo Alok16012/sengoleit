@@ -1,10 +1,10 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
 import {
   University, BookOpen, Building2, Users, FolderOpen,
-  Award, CalendarDays, MapPin, LogOut,
+  Award, CalendarDays, MapPin,
   LayoutDashboard, Wallet, Star, Settings,
   UserPlus, FileText, Truck, FileCheck, UserCheck,
   Clock, CheckCircle, XCircle, ClipboardList, CreditCard,
@@ -105,8 +105,7 @@ const studentNavGroups = [
 ]
 
 export default function Sidebar() {
-  const { profile, user, signOut } = useAuth()
-  const navigate = useNavigate()
+  const { profile, user } = useAuth()
   const [centerName, setCenterName] = useState('')
 
   const role = profile?.role || user?.user_metadata?.role || 'admin'
@@ -133,11 +132,6 @@ export default function Sidebar() {
     role === 'super_center' ? 'Super Center Portal' :
     role === 'center' ? 'Center Portal' :
     'Student Portal'
-
-  const handleSignOut = async () => {
-    await signOut()
-    navigate('/login')
-  }
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-100 w-64 shrink-0">
@@ -209,25 +203,6 @@ export default function Sidebar() {
             )
           })}
         </nav>
-      </div>
-
-      {/* Bottom */}
-      <div className="p-3 border-t border-gray-50">
-        <div className="px-3 py-2 mb-1">
-          <p className="text-sm font-semibold text-gray-900 truncate">
-            {profile?.full_name || (role === 'admin' ? 'Admin User' : role === 'super_center' ? 'Super Center' : 'Center User')}
-          </p>
-          <p className="text-[10px] font-medium text-gray-400 capitalize mt-0.5">
-            {role === 'super_center' ? 'Super Center' : role}
-          </p>
-        </div>
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all"
-        >
-          <LogOut size={16} className="text-gray-400" />
-          Sign Out
-        </button>
       </div>
     </div>
   )
