@@ -61,7 +61,21 @@ export function Select({ label, error, hint, children, className = '', ...props 
   )
 }
 
-export function Textarea({ label, error, hint, className = '', ...props }) {
+export function Textarea({ label, error, hint, className = '', onChange, capitalize, ...props }) {
+  // Sentence case: capitalise the first letter of the text and the first
+  // letter after each sentence end (. ! ?) — e.g. "ga kappor" -> "Ga kappor".
+  // Skipped when capitalize={false}.
+  const handleChange = onChange
+    ? (e) => {
+        if (capitalize !== false && e.target.value) {
+          const v = e.target.value
+          const cap = v.replace(/(^\s*|[.!?]\s+)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
+          if (cap !== v) e.target.value = cap
+        }
+        onChange(e)
+      }
+    : undefined
+
   return (
     <div className="flex flex-col gap-1">
       {label && (
@@ -71,6 +85,7 @@ export function Textarea({ label, error, hint, className = '', ...props }) {
       )}
       <textarea
         rows={3}
+        onChange={handleChange}
         className={`w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 placeholder-gray-400
           focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] transition-all resize-none
           disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed
