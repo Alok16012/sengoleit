@@ -7,11 +7,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 
 const QUICK_ACTIONS = [
-  { label: 'Student Entry', icon: UserPlus, color: 'bg-emerald-500', hover: 'hover:bg-emerald-600', to: '/super-center/students/new' },
-  { label: 'Payment Deposit Entry', icon: Wallet, color: 'bg-[#933d18]', hover: 'hover:bg-[#7a3213]', to: '/super-center/balance' },
-  { label: 'Student Documents', icon: FileText, color: 'bg-red-500', hover: 'hover:bg-red-600', to: '/super-center/documents' },
   { label: 'Courier Entry', icon: Truck, color: 'bg-teal-600', hover: 'hover:bg-teal-700', to: '/super-center/courier' },
-  { label: 'Student Answersheet', icon: FileCheck, color: 'bg-amber-500', hover: 'hover:bg-amber-600', to: '/super-center/answersheet' },
   { label: 'New Center', icon: Building2, color: 'bg-indigo-500', hover: 'hover:bg-indigo-600', to: '/super-center/centers/new' },
 ]
 
