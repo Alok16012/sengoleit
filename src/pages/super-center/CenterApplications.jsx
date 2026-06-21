@@ -6,7 +6,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
-import { Eye, Copy, ExternalLink, RefreshCw, Check, PauseCircle, X, Pencil } from 'lucide-react'
+import { Eye, Copy, ExternalLink, RefreshCw, Check, PauseCircle, X, Pencil, Download } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 const STAGES = ['Submitted', 'Document Verification', 'Account Department', 'Approved']
@@ -99,6 +99,131 @@ function DocLink({ url, label }) {
   )
 }
 
+// All detail fields grouped into sections — reused by the on-screen view
+// and the printable PDF so both always stay in sync.
+function buildSections(c) {
+  const dash = (v) => (v === 0 || v ? v : '—')
+  return [
+    ['Center Identity', [
+      ['Center Name', c.center_name],
+      ['Application No', c.application_no],
+      ['Center Code', c.center_code],
+      ['Date of Submission', c.date_of_submission ? formatDate(c.date_of_submission) : '—'],
+      ['Year of Established', c.establishment_year],
+      ['Status', (STATUS_LABELS[c.approval_status] || c.approval_status)],
+    ]],
+    ['Contact Person', [
+      ['Contact Person', c.contact_person],
+      ["Father / Mother's Name", c.father_mother_name],
+      ['Date of Birth', c.date_of_birth ? formatDate(c.date_of_birth) : '—'],
+      ['Gender', c.gender],
+      ['Nationality', c.nationality],
+      ['Aadhar No', c.aadhar_no],
+      ['PAN No', c.pan_no],
+      ['Email', c.email],
+      ['Phone', c.phone],
+    ]],
+    ['Permanent Address', [
+      ['Address', c.address_line1 || c.address],
+      ['Landmark', c.landmark],
+      ['Post Office', c.post_office],
+      ['City', c.city],
+      ['Country', c.countries?.country_name],
+      ['State', c.states?.state_name],
+      ['District', c.districts?.district_name],
+      ['Pincode', c.pincode],
+    ]],
+    ['Organization', [
+      ['Organization Name', c.organization_name],
+      ['Organization Type', c.org_type],
+      ['Organization Address', c.org_address],
+      ['Org Post Office', c.org_post_office],
+      ['Org City', c.org_city],
+      ['Org Country', c.org_country?.country_name],
+      ['Org State', c.org_state?.state_name],
+      ['Org District', c.org_district?.district_name],
+      ['Org Pincode', c.org_pincode],
+      ['Registration Number', c.registration_number],
+      ['GST / PAN', c.gst_pan],
+      ['Premises Type', c.premises_type],
+      ['Office Area (sqft)', c.office_area_sqft],
+      ['Student Capacity', c.student_capacity],
+      ['Revenue Share %', c.revenue_share_percentage],
+    ]],
+    ['Bank Details', [
+      ['Account Holder', c.bank_account_holder],
+      ['Account Number', c.bank_account_number],
+      ['IFSC Code', c.ifsc_code],
+      ['Branch', c.bank_branch],
+    ]],
+    ['Education', [
+      ['10th', [c.edu_10th_institute, c.edu_10th_board, c.edu_10th_year].filter(Boolean).join(' • ')],
+      ['12th', [c.edu_12th_institute, c.edu_12th_board, c.edu_12th_year].filter(Boolean).join(' • ')],
+      ['UG', [c.edu_ug_institute, c.edu_ug_board, c.edu_ug_year].filter(Boolean).join(' • ')],
+      ['PG', [c.edu_pg_institute, c.edu_pg_board, c.edu_pg_year].filter(Boolean).join(' • ')],
+      ['Diploma', [c.edu_diploma_institute, c.edu_diploma_board, c.edu_diploma_year].filter(Boolean).join(' • ')],
+    ]],
+    ['Payment', [
+      ['Amount Paid', c.amount_paid ? `Rs. ${Number(c.amount_paid).toLocaleString('en-IN')}` : '—'],
+      ['UTR Number', c.utr_number],
+      ['Letter Type', c.letter_type],
+    ]],
+  ].map(([title, rows]) => [title, rows.map(([l, v]) => [l, dash(v)])])
+}
+
+const DOC_FIELDS = [
+  ['Owner Photo', 'owner_photo_url'],
+  ['Signature', 'owner_signature_url'],
+  ['Aadhar Card', 'owner_aadhar_url'],
+  ['PAN Card', 'owner_pan_url'],
+  ['Registration Certificate', 'center_reg_url'],
+  ['Premises Photo', 'premises_photo_url'],
+  ['GST Certificate', 'gst_url'],
+  ['Agreement', 'agreement_url'],
+  ['Cancel Cheque', 'cancel_cheque_url'],
+  ['Bank Passbook', 'bank_passbook_url'],
+  ['Payment Proof', 'payment_screenshot_url'],
+]
+
+function downloadPdf(c) {
+  const esc = (s) => String(s ?? '—').replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]))
+  const sections = buildSections(c)
+  const sectionHtml = sections.map(([title, rows]) => `
+    <h2>${esc(title)}</h2>
+    <table>
+      ${rows.map(([l, v]) => `<tr><th>${esc(l)}</th><td>${esc(v)}</td></tr>`).join('')}
+    </table>`).join('')
+  const docRows = DOC_FIELDS.map(([label, key]) =>
+    `<tr><th>${esc(label)}</th><td>${c[key] ? `<a href="${esc(c[key])}">${esc(c[key])}</a>` : 'Not uploaded'}</td></tr>`
+  ).join('')
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(c.center_name)} — Application</title>
+    <style>
+      *{font-family:Arial,Helvetica,sans-serif;box-sizing:border-box}
+      body{margin:28px;color:#1f2937}
+      h1{font-size:20px;margin:0 0 2px;color:#933d18}
+      .sub{color:#6b7280;font-size:12px;margin-bottom:18px}
+      h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#933d18;margin:18px 0 6px;border-bottom:1px solid #e5d5cc;padding-bottom:3px}
+      table{width:100%;border-collapse:collapse;margin-bottom:4px}
+      th{width:34%;text-align:left;vertical-align:top;font-size:11px;color:#6b7280;font-weight:700;padding:4px 8px 4px 0}
+      td{font-size:12px;color:#111827;padding:4px 0;word-break:break-word}
+      tr{border-bottom:1px solid #f3f4f6}
+      a{color:#933d18}
+      @media print{body{margin:12px}}
+    </style></head><body>
+      <h1>${esc(c.center_name)}</h1>
+      <div class="sub">Application No: ${esc(c.application_no)} &nbsp;•&nbsp; Status: ${esc(STATUS_LABELS[c.approval_status] || c.approval_status)} &nbsp;•&nbsp; Generated: ${esc(formatDate(new Date().toISOString()))}</div>
+      ${sectionHtml}
+      <h2>Uploaded Documents</h2>
+      <table>${docRows}</table>
+    </body></html>`
+  const w = window.open('', '_blank')
+  if (!w) { alert('Please allow pop-ups to download the PDF.'); return }
+  w.document.write(html)
+  w.document.close()
+  w.focus()
+  setTimeout(() => w.print(), 350)
+}
+
 export default function CenterApplications() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -127,7 +252,7 @@ export default function CenterApplications() {
     setLoading(true)
     const { data } = await supabase
       .from('centers')
-      .select('*, states!state_id(state_name)')
+      .select('*, states!state_id(state_name), districts!district_id(district_name), countries!country_id(country_name), org_state:states!org_state_id(state_name), org_district:districts!org_district_id(district_name), org_country:countries!org_country_id(country_name)')
       .eq('super_center_id', superCenterId)
       .order('created_at', { ascending: false })
     setCenters(data || [])
@@ -303,51 +428,31 @@ export default function CenterApplications() {
               <p className="text-[10px] font-bold text-[#933d18] uppercase tracking-widest mb-4">Application Progress</p>
               <ProgressTracker status={viewCenter.approval_status} full />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                ['Email',        viewCenter.email],
-                ['Phone',        viewCenter.phone],
-                ['Contact Person', viewCenter.contact_person],
-                ['Center Code',  viewCenter.center_code],
-                ['Application No', viewCenter.application_no],
-                ['City',         viewCenter.city],
-                ['State',        viewCenter.states?.state_name],
-                ['Aadhar No',    viewCenter.aadhar_no],
-                ['PAN No',       viewCenter.pan_no],
-                ['Organization', viewCenter.organization_name],
-                ['Org Type',     viewCenter.org_type],
-                ['Bank Account', viewCenter.bank_account_number ? `****${viewCenter.bank_account_number.slice(-4)}` : '—'],
-                ['IFSC',         viewCenter.ifsc_code],
-                ['Amount Paid',  viewCenter.amount_paid ? `₹${Number(viewCenter.amount_paid).toLocaleString()}` : '—'],
-                ['UTR Number',   viewCenter.utr_number],
-              ].map(([label, val]) => (
-                <div key={label} className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
-                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{val || '—'}</p>
+            {buildSections(viewCenter).map(([title, rows]) => (
+              <div key={title} className="bg-white border border-gray-100 rounded-xl p-4">
+                <p className="text-[10px] font-bold text-[#933d18] uppercase tracking-widest mb-3">{title}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {rows.map(([label, val]) => (
+                    <div key={label} className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</p>
+                      <p className="text-sm font-semibold text-gray-900 mt-0.5 break-words">{val || '—'}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
             <div className="bg-white border border-gray-100 rounded-xl p-4">
               <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Uploaded Documents</p>
               <div className="grid grid-cols-2 gap-2">
-                {[
-                  ['Owner Photo',    viewCenter.owner_photo_url],
-                  ['Signature',      viewCenter.owner_signature_url],
-                  ['Aadhar Card',    viewCenter.owner_aadhar_url],
-                  ['PAN Card',       viewCenter.owner_pan_url],
-                  ['Reg. Cert.',     viewCenter.center_reg_url],
-                  ['Premises Photo', viewCenter.premises_photo_url],
-                  ['GST Cert.',      viewCenter.gst_url],
-                  ['Agreement',      viewCenter.agreement_url],
-                  ['Cancel Cheque',  viewCenter.cancel_cheque_url],
-                  ['Bank Passbook',  viewCenter.bank_passbook_url],
-                  ['Payment Proof',  viewCenter.payment_screenshot_url],
-                ].map(([label, url]) => (
-                  <div key={label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
-                    <span className="text-xs text-gray-600">{label}</span>
-                    <DocLink url={url} label="View" />
-                  </div>
-                ))}
+                {DOC_FIELDS.map(([label, key]) => {
+                  const url = viewCenter[key]
+                  return (
+                    <div key={label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <span className="text-xs text-gray-600">{label}</span>
+                      <DocLink url={url} label="View" />
+                    </div>
+                  )
+                })}
               </div>
             </div>
             <div className="flex gap-3">
@@ -357,6 +462,10 @@ export default function CenterApplications() {
                   <Pencil size={14} /> Edit & Resubmit
                 </button>
               )}
+              <button onClick={() => downloadPdf(viewCenter)}
+                className="flex-1 inline-flex items-center justify-center gap-2 font-bold text-sm text-white bg-[#933d18] hover:bg-[#7a3214] rounded-xl px-4 py-2.5 transition-all">
+                <Download size={14} /> Download PDF
+              </button>
               <Button variant="outline" onClick={() => setViewCenter(null)} className="flex-1 justify-center">Close</Button>
             </div>
           </div>
