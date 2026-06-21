@@ -62,14 +62,13 @@ export function Select({ label, error, hint, children, className = '', ...props 
 }
 
 export function Textarea({ label, error, hint, className = '', onChange, capitalize, ...props }) {
-  // Sentence case: capitalise the first letter of the text and the first
-  // letter after each sentence end (. ! ?) — e.g. "ga kappor" -> "Ga kappor".
-  // Skipped when capitalize={false}.
+  // Title case: capitalise the first letter of every word — e.g.
+  // "ram singh kamhdk" -> "Ram Singh Kamhdk". Skipped when capitalize={false}.
   const handleChange = onChange
     ? (e) => {
         if (capitalize !== false && e.target.value) {
           const v = e.target.value
-          const cap = v.replace(/(^\s*|[.!?]\s+)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
+          const cap = v.replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
           if (cap !== v) e.target.value = cap
         }
         onChange(e)
