@@ -62,7 +62,6 @@ const superCenterNavGroups = [
   {
     group: 'Entry',
     items: [
-      { to: '/super-center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
       { to: '/super-center/students', icon: Users, label: 'Registered Student List', end: true },
       { to: '/super-center/courier', icon: Truck, label: 'Courier Entry' },
     ],
