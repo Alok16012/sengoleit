@@ -127,19 +127,6 @@ export default function SuperCenterDashboard() {
         <StatCard label="Pending Recharges" value={stats.pendingRecharges ?? 0} icon={Clock} color="bg-amber-500" sub="Awaiting verification" />
       </div>
 
-      {center && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h2 className="font-bold text-gray-800 mb-4">Super Center Details</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-5 text-sm">
-            <div><p className="text-xs text-gray-400 mb-0.5">Center Name</p><p className="font-semibold">{center.center_name}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">Center Code</p><p className="font-semibold">{center.center_code || '—'}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">Email</p><p className="font-semibold">{center.email || '—'}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">Phone</p><p className="font-semibold">{center.phone || '—'}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">KYC Status</p><Badge status={center.kyc_status?.toLowerCase()}>{center.kyc_status || 'Pending'}</Badge></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">Status</p><Badge status={center.status?.toLowerCase()}>{center.status || 'Inactive'}</Badge></div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

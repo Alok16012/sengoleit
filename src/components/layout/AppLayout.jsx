@@ -19,7 +19,7 @@ function TopBar() {
   const profilePath =
     role === 'center' ? '/center/settings' :
     role === 'student' ? '/student/profile' :
-    role === 'super_center' ? '/super-center/dashboard' :
+    role === 'super_center' ? '/super-center/profile' :
     '/dashboard'
 
   // Close the dropdown when clicking outside of it

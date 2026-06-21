@@ -37,6 +37,7 @@ import CenterApplications from './pages/super-center/CenterApplications'
 import MyCenters from './pages/super-center/MyCenters'
 import SubCenterForm from './pages/super-center/SubCenterForm'
 import SuperCenterStudents from './pages/super-center/SuperCenterStudents'
+import SuperCenterProfile from './pages/super-center/SuperCenterProfile'
 
 // Center portal
 import CenterDashboard from './pages/center/CenterDashboard'
@@ -157,6 +158,7 @@ export default function App() {
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />
+            <Route path="/super-center/profile" element={<SuperCenterProfile />} />
             <Route path="/super-center/center-applications" element={<CenterApplications />} />
             <Route path="/super-center/centers" element={<MyCenters />} />
             <Route path="/super-center/centers/new" element={<SubCenterForm />} />
