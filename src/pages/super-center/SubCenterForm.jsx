@@ -31,7 +31,7 @@ const emptyForm = {
   current_occupation: '', previous_experience_admissions: '',
   address_line1: '', landmark: '', post_office: '', city: '',
   country_id: '', state_id: '', district_id: '', pincode: '',
-  organization_name: '', org_type: '', org_address: '', org_post_office: '', org_city: '',
+  organization_name: '', org_type: '', establishment_year: '', org_address: '', org_post_office: '', org_city: '',
   org_country_id: '', org_state_id: '', org_district_id: '', org_pincode: '',
   registration_number: '', gst_pan: '',
   centre_address: '',
@@ -460,7 +460,7 @@ export default function SubCenterForm() {
         if (!payload[k]) { if (isEdit) payload[k] = null; else delete payload[k] }
       })
       const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'amount_paid', 'base_fee', 'payment_amount',
-        'num_classrooms', 'num_computers', 'num_faculty']
+        'num_classrooms', 'num_computers', 'num_faculty', 'establishment_year']
       numericFields.forEach(k => {
         if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
         else if (payload[k] !== undefined) payload[k] = Number(payload[k])
@@ -732,6 +732,11 @@ export default function SubCenterForm() {
                 <option value="Others">Others</option>
               </Select>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Year of Established" type="number" placeholder="2015" min="1900" max={new Date().getFullYear()}
+                value={form.establishment_year} onChange={set('establishment_year')} disabled={isLocked('establishment_year')} />
+              <Input label="Org City" value={form.org_city} onChange={set('org_city')} disabled={isLocked('org_city')} />
+            </div>
             <Textarea label="Organization Address" value={form.org_address} onChange={set('org_address')} disabled={isLocked('org_address')} />
             <div className="grid grid-cols-2 gap-4">
               <Select label="Org Country" value={form.org_country_id} onChange={setOrgCountry} disabled={isLocked('org_country_id')}>
@@ -748,10 +753,9 @@ export default function SubCenterForm() {
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
-              <Input label="Org City" value={form.org_city} onChange={set('org_city')} disabled={isLocked('org_city')} />
+              <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} disabled={isLocked('org_post_office')} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} disabled={isLocked('org_post_office')} />
               <Input label="Org Pincode" inputMode="numeric" maxLength={6} value={form.org_pincode}
                 onChange={e => setField('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
                 disabled={isLocked('org_pincode')} placeholder="6-digit pincode" />
