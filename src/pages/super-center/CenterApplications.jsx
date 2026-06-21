@@ -148,7 +148,6 @@ function buildSections(c) {
       ['Premises Type', c.premises_type],
       ['Office Area (sqft)', c.office_area_sqft],
       ['Student Capacity', c.student_capacity],
-      ['Revenue Share %', c.revenue_share_percentage],
     ]],
     ['Bank Details', [
       ['Account Holder', c.bank_account_holder],
