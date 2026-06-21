@@ -6,11 +6,6 @@ import { Users, Building2, Wallet, Clock, UserPlus, FileText, Truck, FileCheck, 
 import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 
-const QUICK_ACTIONS = [
-  { label: 'Courier Entry', icon: Truck, color: 'bg-teal-600', hover: 'hover:bg-teal-700', to: '/super-center/courier' },
-  { label: 'New Center', icon: Building2, color: 'bg-indigo-500', hover: 'hover:bg-indigo-600', to: '/super-center/centers/new' },
-]
-
 function StatCard({ label, value, icon: Icon, color, sub }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
@@ -122,22 +117,6 @@ export default function SuperCenterDashboard() {
               </Button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Quick Action Cards */}
-      {center?.approval_status === 'approved' && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-          {QUICK_ACTIONS.map(({ label, icon: Icon, color, hover, to }) => (
-            <button
-              key={to}
-              onClick={() => navigate(to)}
-              className={`${color} ${hover} text-white rounded-2xl p-5 flex items-center justify-between shadow-sm transition-all active:scale-[0.98] text-left`}
-            >
-              <span className="text-sm font-bold leading-snug max-w-[120px]">{label}</span>
-              <Icon size={32} className="text-white/70 flex-shrink-0" />
-            </button>
-          ))}
         </div>
       )}
 
