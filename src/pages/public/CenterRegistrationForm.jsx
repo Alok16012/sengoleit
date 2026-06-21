@@ -10,14 +10,13 @@ import { supabase } from '../../lib/supabase'
 import DateInput from '../../components/ui/DateInput'
 import { generateApplicationNo } from '../../utils/generateApplicationNo'
 import {
-  Upload, CheckCircle, AlertCircle, Building2, User, MapPin,
+  Upload, CheckCircle, AlertCircle, Building2, User,
   Briefcase, CreditCard, GraduationCap, Wallet, FileText, Eye, CheckCircle2
 } from 'lucide-react'
 
 const STEPS = [
   { label: 'Center Identity', icon: Building2 },
   { label: 'Contact Person',  icon: User },
-  { label: 'Center Address',  icon: MapPin },
   { label: 'Organization',    icon: Briefcase },
   { label: 'Bank Details',    icon: CreditCard },
   { label: 'Education',       icon: GraduationCap },
@@ -31,9 +30,8 @@ const emptyForm = {
   aadhar_no: '', pan_no: '',
   permanent_address: '', current_address: '', contact_mobile: '', contact_email: '',
   current_occupation: '', previous_experience_admissions: '',
-  address_line1: '', landmark: '', post_office: '', city: '',
   country_id: '', state_id: '', district_id: '', pincode: '',
-  organization_name: '', org_type: '', org_address: '', org_post_office: '', org_city: '',
+  organization_name: '', org_type: '', establishment_year: '', org_address: '', org_post_office: '', org_city: '',
   org_country_id: '', org_state_id: '', org_district_id: '', org_pincode: '',
   registration_number: '', gst_pan: '',
   centre_address: '',
@@ -241,9 +239,9 @@ export default function CenterRegistrationForm() {
         if (form.aadhar_no.length !== 12) return 'Aadhar Number must be exactly 12 digits'
         if (form.contact_email && !isValidEmail(form.contact_email)) return 'Valid contact email required'
         if (form.contact_mobile && form.contact_mobile.length < 10) return 'Contact mobile must be 10 digits'
-        return null
-      case 2:
-        if (!form.city.trim()) return 'City is required'
+        if (!form.country_id) return 'Country is required'
+        if (!form.state_id) return 'State is required'
+        if (!form.district_id) return 'District is required'
         if (!form.pincode.trim()) return 'Pincode is required'
         if (form.pincode.length !== 6) return 'Pincode must be 6 digits'
         return null
@@ -305,10 +303,6 @@ export default function CenterRegistrationForm() {
         contact_email: form.contact_email,
         current_occupation: form.current_occupation,
         previous_experience_admissions: form.previous_experience_admissions,
-        address_line1: form.address_line1,
-        landmark: form.landmark,
-        post_office: form.post_office,
-        city: form.city,
         pincode: form.pincode,
         organization_name: form.organization_name,
         org_type: form.org_type,
@@ -359,6 +353,7 @@ export default function CenterRegistrationForm() {
       if (form.num_classrooms) payload.num_classrooms = Number(form.num_classrooms)
       if (form.num_faculty) payload.num_faculty = Number(form.num_faculty)
       if (form.has_computer_lab && form.num_computers) payload.num_computers = Number(form.num_computers)
+      if (form.establishment_year) payload.establishment_year = Number(form.establishment_year)
 
       // Remove null/empty strings
       Object.keys(payload).forEach(k => {
@@ -537,6 +532,32 @@ export default function CenterRegistrationForm() {
               </Field>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+              <Field label="Country" required>
+                <select className={inp()} value={form.country_id} onChange={e => setCountry(e.target.value)}>
+                  <option value="">Select Country</option>
+                  {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
+                </select>
+              </Field>
+              <Field label="State" required>
+                <select className={inp()} value={form.state_id} onChange={e => setState(e.target.value)} disabled={!form.country_id}>
+                  <option value="">Select State</option>
+                  {states.filter(s => s.country_id === form.country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
+                </select>
+              </Field>
+              <Field label="District" required>
+                <select className={inp()} value={form.district_id} onChange={e => set('district_id', e.target.value)} disabled={!form.state_id}>
+                  <option value="">Select District</option>
+                  {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
+                </select>
+              </Field>
+              <Field label="Pincode" required error={fe.pincode}>
+                <input className={inp(fe.pincode)} value={form.pincode} inputMode="numeric"
+                  onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="6-digit pincode" maxLength={6} />
+              </Field>
+            </div>
+
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-5 mb-3">Professional Details</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Current Occupation">
@@ -549,56 +570,8 @@ export default function CenterRegistrationForm() {
           </div>
         )}
 
-        {/* STEP 2: Center Address */}
+        {/* STEP 2: Organization */}
         {step === 2 && (
-          <div className={card}>
-            {sectionTitle(<MapPin size={16} />, 'Center Address')}
-            <div className="space-y-4">
-              <Field label="Address Line 1" required>
-                <input className={inp()} value={form.address_line1} onChange={e => set('address_line1', e.target.value)} />
-              </Field>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Landmark">
-                  <input className={inp()} value={form.landmark} onChange={e => set('landmark', e.target.value)} />
-                </Field>
-                <Field label="Post Office">
-                  <input className={inp()} value={form.post_office} onChange={e => set('post_office', e.target.value)} />
-                </Field>
-                <Field label="City" required>
-                  <input className={inp()} value={form.city} onChange={e => set('city', e.target.value)} />
-                </Field>
-                <Field label="Pincode" required error={fe.pincode}>
-                  <input className={inp(fe.pincode)} value={form.pincode} inputMode="numeric"
-                    onChange={e => setField('pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="6-digit pincode" maxLength={6} />
-                </Field>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Field label="Country">
-                  <select className={inp()} value={form.country_id} onChange={e => setCountry(e.target.value)}>
-                    <option value="">Select Country</option>
-                    {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
-                  </select>
-                </Field>
-                <Field label="State">
-                  <select className={inp()} value={form.state_id} onChange={e => setState(e.target.value)} disabled={!form.country_id}>
-                    <option value="">Select State</option>
-                    {states.filter(s => s.country_id === form.country_id).map(s => <option key={s.id} value={s.id}>{s.state_name}</option>)}
-                  </select>
-                </Field>
-                <Field label="District">
-                  <select className={inp()} value={form.district_id} onChange={e => set('district_id', e.target.value)} disabled={!form.state_id}>
-                    <option value="">Select District</option>
-                    {districts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
-                  </select>
-                </Field>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: Organization */}
-        {step === 3 && (
           <div className={card}>
             {sectionTitle(<Briefcase size={16} />, 'Organization Details')}
             <div className="space-y-4">
@@ -617,17 +590,18 @@ export default function CenterRegistrationForm() {
                   </select>
                 </Field>
               </div>
-              <Field label="Organization Address">
-                <textarea className={inp()} rows={2} value={form.org_address} onChange={e => set('org_address', e.target.value)} />
-              </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Org Post Office">
-                  <input className={inp()} value={form.org_post_office} onChange={e => set('org_post_office', e.target.value)} />
+                <Field label="Year of Established">
+                  <input className={inp()} type="number" placeholder="2015" min="1900" max={new Date().getFullYear()}
+                    value={form.establishment_year} onChange={e => set('establishment_year', e.target.value)} />
                 </Field>
                 <Field label="Org City">
                   <input className={inp()} value={form.org_city} onChange={e => set('org_city', e.target.value)} />
                 </Field>
               </div>
+              <Field label="Organization Address">
+                <textarea className={inp()} rows={2} value={form.org_address} onChange={e => set('org_address', e.target.value)} />
+              </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Org Country">
                   <select className={inp()} value={form.org_country_id} onChange={e => setOrgCountry(e.target.value)}>
@@ -649,6 +623,11 @@ export default function CenterRegistrationForm() {
                     {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
                   </select>
                 </Field>
+                <Field label="Org Post Office">
+                  <input className={inp()} value={form.org_post_office} onChange={e => set('org_post_office', e.target.value)} />
+                </Field>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Org Pincode" error={fe.org_pincode}>
                   <input className={inp(fe.org_pincode)} value={form.org_pincode} inputMode="numeric"
                     onChange={e => setField('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -770,8 +749,8 @@ export default function CenterRegistrationForm() {
           </div>
         )}
 
-        {/* STEP 4: Bank Details */}
-        {step === 4 && (
+        {/* STEP 3: Bank Details */}
+        {step === 3 && (
           <div className={card}>
             {sectionTitle(<CreditCard size={16} />, 'Bank Details')}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -791,8 +770,8 @@ export default function CenterRegistrationForm() {
           </div>
         )}
 
-        {/* STEP 5: Education */}
-        {step === 5 && (
+        {/* STEP 4: Education */}
+        {step === 4 && (
           <div className={card}>
             {sectionTitle(<GraduationCap size={16} />, 'Education Qualification')}
             {[
@@ -820,8 +799,8 @@ export default function CenterRegistrationForm() {
           </div>
         )}
 
-        {/* STEP 6: Payment */}
-        {step === 6 && (
+        {/* STEP 5: Payment */}
+        {step === 5 && (
           <div className={card}>
             {sectionTitle(<Wallet size={16} />, 'Payment Details')}
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 mb-4">
@@ -855,8 +834,8 @@ export default function CenterRegistrationForm() {
           </div>
         )}
 
-        {/* STEP 7: Documents */}
-        {step === 7 && (
+        {/* STEP 6: Documents */}
+        {step === 6 && (
           <div className="space-y-4">
             <div className={card}>
               <h3 className="font-bold text-gray-900 mb-4 text-sm">Identity Documents</h3>
