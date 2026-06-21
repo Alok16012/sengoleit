@@ -1097,7 +1097,7 @@ export default function SubCenterForm() {
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmit} disabled={loading}>
-                {loading ? 'Saving...' : isResubmit ? 'Resubmit Application' : isEdit ? 'Update Center' : 'Create Center'}
+                {loading ? 'Saving...' : isResubmit ? 'Resubmit Application' : isEdit ? 'Update Center' : 'Submit Form'}
               </Button>
             )}
           </div>
