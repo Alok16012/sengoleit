@@ -734,10 +734,6 @@ export default function SubCenterForm() {
             </div>
             <Textarea label="Organization Address" value={form.org_address} onChange={set('org_address')} disabled={isLocked('org_address')} />
             <div className="grid grid-cols-2 gap-4">
-              <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} disabled={isLocked('org_post_office')} />
-              <Input label="Org City" value={form.org_city} onChange={set('org_city')} disabled={isLocked('org_city')} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <Select label="Org Country" value={form.org_country_id} onChange={setOrgCountry} disabled={isLocked('org_country_id')}>
                 <option value="">Select Country</option>
                 {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
@@ -752,6 +748,10 @@ export default function SubCenterForm() {
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
+              <Input label="Org City" value={form.org_city} onChange={set('org_city')} disabled={isLocked('org_city')} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Org Post Office" value={form.org_post_office} onChange={set('org_post_office')} disabled={isLocked('org_post_office')} />
               <Input label="Org Pincode" inputMode="numeric" maxLength={6} value={form.org_pincode}
                 onChange={e => setField('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
                 disabled={isLocked('org_pincode')} placeholder="6-digit pincode" />
