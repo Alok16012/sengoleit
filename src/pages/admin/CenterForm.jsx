@@ -522,7 +522,7 @@ export default function CenterForm() {
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
-              <Input label="Org Pincode *" inputMode="numeric" value={form.org_pincode}
+              <Input label="Org Pincode *" inputMode="numeric" maxLength={6} placeholder="6-digit pincode" value={form.org_pincode}
                 onChange={e => setField('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))} error={fe.org_pincode} required />
             </div>
             <div className="grid grid-cols-3 gap-4">

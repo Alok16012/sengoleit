@@ -213,7 +213,8 @@ export default function AddCenter() {
                 <option value="">Select District</option>
                 {permDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
-              <Input label="Pin Code" value={form.permanent_pin_code} onChange={set('permanent_pin_code')} />
+              <Input label="Pin Code" inputMode="numeric" maxLength={6} placeholder="6-digit pincode" value={form.permanent_pin_code}
+                onChange={e => setForm(f => ({ ...f, permanent_pin_code: e.target.value.replace(/\D/g, '').slice(0, 6) }))} />
             </div>
           </Section>
         )}
@@ -251,7 +252,8 @@ export default function AddCenter() {
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
-              <Input label="Pin Code" value={form.org_pin_code} onChange={set('org_pin_code')} />
+              <Input label="Pin Code" inputMode="numeric" maxLength={6} placeholder="6-digit pincode" value={form.org_pin_code}
+                onChange={e => setForm(f => ({ ...f, org_pin_code: e.target.value.replace(/\D/g, '').slice(0, 6) }))} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Organisation Registration No." value={form.organization_registration_no} onChange={set('organization_registration_no')} />

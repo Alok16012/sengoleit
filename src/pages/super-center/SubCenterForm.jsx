@@ -752,7 +752,9 @@ export default function SubCenterForm() {
                 <option value="">Select District</option>
                 {orgDistricts.map(d => <option key={d.id} value={d.id}>{d.district_name}</option>)}
               </Select>
-              <Input label="Org Pincode" value={form.org_pincode} onChange={set('org_pincode')} disabled={isLocked('org_pincode')} />
+              <Input label="Org Pincode" inputMode="numeric" maxLength={6} value={form.org_pincode}
+                onChange={e => setField('org_pincode', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                disabled={isLocked('org_pincode')} placeholder="6-digit pincode" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Registration Number *" value={form.registration_number} onChange={set('registration_number')} disabled={isLocked('registration_number')} required />
