@@ -64,16 +64,19 @@ const superCenterNavGroups = [
     items: [
       { to: '/super-center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
       { to: '/super-center/students', icon: Users, label: 'Registered Student List', end: true },
-      { to: '/super-center/balance', icon: Wallet, label: 'Payment Deposit' },
-      { to: '/super-center/documents', icon: FileText, label: 'My Documents' },
       { to: '/super-center/courier', icon: Truck, label: 'Courier Entry' },
-      { to: '/super-center/answersheet', icon: FileCheck, label: 'Student Answersheet' },
-      { to: '/super-center/supplementary', icon: UserCheck, label: 'Supplementary Student' },
     ],
   },
   {
     group: 'Reports',
-    items: reportItems('/super-center'),
+    items: reportItems('/super-center').filter(
+      item => ![
+        '/super-center/reports/course-fee',
+        '/super-center/reports/syllabus',
+        '/super-center/reports/wallet-coupon',
+        '/super-center/reports/admission-coupon',
+      ].includes(item.to)
+    ),
   },
 ]
 
