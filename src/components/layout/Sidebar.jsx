@@ -72,6 +72,7 @@ const superCenterNavGroups = [
       item => ![
         '/super-center/reports/course-fee',
         '/super-center/reports/syllabus',
+        '/super-center/reports/credentials',
         '/super-center/reports/wallet-coupon',
         '/super-center/reports/admission-coupon',
       ].includes(item.to)
