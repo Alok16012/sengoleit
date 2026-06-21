@@ -6,7 +6,7 @@ import {
   University, BookOpen, Building2, Users, FolderOpen,
   Award, CalendarDays, MapPin, LogOut,
   LayoutDashboard, Wallet, Star, Settings,
-  UserPlus, FileText, Truck, FileCheck, UserCheck,
+  UserPlus, FileText, Truck, FileCheck, UserCheck, User,
   Clock, CheckCircle, XCircle, ClipboardList, CreditCard,
   GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag,
   ChevronDown, ChevronRight, ShieldCheck, IndianRupee
@@ -111,9 +111,25 @@ export default function Sidebar() {
 
   const role = profile?.role || user?.user_metadata?.role || 'admin'
   const [collapsed, setCollapsed] = useState({})
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const toggleGroup = (group) =>
     setCollapsed(prev => ({ ...prev, [group]: !prev[group] }))
+
+  // Where the "Profile" item navigates, per role
+  const profilePath =
+    role === 'center' ? '/center/settings' :
+    role === 'student' ? '/student/profile' :
+    role === 'super_center' ? '/super-center/dashboard' :
+    '/dashboard'
+
+  // Close the settings dropdown when clicking outside of it
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = (e) => { if (!e.target.closest('[data-settings-menu]')) setMenuOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [menuOpen])
 
   useEffect(() => {
     if ((role === 'super_center' || role === 'center') && user?.email) {
@@ -142,20 +158,46 @@ export default function Sidebar() {
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-100 w-64 shrink-0">
 
-      {/* Brand */}
-      <div className="p-5 flex items-center space-x-3 border-b border-gray-50">
-        <div className="h-10 w-10 bg-[#933d18] rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
-          <img src="/assets/logo.png" alt="Logo" className="w-7 h-7 object-contain"
-            onError={e => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '<span style="color:white;font-weight:900;font-size:1.1rem">S</span>' }} />
-        </div>
-        <div>
-          <h1 className="text-base font-black text-gray-900 leading-tight truncate max-w-[160px]">
-            {role === 'super_center' || role === 'center' ? (centerName || 'My Portal') : 'Sengol'}
-          </h1>
-          <span className="text-[10px] font-bold text-[#933d18] uppercase tracking-[0.2em]">
-            {role === 'super_center' ? 'Super Center' : role === 'center' ? 'Center' : 'University'}
-          </span>
-        </div>
+      {/* Brand / Settings menu */}
+      <div className="relative border-b border-gray-50" data-settings-menu>
+        <button
+          onClick={() => setMenuOpen(o => !o)}
+          className="w-full p-5 flex items-center space-x-3 hover:bg-gray-50 transition-colors"
+        >
+          <div className="h-10 w-10 bg-[#933d18] rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+            <Settings size={20} className="text-white" />
+          </div>
+          <div className="flex-1 text-left min-w-0">
+            <h1 className="text-base font-black text-gray-900 leading-tight">Settings</h1>
+            <span className="text-[10px] font-bold text-[#933d18] uppercase tracking-[0.2em]">
+              {role === 'super_center' ? 'Super Center' : role === 'center' ? 'Center' : role === 'student' ? 'Student' : 'University'}
+            </span>
+          </div>
+          <ChevronDown size={16} className={`text-gray-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+        </button>
+
+        {menuOpen && (
+          <div className="absolute left-3 right-3 top-[74px] z-30 bg-white border border-gray-100 rounded-xl shadow-lg overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-50">
+              <p className="text-sm font-semibold text-gray-900 truncate">
+                {profile?.full_name || centerName || 'Account'}
+              </p>
+              <p className="text-[11px] text-gray-400 truncate">{user?.email}</p>
+            </div>
+            <button
+              onClick={() => { setMenuOpen(false); navigate(profilePath) }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+            >
+              <User size={15} className="text-gray-400" /> Profile
+            </button>
+            <button
+              onClick={() => { setMenuOpen(false); handleSignOut() }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-all"
+            >
+              <LogOut size={15} className="text-red-400" /> Logout
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Nav */}
