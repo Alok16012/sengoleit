@@ -413,7 +413,7 @@ export default function CenterRegistrationForm() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-[#933d18] text-white py-8 px-6 text-center">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <p className="text-orange-200 text-xs font-bold uppercase tracking-widest mb-1">Center Registration</p>
           <h1 className="text-2xl font-black">Apply via {superCenter.center_name}</h1>
           <p className="text-orange-100/70 text-sm mt-1">Fill all details carefully. Fields marked * are required.</p>
@@ -422,17 +422,17 @@ export default function CenterRegistrationForm() {
 
       {/* Step Progress */}
       <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex gap-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
           {STEPS.map((s, i) => {
             const Icon = s.icon
             const isActive = i === step
             const isPast = i < step
             return (
-              <button key={i} onClick={() => { if (isPast) { setStepError(''); setStep(i) } }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all ${
+              <button key={i} onClick={() => { setStepError(''); setStep(i) }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                   isActive ? 'bg-[#933d18] text-white' :
-                  isPast ? 'bg-emerald-100 text-emerald-700 cursor-pointer' :
-                  'bg-gray-100 text-gray-400 cursor-default'
+                  isPast ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' :
+                  'bg-gray-100 text-gray-400 hover:bg-gray-200'
                 }`}>
                 <Icon size={12} />
                 {isPast ? '✓' : `${i + 1}.`} {s.label}
@@ -442,7 +442,7 @@ export default function CenterRegistrationForm() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto p-5 space-y-4">
+      <div className="max-w-4xl mx-auto p-5 space-y-4">
 
         {/* STEP 0: Center Identity */}
         {step === 0 && (
