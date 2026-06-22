@@ -712,6 +712,12 @@ export default function StudentForm() {
           if (pin && pin.length !== 6) return 'PIN Code must be 6 digits'
         }
         return null
+      case 6:
+        if (!form.photo_url) return 'Student Photo is required'
+        if (!form.signature_url) return 'Signature is required'
+        if (!form.aadhar_url) return 'Aadhar Card is required'
+        if (!form.declaration_url) return 'Declaration Form is required'
+        return null
       default:
         return null
     }
@@ -740,6 +746,11 @@ export default function StudentForm() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    // Guard: only the final (Documents) step may actually submit. If the form
+    // is submitted from any earlier step — e.g. pressing Enter inside a field
+    // on the Education step — treat it as "Next" so we never skip the
+    // remaining steps (especially Documents).
+    if (step < STEPS.length - 1) { handleNext(); return }
     const err = validateStep(step)
     if (err) { setStepError(err); return }
 
