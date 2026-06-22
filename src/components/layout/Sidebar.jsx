@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase'
 import {
   University, BookOpen, Building2, Users, FolderOpen,
   Award, CalendarDays, MapPin,
-  LayoutDashboard, Wallet, Star, Settings,
+  LayoutDashboard, Wallet, Star,
   UserPlus, FileText, Truck, FileCheck, UserCheck,
   Clock, CheckCircle, XCircle, ClipboardList, CreditCard,
   GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag,
@@ -97,7 +97,6 @@ const centerNavGroups = [
     group: 'Reports',
     items: reportItems('/center'),
   },
-  { items: [{ to: '/center/settings', icon: Settings, label: 'Settings' }] },
 ]
 
 const studentNavGroups = [
