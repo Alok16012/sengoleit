@@ -274,6 +274,7 @@ export default function StudentForm() {
   const [step, setStep] = useState(0)
   const [stepError, setStepError] = useState('')
   const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
+  const [coupon, setCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
 
   const toggleEdu = (key) => setOpenEdu(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -345,6 +346,7 @@ export default function StudentForm() {
   const handleDepartmentChange = (e) => {
     setForm(f => ({ ...f, department_id: e.target.value, programme_id: '', course_code: '', semester_year: '' }))
     setWalletInfo({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
+    setCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
   }
 
   const handleProgramChange = (e) => {
@@ -431,11 +433,15 @@ export default function StudentForm() {
   async function runWalletCheck() {
     setWalletInfo(w => ({ ...w, checking: true }))
     try {
-      const { data: fs } = await supabase
+      // A program can have multiple fee structures (one per session), so
+      // maybeSingle() fails. Fetch all and prefer the one for this session.
+      const { data: structures } = await supabase
         .from('fee_structures')
-        .select('id')
+        .select('id, session_id')
         .eq('program_id', form.programme_id)
-        .maybeSingle()
+
+      const fs = (structures || []).find(s => s.session_id === form.session_id)
+        || (structures || [])[0]
 
       let courseFee = 0
       if (fs) {
@@ -453,13 +459,46 @@ export default function StudentForm() {
         .maybeSingle()
 
       const balance = Number(ctr?.virtual_balance || 0)
-      const ok = courseFee === 0 || balance >= courseFee
+      const payable = Math.max(courseFee - (coupon.discount || 0), 0)
+      const ok = courseFee === 0 || balance >= payable
       setWalletInfo({ checking: false, balance, courseFee, ok, checked: true })
       return ok
     } catch {
       setWalletInfo(w => ({ ...w, checking: false, checked: true, ok: true }))
       return true
     }
+  }
+
+  async function applyCoupon() {
+    const code = coupon.code.trim().toUpperCase()
+    if (!code) { setCoupon(c => ({ ...c, error: 'Enter a coupon code' })); return }
+    if (!form.center_id) { setCoupon(c => ({ ...c, error: 'Select a center first' })); return }
+    setCoupon(c => ({ ...c, applying: true, error: '' }))
+    try {
+      const { data: rows } = await supabase
+        .from('coupons')
+        .select('id, face_value, is_used, used_at, center_id')
+        .eq('center_id', form.center_id)
+      const match = (rows || []).find(
+        r => !r.is_used && !r.used_at && r.id?.slice(0, 8).toUpperCase() === code
+      )
+      if (!match) {
+        setCoupon(c => ({ ...c, applying: false, applied: null, discount: 0, error: 'Invalid or already-used coupon code for this center' }))
+        return
+      }
+      const discount = Number(match.face_value || 0)
+      setCoupon(c => ({ ...c, applying: false, applied: match, discount, error: '' }))
+      // Re-evaluate the wallet check with the discount applied.
+      const payable = Math.max((walletInfo.courseFee || 0) - discount, 0)
+      setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= payable }))
+    } catch (err) {
+      setCoupon(c => ({ ...c, applying: false, error: 'Could not validate coupon. Try again.' }))
+    }
+  }
+
+  function removeCoupon() {
+    setCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
+    setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= w.courseFee }))
   }
 
   function validateStep(s) {
@@ -547,16 +586,23 @@ export default function StudentForm() {
     const fkFields = ['university_id', 'session_id', 'programme_id', 'department_id', 'mode_id', 'center_id']
     fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
 
-    const { error } = isEdit
-      ? await supabase.from('students').update(payload).eq('id', id)
-      : await supabase.from('students').insert(payload)
+    const { data: saved, error } = isEdit
+      ? await supabase.from('students').update(payload).eq('id', id).select('id').single()
+      : await supabase.from('students').insert(payload).select('id').single()
 
     if (!error) {
-      // Deduct course fee from center wallet on new submission
+      // Deduct course fee (less any applied coupon) from center wallet on new submission
       if (!isEdit && !isAdmin && walletInfo.checked && walletInfo.courseFee > 0 && form.center_id) {
+        const payable = Math.max(walletInfo.courseFee - (coupon.discount || 0), 0)
         await supabase.from('centers')
-          .update({ virtual_balance: walletInfo.balance - walletInfo.courseFee })
+          .update({ virtual_balance: walletInfo.balance - payable })
           .eq('id', form.center_id)
+        // Mark the coupon as used and link it to this application
+        if (coupon.applied?.id) {
+          await supabase.from('coupons')
+            .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
+            .eq('id', coupon.applied.id)
+        }
       }
       navigate(backPath)
     } else {
@@ -796,6 +842,7 @@ export default function StudentForm() {
                     Checking wallet balance...
                   </div>
                 ) : walletInfo.checked && form.programme_id ? (
+                  <>
                   <div className={`flex items-center justify-between rounded-xl px-4 py-3 ${walletInfo.ok ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'}`}>
                     <div className="flex items-center gap-3">
                       <Wallet size={16} className={walletInfo.ok ? 'text-emerald-600' : 'text-red-600'} />
@@ -803,6 +850,10 @@ export default function StudentForm() {
                         <p className="text-sm font-bold text-gray-800">Wallet Balance Check</p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
+                          {coupon.discount > 0 && (
+                            <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}
+                            &nbsp;·&nbsp;Payable: ₹{Math.max(walletInfo.courseFee - coupon.discount, 0).toLocaleString('en-IN')}</>
+                          )}
                           &nbsp;·&nbsp;Your Balance: ₹{walletInfo.balance.toLocaleString('en-IN')}
                         </p>
                       </div>
@@ -811,6 +862,40 @@ export default function StudentForm() {
                       {walletInfo.ok ? '✓ Sufficient' : '✗ Insufficient'}
                     </span>
                   </div>
+
+                  {/* Coupon code apply */}
+                  {walletInfo.courseFee > 0 && (
+                    <div className="mt-2">
+                      {coupon.applied ? (
+                        <div className="flex items-center justify-between bg-[#933d18]/5 border border-[#933d18]/20 rounded-xl px-4 py-2.5">
+                          <p className="text-xs font-semibold text-[#933d18]">
+                            Coupon <span className="font-mono">{coupon.code.toUpperCase()}</span> applied · ₹{coupon.discount.toLocaleString('en-IN')} off
+                          </p>
+                          <button type="button" onClick={removeCoupon} className="text-xs font-semibold text-gray-400 hover:text-red-500 underline">Remove</button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={coupon.code}
+                            onChange={e => setCoupon(c => ({ ...c, code: e.target.value, error: '' }))}
+                            placeholder="Have a coupon code? (optional)"
+                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono uppercase focus:outline-none focus:border-[#933d18]"
+                          />
+                          <button
+                            type="button"
+                            onClick={applyCoupon}
+                            disabled={coupon.applying}
+                            className="px-4 py-2 text-sm font-bold rounded-xl bg-[#933d18] text-white hover:bg-[#7a3213] disabled:opacity-60 transition-colors"
+                          >
+                            {coupon.applying ? 'Applying...' : 'Apply'}
+                          </button>
+                        </div>
+                      )}
+                      {coupon.error && <p className="text-xs text-red-500 mt-1.5 px-1">{coupon.error}</p>}
+                    </div>
+                  )}
+                  </>
                 ) : form.programme_id ? (
                   <p className="text-xs text-gray-400 italic">Balance check will run automatically...</p>
                 ) : null}
