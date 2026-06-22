@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { formatDate } from '../../utils/formatDate'
-import { Ticket, Wallet, Sparkles } from 'lucide-react'
+import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -31,6 +31,10 @@ export default function CouponManagement() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [centerFilter, setCenterFilter] = useState('')
   const [fetchErr, setFetchErr] = useState(null)
+  const [hiddenCenters, setHiddenCenters] = useState({})
+
+  const toggleCenter = (key) =>
+    setHiddenCenters(prev => ({ ...prev, [key]: !prev[key] }))
 
   // Coupon generation modal state
   const [genCenter, setGenCenter] = useState(null)
@@ -80,6 +84,23 @@ export default function CouponManagement() {
 
   const totalUsed = coupons.filter(c => !!(c.is_used || c.used_at)).length
   const totalUnused = coupons.length - totalUsed
+
+  // Group the visible coupons by their center so each center's list can be
+  // collapsed (hidden) / expanded (unhidden) independently.
+  const groups = Object.values(
+    filtered.reduce((acc, c) => {
+      const key = c.center_id || 'none'
+      if (!acc[key]) acc[key] = { key, center: c.centers, items: [] }
+      acc[key].items.push(c)
+      return acc
+    }, {})
+  ).sort((a, b) => (a.center?.center_name || '').localeCompare(b.center?.center_name || ''))
+
+  const allHidden = groups.length > 0 && groups.every(g => hiddenCenters[g.key])
+  const toggleAll = () => {
+    if (allHidden) setHiddenCenters({})
+    else setHiddenCenters(Object.fromEntries(groups.map(g => [g.key, true])))
+  }
 
   // Centers that have money deposited in their coupon wallet but not yet minted.
   const walletCenters = centers.filter(c => Number(c.coupon_wallet_balance || 0) > 0)
@@ -187,7 +208,16 @@ export default function CouponManagement() {
             <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>
           ))}
         </select>
-        <span className="text-xs text-gray-400 ml-auto">{filtered.length} coupons</span>
+        {groups.length > 0 && (
+          <button
+            onClick={toggleAll}
+            className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:text-[#933d18] hover:border-[#933d18]/30 transition-all bg-white"
+          >
+            {allHidden ? <Eye size={14} /> : <EyeOff size={14} />}
+            {allHidden ? 'Show All' : 'Hide All'}
+          </button>
+        )}
+        <span className="text-xs text-gray-400">{filtered.length} coupons</span>
       </div>
 
       {loading ? (
@@ -208,37 +238,67 @@ export default function CouponManagement() {
             </tr>
           </Thead>
           <Tbody>
-            {filtered.length === 0 ? (
+            {groups.length === 0 ? (
               <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No coupons found</Td></Tr>
-            ) : filtered.map((c, i) => {
-              const isUsed = !!(c.is_used || c.used_at)
+            ) : groups.map((g) => {
+              const hidden = !!hiddenCenters[g.key]
+              const usedInGroup = g.items.filter(c => !!(c.is_used || c.used_at)).length
               return (
-                <Tr key={c.id}>
-                  <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                  <Td className="font-mono text-xs text-gray-700">{c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
-                  <Td>
-                    <p className="font-semibold text-gray-900">{c.centers?.center_name || '—'}</p>
-                    {c.centers?.center_code && <p className="text-xs text-gray-400">{c.centers.center_code}</p>}
-                  </Td>
-                  <Td>
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                      c.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
-                    }`}>
-                      {c.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
-                    </span>
-                  </Td>
-                  <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
-                  <Td className="font-mono text-xs text-gray-400">{c.application_id?.slice(0, 8) || '—'}</Td>
-                  <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
-                  <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
-                  <Td>
-                    {isUsed ? (
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Used</span>
-                    ) : (
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Available</span>
-                    )}
-                  </Td>
-                </Tr>
+                <Fragment key={g.key}>
+                  {/* Per-center group header — click to hide / unhide its coupons */}
+                  <Tr className="bg-gray-50/70">
+                    <Td colSpan={9} className="py-2.5">
+                      <button
+                        onClick={() => toggleCenter(g.key)}
+                        className="w-full flex items-center gap-2 text-left group"
+                      >
+                        {hidden ? <ChevronRight size={15} className="text-gray-400" /> : <ChevronDown size={15} className="text-gray-400" />}
+                        <span className="font-bold text-gray-900">{g.center?.center_name || 'Unassigned'}</span>
+                        {g.center?.center_code && <span className="text-xs text-gray-400 font-mono">{g.center.center_code}</span>}
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-500">
+                          {g.items.length} coupon{g.items.length > 1 ? 's' : ''}
+                        </span>
+                        {usedInGroup > 0 && (
+                          <span className="text-[11px] text-gray-400">{usedInGroup} used</span>
+                        )}
+                        <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-gray-400 group-hover:text-[#933d18] transition-colors">
+                          {hidden ? <><Eye size={13} /> Show</> : <><EyeOff size={13} /> Hide</>}
+                        </span>
+                      </button>
+                    </Td>
+                  </Tr>
+                  {!hidden && g.items.map((c, i) => {
+                    const isUsed = !!(c.is_used || c.used_at)
+                    return (
+                      <Tr key={c.id}>
+                        <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                        <Td className="font-mono text-xs text-gray-700">{c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
+                        <Td>
+                          <p className="font-semibold text-gray-900">{c.centers?.center_name || '—'}</p>
+                          {c.centers?.center_code && <p className="text-xs text-gray-400">{c.centers.center_code}</p>}
+                        </Td>
+                        <Td>
+                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                            c.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'
+                          }`}>
+                            {c.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
+                          </span>
+                        </Td>
+                        <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
+                        <Td className="font-mono text-xs text-gray-400">{c.application_id?.slice(0, 8) || '—'}</Td>
+                        <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
+                        <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
+                        <Td>
+                          {isUsed ? (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Used</span>
+                          ) : (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Available</span>
+                          )}
+                        </Td>
+                      </Tr>
+                    )
+                  })}
+                </Fragment>
               )
             })}
           </Tbody>
