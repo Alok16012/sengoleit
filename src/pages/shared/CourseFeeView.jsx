@@ -131,7 +131,7 @@ export default function CourseFeeView() {
     let q = supabase.from('programs').select('id, program_name').order('program_name')
     if (selDept) q = q.eq('department_id', selDept)
     if (selType) q = q.eq('programme_type_id', selType)
-    if (selMode) q = q.eq('study_mode_id', selMode)
+    if (selMode) q = q.eq('mode_id', selMode)
     q.then(({ data }) => { setPrograms(data || []); setSelProg('') })
   }, [selDept, selType, selMode])
 
@@ -151,7 +151,7 @@ export default function CourseFeeView() {
         let pq = supabase.from('programs').select('id')
         if (selDept) pq = pq.eq('department_id',     selDept)
         if (selType) pq = pq.eq('programme_type_id', selType)
-        if (selMode) pq = pq.eq('study_mode_id',     selMode)
+        if (selMode) pq = pq.eq('mode_id',           selMode)
         const { data: mp, error: mpErr } = await pq
         if (mpErr) throw mpErr
         matchProgIds = (mp || []).map(p => p.id)
@@ -177,7 +177,7 @@ export default function CourseFeeView() {
       const [{ data: itemList, error: itemErr }, { data: progList, error: progErr }, { data: sessList, error: sessErr }] =
         await Promise.all([
           supabase.from('fee_items').select('fee_structure_id, label, category, amount, sort_order').in('fee_structure_id', fsIds),
-          supabase.from('programs').select('id, program_name, duration, semester_year, department_id, programme_type_id').in('id', progIds),
+          supabase.from('programs').select('id, program_name, duration, semester_year, department_id, programme_type_id, mode_id').in('id', progIds),
           supabase.from('academic_sessions').select('id, session_name').in('id', sessIds),
         ])
 
@@ -214,7 +214,7 @@ export default function CourseFeeView() {
             session:     sess?.session_name              || '—',
             department:  deptMap[prog.department_id]     || '—',
             progType:    typeMap[prog.programme_type_id] || '—',
-            mode:        modeMap[prog.study_mode_id]     || '—',
+            mode:        modeMap[prog.mode_id]           || '—',
             programName: prog.program_name               || '—',
             semester:    `Semester ${i + 1}`,
             fee:         semFee(feeItems, i, totalSems),
