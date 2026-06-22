@@ -682,6 +682,11 @@ export default function StudentForm() {
       payload.registration_no = await generateRegistrationNumber()
     }
     delete payload.id; delete payload.created_at; delete payload.updated_at
+    // The address blocks add transient keys (e.g. student_perm_country) that
+    // aren't columns on `students`. Keep only the canonical form columns so
+    // the insert/update doesn't fail on unknown columns.
+    const allowedKeys = new Set(Object.keys(emptyForm))
+    Object.keys(payload).forEach(k => { if (!allowedKeys.has(k)) delete payload[k] })
     const fkFields = ['university_id', 'session_id', 'programme_id', 'department_id', 'mode_id', 'center_id']
     fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
 
