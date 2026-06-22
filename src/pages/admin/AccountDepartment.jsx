@@ -867,12 +867,13 @@ export default function AccountDepartment() {
                   <Th>Notes</Th>
                   <Th>Date</Th>
                   <Th>Status</Th>
+                  <Th>Remarks</Th>
                   <Th>Actions</Th>
                 </tr>
               </Thead>
               <Tbody>
                 {recharges.length === 0 ? (
-                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No recharge requests</Td></Tr>
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No recharge requests</Td></Tr>
                 ) : recharges.map((r, i) => (
                   <Tr key={r.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -901,16 +902,14 @@ export default function AccountDepartment() {
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate">{r.notes || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
                     <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
+                    <Td className="text-gray-500 text-xs max-w-[160px] truncate" title={r.admin_remarks || ''}>{r.admin_remarks || '—'}</Td>
                     <Td>
-                      {r.status === 'pending' && (
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false) }}>
-                            <CheckCircle size={13} /> Verify
-                          </Button>
-                          <Button size="sm" variant="danger" onClick={() => handleRejectRecharge(r.id)}>
-                            <XCircle size={13} />
-                          </Button>
-                        </div>
+                      {r.status === 'pending' ? (
+                        <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false); setRechargeRemark('') }}>
+                          <CheckCircle size={13} /> Review
+                        </Button>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
                       )}
                     </Td>
                   </Tr>
