@@ -16,6 +16,7 @@ import {
 // Searchable dropdown for picking one of the center's available coupons.
 function CouponSearchSelect({ coupons, value, onSelect }) {
   const [open, setOpen] = useState(false)
+  const [dropUp, setDropUp] = useState(false)
   const [query, setQuery] = useState('')
   const ref = useRef(null)
 
@@ -24,6 +25,21 @@ function CouponSearchSelect({ coupons, value, onSelect }) {
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [])
+
+  function toggleOpen() {
+    setOpen(v => {
+      const next = !v
+      if (next && ref.current) {
+        // If there isn't enough room below the control (it sits near the
+        // bottom of the page), flip the menu so it opens upward instead of
+        // being clipped by the viewport.
+        const rect = ref.current.getBoundingClientRect()
+        const spaceBelow = window.innerHeight - rect.bottom
+        setDropUp(spaceBelow < 280)
+      }
+      return next
+    })
+  }
 
   const opts = coupons.map(c => ({
     code: c.id.slice(0, 8).toUpperCase(),
@@ -37,7 +53,7 @@ function CouponSearchSelect({ coupons, value, onSelect }) {
     <div className="relative flex-1" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={toggleOpen}
         className={`w-full flex items-center justify-between border rounded-xl px-3 py-2 text-sm bg-white transition-all ${
           open ? 'border-[#933d18] ring-2 ring-[#933d18]/10' : 'border-gray-200 hover:border-gray-300'
         }`}
@@ -49,7 +65,9 @@ function CouponSearchSelect({ coupons, value, onSelect }) {
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+        <div className={`absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden ${
+          dropUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+        }`}>
           <div className="p-2 border-b border-gray-100">
             <input
               autoFocus
@@ -59,7 +77,7 @@ function CouponSearchSelect({ coupons, value, onSelect }) {
               className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#933d18] uppercase font-mono"
             />
           </div>
-          <ul className="max-h-52 overflow-y-auto">
+          <ul className="max-h-44 overflow-y-auto">
             {filtered.length === 0 ? (
               <li className="px-3 py-3 text-xs text-gray-400 text-center">No matching coupons</li>
             ) : filtered.map(o => (
