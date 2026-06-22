@@ -126,14 +126,25 @@ export default function CourseFeeView() {
     })
   }, [])
 
+  // Programs don't store mode_id (it's null for every row). The Sem/Year
+  // distinction actually lives in programs.semester_year, while the Mode
+  // dropdown comes from study_modes ("Sem" / "Yearly"). Map mode → semester_year.
+  const modeSemYear = (modeId) => {
+    const n = modes.find(m => m.id === modeId)?.mode_name || ''
+    if (/year/i.test(n)) return 'Year'
+    if (/sem/i.test(n))  return 'Semester'
+    return null
+  }
+
   // Reload program dropdown
   useEffect(() => {
     let q = supabase.from('programs').select('id, program_name').order('program_name')
     if (selDept) q = q.eq('department_id', selDept)
     if (selType) q = q.eq('programme_type_id', selType)
-    if (selMode) q = q.eq('mode_id', selMode)
+    const sy = modeSemYear(selMode)
+    if (sy) q = q.eq('semester_year', sy)
     q.then(({ data }) => { setPrograms(data || []); setSelProg('') })
-  }, [selDept, selType, selMode])
+  }, [selDept, selType, selMode, modes])
 
   async function handleSearch() {
     setLoading(true)
@@ -151,7 +162,8 @@ export default function CourseFeeView() {
         let pq = supabase.from('programs').select('id')
         if (selDept) pq = pq.eq('department_id',     selDept)
         if (selType) pq = pq.eq('programme_type_id', selType)
-        if (selMode) pq = pq.eq('mode_id',           selMode)
+        const sy = modeSemYear(selMode)
+        if (sy) pq = pq.eq('semester_year', sy)
         const { data: mp, error: mpErr } = await pq
         if (mpErr) throw mpErr
         matchProgIds = (mp || []).map(p => p.id)
