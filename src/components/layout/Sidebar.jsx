@@ -88,7 +88,6 @@ const centerNavGroups = [
       { to: '/center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
       { to: '/center/students', icon: Users, label: 'Registered Student List', end: true },
       { to: '/center/balance', icon: Wallet, label: 'Payment Deposit' },
-      { to: '/center/documents', icon: FileText, label: 'My Documents' },
       { to: '/center/courier', icon: Truck, label: 'Courier Entry' },
       { to: '/center/answersheet', icon: FileCheck, label: 'Student Answersheet' },
       { to: '/center/supplementary', icon: UserCheck, label: 'Supplementary Student' },
