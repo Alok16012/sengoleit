@@ -584,13 +584,13 @@ export default function StudentForm() {
                 <div key={s.id} className="flex items-center">
                   <button
                     type="button"
-                    onClick={() => { if (isPast) { setStepError(''); setStep(i) } }}
-                    className={`relative flex items-center gap-2.5 px-5 py-3.5 transition-all group
+                    onClick={() => { setStepError(''); setStep(i) }}
+                    className={`relative flex items-center gap-2.5 px-5 py-3.5 transition-all group cursor-pointer
                       ${isActive
                         ? 'bg-[#933d18] text-white'
                         : isPast
-                          ? 'bg-[#933d18]/8 text-[#933d18]/70 hover:bg-[#933d18]/12 cursor-pointer'
-                          : 'text-gray-400 cursor-default'
+                          ? 'bg-[#933d18]/8 text-[#933d18]/70 hover:bg-[#933d18]/12'
+                          : 'text-gray-400 hover:bg-gray-50'
                       }`}
                   >
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 transition-all
