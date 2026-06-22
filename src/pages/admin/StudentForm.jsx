@@ -407,10 +407,15 @@ export default function StudentForm() {
   const role = profile?.role || user?.user_metadata?.role || 'admin'
   const isAdmin = role === 'admin'
   const isEdit = Boolean(id)
-  const isReadOnly = isEdit && !isAdmin
+  const [form, setForm] = useState(emptyForm)
+  // A center/super-center may edit their own student only while it is still
+  // actionable on their side: freshly Pending, or sent back for correction
+  // (Hold but not yet document-verified). Once it's forwarded to Account
+  // (doc-verified), approved or rejected, the form is view-only for them.
+  const ownerCanEdit = form.status === 'Pending' || (form.status === 'Hold' && !form.doc_verified_at)
+  const isReadOnly = isEdit && !isAdmin && !ownerCanEdit
   const backPath = role === 'center' ? '/center/students' : role === 'super_center' ? '/super-center/students' : '/admin/students'
 
-  const [form, setForm] = useState(emptyForm)
   const [universities, setUniversities] = useState([])
   const [programs, setPrograms] = useState([])
   const [departments, setDepartments] = useState([])
