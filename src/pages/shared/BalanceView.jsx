@@ -184,11 +184,12 @@ export default function BalanceView() {
               <Th>Requested On</Th>
               <Th>Verified On</Th>
               <Th>Status</Th>
+              <Th>Admin Remarks</Th>
             </tr>
           </Thead>
           <Tbody>
             {requests.length === 0 ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No recharge requests yet</Td></Tr>
+              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No recharge requests yet</Td></Tr>
             ) : requests.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -204,6 +205,7 @@ export default function BalanceView() {
                 <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(r.verified_at)}</Td>
                 <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
+                <Td className="text-gray-500 text-xs max-w-[200px]">{r.admin_remarks || '—'}</Td>
               </Tr>
             ))}
           </Tbody>
