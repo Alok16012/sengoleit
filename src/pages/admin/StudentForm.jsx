@@ -671,6 +671,11 @@ export default function StudentForm() {
                 min={sessionMinDate || undefined}
                 max={sessionMaxDate || undefined}
                 readOnly={isReadOnly}
+                hint={
+                  sessionMinDate && sessionMaxDate
+                    ? `Between ${fmtDate(sessionMinDate)} and ${fmtDate(sessionMaxDate)}`
+                    : 'Select a session first'
+                }
               />
               <Input
                 label="University"
