@@ -79,6 +79,76 @@ function CouponSearchSelect({ coupons, value, onSelect }) {
   )
 }
 
+// Generic searchable single-select. `onChange` is called event-style
+// ({ target: { value } }) so it can drop in for a native <Select>.
+function SearchSelect({ label, options, value, onChange, placeholder = 'Select', disabled, required }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
+  const selected = options.find(o => o.id === value)
+  const filtered = query
+    ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+    : options
+
+  function pick(id) { onChange({ target: { value: id } }); setOpen(false); setQuery('') }
+
+  return (
+    <div className="flex flex-col gap-1">
+      {label && <label className="text-xs font-semibold text-gray-600 ml-0.5">{label}</label>}
+      <div className="relative" ref={ref}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setOpen(v => !v)}
+          className={`w-full flex items-center justify-between border rounded-xl py-2.5 px-3.5 text-sm bg-white transition-all
+            disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed
+            ${open ? 'border-[#933d18] ring-2 ring-[#933d18]/20' : 'border-gray-200 hover:border-gray-300'}`}
+        >
+          <span className={`truncate ${selected ? 'text-gray-900' : 'text-gray-400'}`}>
+            {selected ? selected.label : placeholder}
+          </span>
+          <ChevronDown size={14} className={`text-gray-400 shrink-0 ml-2 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+
+        {open && !disabled && (
+          <div className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+            <div className="p-2 border-b border-gray-100">
+              <input
+                autoFocus
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Search..."
+                className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#933d18]"
+              />
+            </div>
+            <ul className="max-h-56 overflow-y-auto">
+              <li onClick={() => pick('')}
+                className={`px-3.5 py-2 text-sm cursor-pointer hover:bg-gray-50 ${!value ? 'text-[#933d18] font-semibold bg-[#933d18]/5' : 'text-gray-500'}`}>
+                {placeholder}
+              </li>
+              {filtered.length === 0 ? (
+                <li className="px-3.5 py-3 text-xs text-gray-400 text-center">No results</li>
+              ) : filtered.map(o => (
+                <li key={o.id} onClick={() => pick(o.id)}
+                  className={`px-3.5 py-2 text-sm cursor-pointer hover:bg-gray-50 ${value === o.id ? 'text-[#933d18] font-semibold bg-[#933d18]/5' : 'text-gray-700'}`}>
+                  {o.label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, countries = [], states, districts, sameAsOptions, readOnly }) {
   const selectedCountry = countries.find(c => c.country_name === form[`${prefix}_country`])
   const countryStates = selectedCountry ? states.filter(s => s.country_id === selectedCountry.id) : states
@@ -865,14 +935,22 @@ export default function StudentForm() {
           <>
             <FormSection title="Program Information" icon={<BookOpen size={16} />}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Select label="Department *" value={form.department_id} onChange={handleDepartmentChange} disabled={isReadOnly} required>
-                  <option value="">Select Department</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </Select>
-                <Select label="Program Name *" value={form.programme_id} onChange={handleProgramChange} disabled={isReadOnly} required>
-                  <option value="">Select Program</option>
-                  {filteredPrograms.map(p => <option key={p.id} value={p.id}>{p.program_name}</option>)}
-                </Select>
+                <SearchSelect
+                  label="Department *"
+                  placeholder="Select Department"
+                  value={form.department_id}
+                  onChange={handleDepartmentChange}
+                  disabled={isReadOnly}
+                  options={departments.map(d => ({ id: d.id, label: d.name }))}
+                />
+                <SearchSelect
+                  label="Program Name *"
+                  placeholder="Select Program"
+                  value={form.programme_id}
+                  onChange={handleProgramChange}
+                  disabled={isReadOnly}
+                  options={filteredPrograms.map(p => ({ id: p.id, label: p.program_name }))}
+                />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Input label="Course Code" value={form.course_code} onChange={set('course_code')} readOnly={isReadOnly} />
