@@ -624,9 +624,9 @@ export default function StudentForm() {
         .maybeSingle()
 
       const balance = Number(ctr?.virtual_balance || 0)
-      const payable = Math.max(courseFee - (coupon.discount || 0), 0)
-      // Center only needs at least 50% of the payable fee in wallet to admit.
-      const minRequired = Math.ceil(payable * 0.5)
+      // Required = 50% of the full course fee, then minus any coupon discount.
+      const half = Math.ceil(courseFee * 0.5)
+      const minRequired = Math.max(half - (coupon.discount || 0), 0)
       const ok = courseFee === 0 || balance >= minRequired
       setWalletInfo({ checking: false, balance, courseFee, ok, checked: true })
       return ok
@@ -655,9 +655,9 @@ export default function StudentForm() {
       }
       const discount = Number(match.face_value || 0)
       setCoupon(c => ({ ...c, applying: false, applied: match, discount, error: '' }))
-      // Re-evaluate the wallet check with the discount applied (50% min rule).
-      const payable = Math.max((walletInfo.courseFee || 0) - discount, 0)
-      const minRequired = Math.ceil(payable * 0.5)
+      // Re-evaluate: required = 50% of course fee, then minus coupon discount.
+      const half = Math.ceil((walletInfo.courseFee || 0) * 0.5)
+      const minRequired = Math.max(half - discount, 0)
       setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= minRequired }))
     } catch (err) {
       setCoupon(c => ({ ...c, applying: false, error: 'Could not validate coupon. Try again.' }))
@@ -775,9 +775,9 @@ export default function StudentForm() {
     if (!error) {
       // Deduct course fee (less any applied coupon) from center wallet on new submission
       if (!isEdit && !isAdmin && walletInfo.checked && walletInfo.courseFee > 0 && form.center_id) {
-        const payable = Math.max(walletInfo.courseFee - (coupon.discount || 0), 0)
-        // Collect the 50% admission installment from the wallet.
-        const deduction = Math.ceil(payable * 0.5)
+        // Collect 50% of the course fee, less any coupon, from the wallet.
+        const half = Math.ceil(walletInfo.courseFee * 0.5)
+        const deduction = Math.max(half - (coupon.discount || 0), 0)
         await supabase.from('centers')
           .update({ virtual_balance: walletInfo.balance - deduction })
           .eq('id', form.center_id)
@@ -1042,11 +1042,11 @@ export default function StudentForm() {
                         <p className="text-sm font-bold text-gray-800">Wallet Balance Check</p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
+                          &nbsp;·&nbsp;50%: ₹{Math.ceil(walletInfo.courseFee * 0.5).toLocaleString('en-IN')}
                           {coupon.discount > 0 && (
-                            <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}
-                            &nbsp;·&nbsp;Payable: ₹{Math.max(walletInfo.courseFee - coupon.discount, 0).toLocaleString('en-IN')}</>
+                            <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}</>
                           )}
-                          &nbsp;·&nbsp;Min 50% Required: ₹{Math.ceil(Math.max(walletInfo.courseFee - (coupon.discount || 0), 0) * 0.5).toLocaleString('en-IN')}
+                          &nbsp;·&nbsp;Required: ₹{Math.max(Math.ceil(walletInfo.courseFee * 0.5) - (coupon.discount || 0), 0).toLocaleString('en-IN')}
                           &nbsp;·&nbsp;Your Balance: ₹{walletInfo.balance.toLocaleString('en-IN')}
                         </p>
                       </div>
