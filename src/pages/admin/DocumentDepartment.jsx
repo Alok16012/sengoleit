@@ -371,7 +371,9 @@ export default function DocumentDepartment() {
 
   async function handleVerify() {
     setSaving(true)
-    const admNo = await generateAdmissionNumber()
+    // Admission number is assigned at form submission. Only generate one here as
+    // a fallback for older records that don't have it yet.
+    const admNo = verifyModal.admission_number || await generateAdmissionNumber()
     await supabase.from('students').update({
       status: 'Hold',
       admission_number: admNo,

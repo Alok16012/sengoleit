@@ -599,6 +599,17 @@ export default function StudentForm() {
     return `${prefix}${1001 + (count || 0)}`
   }
 
+  async function generateAdmissionNumber() {
+    const { count } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+      .not('admission_number', 'is', null)
+      .neq('admission_number', '')
+    const year = new Date().getFullYear()
+    const num = String((count || 0) + 1).padStart(5, '0')
+    return `ADM-${year}-${num}`
+  }
+
   async function runWalletCheck() {
     setWalletInfo(w => ({ ...w, checking: true }))
     try {
@@ -787,6 +798,11 @@ export default function StudentForm() {
     if (!isEdit) payload.status = 'Pending'
     if (!isEdit && !payload.registration_no) {
       payload.registration_no = await generateRegistrationNumber()
+    }
+    // Assign the admission number right at submission so it is visible from the
+    // start (Pending list). The Document Dept keeps whatever is assigned here.
+    if (!isEdit && !payload.admission_number) {
+      payload.admission_number = await generateAdmissionNumber()
     }
     delete payload.id; delete payload.created_at; delete payload.updated_at
     // The address blocks add transient keys (e.g. student_perm_country) that
