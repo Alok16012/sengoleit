@@ -52,17 +52,30 @@ export default function CenterDashboard() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Center Dashboard</h1>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Center Dashboard</h1>
+          {center && (
+            <div className="flex items-center gap-3 mt-1.5">
+              <p className="text-gray-500 text-sm">{center.center_name}</p>
+              {center.center_code && (
+                <span className="bg-[#933d18]/10 text-[#933d18] text-xs font-bold px-2 py-0.5 rounded-lg">{center.center_code}</span>
+              )}
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${center.status === 'Active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                {center.status || 'Pending'}
+              </span>
+            </div>
+          )}
+        </div>
         {center && (
-          <div className="flex items-center gap-3 mt-1.5">
-            <p className="text-gray-500 text-sm">{center.center_name}</p>
-            {center.center_code && (
-              <span className="bg-[#933d18]/10 text-[#933d18] text-xs font-bold px-2 py-0.5 rounded-lg">{center.center_code}</span>
-            )}
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-lg ${center.status === 'Active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-              {center.status || 'Pending'}
-            </span>
+          <div className="flex items-center gap-3 bg-[#933d18] text-white rounded-2xl px-5 py-3 shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
+              <Wallet size={20} className="text-white" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Wallet Balance</p>
+              <p className="text-xl font-bold leading-tight">₹{Number(center.virtual_balance || 0).toLocaleString('en-IN')}</p>
+            </div>
           </div>
         )}
       </div>
