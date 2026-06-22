@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight, Lock } from 'lucide-react'
 
 const APPROVAL_COLORS = {
   pending: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -54,6 +54,10 @@ export default function Centers() {
     if (!newPass) return
     const center = data.find(c => c.id === centerId)
     if (!center?.email) { alert('This center has no email address.'); return }
+    if (center.approval_status !== 'approved') {
+      alert('Login credentials can only be created after the center is account-verified (approved).')
+      return
+    }
 
     const role = 'center'
 
@@ -207,7 +211,11 @@ export default function Centers() {
                 <Td className="text-gray-500 font-mono text-xs">{c.application_no || '—'}</Td>
                 <Td>
                   <p className="text-xs text-gray-600 font-mono mb-1">{c.email || '—'}</p>
-                  {editingPassword.hasOwnProperty(c.id) ? (
+                  {c.approval_status !== 'approved' ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-2 py-0.5">
+                      <Lock size={10} /> Available after account verification
+                    </span>
+                  ) : editingPassword.hasOwnProperty(c.id) ? (
                     <div className="flex items-center gap-1">
                       <input
                         autoFocus
