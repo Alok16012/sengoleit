@@ -191,6 +191,7 @@ export default function DocumentDepartment() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('Pending')
   const [verifyModal, setVerifyModal] = useState(null)
+  const [verifyLoading, setVerifyLoading] = useState(false)
   const [rejectModal, setRejectModal] = useState(null)
   const [remarks, setRemarks] = useState('')
   const [saving, setSaving] = useState(false)
@@ -306,6 +307,24 @@ export default function DocumentDepartment() {
     const resolved = await resolveStudentDocUrls(data)
     setViewStudent(resolved)
     setViewLoading(false)
+  }
+
+  // Open the full-screen, field-by-field student verification modal. Fetches
+  // the complete student record + resolved document URLs (the table rows only
+  // carry a few columns), then resets the per-field check state.
+  async function openStudentVerify(studentId) {
+    setVerifyLoading(true)
+    setViewStudent(null)
+    const { data } = await supabase
+      .from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
+      .eq('id', studentId)
+      .single()
+    const resolved = await resolveStudentDocUrls(data)
+    setFieldChecks({})
+    setRemarks('')
+    setVerifyModal(resolved)
+    setVerifyLoading(false)
   }
 
   async function handleDownload(studentId) {
@@ -1267,7 +1286,7 @@ export default function DocumentDepartment() {
                   <div className="flex gap-1 flex-wrap">
                     {s.status === 'Pending' && (
                       <>
-                        <Button size="sm" variant="success" onClick={() => { setVerifyModal(s); setRemarks('') }}>
+                        <Button size="sm" variant="success" onClick={() => openStudentVerify(s.id)}>
                           <CheckCircle size={13} /> Verify
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => { setRejectModal(s); setRemarks('') }}>
@@ -1376,7 +1395,7 @@ export default function DocumentDepartment() {
             <div className="flex gap-3 pt-1 border-t border-gray-100 sticky bottom-0 bg-white pb-1">
               {viewStudent.status === 'Pending' && (
                 <>
-                  <Button variant="success" onClick={() => { setVerifyModal(viewStudent); setViewStudent(null); setRemarks('') }}>
+                  <Button variant="success" onClick={() => openStudentVerify(viewStudent.id)}>
                     <CheckCircle size={14} /> Verify & Forward
                   </Button>
                   <Button variant="danger" onClick={() => { setRejectModal(viewStudent); setViewStudent(null); setRemarks('') }}>
@@ -1390,31 +1409,286 @@ export default function DocumentDepartment() {
         ) : null}
       </Modal>
 
-      {/* Verify Modal */}
-      <Modal isOpen={!!verifyModal} onClose={() => setVerifyModal(null)} title="Verify Student Documents">
-        <div className="space-y-4">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-            <p className="font-semibold text-gray-900">{verifyModal?.student_name}</p>
-            <p className="text-xs text-gray-500 mt-1">{verifyModal?.programs?.program_name}</p>
-          </div>
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-            On verifying, an <strong>Admission Number will be auto-generated</strong> and the student will move to <strong>Hold</strong> status for the Account Dept.
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-600 mb-1 block">Remarks (optional)</label>
-            <textarea
-              className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#933d18] resize-none"
-              rows={2}
-              placeholder="Any notes..."
-              value={remarks}
-              onChange={e => setRemarks(e.target.value)}
-            />
-          </div>
-          <div className="flex gap-3">
-            <Button variant="success" onClick={handleVerify} disabled={saving}>{saving ? 'Saving...' : 'Verify & Forward to Account Dept.'}</Button>
-            <Button variant="outline" onClick={() => setVerifyModal(null)}>Cancel</Button>
-          </div>
-        </div>
+      {/* Verify Student Modal — Full Screen, field-by-field (mirrors center verification) */}
+      <Modal isOpen={!!verifyModal || verifyLoading} onClose={() => { setVerifyModal(null); setFieldChecks({}) }} title="Verify Student Documents" size="fullscreen">
+        {verifyLoading ? (
+          <div className="flex items-center justify-center h-full text-gray-400">Loading student details…</div>
+        ) : verifyModal && (() => {
+          const s = verifyModal
+
+          const sections = [
+            { title: 'Program Information', icon: '🎓', fields: [
+              { key: 'f_program',    label: 'Program',        val: s.programs?.program_name },
+              { key: 'f_session',    label: 'Academic Session', val: s.academic_sessions?.session_name },
+              { key: 'f_mode',       label: 'Study Mode',     val: s.study_modes?.mode_name },
+              { key: 'f_department', label: 'Department',     val: s.departments?.name },
+              { key: 'f_center',     label: 'Center',         val: s.centers?.center_name },
+              { key: 'f_course_code',label: 'Course Code',    val: s.course_code },
+              { key: 'f_semester',   label: 'Semester / Year', val: s.semester_year },
+              { key: 'f_academic_year', label: 'Academic Year', val: s.academic_year },
+              { key: 'f_entry_type', label: 'Entry Type',     val: s.entry_type },
+            ]},
+            { title: 'Personal Details', icon: '👤', fields: [
+              { key: 'f_name',        label: 'Student Name',   val: s.student_name },
+              { key: 'f_dob',         label: 'Date of Birth',  val: s.date_of_birth ? formatDate(s.date_of_birth) : null },
+              { key: 'f_gender',      label: 'Gender',         val: s.gender },
+              { key: 'f_profession',  label: 'Profession',     val: s.profession },
+              { key: 'f_email',       label: 'Email',          val: s.email },
+              { key: 'f_mobile',      label: 'Mobile No.',     val: s.mobile_no },
+              { key: 'f_whatsapp',    label: 'WhatsApp No.',   val: s.whatsapp_no },
+              { key: 'f_nationality', label: 'Nationality',    val: s.nationality },
+              { key: 'f_caste',       label: 'Caste',          val: s.caste },
+              { key: 'f_religion',    label: 'Religion',       val: s.religion },
+              { key: 'f_blood',       label: 'Blood Group',    val: s.blood_group },
+              { key: 'f_mother_tongue', label: 'Mother Tongue', val: s.mother_tongue },
+              { key: 'f_handicapped', label: 'Physically Handicapped', val: s.physically_handicapped },
+              { key: 'f_aadhar_link', label: 'Aadhar Linked Mobile', val: s.aadhar_link_mobile },
+              { key: 'f_aadhar_no',   label: 'Aadhar Number',  val: s.aadhar_no },
+              { key: 'f_id_marks',    label: 'Identification Marks', val: s.identification_marks },
+              { key: 'f_scholarship', label: 'Scholarship Applied', val: s.scholarship_applied },
+              { key: 'f_pan',         label: 'PAN Number',     val: s.pan_no },
+            ]},
+            { title: 'Family Details', icon: '👨‍👩‍👧', fields: [
+              { key: 'f_father',       label: "Father's Name",       val: s.fathers_name },
+              { key: 'f_father_occ',   label: "Father's Occupation", val: s.fathers_occupation },
+              { key: 'f_mother',       label: "Mother's Name",       val: s.mothers_name },
+              { key: 'f_mother_occ',   label: "Mother's Occupation", val: s.mothers_occupation },
+              { key: 'f_guardian',     label: 'Guardian Name',       val: s.guardian_name },
+              { key: 'f_guardian_occ', label: 'Guardian Occupation', val: s.guardian_occupation },
+              { key: 'f_guardian_rel', label: 'Guardian Relation',   val: s.guardian_relation },
+              { key: 'f_guardian_email', label: 'Guardian Email',    val: s.guardian_email },
+              { key: 'f_guardian_mobile', label: 'Guardian Mobile',  val: s.guardian_mobile },
+            ]},
+            { title: 'Permanent Address', icon: '📍', fields: [
+              { key: 'f_perm_village', label: 'Village / Town', val: s.student_perm_village_town },
+              { key: 'f_perm_landmark', label: 'Landmark',      val: s.student_perm_landmark },
+              { key: 'f_perm_po',      label: 'Post Office',    val: s.student_perm_post_office },
+              { key: 'f_perm_city',    label: 'City',           val: s.student_perm_city },
+              { key: 'f_perm_district', label: 'District',      val: s.student_perm_district },
+              { key: 'f_perm_state',   label: 'State',          val: s.student_perm_state },
+              { key: 'f_perm_pin',     label: 'Pin Code',       val: s.student_perm_pin_code },
+            ]},
+            { title: 'Present Address', icon: '🏠', fields: [
+              { key: 'f_pres_village', label: 'Village / Town', val: s.student_pres_village_town },
+              { key: 'f_pres_landmark', label: 'Landmark',      val: s.student_pres_landmark },
+              { key: 'f_pres_po',      label: 'Post Office',    val: s.student_pres_post_office },
+              { key: 'f_pres_city',    label: 'City',           val: s.student_pres_city },
+              { key: 'f_pres_district', label: 'District',      val: s.student_pres_district },
+              { key: 'f_pres_state',   label: 'State',          val: s.student_pres_state },
+              { key: 'f_pres_pin',     label: 'Pin Code',       val: s.student_pres_pin_code },
+            ]},
+            ...[
+              ['10th', s.tenth_institute_name, s.tenth_board_university, s.tenth_passing_year, s.tenth_obtained_marks, s.tenth_total_marks],
+              ['12th', s.twelfth_institute_name, s.twelfth_board_university, s.twelfth_passing_year, s.twelfth_obtained_marks, s.twelfth_total_marks],
+              ['UG', s.ug_institute_name, s.ug_board_university, s.ug_passing_year, s.ug_obtained_marks, s.ug_total_marks],
+              ['PG', s.pg_institute_name, s.pg_board_university, s.pg_passing_year, s.pg_obtained_marks, s.pg_total_marks],
+              ['Diploma', s.diploma_institute_name, s.diploma_board_university, s.diploma_passing_year, s.diploma_obtained_marks, s.diploma_total_marks],
+            ].filter(([, inst]) => inst).length > 0 ? [{
+              title: 'Education', icon: '📚',
+              fields: [
+                ['10th', s.tenth_institute_name, s.tenth_board_university, s.tenth_passing_year, s.tenth_obtained_marks, s.tenth_total_marks],
+                ['12th', s.twelfth_institute_name, s.twelfth_board_university, s.twelfth_passing_year, s.twelfth_obtained_marks, s.twelfth_total_marks],
+                ['UG', s.ug_institute_name, s.ug_board_university, s.ug_passing_year, s.ug_obtained_marks, s.ug_total_marks],
+                ['PG', s.pg_institute_name, s.pg_board_university, s.pg_passing_year, s.pg_obtained_marks, s.pg_total_marks],
+                ['Diploma', s.diploma_institute_name, s.diploma_board_university, s.diploma_passing_year, s.diploma_obtained_marks, s.diploma_total_marks],
+              ].filter(([, inst]) => inst).map(([level, inst, board, year, obt, tot]) => ({
+                key: `f_edu_${level.toLowerCase()}`,
+                label: `${level} — ${inst}`,
+                val: [board, year, (obt && tot ? ((parseFloat(obt) / parseFloat(tot)) * 100).toFixed(1) + '%' : null)].filter(Boolean).join(' · ') || inst,
+              })),
+            }] : [],
+          ]
+
+          const docFields = [
+            { key: 'doc_photo',       label: 'Student Photo',    url: s.photo_url },
+            { key: 'doc_signature',   label: 'Signature',        url: s.signature_url },
+            { key: 'doc_aadhar',      label: 'Aadhar Card',      url: s.aadhar_url },
+            { key: 'doc_declaration', label: 'Declaration Form', url: s.declaration_url },
+            { key: 'doc_10th',        label: '10th Marksheet',   url: s.tenth_marksheet_url },
+            { key: 'doc_12th',        label: '12th Marksheet',   url: s.twelfth_marksheet_url },
+            { key: 'doc_ug',          label: 'UG Marksheet',     url: s.ug_marksheet_url },
+            { key: 'doc_pg',          label: 'PG Marksheet',     url: s.pg_marksheet_url },
+            { key: 'doc_diploma',     label: 'Diploma Marksheet', url: s.diploma_marksheet_url },
+          ]
+
+          const visibleSections = sections.map(sec => ({ ...sec, visible: sec.fields.filter(f => f.val) })).filter(sec => sec.visible.length)
+          const allFieldKeys = visibleSections.flatMap(sec => sec.visible.map(f => f.key))
+          const allDocKeys = docFields.map(d => d.key)
+          const allKeys = [...allFieldKeys, ...allDocKeys]
+          const totalItems = allKeys.length
+          const verifiedCount = Object.values(fieldChecks).filter(v => v.ok).length
+          const pct = totalItems ? Math.round((verifiedCount / totalItems) * 100) : 0
+
+          const labelMap = {}
+          visibleSections.forEach(sec => sec.visible.forEach(f => { labelMap[f.key] = f.label }))
+          docFields.forEach(d => { labelMap[d.key] = d.label })
+          const issueLines = Object.entries(fieldChecks)
+            .filter(([, v]) => !v.ok && v.remark && v.remark.trim())
+            .map(([k, v]) => `${labelMap[k] || k}: ${v.remark.trim()}`)
+
+          const hasAnyRemark = Object.values(fieldChecks).some(v => v?.remark && v.remark.trim())
+          const allVerified = totalItems > 0 && allKeys.every(k => fieldChecks[k]?.ok)
+          const canForward = allVerified && !hasAnyRemark
+          const blockReason = !allVerified
+            ? `${totalItems - verifiedCount} field(s) not yet verified`
+            : hasAnyRemark ? 'Some fields have a remark noted' : ''
+
+          // Reject requires the whole form reviewed (each field verified OR carries a remark).
+          const reviewableKeys = [...allFieldKeys, ...allDocKeys]
+          const unreviewedKeys = reviewableKeys.filter(
+            k => !(fieldChecks[k]?.ok || (fieldChecks[k]?.remark && fieldChecks[k].remark.trim()))
+          )
+          const composedRejectNote = [remarks.trim(), ...issueLines].filter(Boolean).join('\n')
+
+          function verifyAll() {
+            const next = {}
+            allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '' } })
+            setFieldChecks(next)
+          }
+          function unverifyAll() {
+            const next = {}
+            allKeys.forEach(k => { next[k] = { ok: false, remark: fieldChecks[k]?.remark || '' } })
+            setFieldChecks(next)
+          }
+
+          return (
+            <div className="flex flex-col h-full bg-gray-50">
+
+              {/* Top header bar */}
+              <div className="shrink-0 bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
+                <div className="flex items-center gap-4">
+                  {s.photo_url
+                    ? <img src={s.photo_url} alt="" className="w-11 h-11 rounded-xl object-cover shrink-0 border border-[#933d18]/20" />
+                    : <div className="w-11 h-11 rounded-xl bg-[#933d18]/10 flex items-center justify-center shrink-0 border border-[#933d18]/20">
+                        <span className="text-lg font-black text-[#933d18]">{s.student_name?.[0]?.toUpperCase() || 'S'}</span>
+                      </div>
+                  }
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base font-black text-gray-900 truncate">{s.student_name}</h2>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      {[s.programs?.program_name, s.centers?.center_name, s.mobile_no].filter(Boolean).join(' · ')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0">
+                    <div className="text-right">
+                      <div className="flex items-baseline gap-1 justify-end">
+                        <span className="text-xl font-black text-gray-900">{verifiedCount}</span>
+                        <span className="text-sm text-gray-400 font-semibold">/ {totalItems}</span>
+                        <span className={`ml-1 text-xs font-bold ${pct === 100 ? 'text-emerald-600' : 'text-gray-400'}`}>
+                          {pct === 100 ? '✓ Complete' : `${pct}%`}
+                        </span>
+                      </div>
+                      <div className="w-40 h-1.5 bg-gray-100 rounded-full mt-1.5">
+                        <div className={`h-1.5 rounded-full transition-all duration-300 ${pct === 100 ? 'bg-emerald-500' : 'bg-[#933d18]'}`} style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <button onClick={verifyAll} className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm">
+                      <CheckCircle size={15} /> Verify All
+                    </button>
+                    <button onClick={unverifyAll} className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-600 border border-gray-300 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm" title="Undo Verify All">
+                      <XCircle size={15} /> Unverify All
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-hidden flex">
+                {/* Left — Field sections */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                  {visibleSections.map(sec => {
+                    const secVerified = sec.visible.filter(f => fieldChecks[f.key]?.ok).length
+                    return (
+                      <div key={sec.title} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-100">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{sec.icon}</span>
+                            <p className="text-xs font-black text-gray-700 uppercase tracking-widest">{sec.title}</p>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            secVerified === sec.visible.length ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {secVerified}/{sec.visible.length} verified
+                          </span>
+                        </div>
+                        <div className="p-4 grid grid-cols-2 gap-3">
+                          {sec.visible.map(f => <VerifyRow key={f.key} fkey={f.key} label={f.label} val={f.val} checks={fieldChecks} setChecks={setFieldChecks} />)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Right — Documents panel */}
+                <div className="w-80 shrink-0 overflow-y-auto border-l border-gray-200 bg-white">
+                  <div className="p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">📄</span>
+                        <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Documents</p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                        docFields.filter(d => d.url).length === docFields.length
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border-amber-200'
+                      }`}>
+                        {docFields.filter(d => d.url).length}/{docFields.length} uploaded
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {docFields.map(d => <VerifyRow key={d.key} fkey={d.key} label={d.label} url={d.url} checks={fieldChecks} setChecks={setFieldChecks} />)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="shrink-0 bg-white border-t border-gray-200 px-6 py-4 flex items-center gap-3 shadow-sm">
+                {!canForward && blockReason && (
+                  <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg whitespace-nowrap">
+                    {blockReason} — verify everything (no remarks) to forward, or Reject
+                  </span>
+                )}
+                <input
+                  type="text"
+                  placeholder="Overall remarks (optional)..."
+                  className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-gray-50 transition-all"
+                  value={remarks}
+                  onChange={e => setRemarks(e.target.value)}
+                />
+                <button
+                  onClick={() => {
+                    if (!canForward) {
+                      alert(`Cannot forward to Account Dept. — ${blockReason}.\n\nVerify all fields and leave no remarks, or Reject the application.`)
+                      return
+                    }
+                    handleVerify()
+                  }}
+                  disabled={saving || !canForward}
+                  title={canForward ? '' : `${blockReason}`}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
+                >
+                  <CheckCircle size={15} />
+                  {saving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
+                </button>
+                <button
+                  onClick={() => { setRemarks(composedRejectNote); setVerifyModal(null); setRejectModal(s); setFieldChecks({}) }}
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-red-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
+                  title="Reject this student application"
+                >
+                  <XCircle size={15} /> Reject
+                </button>
+                <button
+                  onClick={() => { setVerifyModal(null); setFieldChecks({}) }}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* Reject Modal */}
