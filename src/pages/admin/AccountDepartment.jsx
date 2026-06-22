@@ -146,14 +146,31 @@ export default function AccountDepartment() {
     // 'account_hold' is distinct from doc dept's 'hold' so held centers stay inside Account Dept, not Doc Dept.
     const [docVerified, rech, ctr, holdStu] = await Promise.all([
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
-      supabase.from('recharge_requests').select('*').order('created_at', { ascending: false }),
+      supabase.from('recharge_requests').select('*, centers(center_name, center_code)').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, programs(program_name, enrollment_code), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
-    setRecharges(rech.data || [])
     setCenters(ctr.data || [])
     setHoldStudents(holdStu.data || [])
+
+    // Recharge requests need the center name. If the embedded join failed
+    // (e.g. no declared FK), fall back to looking the names up by center_id.
+    let rechRows = rech.data || []
+    if (rech.error || rechRows.some(r => !r.centers)) {
+      const plain = rech.error
+        ? (await supabase.from('recharge_requests').select('*').order('created_at', { ascending: false })).data || []
+        : rechRows
+      const ids = [...new Set(plain.map(r => r.center_id).filter(Boolean))]
+      if (ids.length) {
+        const { data: ctrs } = await supabase.from('centers').select('id, center_name, center_code').in('id', ids)
+        const byId = Object.fromEntries((ctrs || []).map(c => [c.id, c]))
+        rechRows = plain.map(r => ({ ...r, centers: r.centers || byId[r.center_id] || null }))
+      } else {
+        rechRows = plain
+      }
+    }
+    setRecharges(rechRows)
     setLoading(false)
   }
 
