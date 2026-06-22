@@ -17,7 +17,7 @@ function TopBar() {
 
   // Where the "Profile" item navigates, per role
   const profilePath =
-    role === 'center' ? '/center/settings' :
+    role === 'center' ? '/center/profile' :
     role === 'student' ? '/student/profile' :
     role === 'super_center' ? '/super-center/profile' :
     '/dashboard'

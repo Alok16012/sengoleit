@@ -43,6 +43,7 @@ import SuperCenterProfile from './pages/super-center/SuperCenterProfile'
 import CenterDashboard from './pages/center/CenterDashboard'
 import CenterStudents from './pages/center/CenterStudents'
 import CenterSettings from './pages/center/CenterSettings'
+import CenterProfile from './pages/center/CenterProfile'
 
 // Public
 import CenterRegistrationForm from './pages/public/CenterRegistrationForm'
@@ -199,6 +200,7 @@ export default function App() {
             <Route path="/center/programs" element={<ProgramsView />} />
             <Route path="/center/balance" element={<BalanceView />} />
             <Route path="/center/settings" element={<CenterSettings />} />
+            <Route path="/center/profile" element={<CenterProfile />} />
             <Route path="/center/documents" element={<CenterDocuments />} />
             <Route path="/center/courier" element={<ComingSoon title="Courier Entry" description="Log courier dispatch entries" />} />
             <Route path="/center/answersheet" element={<ComingSoon title="Student Answersheet" description="Answersheet submission and tracking" />} />

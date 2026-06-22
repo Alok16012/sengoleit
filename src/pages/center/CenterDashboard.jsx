@@ -89,20 +89,6 @@ export default function CenterDashboard() {
         <StatCard label="Pending Students" value={stats.pending} icon={Clock} color="bg-amber-500" />
       </div>
 
-      {/* Center Details */}
-      {center && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h2 className="font-bold text-gray-800 mb-4">Center Details</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-5 text-sm">
-            <div><p className="text-xs text-gray-400 mb-0.5">Center Name</p><p className="font-semibold">{center.center_name}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">Center Code</p><p className="font-semibold">{center.center_code || '—'}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">Email</p><p className="font-semibold">{center.email || '—'}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">Phone</p><p className="font-semibold">{center.phone || '—'}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">KYC Status</p><p className={`font-semibold ${center.kyc_status === 'Verified' ? 'text-emerald-600' : 'text-amber-600'}`}>{center.kyc_status || 'Pending'}</p></div>
-            <div><p className="text-xs text-gray-400 mb-0.5">Revenue Share</p><p className="font-semibold">{center.revenue_share_percentage || 50}%</p></div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
