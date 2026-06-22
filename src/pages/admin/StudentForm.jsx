@@ -466,7 +466,12 @@ export default function StudentForm() {
     switch (s) {
       case 0:
         if (!form.session_id) return 'Please select a Session'
+        if (!form.mode_id) return 'Please select a Mode'
+        if (!form.entry_type) return 'Please select an Entry Type'
         if (!form.date_of_submission) return 'Date of Submission is required'
+        if (!form.date_of_admission) return 'Date of Admission is required'
+        if (isAdmin && !form.center_id) return 'Please select a Center'
+        if (!isAdmin && !form.center_name) return 'Center Name is required'
         return null
       case 1:
         if (!form.department_id) return 'Please select a Department'
@@ -665,7 +670,7 @@ export default function StudentForm() {
                 }
               />
               <DateInput
-                label="Date of Admission"
+                label="Date of Admission *"
                 value={form.date_of_admission}
                 onChange={set('date_of_admission')}
                 min={sessionMinDate || undefined}
