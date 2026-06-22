@@ -193,6 +193,8 @@ export default function DocumentDepartment() {
   const [verifyModal, setVerifyModal] = useState(null)
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [rejectModal, setRejectModal] = useState(null)
+  const [holdModal, setHoldModal] = useState(null)
+  const [holdRemarks, setHoldRemarks] = useState('')
   const [remarks, setRemarks] = useState('')
   const [saving, setSaving] = useState(false)
   const [downloading, setDownloading] = useState(null)
@@ -392,6 +394,26 @@ export default function DocumentDepartment() {
     setSaving(false)
     setRejectModal(null)
     setRemarks('')
+    fetchStudents()
+  }
+
+  // Hold = send the application back to the Center for correction. The student
+  // stays at 'Pending' (the only status the center can still edit & resubmit),
+  // and the flagged remark is saved so the center knows what to fix. It is NOT
+  // forwarded to Account Dept (no doc_verified_at / admission number).
+  async function handleHold() {
+    if (!holdRemarks.trim()) { alert('A remark is required to put this on hold'); return }
+    setSaving(true)
+    await supabase.from('students').update({
+      status: 'Pending',
+      doc_verified_at: null,
+      remarks: holdRemarks.trim(),
+    }).eq('id', holdModal.id)
+    setSaving(false)
+    setHoldModal(null)
+    setHoldRemarks('')
+    setVerifyModal(null)
+    setFieldChecks({})
     fetchStudents()
   }
 
@@ -1672,6 +1694,24 @@ export default function DocumentDepartment() {
                   {saving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
                 </button>
                 <button
+                  onClick={() => {
+                    if (unreviewedKeys.length > 0) {
+                      alert(`Review the whole form first — ${unreviewedKeys.length} field(s)/document(s) are neither verified nor have a remark.\n\nEither Verify each field, or add a Remark on the ones with issues. Only then can you Hold.`)
+                      return
+                    }
+                    if (issueLines.length === 0) {
+                      alert('To put this on hold, add a remark on at least one field that needs correction. If everything is correct, forward it to Account Dept.')
+                      return
+                    }
+                    setHoldRemarks(composedRejectNote); setHoldModal(s)
+                  }}
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
+                  title="Hold — send back to the center for correction"
+                >
+                  <PauseCircle size={15} /> Hold{unreviewedKeys.length > 0 ? ` (${unreviewedKeys.length} left)` : ''}
+                </button>
+                <button
                   onClick={() => { setRemarks(composedRejectNote); setVerifyModal(null); setRejectModal(s); setFieldChecks({}) }}
                   disabled={saving}
                   className="flex items-center gap-2 bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed text-red-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
@@ -1689,6 +1729,35 @@ export default function DocumentDepartment() {
             </div>
           )
         })()}
+      </Modal>
+
+      {/* Hold Student Modal — send back to center for correction, NOT forwarded */}
+      <Modal isOpen={!!holdModal} onClose={() => setHoldModal(null)} title="Hold Student — Send Back for Correction">
+        <div className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+            <strong>{holdModal?.student_name}</strong> will be sent back to the Center for correction. It will <strong>not</strong> be forwarded to Account Dept. The center will see this remark, fix the form and resubmit.
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600 mb-1 block">Hold Remark <span className="text-red-500">*</span></label>
+            <textarea
+              className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-amber-400 resize-none"
+              rows={4}
+              placeholder="Describe which documents/fields have issues (required)..."
+              value={holdRemarks}
+              onChange={e => setHoldRemarks(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleHold}
+              disabled={saving}
+              className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm"
+            >
+              <PauseCircle size={14} /> {saving ? 'Saving...' : 'Confirm Hold'}
+            </button>
+            <Button variant="outline" onClick={() => setHoldModal(null)}>Cancel</Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Reject Modal */}
