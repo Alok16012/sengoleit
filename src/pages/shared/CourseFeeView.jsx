@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Search, ChevronDown, X, AlertCircle } from 'lucide-react'
+import { Search, ChevronDown, X, AlertCircle, Download } from 'lucide-react'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import { generateCourseFeeListPDF } from '../../utils/generateCourseFeeListPDF'
 
 // ── Searchable single-select dropdown ──────────────────────────────────────
 function SearchableSelect({ options, value, onChange, placeholder = 'All', label }) {
@@ -291,7 +292,21 @@ export default function CourseFeeView() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-bold text-gray-800">Fee Structure</h3>
-              <span className="text-xs text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg font-semibold">{results.length} rows</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg font-semibold">{results.length} rows</span>
+                <button
+                  onClick={() => generateCourseFeeListPDF(results, {
+                    session:    sessions.find(s    => s.id === selSession)?.session_name,
+                    department: departments.find(d => d.id === selDept)?.name,
+                    progType:   progTypes.find(t   => t.id === selType)?.programme_type_name,
+                    mode:       modes.find(m       => m.id === selMode)?.mode_name,
+                    program:    programs.find(p    => p.id === selProg)?.program_name,
+                  })}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#933d18] text-white rounded-lg text-xs font-bold hover:bg-[#b05a30] active:scale-[0.98] transition-all"
+                >
+                  <Download size={13} /> Download PDF
+                </button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <Table>
