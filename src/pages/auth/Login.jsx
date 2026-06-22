@@ -83,7 +83,7 @@ export default function Login() {
                 onError={e => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '<span style="font-size:1.5rem;font-weight:900;color:#933d18">S</span>' }} />
             </div>
             <h2 className="text-3xl font-extrabold text-gray-900 mb-2 text-center lg:text-left">
-              Sengol International
+              Sengol International University
             </h2>
             <p className="text-gray-500 font-medium">Please enter your details to sign in.</p>
           </div>
