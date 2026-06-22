@@ -275,6 +275,7 @@ export default function StudentForm() {
   const [stepError, setStepError] = useState('')
   const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
   const [coupon, setCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
+  const [availableCoupons, setAvailableCoupons] = useState([])
 
   const toggleEdu = (key) => setOpenEdu(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -323,12 +324,24 @@ export default function StudentForm() {
     }
   }, [id])
 
-  // Auto wallet check when on step 1 and program/center changes
+  // Auto wallet check when on step 1 and program/semester/center changes
   useEffect(() => {
     if (step === 1 && form.programme_id && form.center_id && !isAdmin && !isEdit) {
       runWalletCheck()
     }
-  }, [step, form.programme_id, form.center_id])
+  }, [step, form.programme_id, form.semester_year, form.center_id])
+
+  // Load this center's unused coupons so they can be picked from a dropdown
+  useEffect(() => {
+    if (!form.center_id || isAdmin || isEdit) { setAvailableCoupons([]); return }
+    supabase.from('coupons')
+      .select('id, face_value, is_used, used_at, center_id')
+      .eq('center_id', form.center_id)
+      .then(({ data }) => {
+        const avail = (data || []).filter(c => !c.is_used && !c.used_at)
+        setAvailableCoupons(avail)
+      })
+  }, [form.center_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
 
@@ -437,7 +450,7 @@ export default function StudentForm() {
       // maybeSingle() fails. Fetch all and prefer the one for this session.
       const { data: structures } = await supabase
         .from('fee_structures')
-        .select('id, session_id')
+        .select('id, session_id, total_semesters')
         .eq('program_id', form.programme_id)
 
       const fs = (structures || []).find(s => s.session_id === form.session_id)
@@ -447,9 +460,23 @@ export default function StudentForm() {
       if (fs) {
         const { data: items } = await supabase
           .from('fee_items')
-          .select('amount')
+          .select('amount, category')
           .eq('fee_structure_id', fs.id)
-        courseFee = (items || []).reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
+
+        // Charge only the fee for the semester/year being admitted into.
+        const totalSems = fs.total_semesters
+          || (progSemYear === 'Year' ? (progDuration || 1) * 2 : (progDuration || 1))
+          || 1
+        const semIndex = Math.max((parseInt(form.semester_year, 10) || 1) - 1, 0)
+        let fee = 0
+        ;(items || []).forEach(it => {
+          const a = Number(it.amount) || 0
+          if (it.category === 'entry'     && semIndex === 0) fee += a
+          if (it.category === 'divide')                      fee += totalSems > 0 ? a / totalSems : 0
+          if (it.category === 'multiply')                    fee += a
+          if (it.category === 'multiply2' && semIndex > 0)   fee += a
+        })
+        courseFee = Math.round(fee)
       }
 
       const { data: ctr } = await supabase
@@ -873,19 +900,31 @@ export default function StudentForm() {
                           </p>
                           <button type="button" onClick={removeCoupon} className="text-xs font-semibold text-gray-400 hover:text-red-500 underline">Remove</button>
                         </div>
+                      ) : availableCoupons.length === 0 ? (
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-400">
+                          No coupons available for this center.
+                        </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <input
-                            type="text"
+                          <select
                             value={coupon.code}
                             onChange={e => setCoupon(c => ({ ...c, code: e.target.value, error: '' }))}
-                            placeholder="Have a coupon code? (optional)"
-                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono uppercase focus:outline-none focus:border-[#933d18]"
-                          />
+                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-[#933d18]"
+                          >
+                            <option value="">Have a coupon code? (optional)</option>
+                            {availableCoupons.map(c => {
+                              const code = c.id.slice(0, 8).toUpperCase()
+                              return (
+                                <option key={c.id} value={code}>
+                                  {code} — ₹{Number(c.face_value || 0).toLocaleString('en-IN')} off
+                                </option>
+                              )
+                            })}
+                          </select>
                           <button
                             type="button"
                             onClick={applyCoupon}
-                            disabled={coupon.applying}
+                            disabled={coupon.applying || !coupon.code}
                             className="px-4 py-2 text-sm font-bold rounded-xl bg-[#933d18] text-white hover:bg-[#7a3213] disabled:opacity-60 transition-colors"
                           >
                             {coupon.applying ? 'Applying...' : 'Apply'}
