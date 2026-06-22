@@ -53,6 +53,10 @@ export default function AccountDepartment() {
   const [payLinkLoading, setPayLinkLoading] = useState(false)
   const [payLinkError, setPayLinkError] = useState(null)
   const [payRefreshing, setPayRefreshing] = useState(false)
+  // Recharge verification confirmation
+  const [rechargeModal, setRechargeModal] = useState(null)
+  const [rechargeChecked, setRechargeChecked] = useState(false)
+  const [rechargeSaving, setRechargeSaving] = useState(false)
   // Payment method flow: '' (not chosen) | 'manual' (offline/UTR) | 'link' (Razorpay)
   const [receiptVerified, setReceiptVerified] = useState(false)
   const [manualUtr, setManualUtr] = useState('')
@@ -439,6 +443,7 @@ export default function AccountDepartment() {
   }
 
   async function handleVerifyRecharge(req) {
+    setRechargeSaving(true)
     // Atomically claim the request: flip pending → verified and only credit
     // the wallet if THIS call actually changed the row. Without the
     // status='pending' guard, clicking Verify twice credited the amount twice.
@@ -448,11 +453,14 @@ export default function AccountDepartment() {
       .eq('id', req.id)
       .eq('status', 'pending')
       .select('id')
-    if (!claimed || claimed.length === 0) { fetchAll(); return }
+    if (!claimed || claimed.length === 0) {
+      setRechargeSaving(false); setRechargeModal(null); setRechargeChecked(false); fetchAll(); return
+    }
 
     const { data: centerData } = await supabase.from('centers').select('virtual_balance').eq('id', req.center_id).single()
     const newBalance = (centerData?.virtual_balance || 0) + Number(req.amount)
     await supabase.from('centers').update({ virtual_balance: newBalance }).eq('id', req.center_id)
+    setRechargeSaving(false); setRechargeModal(null); setRechargeChecked(false)
     fetchAll()
   }
 
@@ -851,7 +859,7 @@ export default function AccountDepartment() {
                     <Td>
                       {r.status === 'pending' && (
                         <div className="flex gap-1">
-                          <Button size="sm" variant="success" onClick={() => handleVerifyRecharge(r)}>
+                          <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false) }}>
                             <CheckCircle size={13} /> Verify
                           </Button>
                           <Button size="sm" variant="danger" onClick={() => handleRejectRecharge(r.id)}>
@@ -1754,6 +1762,81 @@ export default function AccountDepartment() {
             <Button variant="outline" onClick={() => setRejectModal(null)}>Cancel</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Recharge — verify payment & credit wallet */}
+      <Modal isOpen={!!rechargeModal} onClose={() => { setRechargeModal(null); setRechargeChecked(false) }} title="Verify Recharge & Credit Wallet">
+        {rechargeModal && (
+          <div className="space-y-4">
+            {/* Center summary */}
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+              <div>
+                <p className="font-bold text-gray-900">{rechargeModal.centers?.center_name || '—'}</p>
+                <p className="text-xs text-gray-400">{rechargeModal.centers?.center_code || ''}{rechargeModal.centers?.super_center?.center_name ? ` · Super Center: ${rechargeModal.centers.super_center.center_name}` : ''}</p>
+              </div>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${rechargeModal.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                {rechargeModal.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
+              </span>
+            </div>
+
+            {/* Payment details */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Amount to Credit</p>
+                <p className="text-2xl font-black text-[#933d18] mt-0.5">₹{Number(rechargeModal.amount).toLocaleString('en-IN')}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">UTR / Transaction No.</p>
+                <p className="text-sm font-mono font-semibold text-gray-800 mt-1.5 break-all">{rechargeModal.utr_number || '—'}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Payment Date</p>
+                <p className="text-sm font-semibold text-gray-800 mt-1.5">{formatDate(rechargeModal.payment_date)}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Requested On</p>
+                <p className="text-sm font-semibold text-gray-800 mt-1.5">{formatDate(rechargeModal.created_at)}</p>
+              </div>
+            </div>
+
+            {rechargeModal.notes && (
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Notes</p>
+                <p className="text-sm text-gray-700 mt-1">{rechargeModal.notes}</p>
+              </div>
+            )}
+
+            {/* Screenshot */}
+            <div className="border border-gray-100 rounded-xl px-4 py-3">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Payment Screenshot</p>
+              {rechargeModal.utr_screenshot_url ? (
+                <a href={rechargeModal.utr_screenshot_url} target="_blank" rel="noreferrer" className="block">
+                  <img src={rechargeModal.utr_screenshot_url} alt="payment" className="max-h-52 rounded-lg border border-gray-200 object-contain" />
+                  <span className="text-[#933d18] text-xs font-semibold underline mt-1 inline-flex items-center gap-1"><ExternalLink size={11} /> Open full image</span>
+                </a>
+              ) : (
+                <p className="text-sm text-gray-400">No screenshot uploaded</p>
+              )}
+            </div>
+
+            {/* Confirmation */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={rechargeChecked} onChange={e => setRechargeChecked(e.target.checked)} className="w-4 h-4 accent-[#933d18]" />
+              <span className="text-sm text-gray-700">I have verified the payment receipt / UTR and confirm this recharge.</span>
+            </label>
+
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
+              On confirm, ₹{Number(rechargeModal.amount).toLocaleString('en-IN')} will be credited to the center's wallet. This cannot be undone.
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <Button variant="success" disabled={!rechargeChecked || rechargeSaving} onClick={() => handleVerifyRecharge(rechargeModal)}>
+                <CheckCircle size={14} /> {rechargeSaving ? 'Crediting...' : 'Verify & Credit Wallet'}
+              </Button>
+              <Button variant="outline" onClick={() => { setRechargeModal(null); setRechargeChecked(false) }}>Cancel</Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )
