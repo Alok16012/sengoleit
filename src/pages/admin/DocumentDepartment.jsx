@@ -323,7 +323,9 @@ export default function DocumentDepartment() {
       .eq('id', studentId)
       .single()
     const resolved = await resolveStudentDocUrls(data)
-    setFieldChecks({})
+    // Center is a fixed selection (not editable/correctable by the Document
+    // Dept), so pre-lock it as verified — no Verify/Remark buttons for it.
+    setFieldChecks({ f_center: { ok: true, locked: true, remark: '' } })
     setRemarks('')
     setVerifyModal(resolved)
     setVerifyLoading(false)
@@ -1566,12 +1568,16 @@ export default function DocumentDepartment() {
 
           function verifyAll() {
             const next = {}
-            allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '' } })
+            allKeys.forEach(k => { next[k] = { ok: true, remark: fieldChecks[k]?.remark || '', locked: fieldChecks[k]?.locked || false } })
             setFieldChecks(next)
           }
           function unverifyAll() {
             const next = {}
-            allKeys.forEach(k => { next[k] = { ok: false, remark: fieldChecks[k]?.remark || '' } })
+            allKeys.forEach(k => {
+              next[k] = fieldChecks[k]?.locked
+                ? { ok: true, remark: '', locked: true }
+                : { ok: false, remark: fieldChecks[k]?.remark || '' }
+            })
             setFieldChecks(next)
           }
 
