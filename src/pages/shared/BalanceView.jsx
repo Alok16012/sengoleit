@@ -68,6 +68,10 @@ export default function BalanceView() {
       setSubmitErr('Minimum deposit amount is ₹5,000.')
       return
     }
+    if (!screenshot) {
+      setSubmitErr('Payment screenshot is required. Please upload the payment receipt.')
+      return
+    }
     if (!center) { setSubmitErr('Center not loaded. Refresh the page and try again.'); return }
 
     setSaving(true)
@@ -79,8 +83,8 @@ export default function BalanceView() {
       if (screenshot) {
         const fileName = `recharge/${center.id}/${Date.now()}_${screenshot.name}`
         const { data: uploadData, error: upErr } = await supabase.storage.from('documents').upload(fileName, screenshot)
-        if (upErr) console.warn('Screenshot upload failed:', upErr.message)
-        else if (uploadData) {
+        if (upErr) { setSubmitErr(`Screenshot upload failed: ${upErr.message}`); setSaving(false); return }
+        if (uploadData) {
           const { data: urlData } = supabase.storage.from('documents').getPublicUrl(fileName)
           screenshotUrl = urlData.publicUrl
         }
@@ -232,7 +236,7 @@ export default function BalanceView() {
             onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))}
           />
           <div>
-            <p className="text-xs font-semibold text-gray-600 mb-1">Payment Screenshot</p>
+            <p className="text-xs font-semibold text-gray-600 mb-1">Payment Screenshot *</p>
             <div
               className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer hover:border-[#933d18]/40 transition-colors"
               onClick={() => fileRef.current?.click()}
