@@ -879,10 +879,17 @@ export default function StudentForm() {
       <form
         onSubmit={handleSubmit}
         onKeyDown={(e) => {
-          // Block Enter from implicitly submitting the form from any field
-          // (except multi-line textareas). This stops the application from
-          // being submitted early on steps like Education before Documents.
-          if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault()
+          // Enter should never implicitly submit the form from an input field
+          // (that used to submit the application early, before Documents).
+          // Instead, on every step except the last, Enter behaves like the
+          // "Next" button and advances the wizard. Textareas keep newlines,
+          // and on the final (Documents) step Enter is left alone so the
+          // normal submit can happen.
+          if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return
+          if (step < STEPS.length - 1) {
+            e.preventDefault()
+            handleNext()
+          }
         }}
         className="flex flex-col gap-5"
       >
