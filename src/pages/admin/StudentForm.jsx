@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -12,6 +12,72 @@ import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft
 } from 'lucide-react'
+
+// Searchable dropdown for picking one of the center's available coupons.
+function CouponSearchSelect({ coupons, value, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
+  const opts = coupons.map(c => ({
+    code: c.id.slice(0, 8).toUpperCase(),
+    face: Number(c.face_value || 0),
+  }))
+  const filtered = query
+    ? opts.filter(o => o.code.includes(query.toUpperCase()))
+    : opts
+
+  return (
+    <div className="relative flex-1" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center justify-between border rounded-xl px-3 py-2 text-sm bg-white transition-all ${
+          open ? 'border-[#933d18] ring-2 ring-[#933d18]/10' : 'border-gray-200 hover:border-gray-300'
+        }`}
+      >
+        <span className={value ? 'text-gray-900 font-mono font-medium' : 'text-gray-400'}>
+          {value || 'Have a coupon code? (optional)'}
+        </span>
+        <ChevronDown size={14} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search coupon code..."
+              className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:border-[#933d18] uppercase font-mono"
+            />
+          </div>
+          <ul className="max-h-52 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <li className="px-3 py-3 text-xs text-gray-400 text-center">No matching coupons</li>
+            ) : filtered.map(o => (
+              <li key={o.code}
+                onClick={() => { onSelect(o.code); setOpen(false); setQuery('') }}
+                className={`flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 ${
+                  value === o.code ? 'bg-[#933d18]/5' : ''
+                }`}>
+                <span className="font-mono text-gray-700">{o.code}</span>
+                <span className="text-xs font-semibold text-[#933d18]">₹{o.face.toLocaleString('en-IN')} off</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function AddressBlock({ prefix, label, form, onChange, setForm, countries = [], states, districts, sameAsOptions, readOnly }) {
   const selectedCountry = countries.find(c => c.country_name === form[`${prefix}_country`])
@@ -906,21 +972,11 @@ export default function StudentForm() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <select
+                          <CouponSearchSelect
+                            coupons={availableCoupons}
                             value={coupon.code}
-                            onChange={e => setCoupon(c => ({ ...c, code: e.target.value, error: '' }))}
-                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:border-[#933d18]"
-                          >
-                            <option value="">Have a coupon code? (optional)</option>
-                            {availableCoupons.map(c => {
-                              const code = c.id.slice(0, 8).toUpperCase()
-                              return (
-                                <option key={c.id} value={code}>
-                                  {code} — ₹{Number(c.face_value || 0).toLocaleString('en-IN')} off
-                                </option>
-                              )
-                            })}
-                          </select>
+                            onSelect={code => setCoupon(c => ({ ...c, code, error: '' }))}
+                          />
                           <button
                             type="button"
                             onClick={applyCoupon}
