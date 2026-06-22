@@ -21,6 +21,7 @@ const TABS = [
 export default function AccountDepartment() {
   const [tab, setTab] = useState('students')
   const [appStatusFilter, setAppStatusFilter] = useState('pending')
+  const [rechargeStatusFilter, setRechargeStatusFilter] = useState('pending')
   const [approvals, setApprovals] = useState([])
   const [recharges, setRecharges] = useState([])
   const [centers, setCenters] = useState([])
@@ -466,7 +467,7 @@ export default function AccountDepartment() {
       .from('recharge_requests')
       .update({ status: 'verified', verified_at: new Date().toISOString() })
       .eq('id', req.id)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'hold'])
       .select('id')
     if (!claimed || claimed.length === 0) {
       setRechargeSaving(false); closeRechargeModal(); fetchAll(); return
@@ -488,7 +489,7 @@ export default function AccountDepartment() {
       .from('recharge_requests')
       .update({ status: 'hold' })
       .eq('id', req.id)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'hold'])
       .select('id')
     if (claimed && claimed.length > 0) await saveRechargeRemark(req.id, remark)
     setRechargeSaving(false); closeRechargeModal()
@@ -502,7 +503,7 @@ export default function AccountDepartment() {
       .from('recharge_requests')
       .update({ status: 'rejected' })
       .eq('id', req.id)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'hold'])
       .select('id')
     if (claimed && claimed.length > 0) await saveRechargeRemark(req.id, remark)
     setRechargeSaving(false); closeRechargeModal()
@@ -628,6 +629,20 @@ export default function AccountDepartment() {
   const pendingCount = approvals.filter(c => c.center_type !== 'super_center' && c.approval_status === 'doc_verified').length
   const pendingSuperApprovals = approvals.filter(c => c.center_type === 'super_center' && c.approval_status === 'doc_verified').length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
+  // Recharge status sub-filter (To Verify / Hold / Approved / Rejected)
+  const RECHARGE_STATUS_MATCH = {
+    pending:  r => r.status === 'pending',
+    hold:     r => r.status === 'hold',
+    approved: r => r.status === 'verified',
+    rejected: r => r.status === 'rejected',
+  }
+  const rechargeStatusCounts = {
+    pending:  recharges.filter(RECHARGE_STATUS_MATCH.pending).length,
+    hold:     recharges.filter(RECHARGE_STATUS_MATCH.hold).length,
+    approved: recharges.filter(RECHARGE_STATUS_MATCH.approved).length,
+    rejected: recharges.filter(RECHARGE_STATUS_MATCH.rejected).length,
+  }
+  const rechargesList = recharges.filter(RECHARGE_STATUS_MATCH[rechargeStatusFilter] || (() => true))
   const holdCount = holdStudents.length
   const pendingCenterApps = centerApps.length
 
@@ -854,6 +869,28 @@ export default function AccountDepartment() {
 
           {/* RECHARGES TAB */}
           {tab === 'recharges' && (
+            <>
+            <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+              {[
+                { key: 'pending',  label: 'To Verify', color: 'bg-amber-500' },
+                { key: 'hold',     label: 'Hold',      color: 'bg-indigo-500' },
+                { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
+                { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
+              ].map(s => (
+                <button
+                  key={s.key}
+                  onClick={() => setRechargeStatusFilter(s.key)}
+                  className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    rechargeStatusFilter === s.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {s.label}
+                  {rechargeStatusCounts[s.key] > 0 && (
+                    <span className={`ml-2 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.color}`}>{rechargeStatusCounts[s.key]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
             <Table>
               <Thead>
                 <tr>
@@ -872,9 +909,9 @@ export default function AccountDepartment() {
                 </tr>
               </Thead>
               <Tbody>
-                {recharges.length === 0 ? (
-                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No recharge requests</Td></Tr>
-                ) : recharges.map((r, i) => (
+                {rechargesList.length === 0 ? (
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {rechargeStatusFilter === 'approved' ? 'approved' : rechargeStatusFilter} recharge requests</Td></Tr>
+                ) : rechargesList.map((r, i) => (
                   <Tr key={r.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                     <Td>
@@ -904,9 +941,9 @@ export default function AccountDepartment() {
                     <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
                     <Td className="text-gray-500 text-xs max-w-[160px] truncate" title={r.admin_remarks || ''}>{r.admin_remarks || '—'}</Td>
                     <Td>
-                      {r.status === 'pending' ? (
-                        <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false); setRechargeRemark('') }}>
-                          <CheckCircle size={13} /> Review
+                      {(r.status === 'pending' || r.status === 'hold') ? (
+                        <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false); setRechargeRemark(r.admin_remarks || '') }}>
+                          <CheckCircle size={13} /> {r.status === 'hold' ? 'Re-Review' : 'Review'}
                         </Button>
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>
@@ -916,6 +953,7 @@ export default function AccountDepartment() {
                 ))}
               </Tbody>
             </Table>
+            </>
           )}
 
           {/* CENTER APPLICATIONS TAB */}
