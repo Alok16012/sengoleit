@@ -1,25 +1,28 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Search, Download, FileX } from 'lucide-react'
+import { Search, Download, FileX, Edit } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 
 const STATUS_META = {
   Pending:  { color: 'amber',   label: 'Pending Students',  desc: 'Forms have been submitted, awaiting Document Dept. verification' },
-  Hold:     { color: 'indigo',  label: 'Hold Students',     desc: 'Documents verified, awaiting Account Dept. approval' },
+  Hold:     { color: 'indigo',  label: 'Hold Students',     desc: 'Documents verified & awaiting Account Dept., or sent back for correction' },
   Approved: { color: 'emerald', label: 'Approved Students', desc: 'Entire process complete — Admission confirmed' },
   Rejected: { color: 'red',     label: 'Rejected Students', desc: 'Application has been rejected' },
 }
 
 export default function StudentListReport({ status }) {
   const { user, profile } = useAuth()
+  const navigate = useNavigate()
   const role = profile?.role || user?.user_metadata?.role || 'center'
+  const editBase = role === 'super_center' ? '/super-center' : role === 'admin' ? '/admin' : '/center'
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -53,7 +56,7 @@ export default function StudentListReport({ status }) {
 
     const { data: students } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, submitted_by, created_at, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code)')
+      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code)')
       .in('center_id', centerIds)
       .eq('status', status)
       .order('created_at', { ascending: false })
@@ -186,18 +189,38 @@ export default function StudentListReport({ status }) {
                       : <span className="text-gray-300">—</span>}
                   </Td>
                 )}
-                <Td><Badge status={s.status?.toLowerCase()}>{s.status}</Badge></Td>
                 <Td>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDownload(s.id)}
-                    disabled={downloading === s.id}
-                    title="Download PDF"
-                  >
-                    <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
-                    <span className="text-xs ml-1">{downloading === s.id ? '...' : 'PDF'}</span>
-                  </Button>
+                  <Badge status={s.status?.toLowerCase()}>{s.status}</Badge>
+                  {s.status === 'Hold' && (
+                    <p className={`text-[10px] font-semibold mt-0.5 ${s.doc_verified_at ? 'text-indigo-500' : 'text-amber-600'}`}>
+                      {s.doc_verified_at ? 'Awaiting Account Dept.' : 'Sent back for correction'}
+                    </p>
+                  )}
+                </Td>
+                <Td>
+                  <div className="flex items-center gap-1">
+                    {s.status === 'Hold' && !s.doc_verified_at && role !== 'admin' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => navigate(`${editBase}/students/edit/${s.id}`)}
+                        title="Correct & resubmit"
+                      >
+                        <Edit size={14} className="text-amber-600" />
+                        <span className="text-xs ml-1 text-amber-600">Correct</span>
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDownload(s.id)}
+                      disabled={downloading === s.id}
+                      title="Download PDF"
+                    >
+                      <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
+                      <span className="text-xs ml-1">{downloading === s.id ? '...' : 'PDF'}</span>
+                    </Button>
+                  </div>
                 </Td>
               </Tr>
             ))}
