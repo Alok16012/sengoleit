@@ -146,7 +146,7 @@ export default function AccountDepartment() {
     // 'account_hold' is distinct from doc dept's 'hold' so held centers stay inside Account Dept, not Doc Dept.
     const [docVerified, rech, ctr, holdStu] = await Promise.all([
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
-      supabase.from('recharge_requests').select('*, centers(center_name, center_code)').order('created_at', { ascending: false }),
+      supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, programs(program_name, enrollment_code), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
     ])
@@ -163,7 +163,9 @@ export default function AccountDepartment() {
         : rechRows
       const ids = [...new Set(plain.map(r => r.center_id).filter(Boolean))]
       if (ids.length) {
-        const { data: ctrs } = await supabase.from('centers').select('id, center_name, center_code').in('id', ids)
+        const { data: ctrs } = await supabase.from('centers')
+          .select('id, center_name, center_code, center_type, super_center:super_center_id(center_name, center_code)')
+          .in('id', ids)
         const byId = Object.fromEntries((ctrs || []).map(c => [c.id, c]))
         rechRows = plain.map(r => ({ ...r, centers: r.centers || byId[r.center_id] || null }))
       } else {
@@ -794,6 +796,7 @@ export default function AccountDepartment() {
                 <tr>
                   <Th>#</Th>
                   <Th>Center</Th>
+                  <Th>Super Center</Th>
                   <Th>Type</Th>
                   <Th>Amount</Th>
                   <Th>UTR Number</Th>
@@ -806,13 +809,17 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {recharges.length === 0 ? (
-                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No recharge requests</Td></Tr>
+                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No recharge requests</Td></Tr>
                 ) : recharges.map((r, i) => (
                   <Tr key={r.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                     <Td>
                       <p className="font-semibold text-gray-900">{r.centers?.center_name || '—'}</p>
                       {r.centers?.center_code && <p className="text-xs text-gray-400">{r.centers.center_code}</p>}
+                    </Td>
+                    <Td>
+                      <p className="font-medium text-gray-700">{r.centers?.super_center?.center_name || '—'}</p>
+                      {r.centers?.super_center?.center_code && <p className="text-xs text-gray-400">{r.centers.super_center.center_code}</p>}
                     </Td>
                     <Td>
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${r.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>

@@ -64,6 +64,10 @@ export default function BalanceView() {
       setSubmitErr('Amount, UTR number, and Payment Date are required.')
       return
     }
+    if (Number(form.amount) < 5000) {
+      setSubmitErr('Minimum deposit amount is ₹5,000.')
+      return
+    }
     if (!center) { setSubmitErr('Center not loaded. Refresh the page and try again.'); return }
 
     setSaving(true)
@@ -205,13 +209,17 @@ export default function BalanceView() {
       {/* Recharge Modal */}
       <Modal isOpen={modal} onClose={() => setModal(false)} title="Request Recharge">
         <div className="space-y-4">
-          <Input
-            label="Amount (₹) *"
-            type="number"
-            placeholder="E.g. 5000"
-            value={form.amount}
-            onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-          />
+          <div>
+            <Input
+              label="Amount (₹) *"
+              type="number"
+              min="5000"
+              placeholder="E.g. 5000"
+              value={form.amount}
+              onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+            />
+            <p className="text-xs text-gray-400 mt-1">Minimum deposit amount is ₹5,000</p>
+          </div>
           <Input
             label="UTR / Transaction Number *"
             placeholder="E.g. UTR123456789"
