@@ -439,7 +439,17 @@ export default function AccountDepartment() {
   }
 
   async function handleVerifyRecharge(req) {
-    await supabase.from('recharge_requests').update({ status: 'verified', verified_at: new Date().toISOString() }).eq('id', req.id)
+    // Atomically claim the request: flip pending → verified and only credit
+    // the wallet if THIS call actually changed the row. Without the
+    // status='pending' guard, clicking Verify twice credited the amount twice.
+    const { data: claimed } = await supabase
+      .from('recharge_requests')
+      .update({ status: 'verified', verified_at: new Date().toISOString() })
+      .eq('id', req.id)
+      .eq('status', 'pending')
+      .select('id')
+    if (!claimed || claimed.length === 0) { fetchAll(); return }
+
     const { data: centerData } = await supabase.from('centers').select('virtual_balance').eq('id', req.center_id).single()
     const newBalance = (centerData?.virtual_balance || 0) + Number(req.amount)
     await supabase.from('centers').update({ virtual_balance: newBalance }).eq('id', req.center_id)
