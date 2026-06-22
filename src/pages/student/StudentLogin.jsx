@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { Hash, Lock } from 'lucide-react'
 
+// Public website home page. Update this to your live domain if different.
+const HOME_URL = 'https://sengolinternationaluniversity.edu.in/'
+
 export default function StudentLogin() {
   const { studentLogin } = useStudentAuth()
   const navigate = useNavigate()
@@ -38,16 +41,6 @@ export default function StudentLogin() {
           <p className="text-orange-100/80 text-lg max-w-md leading-relaxed mb-10">
             Access your academic information, fee details, documents, and results — all in one place.
           </p>
-          <div className="grid grid-cols-2 gap-6 max-w-sm">
-            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/20">
-              <span className="text-white text-2xl font-bold block">15k+</span>
-              <span className="text-orange-200/60 text-xs font-semibold uppercase tracking-wider">Students</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/20">
-              <span className="text-white text-2xl font-bold block">120+</span>
-              <span className="text-orange-200/60 text-xs font-semibold uppercase tracking-wider">Programs</span>
-            </div>
-          </div>
         </div>
         <div className="absolute bottom-10 left-20 z-10 text-white/40 text-xs font-medium">
           © 2026 Sengol International University
@@ -117,10 +110,14 @@ export default function StudentLogin() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-400 mt-8">
-            Admin / Center login?{' '}
-            <a href="/login" className="text-[#933d18] font-bold hover:underline">Click here</a>
-          </p>
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <a
+              href={HOME_URL}
+              className="flex items-center justify-center w-full h-11 rounded-2xl border-2 border-[#933d18]/30 text-[#933d18] font-bold text-sm hover:bg-[#933d18]/5 hover:border-[#933d18] transition-all"
+            >
+              Go to Home Page →
+            </a>
+          </div>
         </div>
       </div>
     </div>
