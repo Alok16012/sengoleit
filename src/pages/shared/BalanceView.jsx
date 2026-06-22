@@ -8,7 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import DateInput from '../../components/ui/DateInput'
-import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2, Pencil } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 export default function BalanceView() {
@@ -19,6 +19,8 @@ export default function BalanceView() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [existingScreenshotUrl, setExistingScreenshotUrl] = useState(null)
   const [form, setForm] = useState({ amount: '', utr_number: '', payment_date: '', notes: '' })
   const [screenshot, setScreenshot] = useState(null)
   const [screenshotPreview, setScreenshotPreview] = useState(null)
@@ -46,9 +48,28 @@ export default function BalanceView() {
   }
 
   function openModal() {
+    setEditingId(null)
+    setExistingScreenshotUrl(null)
     setForm({ amount: '', utr_number: '', payment_date: '', notes: '' })
     setScreenshot(null)
     setScreenshotPreview(null)
+    setSubmitErr('')
+    setModal(true)
+  }
+
+  // Edit a recharge that the Account Dept put On Hold, so the center can
+  // correct the details (UTR / receipt etc.) and resubmit for verification.
+  function openEditModal(r) {
+    setEditingId(r.id)
+    setExistingScreenshotUrl(r.utr_screenshot_url || null)
+    setForm({
+      amount: r.amount != null ? String(r.amount) : '',
+      utr_number: r.utr_number || '',
+      payment_date: r.payment_date || '',
+      notes: r.notes || '',
+    })
+    setScreenshot(null)
+    setScreenshotPreview(r.utr_screenshot_url || null)
     setSubmitErr('')
     setModal(true)
   }
@@ -69,7 +90,9 @@ export default function BalanceView() {
       setSubmitErr('Minimum deposit amount is ₹5,000.')
       return
     }
-    if (!screenshot) {
+    // When editing a held request the existing receipt can be kept; only a
+    // brand-new request strictly requires a freshly uploaded screenshot.
+    if (!screenshot && !(editingId && existingScreenshotUrl)) {
       setSubmitErr('Payment screenshot is required. Please upload the payment receipt.')
       return
     }
@@ -79,7 +102,7 @@ export default function BalanceView() {
     setSubmitErr('')
 
     try {
-      let screenshotUrl = null
+      let screenshotUrl = editingId ? existingScreenshotUrl : null
 
       if (screenshot) {
         const fileName = `recharge/${center.id}/${Date.now()}_${screenshot.name}`
@@ -91,20 +114,40 @@ export default function BalanceView() {
         }
       }
 
-      const { error: insErr } = await supabase.from('recharge_requests').insert({
-        center_id: center.id,
-        amount: Number(form.amount),
-        utr_number: form.utr_number,
-        payment_date: form.payment_date || null,
-        utr_screenshot_url: screenshotUrl,
-        notes: form.notes,
-        status: 'pending',
-      })
-
-      if (insErr) { setSubmitErr(`Failed to submit: ${insErr.message}`); setSaving(false); return }
+      if (editingId) {
+        // Resubmit a held request: update its details and send it back to
+        // pending so the Account Dept reviews it again. Clear the old remark.
+        const { error: updErr } = await supabase.from('recharge_requests')
+          .update({
+            amount: Number(form.amount),
+            utr_number: form.utr_number,
+            payment_date: form.payment_date || null,
+            utr_screenshot_url: screenshotUrl,
+            notes: form.notes,
+            status: 'pending',
+            verified_at: null,
+            admin_remarks: null,
+          })
+          .eq('id', editingId)
+          .eq('status', 'hold')
+        if (updErr) { setSubmitErr(`Failed to resubmit: ${updErr.message}`); setSaving(false); return }
+      } else {
+        const { error: insErr } = await supabase.from('recharge_requests').insert({
+          center_id: center.id,
+          amount: Number(form.amount),
+          utr_number: form.utr_number,
+          payment_date: form.payment_date || null,
+          utr_screenshot_url: screenshotUrl,
+          notes: form.notes,
+          status: 'pending',
+        })
+        if (insErr) { setSubmitErr(`Failed to submit: ${insErr.message}`); setSaving(false); return }
+      }
 
       setSaving(false)
       setModal(false)
+      setEditingId(null)
+      setExistingScreenshotUrl(null)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 4000)
       fetchRequests(center.id)
@@ -226,11 +269,12 @@ export default function BalanceView() {
               <Th>Verified On</Th>
               <Th>Status</Th>
               <Th>Admin Remarks</Th>
+              <Th>Action</Th>
             </tr>
           </Thead>
           <Tbody>
             {filteredRequests.length === 0 ? (
-              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No {statusFilter === 'all' ? '' : statusFilter + ' '}recharge requests{statusFilter === 'all' ? ' yet' : ''}</Td></Tr>
+              <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No {statusFilter === 'all' ? '' : statusFilter + ' '}recharge requests{statusFilter === 'all' ? ' yet' : ''}</Td></Tr>
             ) : filteredRequests.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -247,6 +291,18 @@ export default function BalanceView() {
                 <Td className="text-gray-400 text-xs">{formatDate(r.verified_at)}</Td>
                 <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
                 <Td className="text-gray-500 text-xs max-w-[200px]">{r.admin_remarks || '—'}</Td>
+                <Td>
+                  {r.status === 'hold' ? (
+                    <button
+                      onClick={() => openEditModal(r)}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-[#933d18] bg-[#933d18]/8 border border-[#933d18]/20 px-3 py-1.5 rounded-lg hover:bg-[#933d18]/15 transition-colors"
+                    >
+                      <Pencil size={12} /> Edit & Resubmit
+                    </button>
+                  ) : (
+                    <span className="text-gray-300 text-xs">—</span>
+                  )}
+                </Td>
               </Tr>
             ))}
           </Tbody>
@@ -254,7 +310,7 @@ export default function BalanceView() {
       )}
 
       {/* Recharge Modal */}
-      <Modal isOpen={modal} onClose={() => setModal(false)} title="Request Recharge">
+      <Modal isOpen={modal} onClose={() => setModal(false)} title={editingId ? 'Edit & Resubmit Recharge' : 'Request Recharge'}>
         <div className="space-y-4">
           <div>
             <Input
@@ -316,7 +372,7 @@ export default function BalanceView() {
             </div>
           )}
           <div className="flex gap-3 pt-1">
-            <Button onClick={handleSubmit} disabled={saving}>{saving ? 'Submitting...' : 'Submit Request'}</Button>
+            <Button onClick={handleSubmit} disabled={saving}>{saving ? 'Submitting...' : editingId ? 'Resubmit Request' : 'Submit Request'}</Button>
             <Button variant="outline" onClick={() => setModal(false)}>Cancel</Button>
           </div>
         </div>
