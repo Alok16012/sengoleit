@@ -1,7 +1,10 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { Mail, Lock } from 'lucide-react'
+
+// Public website home page. Update this to your live domain if different.
+const HOME_URL = 'https://sengolewebsite.vercel.app'
 
 export default function Login() {
   const { signIn, isConfigured } = useAuth()
@@ -53,17 +56,6 @@ export default function Login() {
           <p className="text-orange-100/80 text-lg max-w-md leading-relaxed mb-10">
             Welcome to our advanced university management portal. Experience a seamless and powerful administrative workflow designed for excellence.
           </p>
-
-          <div className="grid grid-cols-2 gap-6 max-w-sm">
-            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/20">
-              <span className="text-white text-2xl font-bold block">15k+</span>
-              <span className="text-orange-200/60 text-xs font-semibold uppercase tracking-wider">Students</span>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/20">
-              <span className="text-white text-2xl font-bold block">120+</span>
-              <span className="text-orange-200/60 text-xs font-semibold uppercase tracking-wider">Programs</span>
-            </div>
-          </div>
         </div>
 
         <div className="absolute bottom-10 left-20 z-10 text-white/40 text-xs font-medium flex items-center space-x-2">
@@ -144,13 +136,12 @@ export default function Login() {
           </form>
 
           <div className="mt-8 pt-6 border-t border-gray-100">
-            <p className="text-center text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Are you a Student?</p>
-            <Link
-              to="/student/login"
+            <a
+              href={HOME_URL}
               className="flex items-center justify-center w-full h-11 rounded-2xl border-2 border-[#933d18]/30 text-[#933d18] font-bold text-sm hover:bg-[#933d18]/5 hover:border-[#933d18] transition-all"
             >
-              Go to Student Portal →
-            </Link>
+              Go to Home Page →
+            </a>
           </div>
         </div>
       </div>
