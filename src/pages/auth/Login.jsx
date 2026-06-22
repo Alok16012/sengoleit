@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Mail, Lock } from 'lucide-react'
 
 // Public website home page. Update this to your live domain if different.
-const HOME_URL = 'https://sengolewebsite.vercel.app'
+const HOME_URL = 'https://sengolinternationaluniversity.edu.in/'
 
 export default function Login() {
   const { signIn, isConfigured } = useAuth()
