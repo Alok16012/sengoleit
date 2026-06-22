@@ -735,7 +735,7 @@ export default function StudentForm() {
                       </>
                   }
                 </Select>
-                <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} onChange={set('academic_year')} readOnly={isReadOnly} />
+                <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} readOnly className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
