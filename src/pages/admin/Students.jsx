@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X } from 'lucide-react'
+import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
@@ -137,9 +137,25 @@ export default function Students() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [downloading, setDownloading] = useState(null)
   const [credStudentId, setCredStudentId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => { fetchData() }, [])
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    // Free up any coupon reserved by this application so it can be reused.
+    await supabase.from('coupons')
+      .update({ is_used: false, used_at: null, application_id: null })
+      .eq('application_id', deleteTarget.id)
+    const { error } = await supabase.from('students').delete().eq('id', deleteTarget.id)
+    setDeleting(false)
+    if (error) { alert('Delete failed: ' + error.message); return }
+    setData(prev => prev.filter(s => s.id !== deleteTarget.id))
+    setDeleteTarget(null)
+  }
 
   async function handleDownload(studentId) {
     setDownloading(studentId)
@@ -253,6 +269,9 @@ export default function Students() {
                     <Button size="sm" variant="ghost" onClick={() => setCredStudentId(s.id)} title="Login Credentials">
                       <KeyRound size={14} className="text-gray-500" />
                     </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)} title="Delete Student">
+                      <Trash2 size={14} className="text-red-500" />
+                    </Button>
                   </div>
                 </Td>
               </Tr>
@@ -263,6 +282,35 @@ export default function Students() {
 
       {credStudentId && (
         <CredModal studentId={credStudentId} onClose={() => setCredStudentId(null)} />
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4">
+            <div className="p-5 border-b border-gray-100 flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <AlertTriangle size={17} className="text-red-600" />
+              </div>
+              <h3 className="font-bold text-gray-900">Delete Student</h3>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to permanently delete{' '}
+                <span className="font-bold text-gray-900">{deleteTarget.student_name}</span>?
+                This action cannot be undone.
+              </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+                Any coupon reserved by this application will be released back for reuse.
+              </div>
+            </div>
+            <div className="p-5 pt-0 flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>Cancel</Button>
+              <Button variant="danger" onClick={handleDelete} disabled={deleting}>
+                <Trash2 size={14} /> {deleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
