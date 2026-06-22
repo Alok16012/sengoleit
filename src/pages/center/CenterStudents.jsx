@@ -64,7 +64,7 @@ export default function CenterStudents() {
     setLoading(true)
     const { data } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, programs(program_name), academic_sessions(session_name)')
+      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, doc_verified_at, programs(program_name), academic_sessions(session_name)')
       .eq('center_id', centerId)
       .order('created_at', { ascending: false })
     setData(data || [])
@@ -164,8 +164,8 @@ export default function CenterStudents() {
                 </Td>
                 <Td>
                   <div className="flex gap-1">
-                    {s.status === 'Pending' && (
-                      <Button size="sm" variant="ghost" onClick={() => navigate(`/center/students/edit/${s.id}`)}>
+                    {(s.status === 'Pending' || (s.status === 'Hold' && !s.doc_verified_at)) && (
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/center/students/edit/${s.id}`)} title={s.status === 'Hold' ? 'Correct & resubmit' : 'Edit'}>
                         <Edit size={14} />
                       </Button>
                     )}

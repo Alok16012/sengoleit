@@ -349,7 +349,7 @@ export default function DocumentDepartment() {
     setLoading(true)
     const query = supabase
       .from('students')
-      .select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, submitted_by, created_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, submitted_by, created_at, doc_verified_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
       .order('created_at', { ascending: false })
 
     const { data } = statusFilter === 'All'
@@ -401,15 +401,17 @@ export default function DocumentDepartment() {
     fetchStudents()
   }
 
-  // Hold = send the application back to the Center for correction. The student
-  // stays at 'Pending' (the only status the center can still edit & resubmit),
-  // and the flagged remark is saved so the center knows what to fix. It is NOT
-  // forwarded to Account Dept (no doc_verified_at / admission number).
+  // Hold = send the application back for correction. The student moves to the
+  // 'Hold' bucket but with doc_verified_at = null, so it leaves the Pending
+  // queue, shows in the Hold tab, and is NOT forwarded to Account Dept (the
+  // Account Dept only reads status='Hold' AND doc_verified_at NOT NULL). The
+  // flagged remark is saved so the center/admin knows what to fix; the entry
+  // stays actionable (re-Verify / Reject) in the Hold tab after correction.
   async function handleHold() {
     if (!holdRemarks.trim()) { alert('A remark is required to put this on hold'); return }
     setSaving(true)
     await supabase.from('students').update({
-      status: 'Pending',
+      status: 'Hold',
       doc_verified_at: null,
       remarks: holdRemarks.trim(),
     }).eq('id', holdModal.id)
@@ -1302,7 +1304,14 @@ export default function DocumentDepartment() {
                 <Td className="text-gray-400 text-xs">{formatDate(s.created_at)}</Td>
                 <Td className="font-mono text-xs text-gray-700">{s.admission_number || '—'}</Td>
                 <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
-                <Td><Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge></Td>
+                <Td>
+                  <Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge>
+                  {s.status === 'Hold' && (
+                    <p className={`text-[10px] font-semibold mt-0.5 ${s.doc_verified_at ? 'text-indigo-500' : 'text-amber-600'}`}>
+                      {s.doc_verified_at ? 'With Account Dept.' : 'Sent back for correction'}
+                    </p>
+                  )}
+                </Td>
                 <Td>
                   <Button size="sm" variant="ghost" onClick={() => handleViewStudent(s.id)} title="View full form & documents">
                     <Eye size={13} className="text-[#933d18]" />
@@ -1310,7 +1319,7 @@ export default function DocumentDepartment() {
                 </Td>
                 <Td>
                   <div className="flex gap-1 flex-wrap">
-                    {s.status === 'Pending' && (
+                    {(s.status === 'Pending' || (s.status === 'Hold' && !s.doc_verified_at)) && (
                       <>
                         <Button size="sm" variant="success" onClick={() => openStudentVerify(s.id)}>
                           <CheckCircle size={13} /> Verify

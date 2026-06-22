@@ -796,6 +796,9 @@ export default function StudentForm() {
     setLoading(true)
     const payload = { ...form }
     if (!isEdit) payload.status = 'Pending'
+    // A student that was sent back for correction (Hold + not yet doc-verified)
+    // re-enters the Document Dept queue as Pending once it is resubmitted.
+    if (isEdit && form.status === 'Hold' && !form.doc_verified_at) payload.status = 'Pending'
     if (!isEdit && !payload.registration_no) {
       payload.registration_no = await generateRegistrationNumber()
     }
