@@ -57,6 +57,7 @@ export default function AccountDepartment() {
   const [rechargeModal, setRechargeModal] = useState(null)
   const [rechargeChecked, setRechargeChecked] = useState(false)
   const [rechargeSaving, setRechargeSaving] = useState(false)
+  const [rechargeRemark, setRechargeRemark] = useState('')
   // Payment method flow: '' (not chosen) | 'manual' (offline/UTR) | 'link' (Razorpay)
   const [receiptVerified, setReceiptVerified] = useState(false)
   const [manualUtr, setManualUtr] = useState('')
@@ -442,6 +443,20 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
+  function closeRechargeModal() {
+    setRechargeModal(null); setRechargeChecked(false); setRechargeRemark('')
+  }
+
+  // Best-effort write of admin remarks. The admin_remarks column may not yet
+  // exist in the DB (run add_recharge_admin_remarks.sql); if it doesn't, the
+  // PATCH fails harmlessly and we don't block the status change.
+  async function saveRechargeRemark(id, remark) {
+    if (!remark) return
+    try {
+      await supabase.from('recharge_requests').update({ admin_remarks: remark }).eq('id', id)
+    } catch { /* column may not exist yet — ignore */ }
+  }
+
   async function handleVerifyRecharge(req) {
     setRechargeSaving(true)
     // Atomically claim the request: flip pending → verified and only credit
@@ -454,13 +469,43 @@ export default function AccountDepartment() {
       .eq('status', 'pending')
       .select('id')
     if (!claimed || claimed.length === 0) {
-      setRechargeSaving(false); setRechargeModal(null); setRechargeChecked(false); fetchAll(); return
+      setRechargeSaving(false); closeRechargeModal(); fetchAll(); return
     }
+    if (rechargeRemark.trim()) await saveRechargeRemark(req.id, rechargeRemark.trim())
 
     const { data: centerData } = await supabase.from('centers').select('virtual_balance').eq('id', req.center_id).single()
     const newBalance = (centerData?.virtual_balance || 0) + Number(req.amount)
     await supabase.from('centers').update({ virtual_balance: newBalance }).eq('id', req.center_id)
-    setRechargeSaving(false); setRechargeModal(null); setRechargeChecked(false)
+    setRechargeSaving(false); closeRechargeModal()
+    fetchAll()
+  }
+
+  // Put a recharge on hold with remarks. Wallet is NOT credited. Guarded so it
+  // only acts on a still-pending request.
+  async function handleHoldRecharge(req, remark) {
+    setRechargeSaving(true)
+    const { data: claimed } = await supabase
+      .from('recharge_requests')
+      .update({ status: 'hold' })
+      .eq('id', req.id)
+      .eq('status', 'pending')
+      .select('id')
+    if (claimed && claimed.length > 0) await saveRechargeRemark(req.id, remark)
+    setRechargeSaving(false); closeRechargeModal()
+    fetchAll()
+  }
+
+  // Reject from the detail modal with remarks (wallet untouched).
+  async function handleRejectRechargeModal(req, remark) {
+    setRechargeSaving(true)
+    const { data: claimed } = await supabase
+      .from('recharge_requests')
+      .update({ status: 'rejected' })
+      .eq('id', req.id)
+      .eq('status', 'pending')
+      .select('id')
+    if (claimed && claimed.length > 0) await saveRechargeRemark(req.id, remark)
+    setRechargeSaving(false); closeRechargeModal()
     fetchAll()
   }
 
@@ -1765,7 +1810,7 @@ export default function AccountDepartment() {
       </Modal>
 
       {/* Recharge — verify payment & credit wallet */}
-      <Modal isOpen={!!rechargeModal} onClose={() => { setRechargeModal(null); setRechargeChecked(false) }} title="Verify Recharge & Credit Wallet">
+      <Modal isOpen={!!rechargeModal} onClose={closeRechargeModal} title="Review Recharge Request">
         {rechargeModal && (
           <div className="space-y-4">
             {/* Center summary */}
@@ -1819,6 +1864,18 @@ export default function AccountDepartment() {
               )}
             </div>
 
+            {/* Remarks */}
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Remarks {rechargeChecked ? '(optional)' : '(required for Hold / Reject)'}</label>
+              <textarea
+                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#933d18] resize-none"
+                rows={2}
+                placeholder="Reason for hold or rejection, or any note..."
+                value={rechargeRemark}
+                onChange={e => setRechargeRemark(e.target.value)}
+              />
+            </div>
+
             {/* Confirmation */}
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <input type="checkbox" checked={rechargeChecked} onChange={e => setRechargeChecked(e.target.checked)} className="w-4 h-4 accent-[#933d18]" />
@@ -1826,14 +1883,20 @@ export default function AccountDepartment() {
             </label>
 
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
-              On confirm, ₹{Number(rechargeModal.amount).toLocaleString('en-IN')} will be credited to the center's wallet. This cannot be undone.
+              On <strong>Verify</strong>, ₹{Number(rechargeModal.amount).toLocaleString('en-IN')} will be credited to the center's wallet (this cannot be undone). <strong>Hold</strong> and <strong>Reject</strong> do not credit the wallet.
             </div>
 
-            <div className="flex gap-3 pt-1">
+            <div className="flex flex-wrap gap-3 pt-1">
               <Button variant="success" disabled={!rechargeChecked || rechargeSaving} onClick={() => handleVerifyRecharge(rechargeModal)}>
                 <CheckCircle size={14} /> {rechargeSaving ? 'Crediting...' : 'Verify & Credit Wallet'}
               </Button>
-              <Button variant="outline" onClick={() => { setRechargeModal(null); setRechargeChecked(false) }}>Cancel</Button>
+              <Button variant="outline" disabled={!rechargeRemark.trim() || rechargeSaving} onClick={() => handleHoldRecharge(rechargeModal, rechargeRemark.trim())}>
+                <Clock size={14} /> Hold
+              </Button>
+              <Button variant="danger" disabled={!rechargeRemark.trim() || rechargeSaving} onClick={() => handleRejectRechargeModal(rechargeModal, rechargeRemark.trim())}>
+                <XCircle size={14} /> Reject
+              </Button>
+              <Button variant="ghost" onClick={closeRechargeModal}>Cancel</Button>
             </div>
           </div>
         )}
