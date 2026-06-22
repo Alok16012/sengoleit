@@ -16,6 +16,7 @@ export default function BalanceView() {
   const [center, setCenter] = useState(null)
   const [centerErr, setCenterErr] = useState('')
   const [requests, setRequests] = useState([])
+  const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [form, setForm] = useState({ amount: '', utr_number: '', payment_date: '', notes: '' })
@@ -115,6 +116,22 @@ export default function BalanceView() {
 
   const totalPending = requests.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
 
+  // Status sub-filter for the recharge history table.
+  const STATUS_MATCH = {
+    all:      () => true,
+    pending:  r => r.status === 'pending',
+    hold:     r => r.status === 'hold',
+    verified: r => r.status === 'verified',
+    rejected: r => r.status === 'rejected',
+  }
+  const statusCounts = {
+    pending:  requests.filter(STATUS_MATCH.pending).length,
+    hold:     requests.filter(STATUS_MATCH.hold).length,
+    verified: requests.filter(STATUS_MATCH.verified).length,
+    rejected: requests.filter(STATUS_MATCH.rejected).length,
+  }
+  const filteredRequests = requests.filter(STATUS_MATCH[statusFilter] || (() => true))
+
   return (
     <div className="p-6">
       <PageHeader
@@ -169,6 +186,30 @@ export default function BalanceView() {
 
       {/* Requests Table */}
       <h2 className="text-sm font-bold text-gray-700 mb-3">Recharge History</h2>
+
+      <div className="flex flex-wrap gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+        {[
+          { key: 'all',      label: 'All',      color: 'bg-gray-500' },
+          { key: 'pending',  label: 'Pending',  color: 'bg-amber-500' },
+          { key: 'hold',     label: 'Hold',     color: 'bg-indigo-500' },
+          { key: 'verified', label: 'Verified', color: 'bg-emerald-500' },
+          { key: 'rejected', label: 'Rejected', color: 'bg-red-500' },
+        ].map(s => (
+          <button
+            key={s.key}
+            onClick={() => setStatusFilter(s.key)}
+            className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              statusFilter === s.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {s.label}
+            {s.key !== 'all' && statusCounts[s.key] > 0 && (
+              <span className={`ml-2 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.color}`}>{statusCounts[s.key]}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
@@ -188,9 +229,9 @@ export default function BalanceView() {
             </tr>
           </Thead>
           <Tbody>
-            {requests.length === 0 ? (
-              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No recharge requests yet</Td></Tr>
-            ) : requests.map((r, i) => (
+            {filteredRequests.length === 0 ? (
+              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No {statusFilter === 'all' ? '' : statusFilter + ' '}recharge requests{statusFilter === 'all' ? ' yet' : ''}</Td></Tr>
+            ) : filteredRequests.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td><span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span></Td>
