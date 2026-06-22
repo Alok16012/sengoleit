@@ -876,7 +876,16 @@ export default function StudentForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <form
+        onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          // Block Enter from implicitly submitting the form from any field
+          // (except multi-line textareas). This stops the application from
+          // being submitted early on steps like Education before Documents.
+          if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') e.preventDefault()
+        }}
+        className="flex flex-col gap-5"
+      >
 
         {/* STEP 0: Basic Entry */}
         {step === 0 && (
