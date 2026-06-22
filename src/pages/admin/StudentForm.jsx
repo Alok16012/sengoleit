@@ -167,7 +167,8 @@ function SearchSelect({ label, options, value, onChange, placeholder = 'Select',
   )
 }
 
-function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, countries = [], states, districts, sameAsOptions, readOnly }) {
+function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, countries = [], states, districts, sameAsOptions, readOnly, isLocked = () => false }) {
+  const ro = (suffix) => readOnly || isLocked(`${prefix}_${suffix}`)
   const selectedCountry = countries.find(c => c.country_name === form[`${prefix}_country`])
   const countryStates = selectedCountry ? states.filter(s => s.country_id === selectedCountry.id) : states
   const uniqueStates = countryStates.filter((s, i, arr) => arr.findIndex(x => x.state_name === s.state_name) === i)
@@ -190,51 +191,52 @@ function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, 
         ))}
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} readOnly={readOnly} />
-        <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} readOnly={readOnly} />
+        <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} readOnly={ro('village_town')} />
+        <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} readOnly={ro('landmark')} />
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <Input label="Post Office" value={form[`${prefix}_post_office`]} onChange={onChange(`${prefix}_post_office`)} readOnly={readOnly} />
-        <Input label="City *" value={form[`${prefix}_city`]} onChange={onChange(`${prefix}_city`)} readOnly={readOnly} />
-        <Input label="PIN Code *" type="tel" inputMode="numeric" maxLength={6} placeholder="6-digit PIN" value={form[`${prefix}_pin_code`]} onChange={onChangeDigits(`${prefix}_pin_code`, 6)} readOnly={readOnly} />
+        <Input label="Post Office" value={form[`${prefix}_post_office`]} onChange={onChange(`${prefix}_post_office`)} readOnly={ro('post_office')} />
+        <Input label="City *" value={form[`${prefix}_city`]} onChange={onChange(`${prefix}_city`)} readOnly={ro('city')} />
+        <Input label="PIN Code *" type="tel" inputMode="numeric" maxLength={6} placeholder="6-digit PIN" value={form[`${prefix}_pin_code`]} onChange={onChangeDigits(`${prefix}_pin_code`, 6)} readOnly={ro('pin_code')} />
       </div>
       <div className="grid grid-cols-2 gap-4">
         {countries.length > 0 ? (
           <Select label="Country *" value={form[`${prefix}_country`] || ''}
             onChange={e => setForm(f => ({ ...f, [`${prefix}_country`]: e.target.value, [`${prefix}_state`]: '', [`${prefix}_district`]: '' }))}
-            disabled={readOnly}>
+            disabled={ro('country')}>
             <option value="">Select Country</option>
             {countries.map(c => <option key={c.id} value={c.country_name}>{c.country_name}</option>)}
           </Select>
         ) : (
-          <Input label="Country *" value={form[`${prefix}_country`]} onChange={onChange(`${prefix}_country`)} readOnly={readOnly} />
+          <Input label="Country *" value={form[`${prefix}_country`]} onChange={onChange(`${prefix}_country`)} readOnly={ro('country')} />
         )}
         {uniqueStates.length > 0 ? (
           <Select label="State *" value={form[`${prefix}_state`] || ''}
             onChange={e => setForm(f => ({ ...f, [`${prefix}_state`]: e.target.value, [`${prefix}_district`]: '' }))}
-            disabled={readOnly}>
+            disabled={ro('state')}>
             <option value="">Select State</option>
             {uniqueStates.map(s => <option key={s.id} value={s.state_name}>{s.state_name}</option>)}
           </Select>
         ) : (
-          <Input label="State *" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} readOnly={readOnly} />
+          <Input label="State *" value={form[`${prefix}_state`]} onChange={onChange(`${prefix}_state`)} readOnly={ro('state')} />
         )}
       </div>
       <div className="grid grid-cols-2 gap-4">
         {filteredDistricts.length > 0 ? (
-          <Select label="District" value={form[`${prefix}_district`] || ''} onChange={onChange(`${prefix}_district`)} disabled={readOnly}>
+          <Select label="District" value={form[`${prefix}_district`] || ''} onChange={onChange(`${prefix}_district`)} disabled={ro('district')}>
             <option value="">Select District</option>
             {filteredDistricts.map(d => <option key={d.id} value={d.district_name}>{d.district_name}</option>)}
           </Select>
         ) : (
-          <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} readOnly={readOnly} />
+          <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} readOnly={ro('district')} />
         )}
       </div>
     </div>
   )
 }
 
-function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading, isOpen, onToggle, readOnly }) {
+function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading, isOpen, onToggle, readOnly, isLocked = () => false }) {
+  const ro = (suffix) => readOnly || isLocked(`${prefix}_${suffix}`)
   const levelBoards = boards.filter(b => b.type === 'All' || b.type === boardType)
   const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
   const total = parseFloat(form[`${prefix}_total_marks`]) || 0
@@ -266,16 +268,16 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
       {isOpen && (
         <div className="p-5 space-y-4 border-t border-[#933d18]/10">
           <div className="grid grid-cols-3 gap-4">
-            <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={onChange(`${prefix}_institute_name`)} readOnly={readOnly} />
+            <Input label="Institute Name" value={form[`${prefix}_institute_name`]} onChange={onChange(`${prefix}_institute_name`)} readOnly={ro('institute_name')} />
             {levelBoards.length > 0 ? (
-              <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} disabled={readOnly}>
+              <Select label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} disabled={ro('board_university')}>
                 <option value="">Select Board</option>
                 {levelBoards.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </Select>
             ) : (
-              <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} readOnly={readOnly} />
+              <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} readOnly={ro('board_university')} />
             )}
-            <Input label="Passing Year" type="number" placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} readOnly={readOnly} />
+            <Input label="Passing Year" type="number" placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} readOnly={ro('passing_year')} />
           </div>
           <div className="grid grid-cols-4 gap-4">
             <Input label="Obtained Marks" type="number" min="0"
@@ -283,11 +285,11 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
               value={form[`${prefix}_obtained_marks`]}
               onChange={onChange(`${prefix}_obtained_marks`)}
               error={marksError}
-              readOnly={readOnly} />
+              readOnly={ro('obtained_marks')} />
             <Input label="Total Marks" type="number" min="0"
               value={form[`${prefix}_total_marks`]}
               onChange={onChange(`${prefix}_total_marks`)}
-              readOnly={readOnly} />
+              readOnly={ro('total_marks')} />
             <Input
               label="Percentage (%)"
               value={percentage ? `${percentage}%` : ''}
@@ -303,7 +305,7 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
               value={form[marksheetKey]}
               onUpload={onUpload}
               isUploading={!!uploading[marksheetKey]}
-              readOnly={readOnly}
+              readOnly={ro('marksheet_url')}
             />
           </div>
         </div>
@@ -414,6 +416,15 @@ export default function StudentForm() {
   // (doc-verified), approved or rejected, the form is view-only for them.
   const ownerCanEdit = form.status === 'Pending' || (form.status === 'Hold' && !form.doc_verified_at)
   const isReadOnly = isEdit && !isAdmin && !ownerCanEdit
+  // When a center resubmits a student sent back for correction (Hold + not yet
+  // doc-verified), only the fields the Document Dept flagged may be edited — every
+  // other field stays locked. The flagged list is stored on students.correction_fields.
+  const correctionMode = isEdit && !isAdmin && form.status === 'Hold' && !form.doc_verified_at
+  const correctionArr = correctionMode && Array.isArray(form.correction_fields) ? form.correction_fields : []
+  const correctionSet = correctionArr.length ? new Set(correctionArr) : null
+  // A field is locked if we're in correction mode with a specific flagged list and
+  // this field isn't on it. With no specific list, the whole form stays editable.
+  const isLocked = (name) => !!correctionSet && !correctionSet.has(name)
   const backPath = role === 'center' ? '/center/students' : role === 'super_center' ? '/super-center/students' : '/admin/students'
 
   const [universities, setUniversities] = useState([])
@@ -856,6 +867,17 @@ export default function StudentForm() {
         </div>
       )}
 
+      {/* Correction-mode banner — only the flagged fields are editable */}
+      {correctionMode && correctionSet && (
+        <div className="mt-4 mb-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+          <AlertCircle size={15} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Sent back for correction — only the requested fields can be edited.</p>
+            {form.remarks && <p className="text-xs text-amber-600 mt-1 whitespace-pre-line">{form.remarks}</p>}
+          </div>
+        </div>
+      )}
+
       {/* Step header */}
       <div className="sticky top-0 z-20 mt-4 mb-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden">
         <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -936,15 +958,15 @@ export default function StudentForm() {
         {step === 0 && (
           <FormSection title="Basic Entry" icon={<ClipboardList size={16} />}>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Select label="Session *" value={form.session_id} onChange={handleSessionChange} disabled={isReadOnly} required>
+              <Select label="Session *" value={form.session_id} onChange={handleSessionChange} disabled={isReadOnly || isLocked('session_id')} required>
                 <option value="">Select Session</option>
                 {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
               </Select>
-              <Select label="Mode *" value={form.mode_id} onChange={set('mode_id')} disabled={isReadOnly} required>
+              <Select label="Mode *" value={form.mode_id} onChange={set('mode_id')} disabled={isReadOnly || isLocked('mode_id')} required>
                 <option value="">Select Mode</option>
                 {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
               </Select>
-              <Select label="Entry Type *" value={form.entry_type} onChange={set('entry_type')} disabled={isReadOnly}>
+              <Select label="Entry Type *" value={form.entry_type} onChange={set('entry_type')} disabled={isReadOnly || isLocked('entry_type')}>
                 <option value="Regular">Regular</option>
                 <option value="Lateral">Lateral</option>
                 <option value="External">External</option>
@@ -957,7 +979,7 @@ export default function StudentForm() {
                 onChange={set('date_of_submission')}
                 min={sessionMinDate || undefined}
                 max={sessionMaxDate || undefined}
-                readOnly={isReadOnly}
+                readOnly={isReadOnly || isLocked('date_of_submission')}
                 hint={
                   sessionMinDate && sessionMaxDate
                     ? `Between ${fmtDate(sessionMinDate)} and ${fmtDate(sessionMaxDate)}`
@@ -970,7 +992,7 @@ export default function StudentForm() {
                 onChange={set('date_of_admission')}
                 min={sessionMinDate || undefined}
                 max={sessionMaxDate || undefined}
-                readOnly={isReadOnly}
+                readOnly={isReadOnly || isLocked('date_of_admission')}
                 hint={
                   sessionMinDate && sessionMaxDate
                     ? `Between ${fmtDate(sessionMinDate)} and ${fmtDate(sessionMaxDate)}`
@@ -1010,7 +1032,7 @@ export default function StudentForm() {
                   placeholder="Select Department"
                   value={form.department_id}
                   onChange={handleDepartmentChange}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || isLocked('department_id')}
                   options={departments.map(d => ({ id: d.id, label: d.name }))}
                 />
                 <SearchSelect
@@ -1018,13 +1040,13 @@ export default function StudentForm() {
                   placeholder="Select Program"
                   value={form.programme_id}
                   onChange={handleProgramChange}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || isLocked('department_id')}
                   options={filteredPrograms.map(p => ({ id: p.id, label: p.program_name }))}
                 />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <Input label="Course Code" value={form.course_code} onChange={set('course_code')} readOnly={isReadOnly} />
-                <Select label="Semester / Year *" value={form.semester_year} onChange={set('semester_year')} disabled={isReadOnly} required>
+                <Input label="Course Code" value={form.course_code} onChange={set('course_code')} readOnly={isReadOnly || isLocked('course_code')} />
+                <Select label="Semester / Year *" value={form.semester_year} onChange={set('semester_year')} disabled={isReadOnly || isLocked('semester_year')} required>
                   <option value="">Select</option>
                   {semesterOptions
                     ? semesterOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)
@@ -1175,58 +1197,58 @@ export default function StudentForm() {
         {step === 2 && (
           <FormSection title="Personal Information" icon={<User size={16} />}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Student Name *" value={form.student_name} onChange={set('student_name')} required readOnly={isReadOnly} />
-              <DateInput label="Date of Birth *" value={form.date_of_birth} onChange={set('date_of_birth')} required readOnly={isReadOnly} />
+              <Input label="Student Name *" value={form.student_name} onChange={set('student_name')} required readOnly={isReadOnly || isLocked('student_name')} />
+              <DateInput label="Date of Birth *" value={form.date_of_birth} onChange={set('date_of_birth')} required readOnly={isReadOnly || isLocked('date_of_birth')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Select label="Profession *" value={form.profession} onChange={set('profession')} disabled={isReadOnly} required>
+              <Select label="Profession *" value={form.profession} onChange={set('profession')} disabled={isReadOnly || isLocked('profession')} required>
                 <option value="">Select</option>
                 {PROFESSION_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
               </Select>
-              <Select label="Gender *" value={form.gender} onChange={set('gender')} disabled={isReadOnly} required>
+              <Select label="Gender *" value={form.gender} onChange={set('gender')} disabled={isReadOnly || isLocked('gender')} required>
                 <option value="">Select</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
                 <option value="Others">Others</option>
               </Select>
-              <Input label="Email Id *" type="email" value={form.email} onChange={set('email')} required readOnly={isReadOnly} />
+              <Input label="Email Id *" type="email" value={form.email} onChange={set('email')} required readOnly={isReadOnly || isLocked('email')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input label="Mobile No *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.mobile_no} onChange={setDigits('mobile_no', 10)} required readOnly={isReadOnly} />
-              <Input label="WhatsApp No *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit number" value={form.whatsapp_no} onChange={setDigits('whatsapp_no', 10)} required readOnly={isReadOnly} />
+              <Input label="Mobile No *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.mobile_no} onChange={setDigits('mobile_no', 10)} required readOnly={isReadOnly || isLocked('mobile_no')} />
+              <Input label="WhatsApp No *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit number" value={form.whatsapp_no} onChange={setDigits('whatsapp_no', 10)} required readOnly={isReadOnly || isLocked('whatsapp_no')} />
               {countries.length > 0 ? (
-                <Select label="Nationality *" value={form.nationality} onChange={set('nationality')} disabled={isReadOnly} required>
+                <Select label="Nationality *" value={form.nationality} onChange={set('nationality')} disabled={isReadOnly || isLocked('nationality')} required>
                   <option value="">Select Country</option>
                   {countries.map(c => <option key={c.id} value={c.country_name}>{c.country_name}</option>)}
                 </Select>
               ) : (
-                <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} required readOnly={isReadOnly} />
+                <Input label="Nationality *" value={form.nationality} onChange={set('nationality')} required readOnly={isReadOnly || isLocked('nationality')} />
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Select label="Caste *" value={form.caste} onChange={set('caste')} disabled={isReadOnly} required>
+              <Select label="Caste *" value={form.caste} onChange={set('caste')} disabled={isReadOnly || isLocked('caste')} required>
                 <option value="">Select</option>
                 {CASTE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
-              <Input label="Religion *" value={form.religion} onChange={set('religion')} required readOnly={isReadOnly} />
-              <Input label="Blood Group" placeholder="A+, B-, O+" value={form.blood_group} onChange={set('blood_group')} readOnly={isReadOnly} />
+              <Input label="Religion *" value={form.religion} onChange={set('religion')} required readOnly={isReadOnly || isLocked('religion')} />
+              <Input label="Blood Group" placeholder="A+, B-, O+" value={form.blood_group} onChange={set('blood_group')} readOnly={isReadOnly || isLocked('blood_group')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input label="Mother Tongue *" value={form.mother_tongue} onChange={set('mother_tongue')} required readOnly={isReadOnly} />
-              <Select label="Physically Handicapped *" value={form.physically_handicapped} onChange={set('physically_handicapped')} disabled={isReadOnly}>
+              <Input label="Mother Tongue *" value={form.mother_tongue} onChange={set('mother_tongue')} required readOnly={isReadOnly || isLocked('mother_tongue')} />
+              <Select label="Physically Handicapped *" value={form.physically_handicapped} onChange={set('physically_handicapped')} disabled={isReadOnly || isLocked('physically_handicapped')}>
                 <option value="No">No</option>
                 <option value="Yes">Yes</option>
               </Select>
-              <Input label="Aadhar Link Mobile *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.aadhar_link_mobile} onChange={setDigits('aadhar_link_mobile', 10)} required readOnly={isReadOnly} />
+              <Input label="Aadhar Link Mobile *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.aadhar_link_mobile} onChange={setDigits('aadhar_link_mobile', 10)} required readOnly={isReadOnly || isLocked('aadhar_link_mobile')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input label="Aadhar No *" inputMode="numeric" maxLength={12} placeholder="12-digit Aadhar" value={form.aadhar_no} onChange={setDigits('aadhar_no', 12)} required readOnly={isReadOnly} />
-              <Input label="PAN No" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} readOnly={isReadOnly} />
-              <Select label="Scholarship Applied *" value={form.scholarship_applied} onChange={set('scholarship_applied')} disabled={isReadOnly}>
+              <Input label="Aadhar No *" inputMode="numeric" maxLength={12} placeholder="12-digit Aadhar" value={form.aadhar_no} onChange={setDigits('aadhar_no', 12)} required readOnly={isReadOnly || isLocked('aadhar_no')} />
+              <Input label="PAN No" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} readOnly={isReadOnly || isLocked('pan_no')} />
+              <Select label="Scholarship Applied *" value={form.scholarship_applied} onChange={set('scholarship_applied')} disabled={isReadOnly || isLocked('scholarship_applied')}>
                 {SCHOLARSHIP_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
             </div>
-            <Input label="Identification Marks" placeholder="Any visible identification marks..." value={form.identification_marks} onChange={set('identification_marks')} readOnly={isReadOnly} />
+            <Input label="Identification Marks" placeholder="Any visible identification marks..." value={form.identification_marks} onChange={set('identification_marks')} readOnly={isReadOnly || isLocked('identification_marks')} />
           </FormSection>
         )}
 
@@ -1234,21 +1256,21 @@ export default function StudentForm() {
         {step === 3 && (
           <FormSection title="Family Information" icon={<Users size={16} />}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Father's Name *" value={form.fathers_name} onChange={set('fathers_name')} required readOnly={isReadOnly} />
-              <Input label="Father's Occupation *" value={form.fathers_occupation} onChange={set('fathers_occupation')} required readOnly={isReadOnly} />
+              <Input label="Father's Name *" value={form.fathers_name} onChange={set('fathers_name')} required readOnly={isReadOnly || isLocked('fathers_name')} />
+              <Input label="Father's Occupation *" value={form.fathers_occupation} onChange={set('fathers_occupation')} required readOnly={isReadOnly || isLocked('fathers_occupation')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Mother's Name *" value={form.mothers_name} onChange={set('mothers_name')} required readOnly={isReadOnly} />
-              <Input label="Mother's Occupation *" value={form.mothers_occupation} onChange={set('mothers_occupation')} required readOnly={isReadOnly} />
+              <Input label="Mother's Name *" value={form.mothers_name} onChange={set('mothers_name')} required readOnly={isReadOnly || isLocked('mothers_name')} />
+              <Input label="Mother's Occupation *" value={form.mothers_occupation} onChange={set('mothers_occupation')} required readOnly={isReadOnly || isLocked('mothers_occupation')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input label="Guardian's Name" value={form.guardian_name} onChange={set('guardian_name')} readOnly={isReadOnly} />
-              <Input label="Guardian's Occupation" value={form.guardian_occupation} onChange={set('guardian_occupation')} readOnly={isReadOnly} />
-              <Input label="Relation" placeholder="E.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} readOnly={isReadOnly} />
+              <Input label="Guardian's Name" value={form.guardian_name} onChange={set('guardian_name')} readOnly={isReadOnly || isLocked('guardian_name')} />
+              <Input label="Guardian's Occupation" value={form.guardian_occupation} onChange={set('guardian_occupation')} readOnly={isReadOnly || isLocked('guardian_occupation')} />
+              <Input label="Relation" placeholder="E.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} readOnly={isReadOnly || isLocked('guardian_relation')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Guardian Email Id" type="email" value={form.guardian_email} onChange={set('guardian_email')} readOnly={isReadOnly} />
-              <Input label="Guardian Mobile No" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.guardian_mobile} onChange={setDigits('guardian_mobile', 10)} readOnly={isReadOnly} />
+              <Input label="Guardian Email Id" type="email" value={form.guardian_email} onChange={set('guardian_email')} readOnly={isReadOnly || isLocked('guardian_email')} />
+              <Input label="Guardian Mobile No" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.guardian_mobile} onChange={setDigits('guardian_mobile', 10)} readOnly={isReadOnly || isLocked('guardian_mobile')} />
             </div>
           </FormSection>
         )}
@@ -1258,9 +1280,9 @@ export default function StudentForm() {
           <FormSection title="Contact Information" icon={<MapPin size={16} />}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <AddressBlock prefix="student_perm" label="Student Permanent Address"
-                form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly} />
+                form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly} isLocked={isLocked} />
               <AddressBlock prefix="student_pres" label="Student Present Address"
-                form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly}
+                form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly} isLocked={isLocked}
                 sameAsOptions={[{
                   label: 'Same as Permanent Address',
                   checked: pressSameAsPerm,
@@ -1268,7 +1290,7 @@ export default function StudentForm() {
                   onToggle: v => setPressSameAsPerm(v),
                 }]} />
               <AddressBlock prefix="guardian_pres" label="Guardian Present Address"
-                form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly}
+                form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly} isLocked={isLocked}
                 sameAsOptions={[{
                   label: "Same as Student's Present Address",
                   checked: guardianPresSameAsStudent,
@@ -1276,7 +1298,7 @@ export default function StudentForm() {
                   onToggle: v => setGuardianPresSameAsStudent(v),
                 }]} />
               <AddressBlock prefix="guardian_perm" label="Guardian Permanent Address"
-                form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly}
+                form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly} isLocked={isLocked}
                 sameAsOptions={[
                   {
                     label: 'Same as Guardian Present Address',
@@ -1300,11 +1322,11 @@ export default function StudentForm() {
           <FormSection title="Education Qualification" icon={<FileText size={16} />}
             subtitle="Click on each level to expand and fill details">
             <div className="space-y-2">
-              <EduRow prefix="tenth" label="10th / SSC / Matric" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.tenth} onToggle={() => toggleEdu('tenth')} readOnly={isReadOnly} />
-              <EduRow prefix="twelfth" label="12th / HSC / Intermediate" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.twelfth} onToggle={() => toggleEdu('twelfth')} readOnly={isReadOnly} />
-              <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.ug} onToggle={() => toggleEdu('ug')} readOnly={isReadOnly} />
-              <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.pg} onToggle={() => toggleEdu('pg')} readOnly={isReadOnly} />
-              <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.diploma} onToggle={() => toggleEdu('diploma')} readOnly={isReadOnly} />
+              <EduRow prefix="tenth" label="10th / SSC / Matric" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.tenth} onToggle={() => toggleEdu('tenth')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="twelfth" label="12th / HSC / Intermediate" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.twelfth} onToggle={() => toggleEdu('twelfth')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.ug} onToggle={() => toggleEdu('ug')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.pg} onToggle={() => toggleEdu('pg')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.diploma} onToggle={() => toggleEdu('diploma')} readOnly={isReadOnly} isLocked={isLocked} />
             </div>
           </FormSection>
         )}
@@ -1321,7 +1343,7 @@ export default function StudentForm() {
                       <User size={28} className="text-gray-300" />
                     </div>
                 }
-                <FileField label="Student Photo *" fieldKey="photo_url" accept="image/*" isImage value={form.photo_url} onUpload={handleFileUpload} isUploading={!!uploading.photo_url} readOnly={isReadOnly} />
+                <FileField label="Student Photo *" fieldKey="photo_url" accept="image/*" isImage value={form.photo_url} onUpload={handleFileUpload} isUploading={!!uploading.photo_url} readOnly={isReadOnly || isLocked('photo_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3 items-center">
                 {form.signature_url
@@ -1330,15 +1352,15 @@ export default function StudentForm() {
                       <FileText size={28} className="text-gray-300" />
                     </div>
                 }
-                <FileField label="Signature *" fieldKey="signature_url" accept="image/*" isImage value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} readOnly={isReadOnly} />
+                <FileField label="Signature *" fieldKey="signature_url" accept="image/*" isImage value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} readOnly={isReadOnly || isLocked('signature_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Aadhar Card *</p>
-                <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} readOnly={isReadOnly} />
+                <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} readOnly={isReadOnly || isLocked('aadhar_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Declaration Form *</p>
-                <FileField label="" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false} value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} readOnly={isReadOnly} />
+                <FileField label="" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false} value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} readOnly={isReadOnly || isLocked('declaration_url')} />
               </div>
             </div>
           </FormSection>

@@ -184,6 +184,65 @@ function initialChecksForCenter(c) {
   return preVerifiedChecks(c?.correction_fields, c?.approval_notes)
 }
 
+// Maps each STUDENT verify-modal check key to the StudentForm field name(s) it
+// covers. When the Document Dept holds a student for correction, the flagged
+// keys are translated through this map and stored on students.correction_fields,
+// so on resubmit the center may only edit exactly those fields/documents.
+const STUDENT_CHECK_TO_FORM_FIELDS = {
+  // Program information
+  f_session: ['session_id'], f_mode: ['mode_id'], f_department: ['department_id'],
+  f_course_code: ['course_code'], f_semester: ['semester_year'],
+  f_academic_year: ['academic_year'], f_entry_type: ['entry_type'],
+  // Center is locked — never correctable.
+  // Personal details
+  f_name: ['student_name'], f_dob: ['date_of_birth'], f_gender: ['gender'],
+  f_profession: ['profession'], f_email: ['email'], f_mobile: ['mobile_no'],
+  f_whatsapp: ['whatsapp_no'], f_nationality: ['nationality'], f_caste: ['caste'],
+  f_religion: ['religion'], f_blood: ['blood_group'], f_mother_tongue: ['mother_tongue'],
+  f_handicapped: ['physically_handicapped'], f_aadhar_link: ['aadhar_link_mobile'],
+  f_aadhar_no: ['aadhar_no'], f_id_marks: ['identification_marks'],
+  f_scholarship: ['scholarship_applied'], f_pan: ['pan_no'],
+  // Family details
+  f_father: ['fathers_name'], f_father_occ: ['fathers_occupation'],
+  f_mother: ['mothers_name'], f_mother_occ: ['mothers_occupation'],
+  f_guardian: ['guardian_name'], f_guardian_occ: ['guardian_occupation'],
+  f_guardian_rel: ['guardian_relation'], f_guardian_email: ['guardian_email'],
+  f_guardian_mobile: ['guardian_mobile'],
+  // Permanent address
+  f_perm_village: ['student_perm_village_town'], f_perm_landmark: ['student_perm_landmark'],
+  f_perm_po: ['student_perm_post_office'], f_perm_city: ['student_perm_city'],
+  f_perm_district: ['student_perm_district'], f_perm_state: ['student_perm_state'],
+  f_perm_pin: ['student_perm_pin_code'],
+  // Present address
+  f_pres_village: ['student_pres_village_town'], f_pres_landmark: ['student_pres_landmark'],
+  f_pres_po: ['student_pres_post_office'], f_pres_city: ['student_pres_city'],
+  f_pres_district: ['student_pres_district'], f_pres_state: ['student_pres_state'],
+  f_pres_pin: ['student_pres_pin_code'],
+  // Education (whole row editable when flagged)
+  f_edu_10th: ['tenth_institute_name', 'tenth_board_university', 'tenth_passing_year', 'tenth_obtained_marks', 'tenth_total_marks', 'tenth_marksheet_url'],
+  f_edu_12th: ['twelfth_institute_name', 'twelfth_board_university', 'twelfth_passing_year', 'twelfth_obtained_marks', 'twelfth_total_marks', 'twelfth_marksheet_url'],
+  f_edu_ug: ['ug_institute_name', 'ug_board_university', 'ug_passing_year', 'ug_obtained_marks', 'ug_total_marks', 'ug_marksheet_url'],
+  f_edu_pg: ['pg_institute_name', 'pg_board_university', 'pg_passing_year', 'pg_obtained_marks', 'pg_total_marks', 'pg_marksheet_url'],
+  f_edu_diploma: ['diploma_institute_name', 'diploma_board_university', 'diploma_passing_year', 'diploma_obtained_marks', 'diploma_total_marks', 'diploma_marksheet_url'],
+  // Documents
+  doc_photo: ['photo_url'], doc_signature: ['signature_url'], doc_aadhar: ['aadhar_url'],
+  doc_declaration: ['declaration_url'], doc_10th: ['tenth_marksheet_url'],
+  doc_12th: ['twelfth_marksheet_url'], doc_ug: ['ug_marksheet_url'],
+  doc_pg: ['pg_marksheet_url'], doc_diploma: ['diploma_marksheet_url'],
+}
+
+// From the student verify-modal fieldChecks, collect the StudentForm field names
+// that were explicitly flagged for correction — not verified AND carrying a remark.
+function studentFlaggedFields(fieldChecks) {
+  const out = new Set()
+  Object.entries(fieldChecks || {}).forEach(([key, v]) => {
+    if (!v || v.ok) return
+    if (!v.remark || !v.remark.trim()) return
+    ;(STUDENT_CHECK_TO_FORM_FIELDS[key] || []).forEach(f => out.add(f))
+  })
+  return [...out]
+}
+
 
 export default function DocumentDepartment() {
   const [mainTab, setMainTab] = useState('students')
@@ -415,6 +474,13 @@ export default function DocumentDepartment() {
       doc_verified_at: null,
       remarks: holdRemarks.trim(),
     }).eq('id', holdModal.id)
+    // Record exactly which fields were flagged, so on resubmit the center can only
+    // edit those. Done as a separate best-effort update so a missing column (if the
+    // add_student_correction_fields.sql migration hasn't run yet) doesn't block the hold.
+    const flagged = holdModal._correctionFields || []
+    await supabase.from('students')
+      .update({ correction_fields: flagged.length ? flagged : null })
+      .eq('id', holdModal.id)
     setSaving(false)
     setHoldModal(null)
     setHoldRemarks('')
@@ -1720,7 +1786,7 @@ export default function DocumentDepartment() {
                       alert('To put this on hold, add a remark on at least one field that needs correction. If everything is correct, forward it to Account Dept.')
                       return
                     }
-                    setHoldRemarks(composedRejectNote); setHoldModal(s)
+                    setHoldRemarks(composedRejectNote); setHoldModal({ ...s, _correctionFields: studentFlaggedFields(fieldChecks) })
                   }}
                   disabled={saving}
                   className="flex items-center gap-2 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed text-amber-700 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors whitespace-nowrap"
