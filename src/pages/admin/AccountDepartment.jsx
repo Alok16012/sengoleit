@@ -485,12 +485,17 @@ export default function AccountDepartment() {
   // only acts on a still-pending request.
   async function handleHoldRecharge(req, remark) {
     setRechargeSaving(true)
-    const { data: claimed } = await supabase
+    const { data: claimed, error } = await supabase
       .from('recharge_requests')
       .update({ status: 'hold' })
       .eq('id', req.id)
       .in('status', ['pending', 'hold'])
       .select('id')
+    if (error) {
+      setRechargeSaving(false)
+      alert('Could not put on hold: ' + error.message + '\n\nIf this mentions a "status_check" constraint, run fix_recharge_status_hold.sql in Supabase.')
+      return
+    }
     if (claimed && claimed.length > 0) await saveRechargeRemark(req.id, remark)
     setRechargeSaving(false); closeRechargeModal()
     fetchAll()
@@ -499,12 +504,17 @@ export default function AccountDepartment() {
   // Reject from the detail modal with remarks (wallet untouched).
   async function handleRejectRechargeModal(req, remark) {
     setRechargeSaving(true)
-    const { data: claimed } = await supabase
+    const { data: claimed, error } = await supabase
       .from('recharge_requests')
       .update({ status: 'rejected' })
       .eq('id', req.id)
       .in('status', ['pending', 'hold'])
       .select('id')
+    if (error) {
+      setRechargeSaving(false)
+      alert('Could not reject: ' + error.message)
+      return
+    }
     if (claimed && claimed.length > 0) await saveRechargeRemark(req.id, remark)
     setRechargeSaving(false); closeRechargeModal()
     fetchAll()
