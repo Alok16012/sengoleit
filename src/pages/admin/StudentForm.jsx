@@ -410,6 +410,8 @@ export default function StudentForm() {
   }, [form.center_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+  // Numeric-only input, capped at `max` digits (strips everything else)
+  const setDigits = (key, max) => (e) => setForm(f => ({ ...f, [key]: e.target.value.replace(/\D/g, '').slice(0, max) }))
 
   const ADDR_KEYS = ['village_town', 'landmark', 'post_office', 'city', 'pin_code', 'state', 'district']
   const copyAddress = (from, to) => setForm(f => {
@@ -615,10 +617,14 @@ export default function StudentForm() {
         if (!form.date_of_birth) return 'Date of Birth is required'
         if (!form.gender) return 'Please select Gender'
         if (!form.mobile_no.trim()) return 'Mobile Number is required'
+        if (form.mobile_no.length !== 10) return 'Mobile Number must be 10 digits'
+        if (form.whatsapp_no && form.whatsapp_no.length !== 10) return 'WhatsApp Number must be 10 digits'
         if (!form.email.trim()) return 'Email is required'
         if (!form.caste) return 'Please select Caste'
         if (!form.religion.trim()) return 'Religion is required'
+        if (form.aadhar_link_mobile && form.aadhar_link_mobile.length !== 10) return 'Aadhar Link Mobile must be 10 digits'
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
+        if (form.aadhar_no.length !== 12) return 'Aadhar Number must be 12 digits'
         return null
       case 3:
         if (!form.fathers_name.trim()) return "Father's Name is required"
@@ -1027,8 +1033,8 @@ export default function StudentForm() {
               <Input label="Email Id *" type="email" value={form.email} onChange={set('email')} required readOnly={isReadOnly} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input label="Mobile No *" type="tel" value={form.mobile_no} onChange={set('mobile_no')} required readOnly={isReadOnly} />
-              <Input label="WhatsApp No *" type="tel" value={form.whatsapp_no} onChange={set('whatsapp_no')} required readOnly={isReadOnly} />
+              <Input label="Mobile No *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.mobile_no} onChange={setDigits('mobile_no', 10)} required readOnly={isReadOnly} />
+              <Input label="WhatsApp No *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit number" value={form.whatsapp_no} onChange={setDigits('whatsapp_no', 10)} required readOnly={isReadOnly} />
               {countries.length > 0 ? (
                 <Select label="Nationality *" value={form.nationality} onChange={set('nationality')} disabled={isReadOnly} required>
                   <option value="">Select Country</option>
@@ -1052,10 +1058,10 @@ export default function StudentForm() {
                 <option value="No">No</option>
                 <option value="Yes">Yes</option>
               </Select>
-              <Input label="Aadhar Link Mobile *" type="tel" value={form.aadhar_link_mobile} onChange={set('aadhar_link_mobile')} required readOnly={isReadOnly} />
+              <Input label="Aadhar Link Mobile *" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.aadhar_link_mobile} onChange={setDigits('aadhar_link_mobile', 10)} required readOnly={isReadOnly} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input label="Aadhar No *" placeholder="XXXX XXXX XXXX" value={form.aadhar_no} onChange={set('aadhar_no')} required readOnly={isReadOnly} />
+              <Input label="Aadhar No *" inputMode="numeric" maxLength={12} placeholder="12-digit Aadhar" value={form.aadhar_no} onChange={setDigits('aadhar_no', 12)} required readOnly={isReadOnly} />
               <Input label="PAN No" placeholder="ABCDE1234F" value={form.pan_no} onChange={set('pan_no')} readOnly={isReadOnly} />
               <Select label="Scholarship Applied *" value={form.scholarship_applied} onChange={set('scholarship_applied')} disabled={isReadOnly}>
                 {SCHOLARSHIP_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
