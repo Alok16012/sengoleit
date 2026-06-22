@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Users, CheckCircle, Clock, Wallet, UserPlus, FileText, Truck, FileCheck, UserCheck, MessageCircle } from 'lucide-react'
+import { Users, CheckCircle, Clock, Wallet, UserPlus, Truck, FileCheck, UserCheck } from 'lucide-react'
 
 const QUICK_ACTIONS = [
   { label: 'Student Entry', icon: UserPlus, color: 'bg-emerald-500', hover: 'hover:bg-emerald-600', to: '/center/students/new' },
   { label: 'Payment Deposit Entry', icon: Wallet, color: 'bg-[#933d18]', hover: 'hover:bg-[#7a3213]', to: '/center/balance' },
-  { label: 'Student Documents', icon: FileText, color: 'bg-red-500', hover: 'hover:bg-red-600', to: '/center/documents' },
   { label: 'Courier Entry', icon: Truck, color: 'bg-teal-600', hover: 'hover:bg-teal-700', to: '/center/courier' },
   { label: 'Student Answersheet', icon: FileCheck, color: 'bg-amber-500', hover: 'hover:bg-amber-600', to: '/center/answersheet' },
   { label: 'Supplementary Student', icon: UserCheck, color: 'bg-indigo-500', hover: 'hover:bg-indigo-600', to: '/center/supplementary' },
