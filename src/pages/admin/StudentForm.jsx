@@ -802,20 +802,16 @@ export default function StudentForm() {
       : await supabase.from('students').insert(payload).select('id').single()
 
     if (!error) {
-      // Deduct course fee (less any applied coupon) from center wallet on new submission
-      if (!isEdit && !isAdmin && walletInfo.checked && walletInfo.courseFee > 0 && form.center_id) {
-        // Collect 50% of the course fee, less any coupon, from the wallet.
-        const half = Math.ceil(walletInfo.courseFee * 0.5)
-        const deduction = Math.max(half - (coupon.discount || 0), 0)
-        await supabase.from('centers')
-          .update({ virtual_balance: walletInfo.balance - deduction })
-          .eq('id', form.center_id)
-        // Mark the coupon as used and link it to this application
-        if (coupon.applied?.id) {
-          await supabase.from('coupons')
-            .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
-            .eq('id', coupon.applied.id)
-        }
+      // NOTE: The wallet is NOT charged on submission any more. The center
+      // only needs 50% of the course fee available (checked above) to submit.
+      // The actual fee is deducted in full by the Account Dept after the
+      // Document Dept verifies the application. We still reserve the coupon
+      // here (mark it used + link it to this application) so the Account Dept
+      // can apply its discount when it collects the fee.
+      if (!isEdit && !isAdmin && coupon.applied?.id) {
+        await supabase.from('coupons')
+          .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
+          .eq('id', coupon.applied.id)
       }
       navigate(backPath)
     } else {

@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import VerifyRow from '../../components/ui/VerifyRow'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, Clock, ExternalLink, ChevronDown, ChevronRight, Hash, Copy } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, Clock, ExternalLink, ChevronDown, ChevronRight, Hash, Copy, Wallet } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, formatDateTime } from '../../utils/formatDate'
@@ -32,6 +32,9 @@ export default function AccountDepartment() {
   const [approvedModal, setApprovedModal] = useState(null)
   const [studentActionModal, setStudentActionModal] = useState(null)
   const [studentRemarks, setStudentRemarks] = useState('')
+  // Course fee + center wallet info for the student being approved. The fee is
+  // collected here (in full, less any reserved coupon) at approval time.
+  const [studentFee, setStudentFee] = useState({ loading: false, courseFee: 0, discount: 0, balance: 0 })
   const [viewStudent, setViewStudent] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [downloading, setDownloading] = useState(null)
@@ -154,7 +157,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, programs(program_name, enrollment_code), academic_sessions(session_name), centers(center_name, center_code)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -551,9 +554,65 @@ export default function AccountDepartment() {
     setDownloading(null)
   }
 
+  // Compute the full course fee for the semester/year the student is admitted
+  // into, the reserved coupon discount (if any), and the center's live wallet
+  // balance. Mirrors the calculation the center saw on the application form.
+  async function computeStudentFee(student) {
+    const { data: structures } = await supabase
+      .from('fee_structures')
+      .select('id, session_id, total_semesters')
+      .eq('program_id', student.programme_id)
+
+    const fs = (structures || []).find(s => s.session_id === student.session_id)
+      || (structures || [])[0]
+
+    let courseFee = 0
+    if (fs) {
+      const { data: items } = await supabase
+        .from('fee_items')
+        .select('amount, category')
+        .eq('fee_structure_id', fs.id)
+
+      const dur = Number(student.programs?.duration) || 1
+      const isYear = student.programs?.semester_year === 'Year'
+      const totalSems = fs.total_semesters || (isYear ? dur : dur) || 1
+      const semIndex = Math.max((parseInt(student.semester_year, 10) || 1) - 1, 0)
+      let fee = 0
+      ;(items || []).forEach(it => {
+        const a = Number(it.amount) || 0
+        if (it.category === 'entry'     && semIndex === 0) fee += a
+        if (it.category === 'divide')                      fee += totalSems > 0 ? a / totalSems : 0
+        if (it.category === 'multiply')                    fee += a
+        if (it.category === 'multiply2' && semIndex > 0)   fee += a
+      })
+      courseFee = Math.round(fee)
+    }
+
+    // Coupon reserved against this application on submission (if any).
+    const { data: cpn } = await supabase
+      .from('coupons')
+      .select('face_value')
+      .eq('application_id', student.id)
+      .maybeSingle()
+    const discount = Number(cpn?.face_value || 0)
+
+    // Fresh wallet balance for the center.
+    let balance = Number(student.centers?.virtual_balance || 0)
+    if (student.centers?.id) {
+      const { data: ctr } = await supabase
+        .from('centers').select('virtual_balance').eq('id', student.centers.id).maybeSingle()
+      if (ctr) balance = Number(ctr.virtual_balance || 0)
+    }
+
+    return { courseFee, discount, balance }
+  }
+
   async function handleStudentApprove(student) {
     setStudentActionModal({ student, type: 'approve' })
     setStudentRemarks('')
+    setStudentFee({ loading: true, courseFee: 0, discount: 0, balance: 0 })
+    const f = await computeStudentFee(student)
+    setStudentFee({ loading: false, ...f })
   }
 
   async function handleStudentReject(student) {
@@ -587,12 +646,30 @@ export default function AccountDepartment() {
       return
     }
     if (type === 'approve') {
+      // Collect the FULL course fee (less any reserved coupon) from the
+      // center's wallet now. Block approval if the wallet can't cover it.
+      const net = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
+      if (net > 0 && studentFee.balance < net) {
+        alert(
+          `Insufficient wallet balance.\n\n` +
+          `Fee to collect: ₹${net.toLocaleString('en-IN')}\n` +
+          `Center balance: ₹${Number(studentFee.balance).toLocaleString('en-IN')}\n\n` +
+          `Ask the center to recharge before approving this application.`
+        )
+        return
+      }
       const enrollNo = await generateEnrollmentNumber(student)
       await supabase.from('students').update({
         status: 'Approved',
         enrollment_no: enrollNo,
         remarks: studentRemarks || null,
       }).eq('id', student.id)
+      // Deduct the fee from the center wallet.
+      if (net > 0 && student.centers?.id) {
+        await supabase.from('centers')
+          .update({ virtual_balance: studentFee.balance - net })
+          .eq('id', student.centers.id)
+      }
     } else {
       await supabase.from('students').update({
         status: 'Rejected',
@@ -701,6 +778,7 @@ export default function AccountDepartment() {
                   <Th>Program</Th>
                   <Th>Session</Th>
                   <Th>Center</Th>
+                  <Th>Center Wallet</Th>
                   <Th>Admission No</Th>
                   <Th>Doc Verified On</Th>
                   <Th>Remarks</Th>
@@ -710,7 +788,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {holdStudents.length === 0 ? (
-                  <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No student applications pending in Account Dept.</Td></Tr>
+                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No student applications pending in Account Dept.</Td></Tr>
                 ) : holdStudents.map((s, i) => (
                   <Tr key={s.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -723,6 +801,12 @@ export default function AccountDepartment() {
                     <Td>
                       <p className="text-sm font-medium text-gray-700">{s.centers?.center_name || '—'}</p>
                       {s.centers?.center_code && <p className="text-xs text-gray-400">{s.centers.center_code}</p>}
+                    </Td>
+                    <Td>
+                      <span className="inline-flex items-center gap-1 text-sm font-bold text-emerald-700">
+                        <Wallet size={12} className="text-emerald-500" />
+                        ₹{Number(s.centers?.virtual_balance || 0).toLocaleString('en-IN')}
+                      </span>
                     </Td>
                     <Td className="font-mono text-xs text-[#933d18] font-bold">{s.admission_number || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{formatDate(s.doc_verified_at)}</Td>
@@ -1231,11 +1315,42 @@ export default function AccountDepartment() {
             <p className="text-xs text-gray-500 mt-1">{studentActionModal?.student?.programs?.program_name}</p>
             <p className="text-xs font-mono text-[#933d18] mt-1">Admission No: {studentActionModal?.student?.admission_number || '—'}</p>
           </div>
-          {studentActionModal?.type === 'approve' && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-              On approval, the student's <strong>Enrollment Number</strong> and <strong>Admission Number</strong> will become visible to the center / super center.
-            </div>
-          )}
+          {studentActionModal?.type === 'approve' && (() => {
+            const net = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
+            const after = (studentFee.balance || 0) - net
+            const insufficient = net > 0 && studentFee.balance < net
+            return (
+              <div className="space-y-3">
+                {/* Fee collection summary */}
+                <div className="bg-[#933d18]/5 border border-[#933d18]/15 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-1.5 text-[#933d18] font-bold text-xs uppercase tracking-wider">
+                    <Wallet size={13} /> Fee Collection
+                  </div>
+                  {studentFee.loading ? (
+                    <p className="text-xs text-gray-400 italic">Calculating course fee…</p>
+                  ) : (
+                    <div className="text-sm space-y-1.5">
+                      <div className="flex justify-between"><span className="text-gray-500">Course Fee (full)</span><span className="font-semibold text-gray-900">₹{Number(studentFee.courseFee).toLocaleString('en-IN')}</span></div>
+                      {studentFee.discount > 0 && (
+                        <div className="flex justify-between"><span className="text-gray-500">Coupon Discount</span><span className="font-semibold text-emerald-600">− ₹{Number(studentFee.discount).toLocaleString('en-IN')}</span></div>
+                      )}
+                      <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Deduct Now</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Center Wallet Balance</span><span className="font-semibold text-gray-900">₹{Number(studentFee.balance).toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Balance After</span><span className={`font-semibold ${after < 0 ? 'text-red-600' : 'text-emerald-700'}`}>₹{after.toLocaleString('en-IN')}</span></div>
+                    </div>
+                  )}
+                </div>
+                {!studentFee.loading && insufficient && (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 font-semibold">
+                    Insufficient wallet balance to collect the fee. The center must recharge before this application can be approved.
+                  </div>
+                )}
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+                  On approval, the fee above is deducted from the center wallet, and the student's <strong>Enrollment Number</strong> and <strong>Admission Number</strong> become visible to the center / super center.
+                </div>
+              </div>
+            )
+          })()}
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">
               Remarks {studentActionModal?.type === 'reject' && <span className="text-red-500">*</span>}
@@ -1252,8 +1367,11 @@ export default function AccountDepartment() {
             <Button
               variant={studentActionModal?.type === 'approve' ? 'success' : 'danger'}
               onClick={confirmStudentAction}
+              disabled={studentActionModal?.type === 'approve' && studentFee.loading}
             >
-              {studentActionModal?.type === 'approve' ? 'Confirm Approve' : 'Confirm Reject'}
+              {studentActionModal?.type === 'approve'
+                ? (studentFee.loading ? 'Calculating…' : 'Confirm Approve')
+                : 'Confirm Reject'}
             </Button>
             <Button variant="outline" onClick={() => setStudentActionModal(null)}>Cancel</Button>
           </div>
