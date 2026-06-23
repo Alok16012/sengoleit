@@ -497,6 +497,10 @@ export default function StudentForm() {
   // A field is locked if we're in correction mode with a specific flagged list and
   // this field isn't on it. With no specific list, the whole form stays editable.
   const isLocked = (name) => !!correctionSet && !correctionSet.has(name)
+  // Changing the Session resets Date of Submission/Admission (handleSessionChange),
+  // so when Session is unlocked for correction these dates must unlock with it —
+  // otherwise the cleared admission date can never be re-entered to pass validation.
+  const isDateLocked = (name) => isLocked(name) && isLocked('session_id')
   const backPath = role === 'center' ? '/center/students' : role === 'super_center' ? '/super-center/students' : '/admin/students'
 
   const [universities, setUniversities] = useState([])
@@ -1051,7 +1055,7 @@ export default function StudentForm() {
                 onChange={set('date_of_submission')}
                 min={sessionMinDate || undefined}
                 max={sessionMaxDate || undefined}
-                readOnly={isReadOnly || isLocked('date_of_submission')}
+                readOnly={isReadOnly || isDateLocked('date_of_submission')}
                 hint={
                   sessionMinDate && sessionMaxDate
                     ? `Between ${fmtDate(sessionMinDate)} and ${fmtDate(sessionMaxDate)}`
@@ -1064,7 +1068,7 @@ export default function StudentForm() {
                 onChange={set('date_of_admission')}
                 min={sessionMinDate || undefined}
                 max={sessionMaxDate || undefined}
-                readOnly={isReadOnly || isLocked('date_of_admission')}
+                readOnly={isReadOnly || isDateLocked('date_of_admission')}
                 hint={
                   sessionMinDate && sessionMaxDate
                     ? `Between ${fmtDate(sessionMinDate)} and ${fmtDate(sessionMaxDate)}`
