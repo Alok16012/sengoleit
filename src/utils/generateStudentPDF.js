@@ -155,7 +155,7 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
       ${s.admission_number ? `<tr><td colspan="3" style="font-size:9.5px;padding-top:4px;">
         Admission No: <strong style="color:#933d18;font-size:11px;">${s.admission_number}</strong>
         ${s.enrollment_no ? `&nbsp;&nbsp;&nbsp; Enrollment No: <strong style="color:#059669;font-size:11px;">${s.enrollment_no}</strong>` : ''}
-        ${s.registration_no ? `&nbsp;&nbsp;&nbsp; Reg No: <strong>${s.registration_no}</strong>` : ''}
+        ${s.registration_no && s.enrollment_no ? `&nbsp;&nbsp;&nbsp; Reg No: <strong>${s.registration_no}</strong>` : ''}
       </td></tr>` : ''}
       ${s.remarks ? `<tr><td colspan="3" style="font-size:9.5px;padding-top:4px;color:${s.status === 'Rejected' ? '#dc2626' : '#555'};">Remarks: <strong>${s.remarks}</strong></td></tr>` : ''}
     </table>
@@ -368,7 +368,7 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
       <tr>
         <td style="padding:3px 8px;font-size:9.5px;color:#555;width:33%;">Admission No: <strong style="color:#933d18;">${v(s.admission_number)}</strong></td>
         <td style="padding:3px 8px;font-size:9.5px;color:#555;width:33%;">Enrollment No: <strong style="color:#059669;">${v(s.enrollment_no)}</strong></td>
-        <td style="padding:3px 8px;font-size:9.5px;color:#555;width:34%;">Reg No: <strong>${v(s.registration_no)}</strong></td>
+        <td style="padding:3px 8px;font-size:9.5px;color:#555;width:34%;">Reg No: <strong>${v(s.enrollment_no ? s.registration_no : '')}</strong></td>
       </tr>
       <tr>
         <td colspan="3" style="padding:3px 8px;font-size:9.5px;color:#555;">
