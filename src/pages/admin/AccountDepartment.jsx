@@ -22,6 +22,7 @@ export default function AccountDepartment() {
   const [tab, setTab] = useState('students')
   const [appStatusFilter, setAppStatusFilter] = useState('pending')
   const [rechargeStatusFilter, setRechargeStatusFilter] = useState('pending')
+  const [studentStatusFilter, setStudentStatusFilter] = useState('pending')
   const [approvals, setApprovals] = useState([])
   const [recharges, setRecharges] = useState([])
   const [centers, setCenters] = useState([])
@@ -157,7 +158,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').eq('status', 'Hold').not('doc_verified_at', 'is', null).order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').not('doc_verified_at', 'is', null).in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -730,7 +731,19 @@ export default function AccountDepartment() {
     rejected: recharges.filter(RECHARGE_STATUS_MATCH.rejected).length,
   }
   const rechargesList = recharges.filter(RECHARGE_STATUS_MATCH[rechargeStatusFilter] || (() => true))
-  const holdCount = holdStudents.length
+  // Student applications status sub-filter (To Verify / Approved / Rejected)
+  const STUDENT_STATUS_MATCH = {
+    pending:  s => s.status === 'Hold',
+    approved: s => s.status === 'Approved',
+    rejected: s => s.status === 'Rejected',
+  }
+  const studentStatusCounts = {
+    pending:  holdStudents.filter(STUDENT_STATUS_MATCH.pending).length,
+    approved: holdStudents.filter(STUDENT_STATUS_MATCH.approved).length,
+    rejected: holdStudents.filter(STUDENT_STATUS_MATCH.rejected).length,
+  }
+  const studentsList = holdStudents.filter(STUDENT_STATUS_MATCH[studentStatusFilter] || (() => true))
+  const holdCount = studentStatusCounts.pending
   const pendingCenterApps = centerApps.length
 
   return (
@@ -770,6 +783,27 @@ export default function AccountDepartment() {
         <>
           {/* STUDENT APPLICATIONS TAB */}
           {tab === 'students' && (
+            <>
+            <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+              {[
+                { key: 'pending',  label: 'To Verify', color: 'bg-indigo-500' },
+                { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
+                { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
+              ].map(s => (
+                <button
+                  key={s.key}
+                  onClick={() => setStudentStatusFilter(s.key)}
+                  className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    studentStatusFilter === s.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {s.label}
+                  {studentStatusCounts[s.key] > 0 && (
+                    <span className={`ml-2 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.color}`}>{studentStatusCounts[s.key]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
             <Table>
               <Thead>
                 <tr>
@@ -788,9 +822,9 @@ export default function AccountDepartment() {
                 </tr>
               </Thead>
               <Tbody>
-                {holdStudents.length === 0 ? (
-                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No student applications pending in Account Dept.</Td></Tr>
-                ) : holdStudents.map((s, i) => (
+                {studentsList.length === 0 ? (
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {studentStatusFilter === 'pending' ? 'student applications pending in Account Dept.' : studentStatusFilter + ' student applications'}</Td></Tr>
+                ) : studentsList.map((s, i) => (
                   <Tr key={s.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                     <Td>
@@ -813,9 +847,13 @@ export default function AccountDepartment() {
                     <Td className="text-gray-400 text-xs">{formatDate(s.doc_verified_at)}</Td>
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
                     <Td>
-                      <span className="inline-flex items-center text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap bg-purple-50 text-purple-700">
-                        Under Process for Enrollment
-                      </span>
+                      {s.status === 'Approved' ? (
+                        <span className="inline-flex items-center text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap bg-emerald-50 text-emerald-700">Enrolled</span>
+                      ) : s.status === 'Rejected' ? (
+                        <span className="inline-flex items-center text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap bg-red-50 text-red-700">Rejected</span>
+                      ) : (
+                        <span className="inline-flex items-center text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap bg-purple-50 text-purple-700">Under Process for Enrollment</span>
+                      )}
                     </Td>
                     <Td>
                       <div className="flex gap-1">
@@ -828,19 +866,24 @@ export default function AccountDepartment() {
                       </div>
                     </Td>
                     <Td>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="success" onClick={() => handleStudentApprove(s)}>
-                          <CheckCircle size={13} /> Approve
-                        </Button>
-                        <Button size="sm" variant="danger" onClick={() => handleStudentReject(s)}>
-                          <XCircle size={13} /> Reject
-                        </Button>
-                      </div>
+                      {s.status === 'Hold' ? (
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="success" onClick={() => handleStudentApprove(s)}>
+                            <CheckCircle size={13} /> Approve
+                          </Button>
+                          <Button size="sm" variant="danger" onClick={() => handleStudentReject(s)}>
+                            <XCircle size={13} /> Reject
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </Td>
                   </Tr>
                 ))}
               </Tbody>
             </Table>
+            </>
           )}
 
           {/* APPROVALS TAB (Center + Super Center) */}
