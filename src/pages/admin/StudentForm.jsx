@@ -681,16 +681,6 @@ export default function StudentForm() {
     setUploading(u => ({ ...u, [fieldKey]: false }))
   }
 
-  async function generateRegistrationNumber() {
-    const yy = String(new Date().getFullYear()).slice(-2)
-    const prefix = `SIU${yy}R`
-    const { count } = await supabase
-      .from('students')
-      .select('*', { count: 'exact', head: true })
-      .like('registration_no', `${prefix}%`)
-    return `${prefix}${1001 + (count || 0)}`
-  }
-
   async function generateAdmissionNumber() {
     const { count } = await supabase
       .from('students')
@@ -891,9 +881,10 @@ export default function StudentForm() {
     // A student that was sent back for correction (Hold + not yet doc-verified)
     // re-enters the Document Dept queue as Pending once it is resubmitted.
     if (isEdit && form.status === 'Hold' && !form.doc_verified_at) payload.status = 'Pending'
-    if (!isEdit && !payload.registration_no) {
-      payload.registration_no = await generateRegistrationNumber()
-    }
+    // NOTE: registration_no is intentionally NOT generated at submission.
+    // It is assigned later by the Account Dept after account verification, at
+    // the same time the student is enrolled (enrollment_no). On submit, only the
+    // admission number below is issued.
     // Assign the admission number right at submission so it is visible from the
     // start (Pending list). The Document Dept keeps whatever is assigned here.
     if (!isEdit && !payload.admission_number) {

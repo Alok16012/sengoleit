@@ -149,9 +149,8 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
   <div style="border:1px solid #e5e7eb;border-radius:4px;padding:8px 12px;margin-bottom:12px;background:#f9fafb;">
     <table>
       <tr>
-        <td style="font-size:9.5px;color:#555;width:33%;">Status: <strong style="color:${statusColor};">${v(s.status)}</strong></td>
-        <td style="font-size:9.5px;color:#555;width:33%;text-align:center;">Ref No: <strong style="color:#933d18;">${s.id ? s.id.split('-')[0].toUpperCase() : '—'}</strong></td>
-        <td style="font-size:9.5px;color:#555;width:34%;text-align:right;">Submitted: <strong>${fmtDate(s.date_of_submission)}</strong></td>
+        <td style="font-size:9.5px;color:#555;width:50%;">Status: <strong style="color:${statusColor};">${v(s.status)}</strong></td>
+        <td style="font-size:9.5px;color:#555;width:50%;text-align:right;">Submitted: <strong>${fmtDate(s.date_of_submission)}</strong></td>
       </tr>
       ${s.admission_number ? `<tr><td colspan="3" style="font-size:9.5px;padding-top:4px;">
         Admission No: <strong style="color:#933d18;font-size:11px;">${s.admission_number}</strong>

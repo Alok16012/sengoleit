@@ -158,7 +158,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, doc_verified_at, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -640,6 +640,18 @@ export default function AccountDepartment() {
     return `${prefix}${String((count || 0) + 1).padStart(4, '0')}`
   }
 
+  // Registration number is issued only here — after account verification, at the
+  // moment the student is approved/enrolled (NOT at admission-form submission).
+  async function generateRegistrationNumber() {
+    const yy = String(new Date().getFullYear()).slice(-2)
+    const prefix = `SIU${yy}R`
+    const { count } = await supabase
+      .from('students')
+      .select('*', { count: 'exact', head: true })
+      .like('registration_no', `${prefix}%`)
+    return `${prefix}${1001 + (count || 0)}`
+  }
+
   async function confirmStudentAction() {
     const { student, type } = studentActionModal
     if (type === 'reject' && !studentRemarks.trim()) {
@@ -660,9 +672,13 @@ export default function AccountDepartment() {
         return
       }
       const enrollNo = await generateEnrollmentNumber(student)
+      // Issue the registration number now, together with enrollment, unless the
+      // student already has one (e.g. re-approval after a hold).
+      const regNo = student.registration_no || await generateRegistrationNumber()
       await supabase.from('students').update({
         status: 'Approved',
         enrollment_no: enrollNo,
+        registration_no: regNo,
         remarks: studentRemarks || null,
       }).eq('id', student.id)
       // Deduct the fee from the center wallet.
