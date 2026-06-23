@@ -411,9 +411,15 @@ export default function DocumentDepartment() {
       .select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, submitted_by, created_at, doc_verified_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
       .order('created_at', { ascending: false })
 
-    const { data } = statusFilter === 'All'
-      ? await query
-      : await query.eq('status', statusFilter)
+    let q = query
+    if (statusFilter !== 'All') {
+      q = q.eq('status', statusFilter)
+      // 'Hold' tab = applications sent back for correction only (doc_verified_at
+      // null). Once verified/forwarded, doc_verified_at is set and the student
+      // moves to the Account Dept — it must leave the Document Dept queue.
+      if (statusFilter === 'Hold') q = q.is('doc_verified_at', null)
+    }
+    const { data } = await q
 
     setStudents(data || [])
     setLoading(false)
