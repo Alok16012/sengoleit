@@ -6,8 +6,9 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Search, Download, FileX, Edit } from 'lucide-react'
+import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
+import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 
@@ -79,6 +80,23 @@ export default function StudentListReport({ status }) {
     setDownloading(null)
   }
 
+  // Registration Certificate / ID Card / Admit Card for enrolled students.
+  async function handleCard(studentId, type) {
+    setDownloading(`${studentId}-${type}`)
+    const { data: s } = await supabase
+      .from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
+      .eq('id', studentId)
+      .single()
+    if (s) {
+      const resolved = await resolveStudentDocUrls(s)
+      if (type === 'reg') generateRegistrationCertificate(resolved)
+      else if (type === 'id') generateIDCard(resolved)
+      else if (type === 'admit') generateAdmitCard(resolved)
+    }
+    setDownloading(null)
+  }
+
   const filtered = data.filter(s =>
     `${s.student_name} ${s.enrollment_no} ${s.mobile_no} ${s.admission_number}`.toLowerCase().includes(search.toLowerCase())
   )
@@ -145,7 +163,7 @@ export default function StudentListReport({ status }) {
               <Th>Submitted On</Th>
               {(status === 'Rejected' || status === 'Hold' || status === 'Approved') && <Th>Remarks</Th>}
               <Th>Status</Th>
-              <Th>Download</Th>
+              <Th>{status === 'Approved' ? 'Downloads' : 'Download'}</Th>
             </tr>
           </Thead>
           <Tbody>
@@ -198,7 +216,7 @@ export default function StudentListReport({ status }) {
                   )}
                 </Td>
                 <Td>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
                     {s.status === 'Hold' && !s.doc_verified_at && role !== 'admin' && (
                       <Button
                         size="sm"
@@ -215,11 +233,45 @@ export default function StudentListReport({ status }) {
                       variant="ghost"
                       onClick={() => handleDownload(s.id)}
                       disabled={downloading === s.id}
-                      title="Download PDF"
+                      title="Download Admission Form PDF"
                     >
                       <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
-                      <span className="text-xs ml-1">{downloading === s.id ? '...' : 'PDF'}</span>
+                      <span className="text-xs ml-1">{downloading === s.id ? '...' : 'Form'}</span>
                     </Button>
+                    {s.status === 'Approved' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCard(s.id, 'reg')}
+                          disabled={downloading === `${s.id}-reg`}
+                          title="Download Registration Certificate"
+                        >
+                          <FileText size={14} className={downloading === `${s.id}-reg` ? 'animate-pulse text-[#933d18]' : 'text-indigo-600'} />
+                          <span className="text-xs ml-1 text-indigo-600">{downloading === `${s.id}-reg` ? '...' : 'Reg Card'}</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCard(s.id, 'id')}
+                          disabled={downloading === `${s.id}-id`}
+                          title="Download ID Card"
+                        >
+                          <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
+                          <span className="text-xs ml-1 text-emerald-600">{downloading === `${s.id}-id` ? '...' : 'ID Card'}</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCard(s.id, 'admit')}
+                          disabled={downloading === `${s.id}-admit`}
+                          title="Download Admit Card"
+                        >
+                          <ClipboardList size={14} className={downloading === `${s.id}-admit` ? 'animate-pulse text-[#933d18]' : 'text-amber-600'} />
+                          <span className="text-xs ml-1 text-amber-600">{downloading === `${s.id}-admit` ? '...' : 'Admit'}</span>
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </Td>
               </Tr>
