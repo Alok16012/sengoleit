@@ -810,7 +810,6 @@ export default function AccountDepartment() {
             <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
               {[
                 { key: 'pending',  label: 'To Verify', color: 'bg-indigo-500' },
-                { key: 'hold',     label: 'Hold',      color: 'bg-amber-500' },
                 { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
                 { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
               ].map(s => (
