@@ -151,9 +151,9 @@ export default function CenterStudents() {
                 <Td className="text-gray-500 text-xs">{s.programs?.program_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td className="text-gray-500">{s.mobile_no || '—'}</Td>
-                <Td className="text-xs max-w-[120px] truncate" title={s.remarks}>
+                <Td className="text-xs max-w-[240px] align-top" title={s.remarks}>
                   {s.remarks
-                    ? <span className={s.status === 'Rejected' ? 'text-red-600 font-medium' : 'text-gray-500'}>{s.remarks}</span>
+                    ? <span className={`whitespace-pre-line break-words ${s.status === 'Rejected' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>{s.remarks}</span>
                     : <span className="text-gray-300">—</span>
                   }
                 </Td>

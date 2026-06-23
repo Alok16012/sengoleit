@@ -183,9 +183,9 @@ export default function StudentListReport({ status }) {
                   {formatDate(s.created_at)}
                 </Td>
                 {(status === 'Rejected' || status === 'Hold' || status === 'Approved') && (
-                  <Td className="text-xs max-w-[130px] truncate" title={s.remarks}>
+                  <Td className="text-xs max-w-[240px] align-top" title={s.remarks}>
                     {s.remarks
-                      ? <span className={status === 'Rejected' ? 'text-red-600 font-medium' : 'text-gray-500'}>{s.remarks}</span>
+                      ? <span className={`whitespace-pre-line break-words ${status === 'Rejected' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>{s.remarks}</span>
                       : <span className="text-gray-300">—</span>}
                   </Td>
                 )}
