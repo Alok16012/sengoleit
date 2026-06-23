@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Search, Edit, Download } from 'lucide-react'
+import { Plus, Search, Download } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -164,11 +164,6 @@ export default function CenterStudents() {
                 </Td>
                 <Td>
                   <div className="flex gap-1">
-                    {(s.status === 'Pending' || (s.status === 'Hold' && !s.doc_verified_at)) && (
-                      <Button size="sm" variant="ghost" onClick={() => navigate(`/center/students/edit/${s.id}`)} title={s.status === 'Hold' ? 'Correct & resubmit' : 'Edit'}>
-                        <Edit size={14} />
-                      </Button>
-                    )}
                     <Button
                       size="sm"
                       variant="ghost"
