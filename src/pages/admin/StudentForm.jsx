@@ -402,6 +402,74 @@ function fmtDate(d) {
   return formatDate(d + 'T00:00:00')
 }
 
+// Maps each Document-Dept verify label (as written into the hold remark, "Label: detail"
+// per line) back to the StudentForm field name(s) it refers to. Used as a fallback for
+// students that were held before the structured correction_fields column existed, so
+// per-field locking still works from the remark text alone.
+const STUDENT_LABEL_TO_FORM_FIELDS = {
+  // Program information
+  'Program': ['department_id', 'programme_id'], 'Academic Session': ['session_id'],
+  'Study Mode': ['mode_id'], 'Department': ['department_id', 'programme_id'],
+  'Course Code': ['course_code'], 'Semester / Year': ['semester_year'],
+  'Academic Year': ['academic_year'], 'Entry Type': ['entry_type'],
+  // Personal details
+  'Student Name': ['student_name'], 'Date of Birth': ['date_of_birth'], 'Gender': ['gender'],
+  'Profession': ['profession'], 'Email': ['email'], 'Mobile No.': ['mobile_no'],
+  'WhatsApp No.': ['whatsapp_no'], 'Nationality': ['nationality'], 'Caste': ['caste'],
+  'Religion': ['religion'], 'Blood Group': ['blood_group'], 'Mother Tongue': ['mother_tongue'],
+  'Physically Handicapped': ['physically_handicapped'], 'Aadhar Linked Mobile': ['aadhar_link_mobile'],
+  'Aadhar Number': ['aadhar_no'], 'Identification Marks': ['identification_marks'],
+  'Scholarship Applied': ['scholarship_applied'], 'PAN Number': ['pan_no'],
+  // Family details
+  "Father's Name": ['fathers_name'], "Father's Occupation": ['fathers_occupation'],
+  "Mother's Name": ['mothers_name'], "Mother's Occupation": ['mothers_occupation'],
+  'Guardian Name': ['guardian_name'], 'Guardian Occupation': ['guardian_occupation'],
+  'Guardian Relation': ['guardian_relation'], 'Guardian Email': ['guardian_email'],
+  'Guardian Mobile': ['guardian_mobile'],
+  // Address labels are shared between Permanent & Present sections, so unlock both
+  // (the structured correction_fields column resolves this precisely for new holds).
+  'Village / Town': ['student_perm_village_town', 'student_pres_village_town'],
+  'Landmark': ['student_perm_landmark', 'student_pres_landmark'],
+  'Post Office': ['student_perm_post_office', 'student_pres_post_office'],
+  'City': ['student_perm_city', 'student_pres_city'],
+  'District': ['student_perm_district', 'student_pres_district'],
+  'State': ['student_perm_state', 'student_pres_state'],
+  'Pin Code': ['student_perm_pin_code', 'student_pres_pin_code'],
+  // Documents
+  'Student Photo': ['photo_url'], 'Signature': ['signature_url'], 'Aadhar Card': ['aadhar_url'],
+  'Declaration Form': ['declaration_url'], '10th Marksheet': ['tenth_marksheet_url'],
+  '12th Marksheet': ['twelfth_marksheet_url'], 'UG Marksheet': ['ug_marksheet_url'],
+  'PG Marksheet': ['pg_marksheet_url'], 'Diploma Marksheet': ['diploma_marksheet_url'],
+}
+
+// Education rows are labelled "10th — <Institute>" etc, so map by the leading level token.
+const STUDENT_EDU_LEVEL_FIELDS = {
+  '10th': ['tenth_institute_name', 'tenth_board_university', 'tenth_passing_year', 'tenth_obtained_marks', 'tenth_total_marks', 'tenth_marksheet_url'],
+  '12th': ['twelfth_institute_name', 'twelfth_board_university', 'twelfth_passing_year', 'twelfth_obtained_marks', 'twelfth_total_marks', 'twelfth_marksheet_url'],
+  'UG': ['ug_institute_name', 'ug_board_university', 'ug_passing_year', 'ug_obtained_marks', 'ug_total_marks', 'ug_marksheet_url'],
+  'PG': ['pg_institute_name', 'pg_board_university', 'pg_passing_year', 'pg_obtained_marks', 'pg_total_marks', 'pg_marksheet_url'],
+  'Diploma': ['diploma_institute_name', 'diploma_board_university', 'diploma_passing_year', 'diploma_obtained_marks', 'diploma_total_marks', 'diploma_marksheet_url'],
+}
+
+// Parse a hold remark ("Label: detail" per line) into the set of StudentForm fields it flags.
+function fieldsFromStudentRemark(remark) {
+  if (!remark) return []
+  const out = new Set()
+  String(remark).split('\n').forEach(line => {
+    const idx = line.indexOf(':')
+    if (idx === -1) return
+    const label = line.slice(0, idx).trim()
+    if (STUDENT_LABEL_TO_FORM_FIELDS[label]) {
+      STUDENT_LABEL_TO_FORM_FIELDS[label].forEach(f => out.add(f))
+      return
+    }
+    // Education rows: "10th — <Institute>", "UG — <Institute>", etc.
+    const level = Object.keys(STUDENT_EDU_LEVEL_FIELDS).find(lv => label === lv || label.startsWith(lv + ' '))
+    if (level) STUDENT_EDU_LEVEL_FIELDS[level].forEach(f => out.add(f))
+  })
+  return [...out]
+}
+
 export default function StudentForm() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -421,7 +489,11 @@ export default function StudentForm() {
   // other field stays locked. The flagged list is stored on students.correction_fields.
   const correctionMode = isEdit && !isAdmin && form.status === 'Hold' && !form.doc_verified_at
   const correctionArr = correctionMode && Array.isArray(form.correction_fields) ? form.correction_fields : []
-  const correctionSet = correctionArr.length ? new Set(correctionArr) : null
+  // Fallback for students held before the structured correction_fields column existed:
+  // recover the flagged fields from the remark text so locking still applies.
+  const correctionFromRemark = correctionMode && correctionArr.length === 0 ? fieldsFromStudentRemark(form.remarks) : []
+  const effectiveCorrection = correctionArr.length ? correctionArr : correctionFromRemark
+  const correctionSet = effectiveCorrection.length ? new Set(effectiveCorrection) : null
   // A field is locked if we're in correction mode with a specific flagged list and
   // this field isn't on it. With no specific list, the whole form stays editable.
   const isLocked = (name) => !!correctionSet && !correctionSet.has(name)
