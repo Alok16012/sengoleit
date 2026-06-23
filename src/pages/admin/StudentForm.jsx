@@ -579,7 +579,7 @@ export default function StudentForm() {
 
   // Load this center's unused coupons so they can be picked from a dropdown
   useEffect(() => {
-    if (!form.center_id || isAdmin || isEdit) { setAvailableCoupons([]); return }
+    if (!form.center_id || isEdit) { setAvailableCoupons([]); return }
     supabase.from('coupons')
       .select('id, face_value, is_used, used_at, center_id')
       .eq('center_id', form.center_id)
@@ -926,7 +926,7 @@ export default function StudentForm() {
       // Document Dept verifies the application. We still reserve the coupon
       // here (mark it used + link it to this application) so the Account Dept
       // can apply its discount when it collects the fee.
-      if (!isEdit && !isAdmin && coupon.applied?.id) {
+      if (!isEdit && coupon.applied?.id) {
         await supabase.from('coupons')
           .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
           .eq('id', coupon.applied.id)
@@ -1267,6 +1267,44 @@ export default function StudentForm() {
                       className="underline font-semibold">Recharge Now →</a>
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Coupon apply — Admin (no wallet gate). Reserves the coupon so the
+                Account Dept applies its discount when it collects the fee. */}
+            {isAdmin && !isEdit && form.center_id && form.programme_id && (
+              <div className="mt-3">
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Apply Coupon (optional)</label>
+                {coupon.applied ? (
+                  <div className="flex items-center justify-between bg-[#933d18]/5 border border-[#933d18]/20 rounded-xl px-4 py-2.5">
+                    <p className="text-xs font-semibold text-[#933d18]">
+                      Coupon <span className="font-mono">{coupon.code.toUpperCase()}</span> applied · ₹{coupon.discount.toLocaleString('en-IN')} off
+                    </p>
+                    <button type="button" onClick={removeCoupon} className="text-xs font-semibold text-gray-400 hover:text-red-500 underline">Remove</button>
+                  </div>
+                ) : availableCoupons.length === 0 ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-400">
+                    No coupons available for this center.
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <CouponSearchSelect
+                      coupons={availableCoupons}
+                      value={coupon.code}
+                      onSelect={code => setCoupon(c => ({ ...c, code, error: '' }))}
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCoupon}
+                      disabled={coupon.applying || !coupon.code}
+                      className="px-4 py-2 text-sm font-bold rounded-xl bg-[#933d18] text-white hover:bg-[#7a3213] disabled:opacity-60 transition-colors"
+                    >
+                      {coupon.applying ? 'Applying...' : 'Apply'}
+                    </button>
+                  </div>
+                )}
+                {coupon.error && <p className="text-xs text-red-500 mt-1.5 px-1">{coupon.error}</p>}
+                <p className="text-[11px] text-gray-400 mt-1.5 px-1">The coupon discount is deducted from the fee when the Account Dept enrolls this student.</p>
               </div>
             )}
           </>
