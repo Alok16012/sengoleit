@@ -782,13 +782,14 @@ export default function AccountDepartment() {
                   <Th>Admission No</Th>
                   <Th>Doc Verified On</Th>
                   <Th>Remarks</Th>
+                  <Th>Status</Th>
                   <Th>View</Th>
                   <Th>Actions</Th>
                 </tr>
               </Thead>
               <Tbody>
                 {holdStudents.length === 0 ? (
-                  <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No student applications pending in Account Dept.</Td></Tr>
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No student applications pending in Account Dept.</Td></Tr>
                 ) : holdStudents.map((s, i) => (
                   <Tr key={s.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -811,6 +812,11 @@ export default function AccountDepartment() {
                     <Td className="font-mono text-xs text-[#933d18] font-bold">{s.admission_number || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{formatDate(s.doc_verified_at)}</Td>
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
+                    <Td>
+                      <span className="inline-flex items-center text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap bg-purple-50 text-purple-700">
+                        Under Process for Enrollment
+                      </span>
+                    </Td>
                     <Td>
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost" onClick={() => handleViewStudent(s.id)} title="View full form & documents">
