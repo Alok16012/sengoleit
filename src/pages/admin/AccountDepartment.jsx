@@ -680,6 +680,9 @@ export default function AccountDepartment() {
         enrollment_no: enrollNo,
         registration_no: regNo,
         remarks: studentRemarks || null,
+        // Record exactly how much was deducted from the center wallet for this
+        // student, so the Payment Summary can show per-student fee collection.
+        fee_collected: net,
       }).eq('id', student.id)
       // Deduct the fee from the center wallet.
       if (net > 0 && student.centers?.id) {

@@ -54,6 +54,7 @@ import CenterDocuments from './pages/center/CenterDocuments'
 // Shared
 import ProgramsView from './pages/shared/ProgramsView'
 import BalanceView from './pages/shared/BalanceView'
+import PaymentSummary from './pages/shared/PaymentSummary'
 import StudentListReport from './pages/shared/StudentListReport'
 import CourseFeeView from './pages/shared/CourseFeeView'
 import ComingSoon from './pages/shared/ComingSoon'
@@ -182,7 +183,7 @@ export default function App() {
             <Route path="/super-center/reports/approved" element={<StudentListReport status="Approved" />} />
             <Route path="/super-center/reports/rejected" element={<StudentListReport status="Rejected" />} />
             <Route path="/super-center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
-            <Route path="/super-center/reports/payment-summary" element={<ComingSoon title="Payment Summary" description="Summary of student fee payments" />} />
+            <Route path="/super-center/reports/payment-summary" element={<PaymentSummary />} />
             <Route path="/super-center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
             <Route path="/super-center/reports/university-courier" element={<ComingSoon title="University Courier" description="Courier dispatches to university" />} />
             <Route path="/super-center/reports/course-fee" element={<CourseFeeView />} />
@@ -212,7 +213,7 @@ export default function App() {
             <Route path="/center/reports/approved" element={<StudentListReport status="Approved" />} />
             <Route path="/center/reports/rejected" element={<StudentListReport status="Rejected" />} />
             <Route path="/center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
-            <Route path="/center/reports/payment-summary" element={<ComingSoon title="Payment Summary" description="Summary of student fee payments" />} />
+            <Route path="/center/reports/payment-summary" element={<PaymentSummary />} />
             <Route path="/center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
             <Route path="/center/reports/university-courier" element={<ComingSoon title="University Courier" description="Courier dispatches to university" />} />
             <Route path="/center/reports/course-fee" element={<CourseFeeView />} />
