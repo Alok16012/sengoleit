@@ -168,7 +168,7 @@ export default function StudentListReport({ status }) {
                       : <span className="text-xs text-gray-300">—</span>}
                   </Td>
                 )}
-                <Td className="text-gray-500 text-xs max-w-[140px] truncate">{s.programs?.program_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs max-w-[200px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 {role === 'super_center' && (
                   <Td>

@@ -252,7 +252,7 @@ export default function Students() {
                   <p className="text-xs text-gray-400 mt-0.5">{s.gender}{s.date_of_birth ? ` · ${formatDate(s.date_of_birth)}` : ''}</p>
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{s.enrollment_no || '—'}</Td>
-                <Td className="text-gray-500 text-xs max-w-[150px] truncate">{s.programs?.program_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs max-w-[200px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{s.centers?.center_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td className="text-gray-500">{s.mobile_no || '—'}</Td>

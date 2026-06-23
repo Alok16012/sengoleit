@@ -855,7 +855,7 @@ export default function AccountDepartment() {
                       <p className="font-semibold text-gray-900">{s.student_name}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{s.gender} • {s.mobile_no || '—'}</p>
                     </Td>
-                    <Td className="text-gray-500 text-xs max-w-[140px] truncate">{s.programs?.program_name || '—'}</Td>
+                    <Td className="text-gray-500 text-xs max-w-[200px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
                     <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                     <Td>
                       <p className="text-sm font-medium text-gray-700">{s.centers?.center_name || '—'}</p>
