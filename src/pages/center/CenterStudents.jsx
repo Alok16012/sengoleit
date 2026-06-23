@@ -137,8 +137,8 @@ export default function CenterStudents() {
                   <p className="text-xs text-gray-400 mt-0.5">{s.gender}</p>
                 </Td>
                 <Td>
-                  {s.status === 'Approved' || s.status === 'Hold'
-                    ? <span className="font-mono text-xs font-bold text-[#933d18]">{s.admission_number || '—'}</span>
+                  {s.admission_number
+                    ? <span className="font-mono text-xs font-bold text-[#933d18]">{s.admission_number}</span>
                     : <span className="text-xs text-gray-300">—</span>
                   }
                 </Td>
