@@ -1429,6 +1429,84 @@ export default function DocumentDepartment() {
               </div>
             </div>
 
+            {/* Admission / Program */}
+            {(() => {
+              const Row = ({ label, value }) => (
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold">{label}</span>
+                  <span className="text-xs text-gray-800 font-medium break-words">{value || '—'}</span>
+                </div>
+              )
+              const v = viewStudent
+              const addr = (p) => [v[`${p}_village_town`], v[`${p}_landmark`], v[`${p}_post_office`], v[`${p}_city`], v[`${p}_district`], v[`${p}_state`], v[`${p}_pin_code`]].filter(Boolean).join(', ')
+              return (
+                <>
+                  <div className="bg-white border border-gray-100 rounded-xl p-3">
+                    <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Admission / Program</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <Row label="Admission No" value={v.admission_number} />
+                      <Row label="Enrollment No" value={v.enrollment_no} />
+                      <Row label="Entry Type" value={v.entry_type} />
+                      <Row label="Course Code" value={v.course_code} />
+                      <Row label="Semester / Year" value={v.semester_year} />
+                      <Row label="Academic Year" value={v.academic_year} />
+                      <Row label="Date of Submission" value={v.date_of_submission ? formatDate(v.date_of_submission) : ''} />
+                      <Row label="Date of Admission" value={v.date_of_admission ? formatDate(v.date_of_admission) : ''} />
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-100 rounded-xl p-3">
+                    <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Personal Details</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <Row label="Student Name" value={v.student_name} />
+                      <Row label="Date of Birth" value={v.date_of_birth ? formatDate(v.date_of_birth) : ''} />
+                      <Row label="Gender" value={v.gender} />
+                      <Row label="Profession" value={v.profession} />
+                      <Row label="Email" value={v.email} />
+                      <Row label="Mobile No." value={v.mobile_no} />
+                      <Row label="WhatsApp No." value={v.whatsapp_no} />
+                      <Row label="Nationality" value={v.nationality} />
+                      <Row label="Caste" value={v.caste} />
+                      <Row label="Religion" value={v.religion} />
+                      <Row label="Blood Group" value={v.blood_group} />
+                      <Row label="Mother Tongue" value={v.mother_tongue} />
+                      <Row label="Physically Handicapped" value={v.physically_handicapped} />
+                      <Row label="Aadhar Linked Mobile" value={v.aadhar_link_mobile} />
+                      <Row label="Aadhar Number" value={v.aadhar_no} />
+                      <Row label="PAN Number" value={v.pan_no} />
+                      <Row label="Scholarship Applied" value={v.scholarship_applied} />
+                      <Row label="Identification Marks" value={v.identification_marks} />
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-100 rounded-xl p-3">
+                    <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Family Details</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <Row label="Father's Name" value={v.fathers_name} />
+                      <Row label="Father's Occupation" value={v.fathers_occupation} />
+                      <Row label="Mother's Name" value={v.mothers_name} />
+                      <Row label="Mother's Occupation" value={v.mothers_occupation} />
+                      <Row label="Guardian Name" value={v.guardian_name} />
+                      <Row label="Guardian Occupation" value={v.guardian_occupation} />
+                      <Row label="Guardian Relation" value={v.guardian_relation} />
+                      <Row label="Guardian Email" value={v.guardian_email} />
+                      <Row label="Guardian Mobile" value={v.guardian_mobile} />
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-100 rounded-xl p-3">
+                    <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Address</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Row label="Permanent Address" value={addr('student_perm')} />
+                      <Row label="Present Address" value={addr('student_pres')} />
+                      <Row label="Guardian Permanent Address" value={addr('guardian_perm')} />
+                      <Row label="Guardian Present Address" value={addr('guardian_pres')} />
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
+
             {/* Documents */}
             <div className="bg-white border border-gray-100 rounded-xl p-3">
               <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Uploaded Documents</p>
