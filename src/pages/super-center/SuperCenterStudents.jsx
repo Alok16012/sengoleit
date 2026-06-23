@@ -198,7 +198,7 @@ export default function SuperCenterStudents() {
                 <Td className="font-mono text-xs text-gray-700">
                   {s.status === 'Approved' ? (s.enrollment_no || '—') : '—'}
                 </Td>
-                <Td className="text-gray-500 text-xs max-w-[200px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td>
                   <p className="text-xs font-medium text-gray-700">{s.centers?.center_name || '—'}</p>
