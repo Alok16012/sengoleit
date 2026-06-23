@@ -623,18 +623,34 @@ export default function StudentForm() {
       if (today < sess.start_date) submissionDate = sess.start_date
       else if (today > sess.end_date) submissionDate = sess.end_date
     }
+    const yr = sessionYear(sess)
     setForm(f => ({
       ...f,
       session_id: e.target.value,
       academic_year: sess?.academic_year || sess?.session_name || f.academic_year,
       date_of_submission: submissionDate,
       date_of_admission: '',
+      // Keep the admission number's year segment in sync with the session.
+      admission_number: f.admission_number
+        ? f.admission_number.replace(/^(ADM-)\d{4}(-)/, `$1${yr}$2`)
+        : f.admission_number,
     }))
   }
 
   const selectedSession = sessions.find(s => s.id === form.session_id)
   const sessionMinDate = selectedSession?.start_date || ''
   const sessionMaxDate = selectedSession?.end_date || ''
+
+  // The admission-number year follows the session: prefer the session start
+  // year, then the first 4-digit year in the session name, else current year.
+  function sessionYear(sess) {
+    if (sess?.start_date) {
+      const y = new Date(sess.start_date).getFullYear()
+      if (y) return y
+    }
+    const m = (sess?.session_name || sess?.academic_year || '').match(/(\d{4})/)
+    return m ? Number(m[1]) : new Date().getFullYear()
+  }
 
   const filteredPrograms = form.department_id
     ? programs.filter(p => p.department_id === form.department_id)
@@ -687,7 +703,7 @@ export default function StudentForm() {
       .select('*', { count: 'exact', head: true })
       .not('admission_number', 'is', null)
       .neq('admission_number', '')
-    const year = new Date().getFullYear()
+    const year = sessionYear(sessions.find(s => s.id === form.session_id))
     const num = String((count || 0) + 1).padStart(5, '0')
     return `ADM-${year}-${num}`
   }
