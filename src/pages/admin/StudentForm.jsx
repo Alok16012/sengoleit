@@ -1129,15 +1129,11 @@ export default function StudentForm() {
                 </Select>
                 <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} readOnly className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed" />
               </div>
+              {/* Only the Admission Number is issued at the admission step.
+                  Enrollment No (and Registration No) are assigned later by the
+                  Account Dept after account verification, so they are not shown
+                  on the admission form. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Enrollment No"
-                  placeholder={isAdmin ? 'Auto-generate if blank' : '—'}
-                  value={form.enrollment_no}
-                  onChange={set('enrollment_no')}
-                  readOnly={!isAdmin || isReadOnly}
-                  className={!isAdmin ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}
-                />
                 <Input
                   label="Admission Number"
                   placeholder={isAdmin ? '' : '—'}
