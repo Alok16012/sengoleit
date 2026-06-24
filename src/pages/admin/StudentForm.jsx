@@ -9,9 +9,13 @@ import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { formatDate } from '../../utils/formatDate'
 import {
-  ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye,
-  ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft
+  ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, EyeOff,
+  ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft,
+  KeyRound, RefreshCw
 } from 'lucide-react'
+
+// Center-style auto password, e.g. Sg@A1B2C3
+const genStudentPassword = () => `Sg@${Math.random().toString(36).slice(-6).toUpperCase()}`
 
 // Searchable dropdown for picking one of the center's available coupons.
 function CouponSearchSelect({ coupons, value, onSelect }) {
@@ -351,6 +355,7 @@ const emptyForm = {
   department_id: '', programme_id: '', course_code: '',
   semester_year: '', academic_year: '',
   enrollment_no: '', admission_number: '', registration_no: '',
+  login_password: '',
   status: 'Pending', remarks: '',
   student_name: '', date_of_birth: '', profession: '', gender: '', email: '',
   mobile_no: '', whatsapp_no: '', nationality: 'Indian',
@@ -518,6 +523,7 @@ export default function StudentForm() {
   const [openEdu, setOpenEdu] = useState({ tenth: true, twelfth: false, ug: false, pg: false, diploma: false })
 
   const [step, setStep] = useState(0)
+  const [showPassword, setShowPassword] = useState(false)
   const [stepError, setStepError] = useState('')
   const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
   const [coupon, setCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
@@ -556,6 +562,10 @@ export default function StudentForm() {
 
       if (!isEdit && unis.data?.length === 1) {
         setForm(f => ({ ...f, university_id: unis.data[0].id }))
+      }
+      // New student: auto-generate a login password (center-style). Editable below.
+      if (!isEdit) {
+        setForm(f => (f.login_password ? f : { ...f, login_password: genStudentPassword() }))
       }
       if (!isAdmin && user?.email && !isEdit) {
         supabase.from('centers').select('id, center_name').eq('email', user.email).single()
@@ -1126,6 +1136,50 @@ export default function StudentForm() {
               ) : (
                 <Input label="Center Name" value={form.center_name || ''} readOnly className="bg-gray-50 text-gray-500 cursor-not-allowed" />
               )}
+            </div>
+
+            {/* Student Account / Login */}
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              <div className="flex items-center gap-2 mb-3">
+                <KeyRound size={15} className="text-[#933d18]" />
+                <h4 className="text-sm font-bold text-gray-800">Student Account</h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Login ID (Enrollment No)"
+                  value={form.enrollment_no || ''}
+                  readOnly
+                  placeholder="Assigned after approval"
+                  className="bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                  <div className="flex items-stretch gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={form.login_password || ''}
+                        onChange={set('login_password')}
+                        readOnly={isReadOnly}
+                        placeholder="Auto-generated"
+                        className="w-full pr-10 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white disabled:bg-gray-50"
+                      />
+                      <button type="button" onClick={() => setShowPassword(v => !v)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    {!isReadOnly && (
+                      <button type="button" onClick={() => { setForm(f => ({ ...f, login_password: genStudentPassword() })); setShowPassword(true) }}
+                        title="Generate new password"
+                        className="flex items-center gap-1.5 px-3 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
+                        <RefreshCw size={14} /> New
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">Student logs in with the enrollment number &amp; this password once approved.</p>
+                </div>
+              </div>
             </div>
           </FormSection>
         )}
