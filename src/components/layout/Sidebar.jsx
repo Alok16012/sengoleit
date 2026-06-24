@@ -7,7 +7,7 @@ import {
   Award, CalendarDays, MapPin,
   LayoutDashboard, Wallet, Star,
   UserPlus, FileText, Truck, FileCheck, UserCheck,
-  Clock, CheckCircle, XCircle, ClipboardList, CreditCard,
+  Clock, CheckCircle, XCircle, ClipboardList, CreditCard, Send,
   GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag,
   ChevronDown, ChevronRight, ShieldCheck, IndianRupee
 } from 'lucide-react'
@@ -35,6 +35,7 @@ const adminLinks = [
 const reportItems = (base) => [
   { to: `${base}/reports/pending`, icon: Clock, label: 'Pending Student List' },
   { to: `${base}/reports/hold`, icon: ClipboardList, label: 'Hold Student List' },
+  { to: `${base}/reports/forwarding`, icon: Send, label: 'Forwarding Student List' },
   { to: `${base}/reports/approved`, icon: CheckCircle, label: 'Approved Student List' },
   { to: `${base}/reports/rejected`, icon: XCircle, label: 'Rejected Student List' },
   { to: `${base}/reports/document-summary`, icon: FileText, label: 'Document Summary' },

@@ -180,6 +180,7 @@ export default function App() {
             {/* Super Center report routes */}
             <Route path="/super-center/reports/pending" element={<StudentListReport status="Pending" />} />
             <Route path="/super-center/reports/hold" element={<StudentListReport status="Hold" />} />
+            <Route path="/super-center/reports/forwarding" element={<StudentListReport status="Forwarding" />} />
             <Route path="/super-center/reports/approved" element={<StudentListReport status="Approved" />} />
             <Route path="/super-center/reports/rejected" element={<StudentListReport status="Rejected" />} />
             <Route path="/super-center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
@@ -210,6 +211,7 @@ export default function App() {
             {/* Center report routes */}
             <Route path="/center/reports/pending" element={<StudentListReport status="Pending" />} />
             <Route path="/center/reports/hold" element={<StudentListReport status="Hold" />} />
+            <Route path="/center/reports/forwarding" element={<StudentListReport status="Forwarding" />} />
             <Route path="/center/reports/approved" element={<StudentListReport status="Approved" />} />
             <Route path="/center/reports/rejected" element={<StudentListReport status="Rejected" />} />
             <Route path="/center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />

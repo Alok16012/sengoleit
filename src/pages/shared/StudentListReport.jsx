@@ -13,10 +13,11 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 
 const STATUS_META = {
-  Pending:  { color: 'amber',   label: 'Pending Students',  desc: 'Forms have been submitted, awaiting Document Dept. verification' },
-  Hold:     { color: 'indigo',  label: 'Hold Students',     desc: 'Documents verified & awaiting Account Dept., or sent back for correction' },
-  Approved: { color: 'emerald', label: 'Approved Students', desc: 'Entire process complete — Admission confirmed' },
-  Rejected: { color: 'red',     label: 'Rejected Students', desc: 'Application has been rejected' },
+  Pending:    { color: 'amber',   label: 'Pending Students',    desc: 'Forms have been submitted, awaiting Document Dept. verification' },
+  Hold:       { color: 'indigo',  label: 'Hold Students',       desc: 'Sent back for correction by the Document Dept.' },
+  Forwarding: { color: 'blue',    label: 'Forwarding Students', desc: 'Documents verified & forwarded to Account Dept. — awaiting enrollment' },
+  Approved:   { color: 'emerald', label: 'Approved Students',   desc: 'Entire process complete — Admission confirmed' },
+  Rejected:   { color: 'red',     label: 'Rejected Students',   desc: 'Application has been rejected' },
 }
 
 export default function StudentListReport({ status }) {
@@ -55,12 +56,18 @@ export default function StudentListReport({ status }) {
       centerIds = [centerId, ...(subCenters || []).map(c => c.id)]
     }
 
-    const { data: students } = await supabase
+    let q = supabase
       .from('students')
       .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, programs(program_name, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)')
       .in('center_id', centerIds)
-      .eq('status', status)
-      .order('created_at', { ascending: false })
+
+    // 'Hold' and 'Forwarding' share the DB status 'Hold'; doc_verified_at splits
+    // them — set = forwarded to Account Dept, null = sent back for correction.
+    if (status === 'Forwarding') q = q.eq('status', 'Hold').not('doc_verified_at', 'is', null)
+    else if (status === 'Hold')  q = q.eq('status', 'Hold').is('doc_verified_at', null)
+    else                         q = q.eq('status', status)
+
+    const { data: students } = await q.order('created_at', { ascending: false })
 
     setData(students || [])
     setLoading(false)
@@ -104,6 +111,7 @@ export default function StudentListReport({ status }) {
   const colorMap = {
     amber:   { bg: 'bg-amber-50',   border: 'border-amber-200',   text: 'text-amber-700',   count: 'bg-amber-500' },
     indigo:  { bg: 'bg-indigo-50',  border: 'border-indigo-200',  text: 'text-indigo-700',  count: 'bg-indigo-500' },
+    blue:    { bg: 'bg-blue-50',    border: 'border-blue-200',    text: 'text-blue-700',    count: 'bg-blue-500' },
     emerald: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', count: 'bg-emerald-500' },
     red:     { bg: 'bg-red-50',     border: 'border-red-200',     text: 'text-red-700',     count: 'bg-red-500' },
     gray:    { bg: 'bg-gray-50',    border: 'border-gray-200',    text: 'text-gray-700',    count: 'bg-gray-500' },
@@ -163,7 +171,7 @@ export default function StudentListReport({ status }) {
               {role === 'super_center' && <Th>Center</Th>}
               <Th>Mobile</Th>
               <Th>Submitted On</Th>
-              {(status === 'Rejected' || status === 'Hold' || status === 'Approved') && <Th>Remarks</Th>}
+              {(status === 'Rejected' || status === 'Hold' || status === 'Forwarding' || status === 'Approved') &&<Th>Remarks</Th>}
               <Th>Status</Th>
               <Th>{status === 'Approved' ? 'Downloads' : 'Download'}</Th>
             </tr>
@@ -214,7 +222,7 @@ export default function StudentListReport({ status }) {
                 <Td className="text-gray-400 text-xs">
                   {formatDate(s.created_at)}
                 </Td>
-                {(status === 'Rejected' || status === 'Hold' || status === 'Approved') && (
+                {(status === 'Rejected' || status === 'Hold' || status === 'Forwarding' || status === 'Approved') &&(
                   <Td className="text-xs max-w-[240px] align-top" title={s.remarks}>
                     {s.remarks
                       ? <span className={`whitespace-pre-line break-words ${status === 'Rejected' ? 'text-red-600 font-medium' : 'text-gray-500'}`}>{s.remarks}</span>
