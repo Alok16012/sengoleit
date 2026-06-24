@@ -1431,15 +1431,22 @@ export default function AccountDepartment() {
               <div className="space-y-3">
                 {/* Fee collection summary */}
                 <div className="bg-[#933d18]/5 border border-[#933d18]/15 rounded-xl p-4 space-y-2">
-                  <div className="flex items-center gap-1.5 text-[#933d18] font-bold text-xs uppercase tracking-wider">
-                    <Wallet size={13} /> Fee Collection
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[#933d18] font-bold text-xs uppercase tracking-wider">
+                      <Wallet size={13} /> Fee Collection
+                    </div>
+                    {!studentFee.loading && (
+                      <div className="text-right">
+                        <span className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mr-1.5">Wallet Balance</span>
+                        <span className="text-sm font-black text-emerald-700">₹{Number(studentFee.balance).toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
                   </div>
                   {studentFee.loading ? (
                     <p className="text-xs text-gray-400 italic">Calculating course fee…</p>
                   ) : alreadyHeld ? (
                     <div className="text-sm space-y-1.5">
                       <div className="flex justify-between"><span className="text-gray-500">Total Course Fee</span><span className="font-semibold text-gray-900">₹{Number(studentFee.courseFee).toLocaleString('en-IN')}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Center Wallet Balance</span><span className="font-semibold text-gray-900">₹{Number(studentFee.balance).toLocaleString('en-IN')}</span></div>
                       {studentFee.discount > 0 && (
                         <div className="flex justify-between">
                           <span className="text-gray-500">
@@ -1466,7 +1473,6 @@ export default function AccountDepartment() {
                         </div>
                       )}
                       <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Deduct Now</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Center Wallet Balance</span><span className="font-semibold text-gray-900">₹{Number(studentFee.balance).toLocaleString('en-IN')}</span></div>
                       <div className="flex justify-between"><span className="text-gray-500">Balance After</span><span className={`font-semibold ${after < 0 ? 'text-red-600' : 'text-emerald-700'}`}>₹{after.toLocaleString('en-IN')}</span></div>
                     </div>
                   )}
