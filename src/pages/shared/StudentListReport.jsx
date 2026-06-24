@@ -57,7 +57,7 @@ export default function StudentListReport({ status }) {
 
     const { data: students } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code)')
+      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, programs(program_name, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)')
       .in('center_id', centerIds)
       .eq('status', status)
       .order('created_at', { ascending: false })
@@ -156,7 +156,9 @@ export default function StudentListReport({ status }) {
               <Th>Student Name</Th>
               <Th>Admission No</Th>
               {status === 'Approved' && <Th>Enrollment No</Th>}
+              {status === 'Approved' && <Th>Registration No</Th>}
               <Th>Program</Th>
+              <Th>Sem / Year</Th>
               <Th>Session</Th>
               {role === 'super_center' && <Th>Center</Th>}
               <Th>Mobile</Th>
@@ -186,7 +188,19 @@ export default function StudentListReport({ status }) {
                       : <span className="text-xs text-gray-300">—</span>}
                   </Td>
                 )}
+                {status === 'Approved' && (
+                  <Td>
+                    {s.registration_no
+                      ? <span className="font-mono text-xs font-bold text-indigo-700">{s.registration_no}</span>
+                      : <span className="text-xs text-gray-300">—</span>}
+                  </Td>
+                )}
                 <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">
+                  {s.semester_year
+                    ? `${s.programs?.semester_year === 'Year' ? 'Year' : 'Sem'} ${s.semester_year}`
+                    : '—'}
+                </Td>
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 {role === 'super_center' && (
                   <Td>
