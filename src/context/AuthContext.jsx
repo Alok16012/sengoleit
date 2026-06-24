@@ -37,7 +37,27 @@ export function AuthProvider({ children }) {
 
   async function signIn(email, password) {
     if (!isConfigured) return { error: { message: 'Supabase is not configured. Add the URL and Key to your .env file.' } }
-    return supabase.auth.signInWithPassword({ email, password })
+    const result = await supabase.auth.signInWithPassword({ email, password })
+    if (result.error) return result
+
+    // Block deactivated centers / super centers. Admins have no centers row,
+    // so this check is skipped for them. Only an explicit "Inactive" status
+    // blocks login (Pending/null are left alone so newly-set-up centers work).
+    try {
+      const { data: ctr } = await supabase
+        .from('centers')
+        .select('status')
+        .eq('email', email)
+        .maybeSingle()
+      if (ctr && ctr.status === 'Inactive') {
+        await supabase.auth.signOut().catch(() => {})
+        setUser(null)
+        setProfile(null)
+        return { error: { message: 'This account has been deactivated. Please contact the administrator.' } }
+      }
+    } catch (_) { /* if the lookup fails, don't block a valid login */ }
+
+    return result
   }
 
   // Demo/mock login - bypasses Supabase
