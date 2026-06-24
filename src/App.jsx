@@ -157,6 +157,7 @@ export default function App() {
             <Route path="/admin/wallet-summary" element={<WalletSummary />} />
             <Route path="/admin/coupons" element={<CouponManagement />} />
             <Route path="/admin/center-pricing" element={<CenterPricing />} />
+            <Route path="/admin/exam-section" element={<ComingSoon title="Exam Section" description="Manage exams, schedules and results" />} />
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />
