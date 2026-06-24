@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle } from 'lucide-react'
+import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
@@ -139,7 +139,15 @@ export default function Students() {
   const [credStudentId, setCredStudentId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [showHidden, setShowHidden] = useState(false)
   const navigate = useNavigate()
+
+  async function toggleHide(s) {
+    const newVal = !s.is_hidden
+    const { error } = await supabase.from('students').update({ is_hidden: newVal }).eq('id', s.id)
+    if (error) { alert('Could not update: ' + error.message); return }
+    setData(prev => prev.map(x => x.id === s.id ? { ...x, is_hidden: newVal } : x))
+  }
 
   useEffect(() => { fetchData() }, [])
 
@@ -175,14 +183,18 @@ export default function Students() {
     setLoading(true)
     const { data, error } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, center_id, programme_id, session_id, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
       .order('created_at', { ascending: false })
     if (error) console.error('Students fetch error:', error)
     setData(data || [])
     setLoading(false)
   }
 
+  const hiddenCount = data.filter(s => s.is_hidden).length
+
   const filtered = data.filter(s => {
+    // Hidden students are excluded unless "Show Hidden" is on (then show ONLY hidden).
+    if (showHidden ? !s.is_hidden : s.is_hidden) return false
     const matchSearch = `${s.student_name} ${s.enrollment_no} ${s.mobile_no}`.toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'All' || s.status === statusFilter
     return matchSearch && matchStatus
@@ -220,6 +232,21 @@ export default function Students() {
               {s}
             </button>
           ))}
+          <button
+            onClick={() => setShowHidden(v => !v)}
+            title={showHidden ? 'Back to visible students' : 'Show hidden students'}
+            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
+              showHidden
+                ? 'bg-gray-700 text-white shadow-sm'
+                : 'bg-white border border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700'
+            }`}
+          >
+            {showHidden ? <EyeOff size={13} /> : <Eye size={13} />}
+            {showHidden ? 'Hidden' : 'Show Hidden'}
+            {hiddenCount > 0 && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showHidden ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{hiddenCount}</span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -248,7 +275,14 @@ export default function Students() {
               <Tr key={s.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
-                  <p className="font-semibold text-gray-900">{s.student_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-900">{s.student_name}</p>
+                    {s.is_hidden && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200 inline-flex items-center gap-0.5">
+                        <EyeOff size={9} /> Hidden
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-400 mt-0.5">{s.gender}{s.date_of_birth ? ` · ${formatDate(s.date_of_birth)}` : ''}</p>
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{s.enrollment_no || '—'}</Td>
@@ -268,6 +302,11 @@ export default function Students() {
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setCredStudentId(s.id)} title="Login Credentials">
                       <KeyRound size={14} className="text-gray-500" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => toggleHide(s)} title={s.is_hidden ? 'Unhide Student' : 'Hide Student'}>
+                      {s.is_hidden
+                        ? <Eye size={14} className="text-emerald-600" />
+                        : <EyeOff size={14} className="text-gray-500" />}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)} title="Delete Student">
                       <Trash2 size={14} className="text-red-500" />
