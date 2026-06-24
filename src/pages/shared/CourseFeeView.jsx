@@ -197,6 +197,25 @@ export default function CourseFeeView() {
     q.then(({ data }) => { setPrograms(data || []); setSelProg('') })
   }, [selDept, selType, selMode, modes])
 
+  // For a center, drop any selected filter that no longer matches an allotted
+  // course (cascading top-down), so the boxes can never show a contradictory
+  // combo like Program Type "Bachelor's" when only a Master's course is allotted.
+  useEffect(() => {
+    if (!allotRows) return
+    if (selSession && !allotRows.some(r => r.session_id === selSession)) { setSelSession(''); return }
+    const inSess = allotRows.filter(r => !selSession || r.session_id === selSession)
+    if (selDept && !inSess.some(r => r.department_id === selDept)) { setSelDept(''); return }
+    const inDept = inSess.filter(r => !selDept || r.department_id === selDept)
+    if (selType && !inDept.some(r => r.programme_type_id === selType)) { setSelType(''); return }
+    const inType = inDept.filter(r => !selType || r.programme_type_id === selType)
+    if (selMode) {
+      const sy = modeSemYear(selMode)
+      if (sy && !inType.some(r => r.semester_year === sy)) { setSelMode(''); return }
+    }
+    const inMode = inType.filter(r => { if (!selMode) return true; const sy = modeSemYear(selMode); return !sy || r.semester_year === sy })
+    if (selProg && !inMode.some(r => r.program_id === selProg)) setSelProg('')
+  }, [allotRows, selSession, selDept, selType, selMode, selProg])
+
   async function handleSearch() {
     setLoading(true)
     setSearched(true)
