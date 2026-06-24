@@ -35,7 +35,7 @@ export default function AccountDepartment() {
   const [studentRemarks, setStudentRemarks] = useState('')
   // Course fee + center wallet info for the student being approved. The fee is
   // collected here (in full, less any reserved coupon) at approval time.
-  const [studentFee, setStudentFee] = useState({ loading: false, courseFee: 0, discount: 0, balance: 0 })
+  const [studentFee, setStudentFee] = useState({ loading: false, courseFee: 0, discount: 0, balance: 0, couponCode: '' })
   const [viewStudent, setViewStudent] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
   const [downloading, setDownloading] = useState(null)
@@ -158,7 +158,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, fee_held, coupon_discount, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, fee_held, coupon_discount, coupon_code, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -593,13 +593,15 @@ export default function AccountDepartment() {
     // the student row (reliable, written by the center). Fall back to the
     // coupons-table linkage for older records that predate that column.
     let discount = Number(student.coupon_discount || 0)
+    let couponCode = student.coupon_code || ''
     if (!discount) {
       const { data: cpn } = await supabase
         .from('coupons')
-        .select('face_value')
+        .select('id, face_value')
         .eq('application_id', student.id)
         .maybeSingle()
       discount = Number(cpn?.face_value || 0)
+      if (cpn?.id) couponCode = cpn.id.slice(0, 8).toUpperCase()
     }
 
     // Fresh wallet balance for the center.
@@ -610,7 +612,7 @@ export default function AccountDepartment() {
       if (ctr) balance = Number(ctr.virtual_balance || 0)
     }
 
-    return { courseFee, discount, balance }
+    return { courseFee, discount, balance, couponCode }
   }
 
   async function handleStudentApprove(student) {
@@ -1442,7 +1444,13 @@ export default function AccountDepartment() {
                     <div className="text-sm space-y-1.5">
                       <div className="flex justify-between"><span className="text-gray-500">Course Fee (full)</span><span className="font-semibold text-gray-900">₹{Number(studentFee.courseFee).toLocaleString('en-IN')}</span></div>
                       {studentFee.discount > 0 && (
-                        <div className="flex justify-between"><span className="text-gray-500">Coupon Discount</span><span className="font-semibold text-emerald-600">− ₹{Number(studentFee.discount).toLocaleString('en-IN')}</span></div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">
+                            Coupon Discount
+                            {studentFee.couponCode && <span className="ml-1 font-mono text-[11px] text-[#933d18]">({studentFee.couponCode})</span>}
+                          </span>
+                          <span className="font-semibold text-emerald-600">− ₹{Number(studentFee.discount).toLocaleString('en-IN')}</span>
+                        </div>
                       )}
                       <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Deduct Now</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
                       <div className="flex justify-between"><span className="text-gray-500">Center Wallet Balance</span><span className="font-semibold text-gray-900">₹{Number(studentFee.balance).toLocaleString('en-IN')}</span></div>
