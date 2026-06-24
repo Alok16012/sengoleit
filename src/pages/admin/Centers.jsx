@@ -18,7 +18,8 @@ export default function Centers() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [typeFilter, setTypeFilter] = useState('all') // all | center | super_center
+  const [superFilter, setSuperFilter] = useState('all')   // 'all' | super center id
+  const [centerFilter, setCenterFilter] = useState('all') // 'all' | center id
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({})
   const navigate = useNavigate()
@@ -126,16 +127,21 @@ export default function Centers() {
     fetchData()
   }
 
-  const typeFiltered = data.filter(c =>
-    typeFilter === 'all' ? true :
-    typeFilter === 'super_center' ? c.center_type === 'super_center' :
-    c.center_type === 'center'
-  )
+  // The two reference lists that drive the dropdowns.
+  const superCenters = data.filter(c => c.center_type === 'super_center')
+  const allCenters = data.filter(c => c.center_type === 'center')
+  // id -> super center name, to label each center's parent in the table.
+  const superNameById = Object.fromEntries(superCenters.map(s => [s.id, s.center_name]))
 
-  const verifiedCount = typeFiltered.filter(c => c.approval_status === 'approved').length
-  const unverifiedCount = typeFiltered.length - verifiedCount
+  // Table always lists regular centers; the dropdowns narrow them down.
+  const scoped = allCenters
+    .filter(c => superFilter === 'all' ? true : c.super_center_id === superFilter)
+    .filter(c => centerFilter === 'all' ? true : c.id === centerFilter)
 
-  const filtered = typeFiltered
+  const verifiedCount = scoped.filter(c => c.approval_status === 'approved').length
+  const unverifiedCount = scoped.length - verifiedCount
+
+  const filtered = scoped
     .filter(c =>
       statusFilter === 'all' ? true :
       statusFilter === 'verified' ? c.approval_status === 'approved' :
@@ -145,17 +151,21 @@ export default function Centers() {
       `${c.center_name} ${c.center_code} ${c.contact_person} ${c.phone}`.toLowerCase().includes(search.toLowerCase())
     )
 
+  const subtitle = superFilter !== 'all'
+    ? `${scoped.length} center${scoped.length === 1 ? '' : 's'} under ${superNameById[superFilter] || 'this super center'}`
+    : `${scoped.length} center${scoped.length === 1 ? '' : 's'}`
+
   return (
     <div className="p-6">
       <PageHeader
         title="Centers"
-        subtitle={`${typeFiltered.length} ${typeFilter === 'super_center' ? 'super centers' : typeFilter === 'center' ? 'centers' : 'centers & super centers'}`}
+        subtitle={subtitle}
         action={{ label: <><Plus size={15} /> Add Center</>, onClick: () => navigate('/admin/centers/new') }}
       />
 
       <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
         {[
-          { key: 'all', label: 'All', count: typeFiltered.length },
+          { key: 'all', label: 'All', count: scoped.length },
           { key: 'verified', label: 'Verified', count: verifiedCount },
           { key: 'unverified', label: 'Not Verified', count: unverifiedCount },
         ].map(t => (
@@ -184,15 +194,36 @@ export default function Centers() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <select
-          value={typeFilter}
-          onChange={e => { setTypeFilter(e.target.value); setStatusFilter('all') }}
-          className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 cursor-pointer"
-        >
-          <option value="all">All Types</option>
-          <option value="center">Center</option>
-          <option value="super_center">Super Center</option>
-        </select>
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Super Center</label>
+          <select
+            value={superFilter}
+            onChange={e => { setSuperFilter(e.target.value); setCenterFilter('all'); setStatusFilter('all') }}
+            className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 cursor-pointer min-w-[180px]"
+          >
+            <option value="all">All Super Centers</option>
+            {superCenters.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.center_name}{s.center_code ? ` (${s.center_code})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Center</label>
+          <select
+            value={centerFilter}
+            onChange={e => { setCenterFilter(e.target.value); setStatusFilter('all') }}
+            className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 cursor-pointer min-w-[180px]"
+          >
+            <option value="all">All Centers</option>
+            {scoped.map(c => (
+              <option key={c.id} value={c.id}>
+                {c.center_name}{c.center_code ? ` (${c.center_code})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {loading ? (
@@ -222,12 +253,12 @@ export default function Centers() {
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-gray-900">{c.center_name}</p>
-                    {c.center_type === 'super_center' && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">Super</span>
-                    )}
-                  </div>
+                  <p className="font-semibold text-gray-900">{c.center_name}</p>
+                  {c.super_center_id && superNameById[c.super_center_id] && (
+                    <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100 mt-0.5">
+                      {superNameById[c.super_center_id]}
+                    </span>
+                  )}
                   {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
