@@ -103,6 +103,7 @@ export default function CourseFeeView() {
   // Admins have no row in `centers`, so they stay unrestricted.
   const [centerRowId, setCenterRowId] = useState(null) // null = admin/unrestricted
   const [scoped,      setScoped]      = useState(false) // true once we know this is a center
+  const [allowed,     setAllowed]     = useState(null)  // null = unrestricted; else sets of allotted-approved ids
 
   const [sessions,    setSessions]    = useState([])
   const [departments, setDepartments] = useState([])
@@ -121,13 +122,36 @@ export default function CourseFeeView() {
   const [searched, setSearched] = useState(false)
   const [errMsg,   setErrMsg]   = useState('')
 
-  // Resolve whether the logged-in user is a center (restrict results) or admin.
+  // Resolve whether the logged-in user is a center (restrict results) or admin,
+  // and derive the dropdown options from the center's allotted+approved courses.
   useEffect(() => {
     if (!user?.email) return
     supabase.from('centers').select('id').eq('email', user.email).maybeSingle()
-      .then(({ data }) => {
-        if (data) { setCenterRowId(data.id); setScoped(true) }
-        else { setCenterRowId(null); setScoped(false) }
+      .then(async ({ data }) => {
+        if (!data) { setCenterRowId(null); setScoped(false); setAllowed(null); return }
+        setCenterRowId(data.id); setScoped(true)
+
+        const { data: cc } = await supabase.from('center_courses')
+          .select('fee_structure_id').eq('center_id', data.id).eq('status', 'approved')
+        const fsIds = [...new Set((cc || []).map(r => r.fee_structure_id).filter(Boolean))]
+        if (!fsIds.length) {
+          setAllowed({ fsIds: new Set(), sessions: new Set(), depts: new Set(), types: new Set(), progs: new Set(), semYears: new Set() })
+          return
+        }
+        const { data: fs } = await supabase.from('fee_structures')
+          .select('id, program_id, session_id').in('id', fsIds)
+        const progIds = [...new Set((fs || []).map(f => f.program_id).filter(Boolean))]
+        const { data: progs } = progIds.length
+          ? await supabase.from('programs').select('id, department_id, programme_type_id, semester_year').in('id', progIds)
+          : { data: [] }
+        setAllowed({
+          fsIds:    new Set(fsIds),
+          sessions: new Set((fs || []).map(f => f.session_id).filter(Boolean)),
+          depts:    new Set((progs || []).map(p => p.department_id).filter(Boolean)),
+          types:    new Set((progs || []).map(p => p.programme_type_id).filter(Boolean)),
+          progs:    new Set(progIds),
+          semYears: new Set((progs || []).map(p => p.semester_year).filter(Boolean)),
+        })
       })
   }, [user?.email])
 
@@ -163,8 +187,12 @@ export default function CourseFeeView() {
     if (selType) q = q.eq('programme_type_id', selType)
     const sy = modeSemYear(selMode)
     if (sy) q = q.eq('semester_year', sy)
-    q.then(({ data }) => { setPrograms(data || []); setSelProg('') })
-  }, [selDept, selType, selMode, modes])
+    q.then(({ data }) => {
+      let list = data || []
+      if (allowed) list = list.filter(p => allowed.progs.has(p.id))
+      setPrograms(list); setSelProg('')
+    })
+  }, [selDept, selType, selMode, modes, allowed])
 
   async function handleSearch() {
     setLoading(true)
@@ -277,10 +305,10 @@ export default function CourseFeeView() {
 
   const grandTotal = results.reduce((s, r) => s + r.fee, 0)
 
-  const sessionOpts = sessions.map(s  => ({ id: s.id, label: s.session_name }))
-  const deptOpts    = departments.map(d => ({ id: d.id, label: d.name }))
-  const typeOpts    = progTypes.map(t  => ({ id: t.id, label: t.programme_type_name }))
-  const modeOpts    = modes.map(m      => ({ id: m.id, label: m.mode_name }))
+  const sessionOpts = sessions.filter(s => !allowed || allowed.sessions.has(s.id)).map(s => ({ id: s.id, label: s.session_name }))
+  const deptOpts    = departments.filter(d => !allowed || allowed.depts.has(d.id)).map(d => ({ id: d.id, label: d.name }))
+  const typeOpts    = progTypes.filter(t => !allowed || allowed.types.has(t.id)).map(t => ({ id: t.id, label: t.programme_type_name }))
+  const modeOpts    = modes.filter(m => !allowed || allowed.semYears.has(modeSemYear(m.id))).map(m => ({ id: m.id, label: m.mode_name }))
   const programOpts = programs.map(p   => ({ id: p.id, label: p.program_name }))
 
   return (
