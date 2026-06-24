@@ -18,6 +18,7 @@ export default function Centers() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all') // all | center | super_center
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({})
   const navigate = useNavigate()
@@ -29,7 +30,7 @@ export default function Centers() {
     const { data, error } = await supabase
       .from('centers')
       .select('*, states:state_id(state_name)')
-      .eq('center_type', 'center')
+      .in('center_type', ['center', 'super_center'])
       .order('created_at', { ascending: false })
     if (error) console.error('Centers fetch error:', error)
     setData(data || [])
@@ -125,10 +126,16 @@ export default function Centers() {
     fetchData()
   }
 
-  const verifiedCount = data.filter(c => c.approval_status === 'approved').length
-  const unverifiedCount = data.length - verifiedCount
+  const typeFiltered = data.filter(c =>
+    typeFilter === 'all' ? true :
+    typeFilter === 'super_center' ? c.center_type === 'super_center' :
+    c.center_type === 'center'
+  )
 
-  const filtered = data
+  const verifiedCount = typeFiltered.filter(c => c.approval_status === 'approved').length
+  const unverifiedCount = typeFiltered.length - verifiedCount
+
+  const filtered = typeFiltered
     .filter(c =>
       statusFilter === 'all' ? true :
       statusFilter === 'verified' ? c.approval_status === 'approved' :
@@ -142,13 +149,13 @@ export default function Centers() {
     <div className="p-6">
       <PageHeader
         title="Centers"
-        subtitle={`${data.length} centers`}
+        subtitle={`${typeFiltered.length} ${typeFilter === 'super_center' ? 'super centers' : typeFilter === 'center' ? 'centers' : 'centers & super centers'}`}
         action={{ label: <><Plus size={15} /> Add Center</>, onClick: () => navigate('/admin/centers/new') }}
       />
 
       <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
         {[
-          { key: 'all', label: 'All', count: data.length },
+          { key: 'all', label: 'All', count: typeFiltered.length },
           { key: 'verified', label: 'Verified', count: verifiedCount },
           { key: 'unverified', label: 'Not Verified', count: unverifiedCount },
         ].map(t => (
@@ -167,14 +174,25 @@ export default function Centers() {
         ))}
       </div>
 
-      <div className="mb-4 relative max-w-sm">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
-          placeholder="Search centers..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm flex-1 min-w-[200px]">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
+            placeholder="Search centers..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <select
+          value={typeFilter}
+          onChange={e => { setTypeFilter(e.target.value); setStatusFilter('all') }}
+          className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 cursor-pointer"
+        >
+          <option value="all">All Types</option>
+          <option value="center">Center</option>
+          <option value="super_center">Super Center</option>
+        </select>
       </div>
 
       {loading ? (
@@ -204,7 +222,12 @@ export default function Centers() {
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
-                  <p className="font-semibold text-gray-900">{c.center_name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-gray-900">{c.center_name}</p>
+                    {c.center_type === 'super_center' && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">Super</span>
+                    )}
+                  </div>
                   {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
