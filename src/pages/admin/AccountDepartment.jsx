@@ -1436,6 +1436,17 @@ export default function AccountDepartment() {
                     <p className="text-xs text-gray-400 italic">Calculating course fee…</p>
                   ) : alreadyHeld ? (
                     <div className="text-sm space-y-1.5">
+                      <div className="flex justify-between"><span className="text-gray-500">Total Course Fee</span><span className="font-semibold text-gray-900">₹{Number(studentFee.courseFee).toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Center Wallet Balance</span><span className="font-semibold text-gray-900">₹{Number(studentFee.balance).toLocaleString('en-IN')}</span></div>
+                      {studentFee.discount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">
+                            Coupon Discount
+                            {studentFee.couponCode && <span className="ml-1 font-mono text-[11px] text-[#933d18]">({studentFee.couponCode})</span>}
+                          </span>
+                          <span className="font-semibold text-emerald-600">− ₹{Number(studentFee.discount).toLocaleString('en-IN')}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between"><span className="text-gray-500">Amount Held (at forward)</span><span className="font-semibold text-gray-900">₹{held.toLocaleString('en-IN')}</span></div>
                       <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Collect Now</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
                       <p className="text-[11px] text-gray-500 pt-0.5">Already deducted from the wallet when the center forwarded this student — no further deduction.</p>
