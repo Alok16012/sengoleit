@@ -140,7 +140,31 @@ export default function Students() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
+  // Filter dropdowns
+  const [superFilter, setSuperFilter] = useState('all')
+  const [centerFilter, setCenterFilter] = useState('all')
+  const [programFilter, setProgramFilter] = useState('all')
+  const [sessionFilter, setSessionFilter] = useState('all')
+  const [superCenters, setSuperCenters] = useState([])
+  const [centerList, setCenterList] = useState([])
+  const [programList, setProgramList] = useState([])
+  const [sessionList, setSessionList] = useState([])
   const navigate = useNavigate()
+
+  useEffect(() => {
+    (async () => {
+      const [sc, ct, pr, se] = await Promise.all([
+        supabase.from('centers').select('id, center_name, center_code').eq('center_type', 'super_center').order('center_name'),
+        supabase.from('centers').select('id, center_name, center_code, super_center_id').eq('center_type', 'center').order('center_name'),
+        supabase.from('programs').select('id, program_name').order('program_name'),
+        supabase.from('academic_sessions').select('id, session_name').order('session_name'),
+      ])
+      setSuperCenters(sc.data || [])
+      setCenterList(ct.data || [])
+      setProgramList(pr.data || [])
+      setSessionList(se.data || [])
+    })()
+  }, [])
 
   async function toggleHide(s) {
     const newVal = !s.is_hidden
@@ -183,7 +207,7 @@ export default function Students() {
     setLoading(true)
     const { data, error } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, programs(program_name), academic_sessions(session_name), centers(center_name, center_code, super_center_id)')
       .order('created_at', { ascending: false })
     if (error) console.error('Students fetch error:', error)
     setData(data || [])
@@ -192,9 +216,16 @@ export default function Students() {
 
   const hiddenCount = data.filter(s => s.is_hidden).length
 
+  // Center dropdown narrows to the chosen super center's centers.
+  const scopedCenters = centerList.filter(c => superFilter === 'all' ? true : c.super_center_id === superFilter)
+
   const filtered = data.filter(s => {
     // Hidden students are excluded unless "Show Hidden" is on (then show ONLY hidden).
     if (showHidden ? !s.is_hidden : s.is_hidden) return false
+    if (superFilter !== 'all' && s.centers?.super_center_id !== superFilter) return false
+    if (centerFilter !== 'all' && s.center_id !== centerFilter) return false
+    if (programFilter !== 'all' && s.programme_id !== programFilter) return false
+    if (sessionFilter !== 'all' && s.session_id !== sessionFilter) return false
     const matchSearch = `${s.student_name} ${s.enrollment_no} ${s.mobile_no}`.toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'All' || s.status === statusFilter
     return matchSearch && matchStatus
@@ -208,7 +239,7 @@ export default function Students() {
         action={{ label: <><Plus size={15} /> Add Student</>, onClick: () => navigate('/admin/students/new') }}
       />
 
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-3 items-end">
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -218,6 +249,61 @@ export default function Students() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Super Center</label>
+          <select
+            value={superFilter}
+            onChange={e => { setSuperFilter(e.target.value); setCenterFilter('all') }}
+            className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 cursor-pointer min-w-[160px]"
+          >
+            <option value="all">All Super Centers</option>
+            {superCenters.map(sc => (
+              <option key={sc.id} value={sc.id}>{sc.center_name}{sc.center_code ? ` (${sc.center_code})` : ''}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Center</label>
+          <select
+            value={centerFilter}
+            onChange={e => setCenterFilter(e.target.value)}
+            className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 cursor-pointer min-w-[160px]"
+          >
+            <option value="all">All Centers</option>
+            {scopedCenters.map(c => (
+              <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Program</label>
+          <select
+            value={programFilter}
+            onChange={e => setProgramFilter(e.target.value)}
+            className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 cursor-pointer min-w-[160px]"
+          >
+            <option value="all">All Programs</option>
+            {programList.map(p => (
+              <option key={p.id} value={p.id}>{p.program_name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Session</label>
+          <select
+            value={sessionFilter}
+            onChange={e => setSessionFilter(e.target.value)}
+            className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 cursor-pointer min-w-[140px]"
+          >
+            <option value="all">All Sessions</option>
+            {sessionList.map(se => (
+              <option key={se.id} value={se.id}>{se.session_name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3 mb-4">
         <div className="flex gap-1.5 flex-wrap">
           {STATUS_FILTERS.map(s => (
             <button
