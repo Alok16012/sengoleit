@@ -45,7 +45,7 @@ export default function WalletSummary() {
           .order('virtual_balance', { ascending: false }),
         supabase
           .from('recharge_requests')
-          .select('*, centers(center_name, center_code, center_type)')
+          .select('*, centers(center_name, center_code, center_type, super_center_id)')
           .order('created_at', { ascending: false }),
       ])
       setCenters(ctr.data || [])
@@ -67,10 +67,17 @@ export default function WalletSummary() {
     return true
   })
 
+  // Recharge rows after the same two filters.
+  const filteredRecharges = recharges.filter(r => {
+    if (superFilter !== 'all' && r.centers?.super_center_id !== superFilter) return false
+    if (centerFilter !== 'all' && r.center_id !== centerFilter) return false
+    return true
+  })
+
   const totalBalance = filteredCenters.reduce((s, c) => s + Number(c.virtual_balance || 0), 0)
-  const pendingRecharges = recharges.filter(r => r.status === 'pending')
+  const pendingRecharges = filteredRecharges.filter(r => r.status === 'pending')
   const totalPendingAmount = pendingRecharges.reduce((s, r) => s + Number(r.amount || 0), 0)
-  const totalVerified = recharges.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
+  const totalVerified = filteredRecharges.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
 
   return (
     <div className="p-6">
@@ -83,7 +90,7 @@ export default function WalletSummary() {
         <StatCard label="Total Verified" value={`₹${totalVerified.toLocaleString('en-IN')}`} color="gray" sub="all time" />
       </div>
 
-      {tab === 'balances' && (
+      {(
         <div className="flex flex-wrap gap-3 mb-4 items-end">
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Super Center</label>
@@ -189,9 +196,9 @@ export default function WalletSummary() {
             </tr>
           </Thead>
           <Tbody>
-            {recharges.length === 0 ? (
+            {filteredRecharges.length === 0 ? (
               <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No recharge requests</Td></Tr>
-            ) : recharges.map((r, i) => (
+            ) : filteredRecharges.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
