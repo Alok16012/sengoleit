@@ -364,11 +364,6 @@ export default function StudentListReport({ status }) {
                         <span className="text-xs ml-1 text-blue-600">Forward</span>
                       </Button>
                     )}
-                    {status === 'Forwarding' && (
-                      <span className="text-[11px] font-semibold text-blue-600 inline-flex items-center gap-1 px-2 py-1">
-                        <Send size={13} /> Forwarded
-                      </span>
-                    )}
                     {s.status === 'Hold' && !s.doc_verified_at && role !== 'admin' && (
                       <Button
                         size="sm"
