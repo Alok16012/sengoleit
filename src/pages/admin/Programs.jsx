@@ -23,6 +23,9 @@ export default function Programs() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [deptFilter, setDeptFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [modeFilter, setModeFilter] = useState('all')
   const navigate = useNavigate()
 
   useEffect(() => { fetchData() }, [])
@@ -44,7 +47,21 @@ export default function Programs() {
     fetchData()
   }
 
+  // Dropdown option sources (derived from loaded programs).
+  const deptOptions = [...new Map(
+    data.filter(p => p.department_id && p.departments?.name).map(p => [p.department_id, p.departments.name])
+  ).entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  const typeOptions = [...new Map(
+    data.filter(p => p.programme_type_id && p.programme_types?.programme_type_name).map(p => [p.programme_type_id, p.programme_types.programme_type_name])
+  ).entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  const modeOptions = [...new Set(
+    data.map(p => p.study_modes?.mode_name).filter(Boolean)
+  )].sort()
+
   const filtered = data.filter(p => {
+    if (deptFilter !== 'all' && p.department_id !== deptFilter) return false
+    if (typeFilter !== 'all' && p.programme_type_id !== typeFilter) return false
+    if (modeFilter !== 'all' && (p.study_modes?.mode_name || '') !== modeFilter) return false
     const haystack = [
       p.program_name, p.course_code, p.enrollment_code, p.short_name,
       p.stream, p.eligibility, p.status, p.complete_duration,
@@ -64,14 +81,41 @@ export default function Programs() {
         action={{ label: <><Plus size={15} /> Add Program</>, onClick: () => navigate('/admin/programs/new') }}
       />
 
-      <div className="mb-4 relative max-w-sm">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-        <input
-          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
-          placeholder="Search programs..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+      <div className="flex flex-wrap gap-3 mb-4 items-end">
+        <div className="relative max-w-sm flex-1 min-w-[220px]">
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
+          <Search size={15} className="absolute left-3 top-[34px] -translate-y-1/2 text-gray-400" />
+          <input
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
+            placeholder="Search programs..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Department</label>
+          <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[180px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+            <option value="all">All Departments</option>
+            {deptOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Program Type</label>
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[160px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+            <option value="all">All Types</option>
+            {typeOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Mode</label>
+          <select value={modeFilter} onChange={e => setModeFilter(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[140px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+            <option value="all">All Modes</option>
+            {modeOptions.map(name => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </div>
       </div>
 
       {loading ? (

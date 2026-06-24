@@ -53,6 +53,9 @@ export default function FeeManagement() {
   const [masterList, setMasterList] = useState([])
   const [masterLoading, setMasterLoading] = useState(true)
   const [masterSearch, setMasterSearch] = useState('')
+  const [masterDept, setMasterDept] = useState('all')
+  const [masterType, setMasterType] = useState('all')
+  const [masterSession, setMasterSession] = useState('all')
   const [viewStruct, setViewStruct] = useState(null)
 
   // editor state
@@ -255,20 +258,45 @@ export default function FeeManagement() {
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="relative flex-1 max-w-sm">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <div className="flex flex-wrap items-end gap-3 mb-4">
+              <div className="relative flex-1 max-w-sm min-w-[200px]">
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
+                <Search size={14} className="absolute left-3 top-[34px] -translate-y-1/2 text-gray-400" />
                 <input
-                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10"
+                  className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10"
                   placeholder="Search by program or session..."
                   value={masterSearch}
                   onChange={e => setMasterSearch(e.target.value)}
                 />
                 {masterSearch && (
-                  <button onClick={() => setMasterSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <button onClick={() => setMasterSearch('')} className="absolute right-2.5 top-[34px] -translate-y-1/2 text-gray-400 hover:text-gray-600">
                     <X size={13} />
                   </button>
                 )}
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Department</label>
+                <select value={masterDept} onChange={e => setMasterDept(e.target.value)}
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+                  <option value="all">All Departments</option>
+                  {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Program Type</label>
+                <select value={masterType} onChange={e => setMasterType(e.target.value)}
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[150px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+                  <option value="all">All Types</option>
+                  {programmeTypes.map(t => <option key={t.id} value={t.id}>{t.programme_type_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Session</label>
+                <select value={masterSession} onChange={e => setMasterSession(e.target.value)}
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[150px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+                  <option value="all">All Sessions</option>
+                  {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
+                </select>
               </div>
               <Button onClick={() => openEditor()}>
                 <Plus size={14} /> Add New Fee Structure
@@ -276,18 +304,24 @@ export default function FeeManagement() {
             </div>
             {(() => {
               const q = masterSearch.toLowerCase()
-              const filtered = q
-                ? masterList.filter(s =>
-                    (s.programs?.program_name || '').toLowerCase().includes(q) ||
-                    (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
-                  )
-                : masterList
+              const progMap = Object.fromEntries(programs.map(p => [p.id, p]))
+              const filtered = masterList.filter(s => {
+                const prog = progMap[s.program_id]
+                if (masterDept !== 'all' && prog?.department_id !== masterDept) return false
+                if (masterType !== 'all' && prog?.programme_type_id !== masterType) return false
+                if (masterSession !== 'all' && s.session_id !== masterSession) return false
+                if (q && !(
+                  (s.programs?.program_name || '').toLowerCase().includes(q) ||
+                  (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
+                )) return false
+                return true
+              })
               return (
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-              {filtered.length === 0 && masterSearch && (
+              {filtered.length === 0 && (masterSearch || masterDept !== 'all' || masterType !== 'all' || masterSession !== 'all') && (
                 <div className="flex flex-col items-center justify-center py-14 text-gray-300">
                   <Search size={36} className="mb-2" />
-                  <p className="text-sm font-semibold text-gray-400">No results for "{masterSearch}"</p>
+                  <p className="text-sm font-semibold text-gray-400">No fee structures match the selected filters</p>
                 </div>
               )}
               {filtered.length > 0 && (
