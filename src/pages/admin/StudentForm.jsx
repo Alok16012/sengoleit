@@ -931,6 +931,20 @@ export default function StudentForm() {
           .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
           .eq('id', coupon.applied.id)
       }
+      // Also persist the discount on the student row itself. The center always
+      // has write access to its own student records, so this survives even if
+      // RLS blocks the center from updating the coupons table — letting the
+      // Account Dept apply the discount reliably at fee collection. Best-effort:
+      // if the migration (add_student_coupon_discount.sql) hasn't run, the
+      // unknown-column error is ignored and the insert above still stands.
+      if (!isEdit && saved?.id) {
+        await supabase.from('students')
+          .update({
+            coupon_discount: coupon.applied ? (coupon.discount || 0) : null,
+            coupon_code: coupon.applied ? coupon.code.trim().toUpperCase() : null,
+          })
+          .eq('id', saved.id)
+      }
       navigate(backPath)
     } else {
       alert('Error: ' + error.message)

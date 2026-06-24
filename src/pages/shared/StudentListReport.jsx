@@ -60,7 +60,7 @@ export default function StudentListReport({ status }) {
 
     let q = supabase
       .from('students')
-      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, fee_held, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
+      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
       .in('center_id', centerIds)
 
     // 'Hold' and 'Forwarding' share the DB status 'Hold'; doc_verified_at splits
@@ -139,13 +139,17 @@ export default function StudentListReport({ status }) {
       courseFee = Math.round(fee)
     }
 
-    // Coupon reserved against this application on submission (if any).
-    const { data: cpn } = await supabase
-      .from('coupons')
-      .select('face_value')
-      .eq('application_id', student.id)
-      .maybeSingle()
-    const discount = Number(cpn?.face_value || 0)
+    // Coupon discount applied at submission. Prefer the value stored on the
+    // student row; fall back to the coupons-table linkage for older records.
+    let discount = Number(student.coupon_discount || 0)
+    if (!discount) {
+      const { data: cpn } = await supabase
+        .from('coupons')
+        .select('face_value')
+        .eq('application_id', student.id)
+        .maybeSingle()
+      discount = Number(cpn?.face_value || 0)
+    }
 
     // Fresh wallet balance for the center.
     let balance = Number(student.centers?.virtual_balance || 0)

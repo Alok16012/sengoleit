@@ -158,7 +158,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, fee_held, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, fee_held, coupon_discount, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -589,13 +589,18 @@ export default function AccountDepartment() {
       courseFee = Math.round(fee)
     }
 
-    // Coupon reserved against this application on submission (if any).
-    const { data: cpn } = await supabase
-      .from('coupons')
-      .select('face_value')
-      .eq('application_id', student.id)
-      .maybeSingle()
-    const discount = Number(cpn?.face_value || 0)
+    // Coupon discount applied at submission. Prefer the value stored directly on
+    // the student row (reliable, written by the center). Fall back to the
+    // coupons-table linkage for older records that predate that column.
+    let discount = Number(student.coupon_discount || 0)
+    if (!discount) {
+      const { data: cpn } = await supabase
+        .from('coupons')
+        .select('face_value')
+        .eq('application_id', student.id)
+        .maybeSingle()
+      discount = Number(cpn?.face_value || 0)
+    }
 
     // Fresh wallet balance for the center.
     let balance = Number(student.centers?.virtual_balance || 0)
