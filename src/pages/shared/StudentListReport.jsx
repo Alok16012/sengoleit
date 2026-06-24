@@ -13,9 +13,9 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 
 const STATUS_META = {
-  Pending:    { color: 'amber',   label: 'Pending Students',    desc: 'Forms have been submitted, awaiting Document Dept. verification' },
+  Pending:    { color: 'amber',   label: 'Pending Students',    desc: 'Forms submitted — not yet forwarded to the Document Dept.' },
   Hold:       { color: 'indigo',  label: 'Hold Students',       desc: 'Sent back for correction by the Document Dept.' },
-  Forwarding: { color: 'blue',    label: 'Forwarding Students', desc: 'Documents verified & forwarded to Account Dept. — awaiting enrollment' },
+  Forwarding: { color: 'blue',    label: 'Forwarding Students', desc: 'Forwarded by the center — under Document / Account Dept. processing' },
   Approved:   { color: 'emerald', label: 'Approved Students',   desc: 'Entire process complete — Admission confirmed' },
   Rejected:   { color: 'red',     label: 'Rejected Students',   desc: 'Application has been rejected' },
 }
@@ -63,11 +63,21 @@ export default function StudentListReport({ status }) {
       .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
       .in('center_id', centerIds)
 
-    // 'Hold' and 'Forwarding' share the DB status 'Hold'; doc_verified_at splits
-    // them — set = forwarded to Account Dept, null = sent back for correction.
-    if (status === 'Forwarding') q = q.eq('status', 'Hold').not('doc_verified_at', 'is', null)
-    else if (status === 'Hold')  q = q.eq('status', 'Hold').is('doc_verified_at', null)
-    else                         q = q.eq('status', status)
+    // Stage routing:
+    //  - Pending   : submitted by center, NOT yet forwarded (forwarded_at null).
+    //  - Forwarding: forwarded by center & still in processing — either awaiting
+    //                Document Dept. verification (status Pending + forwarded_at set)
+    //                or doc-verified & sent to Account Dept. (status Hold + doc_verified_at set).
+    //  - Hold      : Document Dept. sent it back for correction (status Hold + doc_verified_at null).
+    if (status === 'Pending') {
+      q = q.eq('status', 'Pending').is('forwarded_at', null)
+    } else if (status === 'Forwarding') {
+      q = q.or('and(status.eq.Pending,forwarded_at.not.is.null),and(status.eq.Hold,doc_verified_at.not.is.null)')
+    } else if (status === 'Hold') {
+      q = q.eq('status', 'Hold').is('doc_verified_at', null)
+    } else {
+      q = q.eq('status', status)
+    }
 
     const { data: students } = await q.order('created_at', { ascending: false })
 
@@ -343,22 +353,21 @@ export default function StudentListReport({ status }) {
                 </Td>
                 <Td>
                   <div className="flex items-center gap-1 flex-nowrap whitespace-nowrap">
-                    {status === 'Pending' && role !== 'admin' && (
-                      s.forwarded_at ? (
-                        <span className="text-[11px] font-semibold text-blue-600 inline-flex items-center gap-1 px-2 py-1">
-                          <Send size={13} /> Forwarded
-                        </span>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openForward(s)}
-                          title="Forward to Document Dept. (holds the full fee)"
-                        >
-                          <Send size={14} className="text-blue-600" />
-                          <span className="text-xs ml-1 text-blue-600">Forward</span>
-                        </Button>
-                      )
+                    {status === 'Pending' && role !== 'admin' && !s.forwarded_at && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => openForward(s)}
+                        title="Forward to Document Dept. (holds the full fee)"
+                      >
+                        <Send size={14} className="text-blue-600" />
+                        <span className="text-xs ml-1 text-blue-600">Forward</span>
+                      </Button>
+                    )}
+                    {status === 'Forwarding' && (
+                      <span className="text-[11px] font-semibold text-blue-600 inline-flex items-center gap-1 px-2 py-1">
+                        <Send size={13} /> Forwarded
+                      </span>
                     )}
                     {s.status === 'Hold' && !s.doc_verified_at && role !== 'admin' && (
                       <Button
