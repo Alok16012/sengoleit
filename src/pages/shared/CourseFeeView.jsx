@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { Search, ChevronDown, X, AlertCircle, Download } from 'lucide-react'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
@@ -95,6 +96,14 @@ const fmt = n => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionD
 
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function CourseFeeView() {
+  const { user } = useAuth()
+
+  // When a center is logged in, the report must show ONLY the courses the
+  // admin has allotted + approved to that center (via center_courses).
+  // Admins have no row in `centers`, so they stay unrestricted.
+  const [centerRowId, setCenterRowId] = useState(null) // null = admin/unrestricted
+  const [scoped,      setScoped]      = useState(false) // true once we know this is a center
+
   const [sessions,    setSessions]    = useState([])
   const [departments, setDepartments] = useState([])
   const [progTypes,   setProgTypes]   = useState([])
@@ -111,6 +120,16 @@ export default function CourseFeeView() {
   const [loading,  setLoading]  = useState(false)
   const [searched, setSearched] = useState(false)
   const [errMsg,   setErrMsg]   = useState('')
+
+  // Resolve whether the logged-in user is a center (restrict results) or admin.
+  useEffect(() => {
+    if (!user?.email) return
+    supabase.from('centers').select('id').eq('email', user.email).maybeSingle()
+      .then(({ data }) => {
+        if (data) { setCenterRowId(data.id); setScoped(true) }
+        else { setCenterRowId(null); setScoped(false) }
+      })
+  }, [user?.email])
 
   // Load master dropdowns
   useEffect(() => {
@@ -178,9 +197,23 @@ export default function CourseFeeView() {
       if (selSession)     fsQ = fsQ.eq('session_id', selSession)
       if (matchProgIds)   fsQ = fsQ.in('program_id', matchProgIds)
 
-      const { data: fsList, error: fsErr } = await fsQ
+      const { data: fsRaw, error: fsErr } = await fsQ
       if (fsErr) throw fsErr
-      if (!fsList?.length) { setResults([]); setLoading(false); return }
+      let fsList = fsRaw || []
+
+      // Restrict to courses the admin has approved for this center.
+      if (centerRowId) {
+        const { data: cc, error: ccErr } = await supabase
+          .from('center_courses')
+          .select('fee_structure_id')
+          .eq('center_id', centerRowId)
+          .eq('status', 'approved')
+        if (ccErr) throw ccErr
+        const allow = new Set((cc || []).map(r => r.fee_structure_id))
+        fsList = fsList.filter(f => allow.has(f.id))
+      }
+
+      if (!fsList.length) { setResults([]); setLoading(false); return }
 
       // Step 3: fetch fee_items for these fee_structure IDs
       const fsIds   = fsList.map(f => f.id)
@@ -286,7 +319,9 @@ export default function CourseFeeView() {
       {searched && !loading && !errMsg && (
         results.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
-            No fee structures found for selected filters.
+            {scoped
+              ? 'No courses have been allotted to your center yet, or none match these filters. Please contact the administrator.'
+              : 'No fee structures found for selected filters.'}
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
