@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Edit, Trash2, Plus, Search } from 'lucide-react'
+import { Edit, Trash2, Plus, Search, X } from 'lucide-react'
 
 const calcSemesters = (p) => {
   if (!p.duration) return p.semester_year || '—'
@@ -73,11 +73,14 @@ export default function Programs() {
     return haystack.includes(search.toLowerCase())
   })
 
+  const anyFilter = !!search || deptFilter !== 'all' || typeFilter !== 'all' || modeFilter !== 'all'
+  const clearFilters = () => { setSearch(''); setDeptFilter('all'); setTypeFilter('all'); setModeFilter('all') }
+
   return (
     <div className="p-6">
       <PageHeader
         title="Programs"
-        subtitle={`${data.length} programs`}
+        subtitle={anyFilter ? `${filtered.length} of ${data.length} programs` : `${data.length} programs`}
         action={{ label: <><Plus size={15} /> Add Program</>, onClick: () => navigate('/admin/programs/new') }}
       />
 
@@ -116,6 +119,12 @@ export default function Programs() {
             {modeOptions.map(name => <option key={name} value={name}>{name}</option>)}
           </select>
         </div>
+        {anyFilter && (
+          <button onClick={clearFilters}
+            className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
+            <X size={14} /> Clear
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -147,7 +156,9 @@ export default function Programs() {
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={18} className="text-center text-gray-400 py-12">No programs found</Td></Tr>
+              <Tr><Td colSpan={18} className="text-center text-gray-400 py-12">
+                {anyFilter ? 'No programs match the current filters — try clearing them.' : 'No programs found'}
+              </Td></Tr>
             ) : filtered.map((p, i) => (
               <Tr key={p.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
