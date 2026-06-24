@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Users, CheckCircle, Clock, Wallet, UserPlus, Truck, FileCheck, UserCheck } from 'lucide-react'
+import { Users, CheckCircle, Clock, Wallet, UserPlus, Truck, FileCheck, UserCheck, Lock } from 'lucide-react'
 
 const QUICK_ACTIONS = [
   { label: 'Student Entry', icon: UserPlus, color: 'bg-emerald-500', hover: 'hover:bg-emerald-600', to: '/center/students/new' },
@@ -42,8 +42,12 @@ export default function CenterDashboard() {
             supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id),
             supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id).eq('status', 'Admitted'),
             supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id).eq('status', 'Pending'),
-          ]).then(([total, admitted, pending]) => {
-            setStats({ total: total.count, admitted: admitted.count, pending: pending.count })
+            // Money currently locked in the wallet for forwarded students that
+            // haven't been approved/rejected yet (fee_held is cleared on both).
+            supabase.from('students').select('fee_held').eq('center_id', data.id).not('fee_held', 'is', null),
+          ]).then(([total, admitted, pending, held]) => {
+            const holdAmount = (held.data || []).reduce((sum, r) => sum + Number(r.fee_held || 0), 0)
+            setStats({ total: total.count, admitted: admitted.count, pending: pending.count, holdAmount })
           })
         }
       })
@@ -95,10 +99,16 @@ export default function CenterDashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Total Students" value={stats.total} icon={Users} color="bg-[#933d18]" />
         <StatCard label="Admitted Students" value={stats.admitted} icon={CheckCircle} color="bg-emerald-500" />
         <StatCard label="Pending Students" value={stats.pending} icon={Clock} color="bg-amber-500" />
+        <StatCard
+          label="Hold Amount"
+          value={stats.holdAmount != null ? `₹${Number(stats.holdAmount).toLocaleString('en-IN')}` : '—'}
+          icon={Lock}
+          color="bg-blue-500"
+        />
       </div>
 
     </div>
