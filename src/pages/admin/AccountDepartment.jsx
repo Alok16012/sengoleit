@@ -594,14 +594,16 @@ export default function AccountDepartment() {
     // coupons-table linkage for older records that predate that column.
     let discount = Number(student.coupon_discount || 0)
     let couponCode = student.coupon_code || ''
-    if (!discount) {
+    // Resolve from the coupons table when either the discount OR the code is
+    // missing on the student row (older records may have one but not the other).
+    if (!discount || !couponCode) {
       const { data: cpn } = await supabase
         .from('coupons')
         .select('id, face_value')
         .eq('application_id', student.id)
         .maybeSingle()
-      discount = Number(cpn?.face_value || 0)
-      if (cpn?.id) couponCode = cpn.id.slice(0, 8).toUpperCase()
+      if (!discount) discount = Number(cpn?.face_value || 0)
+      if (!couponCode && cpn?.id) couponCode = cpn.id.slice(0, 8).toUpperCase()
     }
 
     // Fresh wallet balance for the center.
