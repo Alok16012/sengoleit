@@ -2,8 +2,9 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight } from 'lucide-react'
+import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2 } from 'lucide-react'
 import { generateFeePDF } from '../../utils/generateFeePDF'
+import CenterCourses from './CenterCourses'
 
 // category types:
 //  'entry'     = one-time (Prospectus etc.)
@@ -233,6 +234,7 @@ export default function FeeManagement() {
         {[
           { key: 'master', label: 'Fee Master', icon: <List size={14} /> },
           { key: 'editor', label: 'Add / Edit Fee', icon: <Plus size={14} /> },
+          { key: 'allot', label: 'Center Courses', icon: <Building2 size={14} /> },
         ].map(t => (
           <button key={t.key} onClick={() => { setTab(t.key); if (t.key === 'editor' && selectedProgIds.size === 0) { setItems(keyed(DEFAULTS)); setSaved(false) } }}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t.key ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -625,6 +627,9 @@ export default function FeeManagement() {
           )}
         </>
       )}
+
+      {/* ══════════════ CENTER COURSES (ALLOTMENT) TAB ══════════════ */}
+      {tab === 'allot' && <CenterCourses />}
     </div>
   )
 }
