@@ -256,7 +256,7 @@ export default function StudentListReport({ status }) {
           </p>
         </div>
       ) : (
-        <Table className={status === 'Approved' ? 'min-w-[1280px]' : 'min-w-[1000px]'}>
+        <Table className={status === 'Approved' ? 'min-w-[1480px]' : 'min-w-[1000px]'}>
           <Thead>
             <tr>
               <Th>#</Th>
@@ -342,7 +342,7 @@ export default function StudentListReport({ status }) {
                   )}
                 </Td>
                 <Td>
-                  <div className="flex items-center gap-1 flex-wrap">
+                  <div className="flex items-center gap-1 flex-nowrap whitespace-nowrap">
                     {status === 'Pending' && role !== 'admin' && (
                       s.forwarded_at ? (
                         <span className="text-[11px] font-semibold text-blue-600 inline-flex items-center gap-1 px-2 py-1">
