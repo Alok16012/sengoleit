@@ -927,9 +927,20 @@ export default function StudentForm() {
       // here (mark it used + link it to this application) so the Account Dept
       // can apply its discount when it collects the fee.
       if (!isEdit && coupon.applied?.id) {
-        await supabase.from('coupons')
-          .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
-          .eq('id', coupon.applied.id)
+        // Mark the coupon used + link it to this application. Done via a
+        // SECURITY DEFINER RPC because the center role can't UPDATE the coupons
+        // table directly (RLS) — a plain update silently failed and left the
+        // coupon showing as Available. Fall back to a direct update (works for
+        // admins) if the RPC isn't deployed yet.
+        const { error: rpcErr } = await supabase.rpc('reserve_coupon', {
+          p_coupon_id: coupon.applied.id,
+          p_application_id: saved?.id || null,
+        })
+        if (rpcErr) {
+          await supabase.from('coupons')
+            .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
+            .eq('id', coupon.applied.id)
+        }
       }
       // Also persist the discount on the student row itself. The center always
       // has write access to its own student records, so this survives even if
