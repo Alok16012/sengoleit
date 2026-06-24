@@ -149,7 +149,7 @@ export default function StudentListReport({ status }) {
           </p>
         </div>
       ) : (
-        <Table>
+        <Table className={status === 'Approved' ? 'min-w-[1280px]' : 'min-w-[1000px]'}>
           <Thead>
             <tr>
               <Th>#</Th>
@@ -195,7 +195,7 @@ export default function StudentListReport({ status }) {
                       : <span className="text-xs text-gray-300">—</span>}
                   </Td>
                 )}
-                <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs whitespace-nowrap">{s.programs?.program_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">
                   {s.semester_year
                     ? `${s.programs?.semester_year === 'Year' ? 'Year' : 'Sem'} ${s.semester_year}`

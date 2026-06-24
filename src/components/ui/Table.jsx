@@ -1,7 +1,7 @@
-export function Table({ children }) {
+export function Table({ children, className = '' }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-      <table className="min-w-full">{children}</table>
+      <table className={`min-w-full ${className}`}>{children}</table>
     </div>
   )
 }
