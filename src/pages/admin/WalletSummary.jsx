@@ -32,6 +32,8 @@ export default function WalletSummary() {
   const [centers, setCenters] = useState([])
   const [recharges, setRecharges] = useState([])
   const [loading, setLoading] = useState(true)
+  const [superFilter, setSuperFilter] = useState('all')
+  const [centerFilter, setCenterFilter] = useState('all')
 
   useEffect(() => {
     async function fetchData() {
@@ -39,7 +41,7 @@ export default function WalletSummary() {
       const [ctr, rch] = await Promise.all([
         supabase
           .from('centers')
-          .select('id, center_name, center_code, center_type, virtual_balance, email, approval_status')
+          .select('id, center_name, center_code, center_type, super_center_id, virtual_balance, email, approval_status')
           .order('virtual_balance', { ascending: false }),
         supabase
           .from('recharge_requests')
@@ -53,7 +55,19 @@ export default function WalletSummary() {
     fetchData()
   }, [])
 
-  const totalBalance = centers.reduce((s, c) => s + Number(c.virtual_balance || 0), 0)
+  // Dropdown sources + scoping.
+  const superCenters = centers.filter(c => c.center_type === 'super_center')
+  const regularCenters = centers.filter(c => c.center_type === 'center')
+  const scopedCenters = regularCenters.filter(c => superFilter === 'all' ? true : c.super_center_id === superFilter)
+
+  // Rows shown in the balances table after the two filters.
+  const filteredCenters = centers.filter(c => {
+    if (superFilter !== 'all' && c.super_center_id !== superFilter) return false
+    if (centerFilter !== 'all' && c.id !== centerFilter) return false
+    return true
+  })
+
+  const totalBalance = filteredCenters.reduce((s, c) => s + Number(c.virtual_balance || 0), 0)
   const pendingRecharges = recharges.filter(r => r.status === 'pending')
   const totalPendingAmount = pendingRecharges.reduce((s, r) => s + Number(r.amount || 0), 0)
   const totalVerified = recharges.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
@@ -63,11 +77,42 @@ export default function WalletSummary() {
       <PageHeader title="Wallet Summary" subtitle="Center virtual balances and recharge history" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4 mb-6">
-        <StatCard label="Total Centers" value={centers.length} color="blue" />
-        <StatCard label="Total Wallet Balance" value={`₹${totalBalance.toLocaleString('en-IN')}`} color="green" sub="across all centers" />
+        <StatCard label="Total Centers" value={filteredCenters.length} color="blue" />
+        <StatCard label="Total Wallet Balance" value={`₹${totalBalance.toLocaleString('en-IN')}`} color="green" sub={superFilter === 'all' && centerFilter === 'all' ? 'across all centers' : 'for current filter'} />
         <StatCard label="Pending Recharges" value={pendingRecharges.length} sub={`₹${totalPendingAmount.toLocaleString('en-IN')} awaiting`} color="amber" />
         <StatCard label="Total Verified" value={`₹${totalVerified.toLocaleString('en-IN')}`} color="gray" sub="all time" />
       </div>
+
+      {tab === 'balances' && (
+        <div className="flex flex-wrap gap-3 mb-4 items-end">
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Super Center</label>
+            <select
+              value={superFilter}
+              onChange={e => { setSuperFilter(e.target.value); setCenterFilter('all') }}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white min-w-[200px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20"
+            >
+              <option value="all">All Super Centers</option>
+              {superCenters.map(s => (
+                <option key={s.id} value={s.id}>{s.center_name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Center</label>
+            <select
+              value={centerFilter}
+              onChange={e => setCenterFilter(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white min-w-[200px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20"
+            >
+              <option value="all">All Centers</option>
+              {scopedCenters.map(c => (
+                <option key={c.id} value={c.id}>{c.center_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
         {TABS.map(t => (
@@ -99,9 +144,9 @@ export default function WalletSummary() {
             </tr>
           </Thead>
           <Tbody>
-            {centers.length === 0 ? (
+            {filteredCenters.length === 0 ? (
               <Tr><Td colSpan={7} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
-            ) : centers.map((c, i) => (
+            ) : filteredCenters.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
