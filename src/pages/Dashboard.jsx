@@ -26,29 +26,8 @@ export default function Dashboard() {
     })
   }, [])
 
-  const name = profile?.full_name || 'Admin'
-
   return (
     <div className="space-y-8 p-8">
-
-      {/* Welcome Hero Card */}
-      <div className="bg-gradient-to-r from-[#933d18] to-[#b05a30] rounded-2xl shadow-lg shadow-red-900/20 overflow-hidden">
-        <div className="p-10 relative">
-          <div className="relative z-10 max-w-lg">
-            <span className="text-white/80 text-xs font-bold uppercase tracking-widest mb-2 block">
-              Welcome Back
-            </span>
-            <h1 className="text-4xl font-extrabold text-white mb-4 leading-tight">
-              Good Morning, {name}! 👋
-            </h1>
-            <p className="text-orange-100/80 text-base leading-relaxed">
-              Here's what's happening at Sengol International University today.
-            </p>
-          </div>
-          <div className="absolute top-0 right-0 h-full w-1/3 bg-white/10 blur-3xl rounded-full -mr-20 -mt-20" />
-          <div className="absolute bottom-0 right-20 h-32 w-32 bg-orange-300/10 blur-2xl rounded-full" />
-        </div>
-      </div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
