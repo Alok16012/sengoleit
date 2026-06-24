@@ -158,7 +158,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, fee_held, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -659,10 +659,15 @@ export default function AccountDepartment() {
       return
     }
     if (type === 'approve') {
-      // Collect the FULL course fee (less any reserved coupon) from the
-      // center's wallet now. Block approval if the wallet can't cover it.
-      const net = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
-      if (net > 0 && studentFee.balance < net) {
+      // The fee was already HELD (deducted from the wallet) when the center
+      // forwarded the student. Approving simply converts that hold into a
+      // collected fee — no second deduction. Older records that were forwarded
+      // before the hold mechanism (fee_held null) fall back to deducting now.
+      const held = Number(student.fee_held || 0)
+      const alreadyHeld = held > 0
+      const computedNet = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
+      const net = alreadyHeld ? held : computedNet
+      if (!alreadyHeld && net > 0 && studentFee.balance < net) {
         alert(
           `Insufficient wallet balance.\n\n` +
           `Fee to collect: ₹${net.toLocaleString('en-IN')}\n` +
@@ -680,20 +685,35 @@ export default function AccountDepartment() {
         enrollment_no: enrollNo,
         registration_no: regNo,
         remarks: studentRemarks || null,
-        // Record exactly how much was deducted from the center wallet for this
+        // Record exactly how much was collected from the center wallet for this
         // student, so the Payment Summary can show per-student fee collection.
         fee_collected: net,
+        // Hold is now consumed — clear it.
+        fee_held: null,
       }).eq('id', student.id)
-      // Deduct the fee from the center wallet.
-      if (net > 0 && student.centers?.id) {
+      // Only deduct now for legacy (non-held) records; held money already left
+      // the wallet at forward time.
+      if (!alreadyHeld && net > 0 && student.centers?.id) {
         await supabase.from('centers')
           .update({ virtual_balance: studentFee.balance - net })
           .eq('id', student.centers.id)
       }
     } else {
+      // Reject: release the wallet hold back to the center.
+      const held = Number(student.fee_held || 0)
+      if (held > 0 && student.centers?.id) {
+        const { data: ctr } = await supabase
+          .from('centers').select('virtual_balance').eq('id', student.centers.id).maybeSingle()
+        const bal = Number(ctr?.virtual_balance || 0)
+        await supabase.from('centers')
+          .update({ virtual_balance: bal + held })
+          .eq('id', student.centers.id)
+      }
       await supabase.from('students').update({
         status: 'Rejected',
         remarks: studentRemarks,
+        fee_held: null,
+        forwarded_at: null,
       }).eq('id', student.id)
     }
     setStudentActionModal(null)
@@ -1390,9 +1410,14 @@ export default function AccountDepartment() {
             <p className="text-xs font-mono text-[#933d18] mt-1">Admission No: {studentActionModal?.student?.admission_number || '—'}</p>
           </div>
           {studentActionModal?.type === 'approve' && (() => {
-            const net = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
+            const held = Number(studentActionModal?.student?.fee_held || 0)
+            const alreadyHeld = held > 0
+            const computedNet = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
+            const net = alreadyHeld ? held : computedNet
             const after = (studentFee.balance || 0) - net
-            const insufficient = net > 0 && studentFee.balance < net
+            // For held students the money already left the wallet at forward
+            // time, so there is no further deduction and no balance check.
+            const insufficient = !alreadyHeld && net > 0 && studentFee.balance < net
             return (
               <div className="space-y-3">
                 {/* Fee collection summary */}
@@ -1402,6 +1427,12 @@ export default function AccountDepartment() {
                   </div>
                   {studentFee.loading ? (
                     <p className="text-xs text-gray-400 italic">Calculating course fee…</p>
+                  ) : alreadyHeld ? (
+                    <div className="text-sm space-y-1.5">
+                      <div className="flex justify-between"><span className="text-gray-500">Amount Held (at forward)</span><span className="font-semibold text-gray-900">₹{held.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Collect Now</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
+                      <p className="text-[11px] text-gray-500 pt-0.5">Already deducted from the wallet when the center forwarded this student — no further deduction.</p>
+                    </div>
                   ) : (
                     <div className="text-sm space-y-1.5">
                       <div className="flex justify-between"><span className="text-gray-500">Course Fee (full)</span><span className="font-semibold text-gray-900">₹{Number(studentFee.courseFee).toLocaleString('en-IN')}</span></div>
@@ -1420,7 +1451,7 @@ export default function AccountDepartment() {
                   </div>
                 )}
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-                  On approval, the fee above is deducted from the center wallet, and the student's <strong>Enrollment Number</strong> and <strong>Admission Number</strong> become visible to the center / super center.
+                  On approval, the held fee is collected{alreadyHeld ? '' : ' (deducted from the center wallet)'}, and the student's <strong>Enrollment Number</strong> and <strong>Admission Number</strong> become visible to the center / super center.
                 </div>
               </div>
             )

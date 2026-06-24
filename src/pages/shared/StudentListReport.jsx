@@ -6,7 +6,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList } from 'lucide-react'
+import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -30,6 +30,8 @@ export default function StudentListReport({ status }) {
   const [search, setSearch] = useState('')
   const [downloading, setDownloading] = useState(null)
   const [myCenterId, setMyCenterId] = useState(null)
+  const [forwardModal, setForwardModal] = useState(null) // { student, courseFee, discount, net, balance, loading }
+  const [forwarding, setForwarding] = useState(false)
 
   const meta = STATUS_META[status] || { color: 'gray', label: status + ' Students', desc: '' }
 
@@ -58,7 +60,7 @@ export default function StudentListReport({ status }) {
 
     let q = supabase
       .from('students')
-      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, programs(program_name, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)')
+      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, fee_held, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
       .in('center_id', centerIds)
 
     // 'Hold' and 'Forwarding' share the DB status 'Hold'; doc_verified_at splits
@@ -102,6 +104,99 @@ export default function StudentListReport({ status }) {
       else if (type === 'admit') generateAdmitCard(resolved)
     }
     setDownloading(null)
+  }
+
+  // Compute the FULL course fee for the semester/year this student is admitted
+  // into, minus any reserved coupon, plus the center's live wallet balance.
+  // Mirrors the calculation in StudentForm / AccountDepartment.
+  async function computeNetFee(student) {
+    const { data: structures } = await supabase
+      .from('fee_structures')
+      .select('id, session_id, total_semesters')
+      .eq('program_id', student.programme_id)
+
+    const fs = (structures || []).find(s => s.session_id === student.session_id)
+      || (structures || [])[0]
+
+    let courseFee = 0
+    if (fs) {
+      const { data: items } = await supabase
+        .from('fee_items')
+        .select('amount, category')
+        .eq('fee_structure_id', fs.id)
+
+      const dur = Number(student.programs?.duration) || 1
+      const totalSems = fs.total_semesters || dur || 1
+      const semIndex = Math.max((parseInt(student.semester_year, 10) || 1) - 1, 0)
+      let fee = 0
+      ;(items || []).forEach(it => {
+        const a = Number(it.amount) || 0
+        if (it.category === 'entry'     && semIndex === 0) fee += a
+        if (it.category === 'divide')                      fee += totalSems > 0 ? a / totalSems : 0
+        if (it.category === 'multiply')                    fee += a
+        if (it.category === 'multiply2' && semIndex > 0)   fee += a
+      })
+      courseFee = Math.round(fee)
+    }
+
+    // Coupon reserved against this application on submission (if any).
+    const { data: cpn } = await supabase
+      .from('coupons')
+      .select('face_value')
+      .eq('application_id', student.id)
+      .maybeSingle()
+    const discount = Number(cpn?.face_value || 0)
+
+    // Fresh wallet balance for the center.
+    let balance = Number(student.centers?.virtual_balance || 0)
+    if (student.centers?.id) {
+      const { data: ctr } = await supabase
+        .from('centers').select('virtual_balance').eq('id', student.centers.id).maybeSingle()
+      if (ctr) balance = Number(ctr.virtual_balance || 0)
+    }
+
+    const net = Math.max(courseFee - discount, 0)
+    return { courseFee, discount, net, balance }
+  }
+
+  // Open the forward confirmation modal and load the fee that will be held.
+  async function openForward(student) {
+    setForwardModal({ student, loading: true, courseFee: 0, discount: 0, net: 0, balance: 0 })
+    const f = await computeNetFee(student)
+    setForwardModal({ student, loading: false, ...f })
+  }
+
+  // Move the student to the Document Dept and HOLD the full net fee: deduct it
+  // from the center wallet and record it in students.fee_held.
+  async function confirmForward() {
+    if (!forwardModal || forwardModal.loading) return
+    const { student, net, balance } = forwardModal
+    if (net > 0 && balance < net) {
+      alert(
+        `Insufficient wallet balance.\n\n` +
+        `Fee to hold: ₹${net.toLocaleString('en-IN')}\n` +
+        `Available balance: ₹${Number(balance).toLocaleString('en-IN')}\n\n` +
+        `Please recharge the wallet before forwarding this student.`
+      )
+      return
+    }
+    setForwarding(true)
+    try {
+      await supabase.from('students').update({
+        fee_held: net,
+        forwarded_at: new Date().toISOString(),
+      }).eq('id', student.id)
+
+      if (net > 0 && student.centers?.id) {
+        await supabase.from('centers')
+          .update({ virtual_balance: balance - net })
+          .eq('id', student.centers.id)
+      }
+      setForwardModal(null)
+      fetchStudents(myCenterId)
+    } finally {
+      setForwarding(false)
+    }
   }
 
   const filtered = data.filter(s =>
@@ -236,9 +331,31 @@ export default function StudentListReport({ status }) {
                       {s.doc_verified_at ? 'Awaiting Account Dept.' : 'Sent back for correction'}
                     </p>
                   )}
+                  {s.status === 'Pending' && s.forwarded_at && (
+                    <p className="text-[10px] font-semibold mt-0.5 text-blue-600 flex items-center gap-0.5">
+                      <Lock size={9} /> ₹{Number(s.fee_held || 0).toLocaleString('en-IN')} held
+                    </p>
+                  )}
                 </Td>
                 <Td>
                   <div className="flex items-center gap-1 flex-wrap">
+                    {status === 'Pending' && role !== 'admin' && (
+                      s.forwarded_at ? (
+                        <span className="text-[11px] font-semibold text-blue-600 inline-flex items-center gap-1 px-2 py-1">
+                          <Send size={13} /> Forwarded
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openForward(s)}
+                          title="Forward to Document Dept. (holds the full fee)"
+                        >
+                          <Send size={14} className="text-blue-600" />
+                          <span className="text-xs ml-1 text-blue-600">Forward</span>
+                        </Button>
+                      )
+                    )}
                     {s.status === 'Hold' && !s.doc_verified_at && role !== 'admin' && (
                       <Button
                         size="sm"
@@ -300,6 +417,70 @@ export default function StudentListReport({ status }) {
             ))}
           </Tbody>
         </Table>
+      )}
+
+      {/* Forward confirmation — holds the full fee from the wallet */}
+      {forwardModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                <Send size={16} className="text-blue-600" /> Forward to Document Dept.
+              </h3>
+              <button onClick={() => !forwarding && setForwardModal(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-600 mb-4">
+                Forwarding <span className="font-semibold text-gray-900">{forwardModal.student.student_name}</span> will
+                send the application to the Document Department and <span className="font-semibold text-blue-700">hold the
+                full fee</span> from the center wallet. The hold is released if the application is rejected.
+              </p>
+
+              {forwardModal.loading ? (
+                <div className="py-6 text-center text-sm text-gray-400">Calculating fee…</div>
+              ) : (
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Course Fee</span>
+                    <span className="font-semibold text-gray-800">₹{Number(forwardModal.courseFee).toLocaleString('en-IN')}</span>
+                  </div>
+                  {forwardModal.discount > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Coupon Discount</span>
+                      <span className="font-semibold text-emerald-600">− ₹{Number(forwardModal.discount).toLocaleString('en-IN')}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-gray-200 pt-2">
+                    <span className="text-gray-700 font-semibold flex items-center gap-1"><Lock size={12} /> Amount to Hold</span>
+                    <span className="font-black text-blue-700">₹{Number(forwardModal.net).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Wallet Balance</span>
+                    <span className={`font-semibold ${forwardModal.balance < forwardModal.net ? 'text-red-600' : 'text-gray-800'}`}>
+                      ₹{Number(forwardModal.balance).toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  {forwardModal.balance < forwardModal.net && (
+                    <p className="text-xs text-red-600 font-medium pt-1">
+                      Insufficient balance — please recharge the wallet before forwarding.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setForwardModal(null)} disabled={forwarding}>Cancel</Button>
+              <Button
+                onClick={confirmForward}
+                disabled={forwarding || forwardModal.loading || forwardModal.balance < forwardModal.net}
+              >
+                {forwarding ? 'Forwarding…' : 'Confirm & Forward'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

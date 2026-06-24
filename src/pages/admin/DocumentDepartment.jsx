@@ -408,16 +408,23 @@ export default function DocumentDepartment() {
     setLoading(true)
     const query = supabase
       .from('students')
-      .select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, submitted_by, created_at, doc_verified_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, submitted_by, created_at, doc_verified_at, forwarded_at, fee_held, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
       .order('created_at', { ascending: false })
 
     let q = query
     if (statusFilter !== 'All') {
       q = q.eq('status', statusFilter)
+      // 'Pending' tab = applications the center has FORWARDED (forwarded_at set,
+      // fee held). A still-pending student that hasn't been forwarded is sitting
+      // in the center's own queue and must not appear here yet.
+      if (statusFilter === 'Pending') q = q.not('forwarded_at', 'is', null)
       // 'Hold' tab = applications sent back for correction only (doc_verified_at
       // null). Once verified/forwarded, doc_verified_at is set and the student
       // moves to the Account Dept — it must leave the Document Dept queue.
       if (statusFilter === 'Hold') q = q.is('doc_verified_at', null)
+    } else {
+      // 'All' tab: still hide un-forwarded Pending students.
+      q = q.or('status.neq.Pending,forwarded_at.not.is.null')
     }
     const { data } = await q
 
@@ -456,14 +463,34 @@ export default function DocumentDepartment() {
   async function handleReject() {
     if (!remarks.trim()) { alert('Remarks are required for rejection'); return }
     setSaving(true)
+    // Release the wallet hold: refund the held fee back to the center balance.
+    await releaseHold(rejectModal)
     await supabase.from('students').update({
       status: 'Rejected',
       remarks: remarks,
+      fee_held: null,
+      forwarded_at: null,
     }).eq('id', rejectModal.id)
     setSaving(false)
     setRejectModal(null)
     setRemarks('')
     fetchStudents()
+  }
+
+  // Refund a student's held fee back into the center wallet (used on rejection).
+  // Reads fee_held + center_id fresh from the DB so it works regardless of how
+  // the passed student object was loaded.
+  async function releaseHold(student) {
+    const { data: st } = await supabase
+      .from('students').select('fee_held, center_id').eq('id', student.id).maybeSingle()
+    const held = Number(st?.fee_held || 0)
+    if (held <= 0 || !st?.center_id) return
+    const { data: ctr } = await supabase
+      .from('centers').select('virtual_balance').eq('id', st.center_id).maybeSingle()
+    const bal = Number(ctr?.virtual_balance || 0)
+    await supabase.from('centers')
+      .update({ virtual_balance: bal + held })
+      .eq('id', st.center_id)
   }
 
   // Hold = send the application back for correction. The student moves to the
