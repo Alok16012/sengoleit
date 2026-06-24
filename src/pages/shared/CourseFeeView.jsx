@@ -103,7 +103,7 @@ export default function CourseFeeView() {
   // Admins have no row in `centers`, so they stay unrestricted.
   const [centerRowId, setCenterRowId] = useState(null) // null = admin/unrestricted
   const [scoped,      setScoped]      = useState(false) // true once we know this is a center
-  const [allowed,     setAllowed]     = useState(null)  // null = unrestricted; else sets of allotted-approved ids
+  const [allotRows,   setAllotRows]   = useState(null)  // null = unrestricted (admin); else the center's approved courses
 
   const [sessions,    setSessions]    = useState([])
   const [departments, setDepartments] = useState([])
@@ -128,30 +128,37 @@ export default function CourseFeeView() {
     if (!user?.email) return
     supabase.from('centers').select('id').eq('email', user.email).maybeSingle()
       .then(async ({ data }) => {
-        if (!data) { setCenterRowId(null); setScoped(false); setAllowed(null); return }
+        if (!data) { setCenterRowId(null); setScoped(false); setAllotRows(null); return }
         setCenterRowId(data.id); setScoped(true)
 
         const { data: cc } = await supabase.from('center_courses')
           .select('fee_structure_id').eq('center_id', data.id).eq('status', 'approved')
         const fsIds = [...new Set((cc || []).map(r => r.fee_structure_id).filter(Boolean))]
-        if (!fsIds.length) {
-          setAllowed({ fsIds: new Set(), sessions: new Set(), depts: new Set(), types: new Set(), progs: new Set(), semYears: new Set() })
-          return
-        }
+        if (!fsIds.length) { setAllotRows([]); return }
+
         const { data: fs } = await supabase.from('fee_structures')
           .select('id, program_id, session_id').in('id', fsIds)
         const progIds = [...new Set((fs || []).map(f => f.program_id).filter(Boolean))]
         const { data: progs } = progIds.length
-          ? await supabase.from('programs').select('id, department_id, programme_type_id, semester_year').in('id', progIds)
+          ? await supabase.from('programs').select('id, program_name, department_id, programme_type_id, semester_year').in('id', progIds)
           : { data: [] }
-        setAllowed({
-          fsIds:    new Set(fsIds),
-          sessions: new Set((fs || []).map(f => f.session_id).filter(Boolean)),
-          depts:    new Set((progs || []).map(p => p.department_id).filter(Boolean)),
-          types:    new Set((progs || []).map(p => p.programme_type_id).filter(Boolean)),
-          progs:    new Set(progIds),
-          semYears: new Set((progs || []).map(p => p.semester_year).filter(Boolean)),
-        })
+        const progMap = Object.fromEntries((progs || []).map(p => [p.id, p]))
+
+        // One row per allotted+approved fee structure, carrying its facets so the
+        // filter dropdowns can cascade (e.g. a session shows only its own depts).
+        const rows = (fs || []).map(f => {
+          const p = progMap[f.program_id] || {}
+          return {
+            fee_structure_id:  f.id,
+            session_id:        f.session_id,
+            program_id:        f.program_id,
+            program_name:      p.program_name,
+            department_id:     p.department_id,
+            programme_type_id: p.programme_type_id,
+            semester_year:     p.semester_year,
+          }
+        }).filter(r => r.program_id)
+        setAllotRows(rows)
       })
   }, [user?.email])
 
@@ -187,12 +194,8 @@ export default function CourseFeeView() {
     if (selType) q = q.eq('programme_type_id', selType)
     const sy = modeSemYear(selMode)
     if (sy) q = q.eq('semester_year', sy)
-    q.then(({ data }) => {
-      let list = data || []
-      if (allowed) list = list.filter(p => allowed.progs.has(p.id))
-      setPrograms(list); setSelProg('')
-    })
-  }, [selDept, selType, selMode, modes, allowed])
+    q.then(({ data }) => { setPrograms(data || []); setSelProg('') })
+  }, [selDept, selType, selMode, modes])
 
   async function handleSearch() {
     setLoading(true)
@@ -305,11 +308,41 @@ export default function CourseFeeView() {
 
   const grandTotal = results.reduce((s, r) => s + r.fee, 0)
 
-  const sessionOpts = sessions.filter(s => !allowed || allowed.sessions.has(s.id)).map(s => ({ id: s.id, label: s.session_name }))
-  const deptOpts    = departments.filter(d => !allowed || allowed.depts.has(d.id)).map(d => ({ id: d.id, label: d.name }))
-  const typeOpts    = progTypes.filter(t => !allowed || allowed.types.has(t.id)).map(t => ({ id: t.id, label: t.programme_type_name }))
-  const modeOpts    = modes.filter(m => !allowed || allowed.semYears.has(modeSemYear(m.id))).map(m => ({ id: m.id, label: m.mode_name }))
-  const programOpts = programs.map(p   => ({ id: p.id, label: p.program_name }))
+  // For a center, dropdown options cascade off the other selected filters so
+  // that, e.g., picking a session only offers departments allotted in it.
+  const isCenter = allotRows !== null
+  const rowsMatching = (ignore) => (allotRows || []).filter(r => {
+    if (ignore !== 'session' && selSession && r.session_id !== selSession) return false
+    if (ignore !== 'dept'    && selDept    && r.department_id !== selDept) return false
+    if (ignore !== 'type'    && selType    && r.programme_type_id !== selType) return false
+    if (ignore !== 'mode'    && selMode)   { const sy = modeSemYear(selMode); if (sy && r.semester_year !== sy) return false }
+    if (ignore !== 'prog'    && selProg    && r.program_id !== selProg) return false
+    return true
+  })
+
+  let sessionOpts, deptOpts, typeOpts, modeOpts, programOpts
+  if (isCenter) {
+    const sIds = new Set(rowsMatching('session').map(r => r.session_id))
+    const dIds = new Set(rowsMatching('dept').map(r => r.department_id))
+    const tIds = new Set(rowsMatching('type').map(r => r.programme_type_id))
+    const sys  = new Set(rowsMatching('mode').map(r => r.semester_year))
+    const pSeen = new Map()
+    rowsMatching('prog').forEach(r => { if (r.program_id && !pSeen.has(r.program_id)) pSeen.set(r.program_id, r.program_name) })
+
+    sessionOpts = sessions.filter(s => sIds.has(s.id)).map(s => ({ id: s.id, label: s.session_name }))
+    deptOpts    = departments.filter(d => dIds.has(d.id)).map(d => ({ id: d.id, label: d.name }))
+    typeOpts    = progTypes.filter(t => tIds.has(t.id)).map(t => ({ id: t.id, label: t.programme_type_name }))
+    modeOpts    = modes.filter(m => sys.has(modeSemYear(m.id))).map(m => ({ id: m.id, label: m.mode_name }))
+    programOpts = [...pSeen.entries()]
+      .map(([id, label]) => ({ id, label: label || '—' }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  } else {
+    sessionOpts = sessions.map(s  => ({ id: s.id, label: s.session_name }))
+    deptOpts    = departments.map(d => ({ id: d.id, label: d.name }))
+    typeOpts    = progTypes.map(t  => ({ id: t.id, label: t.programme_type_name }))
+    modeOpts    = modes.map(m      => ({ id: m.id, label: m.mode_name }))
+    programOpts = programs.map(p   => ({ id: p.id, label: p.program_name }))
+  }
 
   return (
     <div className="p-6 space-y-5">
@@ -318,7 +351,7 @@ export default function CourseFeeView() {
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-          <SearchableSelect label="Session"      options={sessionOpts} value={selSession} onChange={setSelSession} placeholder="All Sessions" />
+          <SearchableSelect label="Session"      options={sessionOpts} value={selSession} onChange={v => { setSelSession(v); if (isCenter) { setSelDept(''); setSelType(''); setSelMode(''); setSelProg('') } }} placeholder="All Sessions" />
           <SearchableSelect label="Department"   options={deptOpts}    value={selDept}    onChange={v => { setSelDept(v); setSelType(''); setSelMode(''); setSelProg('') }} placeholder="All Departments" />
           <SearchableSelect label="Program Type" options={typeOpts}    value={selType}    onChange={v => { setSelType(v); setSelProg('') }} placeholder="All Types" />
           <SearchableSelect label="Mode"         options={modeOpts}    value={selMode}    onChange={v => { setSelMode(v); setSelProg('') }} placeholder="All Modes" />
