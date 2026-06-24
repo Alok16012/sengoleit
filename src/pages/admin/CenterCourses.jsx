@@ -128,6 +128,9 @@ export default function CenterCourses() {
   const catalogFilterActive = !!search || fDept !== 'all' || fType !== 'all' || fSessions.length > 0
   const clearCatalogFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSessions([]) }
 
+  const allCatalogChecked  = catalog.length > 0 && catalog.every(s => allot[s.id])
+  const someCatalogChecked = catalog.some(s => allot[s.id])
+
   const allottedRows = structs.filter(s => allot[s.id] && allot[s.id].status === subTab)
   const pendingCount  = Object.values(allot).filter(a => a.status === 'pending').length
   const approvedCount = Object.values(allot).filter(a => a.status === 'approved').length
@@ -150,6 +153,31 @@ export default function CenterCourses() {
         .insert({ center_id: centerId, fee_structure_id: struct.id, status: 'pending' })
         .select('id, status').single()
       if (data) setAllot(prev => ({ ...prev, [struct.id]: { id: data.id, status: data.status } }))
+    }
+    setBusy(null); loadCounts()
+  }
+
+  // Bulk tick/untick every course currently visible in the catalog.
+  async function toggleAllVisible() {
+    if (busy || !centerId || catalog.length === 0) return
+    setBusy('all')
+    const allChecked = catalog.every(s => allot[s.id])
+    if (allChecked) {
+      const ids = catalog.filter(s => allot[s.id]).map(s => allot[s.id].id)
+      if (ids.length) await supabase.from('center_courses').delete().in('id', ids)
+      setAllot(prev => { const next = { ...prev }; catalog.forEach(s => delete next[s.id]); return next })
+    } else {
+      const toAdd = catalog.filter(s => !allot[s.id])
+      if (toAdd.length) {
+        const { data } = await supabase.from('center_courses')
+          .insert(toAdd.map(s => ({ center_id: centerId, fee_structure_id: s.id, status: 'pending' })))
+          .select('id, fee_structure_id, status')
+        if (data) setAllot(prev => {
+          const next = { ...prev }
+          data.forEach(r => { next[r.fee_structure_id] = { id: r.id, status: r.status } })
+          return next
+        })
+      }
     }
     setBusy(null); loadCounts()
   }
@@ -388,7 +416,19 @@ export default function CenterCourses() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#933d18]">
-                  <th className="text-center text-white font-semibold px-4 py-3 w-12">✓</th>
+                  <th className="text-center text-white font-semibold px-4 py-3 w-12">
+                    <button onClick={toggleAllVisible} disabled={busy != null || catalog.length === 0}
+                      title={allCatalogChecked ? 'Untick all' : 'Tick all'}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mx-auto
+                        ${allCatalogChecked ? 'bg-white border-white'
+                          : someCatalogChecked ? 'bg-white/30 border-white'
+                          : 'border-white/70 bg-transparent hover:bg-white/20'}
+                        ${busy != null ? 'opacity-50' : ''}`}>
+                      {allCatalogChecked
+                        ? <Check size={13} className="text-[#933d18]" />
+                        : someCatalogChecked ? <span className="block w-2.5 h-0.5 bg-white rounded" /> : null}
+                    </button>
+                  </th>
                   <th className="text-left text-white font-semibold px-4 py-3">Program</th>
                   <th className="text-left text-white font-semibold px-4 py-3">Session</th>
                   <th className="text-center text-white font-semibold px-4 py-3">Semesters</th>
@@ -435,7 +475,10 @@ export default function CenterCourses() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-gray-400 mt-2">Tick a course to allot it to <strong>{center?.center_name}</strong> (added as Pending). Untick to remove.</p>
+          <p className="text-xs text-gray-400 mt-2">
+            Tick a course to allot it to <strong>{center?.center_name}</strong> (added as Pending). Untick to remove.
+            {catalog.length > 0 && <> Use the header checkbox to {allCatalogChecked ? 'untick' : 'tick'} all {catalog.length} shown.</>}
+          </p>
         </>
       ) : (
         /* ── PENDING / APPROVED COURSE LISTS ── */
