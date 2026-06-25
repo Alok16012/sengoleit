@@ -407,16 +407,6 @@ export default function StudentListReport({ status }) {
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                           <span className="text-xs ml-1 text-emerald-600">{downloading === `${s.id}-id` ? '...' : 'ID Card'}</span>
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleCard(s.id, 'admit')}
-                          disabled={downloading === `${s.id}-admit`}
-                          title="Download Admit Card"
-                        >
-                          <ClipboardList size={14} className={downloading === `${s.id}-admit` ? 'animate-pulse text-[#933d18]' : 'text-amber-600'} />
-                          <span className="text-xs ml-1 text-amber-600">{downloading === `${s.id}-admit` ? '...' : 'Admit'}</span>
-                        </Button>
                       </>
                     )}
                   </div>

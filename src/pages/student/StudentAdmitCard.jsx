@@ -39,7 +39,10 @@ export default function StudentAdmitCard() {
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
   if (!data) return <div className="p-8 text-center text-gray-400">No data found.</div>
 
-  const isApproved = ['Approved', 'Hold', 'Enrolled'].includes(data.status)
+  // The admit card is released only after the Exam Section processes the
+  // student (exam_forwarded_at is set by the Account Dept's "Forward to Exam
+  // Section" action). Until then it is not available.
+  const isApproved = !!data.exam_forwarded_at
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">
@@ -59,7 +62,7 @@ export default function StudentAdmitCard() {
 
       {!isApproved && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700 font-medium">
-          Admit card will be available once your application is approved by the university.
+          Admit card will be available once the Exam Section releases it for your examination.
         </div>
       )}
 

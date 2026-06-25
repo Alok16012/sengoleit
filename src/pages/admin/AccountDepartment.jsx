@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import VerifyRow from '../../components/ui/VerifyRow'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, Clock, ExternalLink, ChevronDown, ChevronRight, Hash, Copy, Wallet } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, Clock, ExternalLink, ChevronDown, ChevronRight, Hash, Copy, Wallet, Send } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, formatDateTime } from '../../utils/formatDate'
@@ -158,7 +158,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, fee_held, coupon_discount, coupon_code, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, exam_forwarded_at, fee_held, coupon_discount, coupon_code, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -730,6 +730,17 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
+  // Forward an enrolled student to the Exam Section. The admit card is NOT
+  // generated here — it is issued only inside the Exam Section after this.
+  async function forwardToExam(student) {
+    if (student.exam_forwarded_at) return
+    const { error } = await supabase.from('students')
+      .update({ exam_forwarded_at: new Date().toISOString() })
+      .eq('id', student.id)
+    if (error) { alert('Forward failed: ' + error.message); return }
+    fetchAll()
+  }
+
   async function toggleCenterStatus(center) {
     const newStatus = center.status === 'Active' ? 'Inactive' : 'Active'
     await supabase.from('centers').update({ status: newStatus }).eq('id', center.id)
@@ -929,6 +940,16 @@ export default function AccountDepartment() {
                             <XCircle size={13} /> Reject
                           </Button>
                         </div>
+                      ) : s.status === 'Approved' ? (
+                        s.exam_forwarded_at ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700">
+                            <CheckCircle size={11} /> Sent to Exam Section
+                          </span>
+                        ) : (
+                          <Button size="sm" variant="primary" onClick={() => forwardToExam(s)} title="Forward this enrolled student to the Exam Section">
+                            <Send size={13} /> Forward to Exam Section
+                          </Button>
+                        )
                       ) : (
                         <span className="text-xs text-gray-300">—</span>
                       )}
