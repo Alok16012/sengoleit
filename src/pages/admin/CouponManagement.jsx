@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { formatDate } from '../../utils/formatDate'
-import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight } from 'lucide-react'
+import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy } from 'lucide-react'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -40,6 +40,47 @@ export default function CouponManagement() {
   const [genCenter, setGenCenter] = useState(null)
   const [genRate, setGenRate] = useState('')
   const [genSaving, setGenSaving] = useState(false)
+
+  // Direct single-code generation (Approval Code / Discounted Coupon).
+  // directType is null when closed, else 'approval' | 'discount'.
+  const [directType, setDirectType] = useState(null)
+  const [directCenterId, setDirectCenterId] = useState('')
+  const [directAmount, setDirectAmount] = useState('')
+  const [directSaving, setDirectSaving] = useState(false)
+  const [directResult, setDirectResult] = useState(null) // { code, type, amount, centerName }
+
+  function openDirect(type) {
+    setDirectType(type)
+    setDirectCenterId('')
+    setDirectAmount('')
+    setDirectResult(null)
+  }
+  function closeDirect() {
+    setDirectType(null)
+    setDirectCenterId('')
+    setDirectAmount('')
+    setDirectResult(null)
+  }
+
+  async function generateDirectCode() {
+    const amount = Math.round(Number(directAmount) || 0)
+    if (!directCenterId || amount < 1) return
+    setDirectSaving(true)
+    const { data: inserted, error } = await supabase.from('coupons')
+      .insert({ center_id: directCenterId, face_value: amount, coupon_type: directType })
+      .select('id')
+      .single()
+    setDirectSaving(false)
+    if (error) { alert('Error generating code: ' + error.message); return }
+    const center = centers.find(c => c.id === directCenterId)
+    setDirectResult({
+      code: inserted?.id?.slice(0, 8).toUpperCase() || '—',
+      type: directType,
+      amount,
+      centerName: center?.center_name || '',
+    })
+    await fetchData()
+  }
 
   async function fetchData() {
     setLoading(true)
@@ -158,6 +199,16 @@ export default function CouponManagement() {
         <StatCard label="Used" value={totalUsed} color="gray" />
         <StatCard label="Unused / Available" value={totalUnused} color="green" />
         <StatCard label="Wallet Balance" value={`₹${totalWallet.toLocaleString('en-IN')}`} color="amber" />
+      </div>
+
+      {/* Direct code generation — pick a center / super center + amount */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <Button variant="outline" onClick={() => openDirect('approval')}>
+          <BadgeCheck size={15} /> Approval Code
+        </Button>
+        <Button variant="outline" onClick={() => openDirect('discount')}>
+          <Tag size={15} /> Discounted Coupon
+        </Button>
       </div>
 
       {/* Coupon wallets — deposited money waiting to be minted into coupons */}
@@ -284,7 +335,14 @@ export default function CouponManagement() {
                             {c.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
                           </span>
                         </Td>
-                        <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
+                        <Td>
+                          <span className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</span>
+                          <span className={`block mt-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                            c.coupon_type === 'approval' ? 'text-indigo-600' : 'text-emerald-600'
+                          }`}>
+                            {c.coupon_type === 'approval' ? 'Approval Code' : 'Discount'}
+                          </span>
+                        </Td>
                         <Td className="font-mono text-xs text-gray-400">{c.application_id?.slice(0, 8) || '—'}</Td>
                         <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                         <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
@@ -357,6 +415,93 @@ export default function CouponManagement() {
               </Button>
               <Button variant="outline" onClick={() => { setGenCenter(null); setGenRate('') }} className="flex-1 justify-center">Cancel</Button>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Direct generation — Approval Code / Discounted Coupon */}
+      <Modal
+        isOpen={!!directType}
+        onClose={closeDirect}
+        title={directType === 'approval' ? 'Generate Approval Code' : 'Generate Discounted Coupon'}
+      >
+        {directType && (
+          <div className="space-y-4">
+            {directResult ? (
+              <>
+                <div className={`rounded-xl border p-5 text-center ${
+                  directResult.type === 'approval' ? 'border-indigo-100 bg-indigo-50' : 'border-emerald-100 bg-emerald-50'
+                }`}>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
+                    {directResult.type === 'approval' ? 'Approval Code' : 'Coupon Code'}
+                  </p>
+                  <div className="flex items-center justify-center gap-2 mt-2">
+                    <span className="text-2xl font-black font-mono text-gray-900 tracking-wider">{directResult.code}</span>
+                    <button
+                      onClick={() => navigator.clipboard?.writeText(directResult.code)}
+                      title="Copy code"
+                      className="text-gray-400 hover:text-[#933d18] transition-colors"
+                    >
+                      <Copy size={16} />
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-2">
+                    ₹{directResult.amount.toLocaleString('en-IN')} · {directResult.centerName}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <Button onClick={() => openDirect(directResult.type)} variant="outline" className="flex-1 justify-center">
+                    Generate Another
+                  </Button>
+                  <Button onClick={closeDirect} className="flex-1 justify-center">Done</Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Center / Super Center</label>
+                  <select
+                    value={directCenterId}
+                    onChange={e => setDirectCenterId(e.target.value)}
+                    className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+                  >
+                    <option value="">Select a center…</option>
+                    {centers.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.center_name}{c.center_code ? ` (${c.center_code})` : ''}{c.center_type === 'super_center' ? ' — Super Center' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Amount (₹)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="E.g. 500 or 1000"
+                    value={directAmount}
+                    onChange={e => setDirectAmount(e.target.value)}
+                    className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+                  />
+                </div>
+
+                <p className="text-xs text-gray-500">
+                  A single {directType === 'approval' ? 'approval code' : 'discounted coupon'} will be created for the selected center with this amount.
+                </p>
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={generateDirectCode}
+                    disabled={directSaving || !directCenterId || Math.round(Number(directAmount) || 0) < 1}
+                    className="flex-1 justify-center"
+                  >
+                    <Sparkles size={14} /> {directSaving ? 'Generating…' : 'Generate Code'}
+                  </Button>
+                  <Button variant="outline" onClick={closeDirect} className="flex-1 justify-center">Cancel</Button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </Modal>

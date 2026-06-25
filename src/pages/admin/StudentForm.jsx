@@ -781,12 +781,26 @@ export default function StudentForm() {
     if (!form.center_id) { setCoupon(c => ({ ...c, error: 'Select a center first' })); return }
     setCoupon(c => ({ ...c, applying: true, error: '' }))
     try {
-      const { data: rows } = await supabase
+      // coupon_type distinguishes 'approval' codes from 'discount' coupons.
+      // Fall back gracefully if the column hasn't been migrated yet.
+      let rows = null
+      const withType = await supabase
         .from('coupons')
-        .select('id, face_value, is_used, used_at, center_id')
+        .select('id, face_value, is_used, used_at, center_id, coupon_type')
         .eq('center_id', form.center_id)
+      if (withType.error) {
+        const plain = await supabase
+          .from('coupons')
+          .select('id, face_value, is_used, used_at, center_id')
+          .eq('center_id', form.center_id)
+        rows = plain.data
+      } else {
+        rows = withType.data
+      }
       const match = (rows || []).find(
-        r => !r.is_used && !r.used_at && r.id?.slice(0, 8).toUpperCase() === code
+        r => !r.is_used && !r.used_at
+          && (r.coupon_type || 'discount') !== 'approval'
+          && r.id?.slice(0, 8).toUpperCase() === code
       )
       if (!match) {
         setCoupon(c => ({ ...c, applying: false, applied: null, discount: 0, error: 'Invalid or already-used coupon code for this center' }))
