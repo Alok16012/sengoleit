@@ -385,6 +385,7 @@ const emptyForm = {
   diploma_institute_name: '', diploma_board_university: '', diploma_passing_year: '', diploma_obtained_marks: '', diploma_total_marks: '',
   photo_url: '', aadhar_url: '', signature_url: '', declaration_url: '',
   tenth_marksheet_url: '', twelfth_marksheet_url: '', ug_marksheet_url: '', pg_marksheet_url: '', diploma_marksheet_url: '',
+  tc_url: '', migration_url: '',
 }
 
 const PROFESSION_OPTIONS = ['Student', 'Private Service', 'Govt. Service', 'Self Employed', 'Others']
@@ -445,6 +446,7 @@ const STUDENT_LABEL_TO_FORM_FIELDS = {
   'Declaration Form': ['declaration_url'], '10th Marksheet': ['tenth_marksheet_url'],
   '12th Marksheet': ['twelfth_marksheet_url'], 'UG Marksheet': ['ug_marksheet_url'],
   'PG Marksheet': ['pg_marksheet_url'], 'Diploma Marksheet': ['diploma_marksheet_url'],
+  'Transfer Certificate': ['tc_url'], 'Migration Certificate': ['migration_url'],
 }
 
 // Education rows are labelled "10th — <Institute>" etc, so map by the leading level token.
@@ -1557,6 +1559,14 @@ export default function StudentForm() {
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Declaration Form *</p>
                 <FileField label="" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false} value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} readOnly={isReadOnly || isLocked('declaration_url')} />
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
+                <p className="text-xs font-semibold text-gray-500">Transfer Certificate (TC)</p>
+                <FileField label="" fieldKey="tc_url" accept="image/*,application/pdf" isImage={false} value={form.tc_url} onUpload={handleFileUpload} isUploading={!!uploading.tc_url} readOnly={isReadOnly || isLocked('tc_url')} />
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
+                <p className="text-xs font-semibold text-gray-500">Migration Certificate</p>
+                <FileField label="" fieldKey="migration_url" accept="image/*,application/pdf" isImage={false} value={form.migration_url} onUpload={handleFileUpload} isUploading={!!uploading.migration_url} readOnly={isReadOnly || isLocked('migration_url')} />
               </div>
             </div>
           </FormSection>
