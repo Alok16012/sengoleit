@@ -1,11 +1,63 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen, Upload, FileText, Eye } from 'lucide-react'
+import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen, Upload, FileText, Eye, ChevronDown, Check } from 'lucide-react'
 
 let _k = 0
 const uid = () => ++_k
+
+/* Searchable single-select dropdown. value 'all' = show everything. */
+function SearchableSelect({ label, allLabel, value, onChange, options, minWidth = 170 }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function onDoc(e) { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQ('') } }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  const selected = options.find(o => o.id === value)
+  const text = value === 'all' ? allLabel : (selected?.label || allLabel)
+  const filtered = options.filter(o => o.label.toLowerCase().includes(q.toLowerCase()))
+
+  function pick(id) { onChange(id); setOpen(false); setQ('') }
+
+  return (
+    <div ref={ref} className="relative" style={{ minWidth }}>
+      <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">{label}</label>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between gap-2 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+        <span className="truncate">{text}</span>
+        <ChevronDown size={15} className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+          <div className="relative p-2 border-b border-gray-100">
+            <Search size={13} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search..."
+              className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#933d18]" />
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            <button type="button" onClick={() => pick('all')}
+              className={`w-full flex items-center justify-between text-left px-3 py-2 text-sm hover:bg-gray-50 ${value === 'all' ? 'text-[#933d18] font-semibold' : 'text-gray-700'}`}>
+              {allLabel} {value === 'all' && <Check size={14} />}
+            </button>
+            {filtered.map(o => (
+              <button key={o.id} type="button" onClick={() => pick(o.id)}
+                className={`w-full flex items-center justify-between text-left px-3 py-2 text-sm hover:bg-gray-50 ${value === o.id ? 'text-[#933d18] font-semibold' : 'text-gray-700'}`}>
+                <span className="truncate">{o.label}</span> {value === o.id && <Check size={14} className="shrink-0" />}
+              </button>
+            ))}
+            {filtered.length === 0 && <div className="px-3 py-3 text-xs text-gray-400 text-center">No matches</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Syllabus() {
   const [structs, setStructs]         = useState([])   // fee_structures master
@@ -277,30 +329,18 @@ export default function Syllabus() {
             placeholder="Search by program or session..."
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Department</label>
-          <select value={fDept} onChange={e => setFDept(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
-            <option value="all">All Departments</option>
-            {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Program Type</label>
-          <select value={fType} onChange={e => setFType(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[150px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
-            <option value="all">All Types</option>
-            {progTypes.map(t => <option key={t.id} value={t.id}>{t.programme_type_name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Session</label>
-          <select value={fSession} onChange={e => setFSession(e.target.value)}
-            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[150px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
-            <option value="all">All Sessions</option>
-            {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
-          </select>
-        </div>
+        <SearchableSelect
+          label="Department" allLabel="All Departments" minWidth={180}
+          value={fDept} onChange={setFDept}
+          options={departments.map(d => ({ id: d.id, label: d.name }))} />
+        <SearchableSelect
+          label="Program Type" allLabel="All Types" minWidth={160}
+          value={fType} onChange={setFType}
+          options={progTypes.map(t => ({ id: t.id, label: t.programme_type_name }))} />
+        <SearchableSelect
+          label="Session" allLabel="All Sessions" minWidth={160}
+          value={fSession} onChange={setFSession}
+          options={sessions.map(s => ({ id: s.id, label: s.session_name }))} />
         {filterActive && (
           <button onClick={clearFilters}
             className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
