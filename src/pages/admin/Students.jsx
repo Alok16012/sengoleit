@@ -5,8 +5,10 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck } from 'lucide-react'
+import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
+import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
+import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 
@@ -17,6 +19,59 @@ function genPassword() {
   let pwd = 'Sg@'
   for (let i = 0; i < 5; i++) pwd += chars[Math.floor(Math.random() * chars.length)]
   return pwd
+}
+
+function ResultViewModal({ student, onClose }) {
+  const pct = (o, t) => (o && t ? `${((Number(o) / Number(t)) * 100).toFixed(1)}%` : '—')
+  const pass = student.exam_result_status === 'Pass'
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Award size={18} className={pass ? 'text-emerald-600' : 'text-red-500'} />
+            <div>
+              <h3 className="font-bold text-gray-900 leading-tight">Exam Result</h3>
+              <p className="text-xs text-gray-400">{student.student_name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">Status</span>
+            <span className={`text-xs font-black px-3 py-1 rounded-lg ${pass ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+              {student.exam_result_status}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Obtained Marks" value={student.exam_result_obtained_marks ?? '—'} />
+            <Field label="Total Marks" value={student.exam_result_total_marks ?? '—'} />
+            <Field label="Percentage" value={pct(student.exam_result_obtained_marks, student.exam_result_total_marks)} />
+            <Field label="Declared On" value={student.exam_result_declared_at ? new Date(student.exam_result_declared_at).toLocaleDateString() : '—'} />
+          </div>
+          {student.exam_result_remarks && (
+            <p className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2">"{student.exam_result_remarks}"</p>
+          )}
+          {student.exam_result_marksheet_url && (
+            <a href={student.exam_result_marksheet_url} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
+              <Download size={14} /> Download Marksheet
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, value }) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className="text-sm font-bold text-gray-800">{value}</p>
+    </div>
+  )
 }
 
 function CredModal({ studentId, onClose }) {
@@ -137,6 +192,7 @@ export default function Students() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [downloading, setDownloading] = useState(null)
   const [credStudentId, setCredStudentId] = useState(null)
+  const [resultStudent, setResultStudent] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
@@ -212,13 +268,46 @@ export default function Students() {
     setDownloading(null)
   }
 
+  // Registration Certificate / ID Card / Admit Card.
+  async function handleCard(studentId, type) {
+    setDownloading(`${studentId}-${type}`)
+    const { data: s } = await supabase
+      .from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
+      .eq('id', studentId)
+      .single()
+    if (s) {
+      const resolved = await resolveStudentDocUrls(s)
+      if (type === 'reg') generateRegistrationCertificate(resolved)
+      else if (type === 'id') generateIDCard(resolved)
+      else if (type === 'admit') {
+        const subjects = await fetchAdmitCardSubjects(resolved)
+        generateAdmitCard(resolved, subjects)
+      }
+    }
+    setDownloading(null)
+  }
+
   async function fetchData() {
     setLoading(true)
-    const { data, error } = await supabase
+    const FULL = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    // Fallback for DBs where the exam-result / admit-card columns are not yet
+    // created (run_all_migrations.sql not applied) — students still list; only
+    // the admit-card / result actions stay inactive.
+    const MIN = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+
+    let { data, error } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code, super_center_id)')
+      .select(FULL)
       .order('created_at', { ascending: false })
-    if (error) console.error('Students fetch error:', error)
+    if (error) {
+      console.error('Students fetch error (full select), retrying minimal:', error)
+      ;({ data, error } = await supabase
+        .from('students')
+        .select(MIN)
+        .order('created_at', { ascending: false }))
+      if (error) console.error('Students fetch error (minimal select):', error)
+    }
     setData(data || [])
     setLoading(false)
   }
@@ -412,6 +501,26 @@ export default function Students() {
                         </Button>
                       )
                     )}
+                    {s.status === 'Approved' && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'reg')} disabled={downloading === `${s.id}-reg`} title="Download Registration Certificate">
+                          <FileText size={14} className={downloading === `${s.id}-reg` ? 'animate-pulse text-[#933d18]' : 'text-indigo-600'} />
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'id')} disabled={downloading === `${s.id}-id`} title="Download ID Card">
+                          <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
+                        </Button>
+                        {s.admit_card_released_at && (
+                          <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'admit')} disabled={downloading === `${s.id}-admit`} title="Download Admit Card">
+                            <ClipboardList size={14} className={downloading === `${s.id}-admit` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
+                          </Button>
+                        )}
+                        {s.exam_result_status && s.exam_result_status !== 'Pending' && (
+                          <Button size="sm" variant="ghost" onClick={() => setResultStudent(s)} title="View Result">
+                            <Award size={14} className={s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
+                          </Button>
+                        )}
+                      </>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => toggleHide(s)} title={s.is_hidden ? 'Unhide Student' : 'Hide Student'}>
                       {s.is_hidden
                         ? <Eye size={14} className="text-emerald-600" />
@@ -430,6 +539,10 @@ export default function Students() {
 
       {credStudentId && (
         <CredModal studentId={credStudentId} onClose={() => setCredStudentId(null)} />
+      )}
+
+      {resultStudent && (
+        <ResultViewModal student={resultStudent} onClose={() => setResultStudent(null)} />
       )}
 
       {deleteTarget && (
