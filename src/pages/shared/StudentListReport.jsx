@@ -117,7 +117,7 @@ export default function StudentListReport({ status }) {
       else if (type === 'id') generateIDCard(resolved)
       else if (type === 'admit') {
         const subjects = await fetchAdmitCardSubjects(resolved)
-        const meta = await fetchExamSettingsMeta()
+        const meta = await fetchExamSettingsMeta(resolved)
         generateAdmitCard(resolved, subjects, meta)
       }
     }

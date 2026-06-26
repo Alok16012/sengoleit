@@ -84,5 +84,18 @@ INSERT INTO app_settings (key, value)
 VALUES ('exam_schedule', NULL), ('admit_card_time', NULL)
 ON CONFLICT (key) DO NOTHING;
 
+-- 10) Per-course (program + session) exam settings: Exam Schedule + Admit Card
+--     date/time. Printed on Admit Cards and used to gate admit-card generation.
+CREATE TABLE IF NOT EXISTS exam_schedules (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id      uuid NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+  session_id      uuid REFERENCES academic_sessions(id) ON DELETE CASCADE,
+  exam_schedule   text,
+  admit_card_time text,
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (program_id, session_id)
+);
+CREATE INDEX IF NOT EXISTS idx_exam_schedules_program ON exam_schedules(program_id);
+
 -- Done.
 SELECT 'all migrations applied' AS result;

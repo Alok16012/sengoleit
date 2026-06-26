@@ -7,23 +7,29 @@ function fmtDT(val) {
   return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-// Section-wide exam settings (set in the Exam Section header) that are printed
-// on every Admit Card, wherever it is downloaded from. Returns display-ready
-// strings; never throws (returns blanks if the table/columns are missing).
-export async function fetchExamSettingsMeta() {
+const BLANK = { examSchedule: '', admitCardTime: '', admitCardAt: '' }
+
+// Per-course (program + session) exam settings printed on a student's Admit
+// Card, wherever it is downloaded from. Returns display-ready strings plus the
+// raw admit_card_time (`admitCardAt`) used for the date gate. Never throws.
+export async function fetchExamSettingsMeta(student) {
   try {
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('key, value')
-      .in('key', ['exam_schedule', 'admit_card_time'])
-    if (error || !data) return { examSchedule: '', admitCardTime: '', admitCardAt: '' }
-    const map = Object.fromEntries(data.map(r => [r.key, r.value]))
+    const pid = student?.programme_id || student?.program_id
+    const sid = student?.session_id || null
+    if (!pid) return BLANK
+    let q = supabase
+      .from('exam_schedules')
+      .select('exam_schedule, admit_card_time')
+      .eq('program_id', pid)
+    q = sid ? q.eq('session_id', sid) : q.is('session_id', null)
+    const { data, error } = await q.maybeSingle()
+    if (error || !data) return BLANK
     return {
-      examSchedule: fmtDT(map.exam_schedule),
-      admitCardTime: fmtDT(map.admit_card_time),
-      admitCardAt: map.admit_card_time || '',   // raw value for the date gate
+      examSchedule: fmtDT(data.exam_schedule),
+      admitCardTime: fmtDT(data.admit_card_time),
+      admitCardAt: data.admit_card_time || '',
     }
   } catch {
-    return { examSchedule: '', admitCardTime: '', admitCardAt: '' }
+    return BLANK
   }
 }
