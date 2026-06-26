@@ -280,7 +280,7 @@ export default function Syllabus() {
   async function openCourse(s) {
     setActive(s); setActiveSem(1); setSaved(false); setEditorLoading(true)
     let q = supabase.from('syllabus_subjects')
-      .select('id, semester, paper_no, subject_code, subject_name, pdf_url, sort_order')
+      .select('id, semester, paper_no, subject_code, subject_name, criteria, pdf_url, sort_order')
       .eq('program_id', s.program_id)
     q = s.session_id ? q.eq('session_id', s.session_id) : q.is('session_id', null)
     const { data } = await q.order('sort_order', { ascending: true })
@@ -290,7 +290,7 @@ export default function Syllabus() {
   }
 
   function blankRow(sem = 1) {
-    return { _key: uid(), semester: sem, paper_no: '', subject_code: '', subject_name: '', pdf_url: '' }
+    return { _key: uid(), semester: sem, paper_no: '', subject_code: '', subject_name: '', criteria: '', pdf_url: '' }
   }
 
   const addRow = () => setRows(p => [...p, blankRow(activeSem)])
@@ -330,6 +330,7 @@ export default function Syllabus() {
           paper_no: (r.paper_no || '').trim() || null,
           subject_code: (r.subject_code || '').trim() || null,
           subject_name: (r.subject_name || '').trim() || null,
+          criteria: (r.criteria || '').trim() || null,
           pdf_url: (r.pdf_url || '').trim() || null,
           sort_order: idx,
         }))
@@ -403,13 +404,14 @@ export default function Syllabus() {
                     <th className="text-left text-white font-semibold px-4 py-3 w-32">Paper No</th>
                     <th className="text-left text-white font-semibold px-4 py-3 w-40">Subject Code</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Subject Name</th>
+                    <th className="text-left text-white font-semibold px-4 py-3 w-44">Criteria</th>
                     <th className="text-center text-white font-semibold px-4 py-3 w-44">Detail PDF</th>
                     <th className="text-center text-white font-semibold px-4 py-3 w-20">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visibleRows.length === 0 && (
-                    <tr><td colSpan={6} className="text-center text-gray-400 py-10 text-sm">
+                    <tr><td colSpan={7} className="text-center text-gray-400 py-10 text-sm">
                       No subjects in Semester {activeSem} yet — click “Add Subject” below.
                     </td></tr>
                   )}
@@ -429,6 +431,11 @@ export default function Syllabus() {
                       <td className="px-4 py-2">
                         <input value={r.subject_name || ''} onChange={e => updRow(r._key, 'subject_name', e.target.value)}
                           placeholder="Subject name"
+                          className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#933d18]" />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input value={r.criteria || ''} onChange={e => updRow(r._key, 'criteria', e.target.value)}
+                          placeholder="e.g. Core / Elective"
                           className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#933d18]" />
                       </td>
                       <td className="px-4 py-2">

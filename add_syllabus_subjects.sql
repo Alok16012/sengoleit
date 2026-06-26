@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS syllabus_subjects (
 CREATE INDEX IF NOT EXISTS idx_syllabus_program ON syllabus_subjects(program_id);
 CREATE INDEX IF NOT EXISTS idx_syllabus_session ON syllabus_subjects(session_id);
 
--- If the table already existed, make sure the PDF column is present.
+-- If the table already existed, make sure the PDF + criteria columns are present.
 ALTER TABLE syllabus_subjects ADD COLUMN IF NOT EXISTS pdf_url text;
+ALTER TABLE syllabus_subjects ADD COLUMN IF NOT EXISTS criteria text;
 
 SELECT 'syllabus_subjects ready' AS result;
