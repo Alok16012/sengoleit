@@ -420,6 +420,10 @@ export default function Syllabus() {
           label="Session" allLabel="All Sessions" minWidth={160}
           values={fSession} onChange={setFSession}
           options={sessions.map(s => ({ id: s.id, label: s.session_name }))} />
+        <button onClick={loadAll}
+          className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold text-white bg-[#933d18] hover:bg-[#7a3215] rounded-xl transition-colors">
+          <Search size={14} /> Search
+        </button>
         {filterActive && (
           <button onClick={clearFilters}
             className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
