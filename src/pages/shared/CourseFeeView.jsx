@@ -234,10 +234,10 @@ export default function CourseFeeView() {
     if (selProg && !inMode.some(r => r.program_id === selProg)) setSelProg('')
   }, [allotRows, selSession, selDept, selType, selMode, selProg])
 
-  // All five filters are mandatory — the user must pick a specific value in
-  // each box before a search can run.
+  // Department, Program Type, Mode and Program Name are mandatory. Session is
+  // intentionally left optional so that "All Sessions" can show every session
+  // of a course together (the grouped "N sessions" view).
   const missingFilters = [
-    !selSession && 'Session',
     !selDept    && 'Department',
     !selType    && 'Program Type',
     !selMode    && 'Mode',
@@ -430,7 +430,7 @@ export default function CourseFeeView() {
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-          <SearchableSelect label="Session *"      options={sessionOpts} value={selSession} onChange={v => { setSelSession(v); if (isCenter) { setSelDept(''); setSelType(''); setSelMode(''); setSelProg('') } }} placeholder="Select Session" />
+          <SearchableSelect label="Session"        options={sessionOpts} value={selSession} onChange={v => { setSelSession(v); if (isCenter) { setSelDept(''); setSelType(''); setSelMode(''); setSelProg('') } }} placeholder="All Sessions" />
           <SearchableSelect label="Department *"   options={deptOpts}    value={selDept}    onChange={v => { setSelDept(v); setSelType(''); setSelMode(''); setSelProg('') }} placeholder="Select Department" />
           <SearchableSelect label="Program Type *" options={typeOpts}    value={selType}    onChange={v => { setSelType(v); setSelProg('') }} placeholder="Select Program Type" />
           <SearchableSelect label="Mode *"         options={modeOpts}    value={selMode}    onChange={v => { setSelMode(v); setSelProg('') }} placeholder="Select Mode" />
