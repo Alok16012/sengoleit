@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff } from 'lucide-react'
+import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
@@ -173,6 +173,15 @@ export default function Students() {
     setData(prev => prev.map(x => x.id === s.id ? { ...x, is_hidden: newVal } : x))
   }
 
+  // After account verification, the student is forwarded to the Exam Section.
+  // The admit card is NOT generated here — it is generated only in the Exam Section.
+  async function forwardToExam(s) {
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('students').update({ exam_forwarded_at: now }).eq('id', s.id)
+    if (error) { alert('Could not forward to Exam Section: ' + error.message); return }
+    setData(prev => prev.map(x => x.id === s.id ? { ...x, exam_forwarded_at: now } : x))
+  }
+
   useEffect(() => { fetchData() }, [])
 
   async function handleDelete() {
@@ -207,7 +216,7 @@ export default function Students() {
     setLoading(true)
     const { data, error } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, programs(program_name), academic_sessions(session_name), centers(center_name, center_code, super_center_id)')
+      .select('id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code, super_center_id)')
       .order('created_at', { ascending: false })
     if (error) console.error('Students fetch error:', error)
     setData(data || [])
@@ -389,6 +398,20 @@ export default function Students() {
                     <Button size="sm" variant="ghost" onClick={() => setCredStudentId(s.id)} title="Login Credentials">
                       <KeyRound size={14} className="text-gray-500" />
                     </Button>
+                    {s.status === 'Approved' && (
+                      s.exam_forwarded_at ? (
+                        <span
+                          title="Forwarded to Exam Section"
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200"
+                        >
+                          <BadgeCheck size={12} /> Exam
+                        </span>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => forwardToExam(s)} title="Forward to Exam Section">
+                          <Send size={14} className="text-[#933d18]" />
+                        </Button>
+                      )
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => toggleHide(s)} title={s.is_hidden ? 'Unhide Student' : 'Hide Student'}>
                       {s.is_hidden
                         ? <Eye size={14} className="text-emerald-600" />
