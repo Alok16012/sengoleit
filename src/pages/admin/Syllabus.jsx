@@ -200,7 +200,8 @@ export default function Syllabus() {
     const prog = progMap[s.program_id]
     if (fDept !== 'all' && prog?.department_id !== fDept) return false
     if (fType !== 'all' && prog?.programme_type_id !== fType) return false
-    if (fSession.length > 0 && !fSession.includes(s.session_id)) return false
+    // session_id === null means the course applies to ALL sessions, so always show it
+    if (fSession.length > 0 && s.session_id && !fSession.includes(s.session_id)) return false
     const q = search.toLowerCase()
     if (q && !(
       (s.programs?.program_name || '').toLowerCase().includes(q) ||
@@ -463,7 +464,7 @@ export default function Syllabus() {
                   const prog = progMap[s.program_id]
                   if (mDept !== 'all' && prog?.department_id !== mDept) return false
                   if (mType !== 'all' && prog?.programme_type_id !== mType) return false
-                  if (mSession !== 'all' && s.session_id !== mSession) return false
+                  if (mSession !== 'all' && s.session_id && s.session_id !== mSession) return false
                   if (q && !(
                     (s.programs?.program_name || '').toLowerCase().includes(q) ||
                     (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
