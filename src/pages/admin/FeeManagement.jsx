@@ -103,6 +103,14 @@ export default function FeeManagement() {
     fetchMaster()
   }
 
+  // Delete the fee structure(s) for a whole course (all its sessions).
+  async function handleDeleteProgramFees(programId, count) {
+    const extra = count > 1 ? ` (all ${count} sessions)` : ''
+    if (!confirm(`Delete fee for this course${extra}? This cannot be undone.`)) return
+    await supabase.from('fee_structures').delete().eq('program_id', programId)
+    fetchMaster()
+  }
+
   function openEditor(struct = null) {
     if (struct) {
       const prog = programs.find(p => p.id === struct.program_id)
@@ -253,8 +261,8 @@ export default function FeeManagement() {
           <button key={t.key} onClick={() => { setTab(t.key); if (t.key === 'editor' && selectedProgIds.size === 0) { setItems(keyed(DEFAULTS)); setSaved(false) } }}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t.key ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             {t.icon} {t.label}
-            {t.key === 'master' && masterList.length > 0 && (
-              <span className="bg-[#933d18] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1">{masterList.length}</span>
+            {t.key === 'master' && programs.length > 0 && (
+              <span className="bg-[#933d18] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1">{programs.length}</span>
             )}
           </button>
         ))}
@@ -264,10 +272,10 @@ export default function FeeManagement() {
       {tab === 'master' && (
         masterLoading ? (
           <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
-        ) : masterList.length === 0 ? (
+        ) : programs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-gray-300">
             <GraduationCap size={52} className="mb-3" />
-            <p className="text-base font-semibold text-gray-400">No fee structure has been saved yet</p>
+            <p className="text-base font-semibold text-gray-400">No programs found</p>
             <button onClick={() => openEditor()} className="mt-4 bg-[#933d18] text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#7a3214]">
               + Add Fee Structure
             </button>
@@ -332,6 +340,17 @@ export default function FeeManagement() {
                 )) return false
                 return true
               })
+              // Collapse the per-session fee rows into ONE row per course (program).
+              // A program with fees for 2 sessions becomes a single row; the newest
+              // session (masterList is ordered newest-first) is the representative.
+              const byProgram = new Map()
+              for (const s of filtered) {
+                if (!byProgram.has(s.program_id)) byProgram.set(s.program_id, [])
+                byProgram.get(s.program_id).push(s)
+              }
+              const feeRows = [...byProgram.values()].map(list => ({
+                ...list[0], __sessions: list, __sessionCount: list.length,
+              }))
               // Programs that have NO fee structure yet — show them too so every
               // course is visible/searchable (e.g. B.Com without a fee structure).
               const structProgramIds = new Set(masterList.map(s => s.program_id))
@@ -350,7 +369,7 @@ export default function FeeManagement() {
                   total_semesters: p.duration ? (p.semester_year === 'Year' ? p.duration * 2 : p.duration) : null,
                   programs: { program_name: p.program_name },
                 }))
-              const allRows = [...filtered, ...programRows]
+              const allRows = [...feeRows, ...programRows]
               return (
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
               {allRows.length === 0 && (masterSearch || masterDept !== 'all' || masterType !== 'all' || masterSession !== 'all') && (
@@ -413,7 +432,9 @@ export default function FeeManagement() {
                           <p className="text-xs text-gray-400 mt-0.5">{struct.fee_items?.length || 0} fee components</p>
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">
-                          {struct.academic_sessions?.session_name || <span className="text-gray-300">All Sessions</span>}
+                          {struct.__sessionCount > 1
+                            ? <span className="bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">{struct.__sessionCount} sessions</span>
+                            : (struct.academic_sessions?.session_name || <span className="text-gray-300">All Sessions</span>)}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">
@@ -443,7 +464,7 @@ export default function FeeManagement() {
                               className="flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-2.5 py-1.5 rounded-lg transition-colors">
                               <Pencil size={12} /> Edit
                             </button>
-                            <button onClick={() => handleDeleteStruct(struct.id)} title="Delete"
+                            <button onClick={() => handleDeleteProgramFees(struct.program_id, struct.__sessionCount)} title="Delete"
                               className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
                               <Trash2 size={12} />
                             </button>
@@ -456,10 +477,10 @@ export default function FeeManagement() {
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-200">
                     <td colSpan={4} className="px-4 py-3 font-bold text-gray-700 text-sm">
-                      {`${allRows.length} courses (${filtered.length} with fee, ${programRows.length} without)`}
+                      {`${allRows.length} courses (${feeRows.length} with fee, ${programRows.length} without)`}
                     </td>
                     <td className="px-4 py-3 text-right font-black text-amber-700">
-                      ₹{fmt(filtered.reduce((s, st) => s + calcTotals(st.fee_items, st.total_semesters).entryTotal, 0))}
+                      ₹{fmt(feeRows.reduce((s, st) => s + calcTotals(st.fee_items, st.total_semesters).entryTotal, 0))}
                     </td>
                     <td className="px-4 py-3"></td>
                     <td className="px-4 py-3 text-right font-black text-[#933d18]">

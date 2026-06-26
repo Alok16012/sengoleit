@@ -230,21 +230,23 @@ export default function Syllabus() {
   const progMap = Object.fromEntries(programs.map(p => [p.id, p]))
   const keyOf = s => `${s.program_id}__${s.session_id || 'null'}`
 
-  // Show every course. Fee-structure courses keep their session; programs that
-  // have NO fee structure (e.g. B.Com) are added as "All Sessions" rows so they
-  // can still get a syllabus.
+  // ONE row per COURSE (program) — exactly programs.length rows, matching the
+  // Programs page count. Syllabus is stored per-course (session = all sessions),
+  // so a course that has fees for several sessions still appears only once.
+  // total_semesters comes from the program's fee structure if it has one,
+  // otherwise it is derived from the program's duration.
   const structProgramIds = new Set(structs.map(s => s.program_id))
-  const programOnlyCourses = programs
-    .filter(p => !structProgramIds.has(p.id))
-    .map(p => ({
-      id: `prog_${p.id}`,
-      program_id: p.id,
-      session_id: null,
-      total_semesters: calcSemesters(p),
-      programs: { program_name: p.program_name },
-      academic_sessions: null,
-    }))
-  const approvedCourses = [...structs, ...programOnlyCourses]
+  const semByProgram = {}
+  structs.forEach(s => { if (semByProgram[s.program_id] == null) semByProgram[s.program_id] = s.total_semesters })
+  const approvedCourses = programs.map(p => ({
+    id: `course_${p.id}`,
+    program_id: p.id,
+    session_id: null,
+    total_semesters: semByProgram[p.id] ?? calcSemesters(p),
+    programs: { program_name: p.program_name },
+    academic_sessions: null,
+    __hasFee: structProgramIds.has(p.id),
+  }))
 
   const isDone = s => (counts[keyOf(s)] || 0) > 0
 
