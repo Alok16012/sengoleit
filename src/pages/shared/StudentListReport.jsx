@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge'
 import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
+import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 
@@ -60,7 +61,7 @@ export default function StudentListReport({ status }) {
 
     let q = supabase
       .from('students')
-      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
+      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, admit_card_released_at, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
       .in('center_id', centerIds)
 
     // Stage routing:
@@ -111,7 +112,10 @@ export default function StudentListReport({ status }) {
       const resolved = await resolveStudentDocUrls(s)
       if (type === 'reg') generateRegistrationCertificate(resolved)
       else if (type === 'id') generateIDCard(resolved)
-      else if (type === 'admit') generateAdmitCard(resolved)
+      else if (type === 'admit') {
+        const subjects = await fetchAdmitCardSubjects(resolved)
+        generateAdmitCard(resolved, subjects)
+      }
     }
     setDownloading(null)
   }
@@ -407,6 +411,18 @@ export default function StudentListReport({ status }) {
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                           <span className="text-xs ml-1 text-emerald-600">{downloading === `${s.id}-id` ? '...' : 'ID Card'}</span>
                         </Button>
+                        {s.admit_card_released_at && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCard(s.id, 'admit')}
+                            disabled={downloading === `${s.id}-admit`}
+                            title="Download Admit Card"
+                          >
+                            <ClipboardList size={14} className={downloading === `${s.id}-admit` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
+                            <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-admit` ? '...' : 'Admit Card'}</span>
+                          </Button>
+                        )}
                       </>
                     )}
                   </div>
