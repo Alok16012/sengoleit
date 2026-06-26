@@ -17,17 +17,22 @@ export async function fetchExamSettingsMeta(student) {
     const pid = student?.programme_id || student?.program_id
     const sid = student?.session_id || null
     if (!pid) return BLANK
-    let q = supabase
+    // Fetch all rows for this program, then prefer the session-specific one,
+    // falling back to the program-wide ("All Sessions" / null) row.
+    const { data, error } = await supabase
       .from('exam_schedules')
-      .select('exam_schedule, admit_card_time')
+      .select('session_id, exam_schedule, admit_card_time')
       .eq('program_id', pid)
-    q = sid ? q.eq('session_id', sid) : q.is('session_id', null)
-    const { data, error } = await q.maybeSingle()
-    if (error || !data) return BLANK
+    if (error || !data || data.length === 0) return BLANK
+    const row =
+      (sid && data.find(r => r.session_id === sid)) ||
+      data.find(r => !r.session_id) ||
+      null
+    if (!row) return BLANK
     return {
-      examSchedule: fmtDT(data.exam_schedule),
-      admitCardTime: fmtDT(data.admit_card_time),
-      admitCardAt: data.admit_card_time || '',
+      examSchedule: fmtDT(row.exam_schedule),
+      admitCardTime: fmtDT(row.admit_card_time),
+      admitCardAt: row.admit_card_time || '',
     }
   } catch {
     return BLANK

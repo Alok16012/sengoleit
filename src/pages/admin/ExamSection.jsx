@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
@@ -165,8 +165,10 @@ export default function ExamSection() {
   const [fDept, setFDept] = useState('all')
   const [fType, setFType] = useState('all')
   const [fSession, setFSession] = useState([])   // multi-select; [] = all
+  // Courses that have a syllabus added — the source for the Exam Schedules list.
+  const [syllabusCourses, setSyllabusCourses] = useState([])
 
-  useEffect(() => { fetchData(); loadCourseSettings(); loadFilterOptions() }, [])
+  useEffect(() => { fetchData(); loadCourseSettings(); loadFilterOptions(); loadSyllabusCourses() }, [])
 
   const courseKey = (programId, sessionId) => `${programId || ''}__${sessionId || ''}`
 
@@ -179,6 +181,31 @@ export default function ExamSection() {
     setDepartments(dp.data || [])
     setProgTypes(pt.data || [])
     setSessions(se.data || [])
+  }
+
+  // Distinct (program + session) combos that have a syllabus added.
+  async function loadSyllabusCourses() {
+    const [sy, pr, se] = await Promise.all([
+      supabase.from('syllabus_subjects').select('program_id, session_id'),
+      supabase.from('programs').select('id, program_name'),
+      supabase.from('academic_sessions').select('id, session_name'),
+    ])
+    const progName = Object.fromEntries((pr.data || []).map(p => [p.id, p.program_name]))
+    const sessName = Object.fromEntries((se.data || []).map(s => [s.id, s.session_name]))
+    const map = new Map()
+    for (const r of sy.data || []) {
+      const key = courseKey(r.program_id, r.session_id)
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          program_id: r.program_id,
+          session_id: r.session_id || null,
+          programName: progName[r.program_id] || '—',
+          sessionName: r.session_id ? (sessName[r.session_id] || '—') : 'All Sessions',
+        })
+      }
+    }
+    setSyllabusCourses([...map.values()].sort((a, b) => a.programName.localeCompare(b.programName)))
   }
 
   async function loadCourseSettings() {
@@ -251,7 +278,7 @@ export default function ExamSection() {
     if (s) {
       const resolved = await resolveStudentDocUrls(s)
       const subjects = await fetchAdmitCardSubjects(s)
-      const cs = courseSettings[courseKey(student.programme_id, student.session_id)] || {}
+      const cs = settingsOf(student)
       generateAdmitCard(resolved, subjects, {
         examSchedule: fmtDT(cs.exam_schedule),
         admitCardTime: fmtDT(cs.admit_card_time),
@@ -278,8 +305,15 @@ export default function ExamSection() {
     setReleasing(null)
   }
 
+  // Resolve a student's course settings: prefer the session-specific row, else
+  // fall back to the program-wide ("All Sessions") row — mirrors how syllabus
+  // is keyed (session_id can be null = all sessions).
+  const settingsOf = s =>
+    courseSettings[courseKey(s.programme_id, s.session_id)] ||
+    courseSettings[courseKey(s.programme_id, null)] || {}
+
   // Per-student admit-card lock, driven by that student's course Admit Card Time.
-  const admitCardTimeOf = s => courseSettings[courseKey(s.programme_id, s.session_id)]?.admit_card_time || ''
+  const admitCardTimeOf = s => settingsOf(s).admit_card_time || ''
   const isAdmitLocked = s => {
     const t = admitCardTimeOf(s)
     if (!t) return false
@@ -449,7 +483,7 @@ export default function ExamSection() {
 
       {settingsOpen && (
         <ExamSchedulesModal
-          students={data}
+          courses={syllabusCourses}
           settings={courseSettings}
           onSave={saveCourseSettings}
           onClose={() => setSettingsOpen(false)}
@@ -459,26 +493,7 @@ export default function ExamSection() {
   )
 }
 
-function ExamSchedulesModal({ students, settings, onSave, onClose }) {
-  // Distinct courses (program + session) present among forwarded students.
-  const courses = useMemo(() => {
-    const map = new Map()
-    for (const s of students) {
-      if (!s.programme_id) continue
-      const key = `${s.programme_id}__${s.session_id || ''}`
-      if (!map.has(key)) {
-        map.set(key, {
-          key,
-          program_id: s.programme_id,
-          session_id: s.session_id || null,
-          programName: s.programs?.program_name || '—',
-          sessionName: s.academic_sessions?.session_name || 'All Sessions',
-        })
-      }
-    }
-    return [...map.values()].sort((a, b) => a.programName.localeCompare(b.programName))
-  }, [students])
-
+function ExamSchedulesModal({ courses, settings, onSave, onClose }) {
   // Local editable form, seeded from saved settings.
   const [form, setForm] = useState(() => {
     const init = {}
@@ -489,6 +504,11 @@ function ExamSchedulesModal({ students, settings, onSave, onClose }) {
     return init
   })
   const [saving, setSaving] = useState(false)
+
+  const [q, setQ] = useState('')
+  const visible = courses.filter(c =>
+    `${c.programName} ${c.sessionName}`.toLowerCase().includes(q.toLowerCase())
+  )
 
   const setField = (key, field, value) =>
     setForm(f => ({ ...f, [key]: { ...f[key], [field]: value } }))
@@ -521,10 +541,21 @@ function ExamSchedulesModal({ students, settings, onSave, onClose }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><X size={18} /></button>
         </div>
         <form onSubmit={handleSave}>
-          <div className="max-h-[70vh] overflow-y-auto p-4 space-y-3">
+          {courses.length > 0 && (
+            <div className="px-4 pt-4">
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search course by program or session..."
+                  className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+              </div>
+            </div>
+          )}
+          <div className="max-h-[65vh] overflow-y-auto p-4 space-y-3">
             {courses.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400">No courses — students must be forwarded to the Exam Section first.</p>
-            ) : courses.map(c => (
+              <p className="py-10 text-center text-sm text-gray-400">No courses with a syllabus yet. Add a syllabus first (Syllabus page) — only courses that have a syllabus appear here.</p>
+            ) : visible.length === 0 ? (
+              <p className="py-10 text-center text-sm text-gray-400">No courses match your search.</p>
+            ) : visible.map(c => (
               <div key={c.key} className="border border-gray-100 rounded-xl p-3.5">
                 <div className="flex items-center gap-2 mb-2.5">
                   <span className="font-bold text-gray-800 text-sm">{c.programName}</span>
