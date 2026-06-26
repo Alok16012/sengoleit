@@ -527,6 +527,7 @@ export default function StudentForm() {
   const [openEdu, setOpenEdu] = useState({ tenth: true, twelfth: false, ug: false, pg: false, diploma: false })
 
   const [step, setStep] = useState(0)
+  const activeStepRef = useRef(null)
   const [showPassword, setShowPassword] = useState(false)
   const [stepError, setStepError] = useState('')
   const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
@@ -543,6 +544,9 @@ export default function StudentForm() {
   useEffect(() => {
     const main = document.querySelector('main')
     if (main) main.scrollTop = 0
+    // Bring the active step fully into view inside the horizontal stepper
+    // (otherwise the last steps get clipped at the right edge).
+    activeStepRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
   }, [step])
 
   useEffect(() => {
@@ -1064,6 +1068,7 @@ export default function StudentForm() {
               return (
                 <div key={s.id} className="flex items-center">
                   <button
+                    ref={isActive ? activeStepRef : null}
                     type="button"
                     onClick={() => { setStepError(''); setStep(i) }}
                     className={`relative flex items-center gap-2.5 px-5 py-3.5 transition-all group cursor-pointer
