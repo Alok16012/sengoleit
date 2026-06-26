@@ -3,10 +3,142 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, ClipboardList, X } from 'lucide-react'
+import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck } from 'lucide-react'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
+
+function ResultModal({ isOpen, onClose, student, onSaved }) {
+  const [status, setStatus] = useState('Pending')
+  const [obtainedMarks, setObtainedMarks] = useState('')
+  const [totalMarks, setTotalMarks] = useState('')
+  const [marksheetUrl, setMarksheetUrl] = useState('')
+  const [remarks, setRemarks] = useState('')
+  const [declaredAt, setDeclaredAt] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (isOpen && student) {
+      setStatus(student.exam_result_status || 'Pending')
+      setObtainedMarks(student.exam_result_obtained_marks || '')
+      setTotalMarks(student.exam_result_total_marks || '')
+      setMarksheetUrl(student.exam_result_marksheet_url || '')
+      setRemarks(student.exam_result_remarks || '')
+      setDeclaredAt(
+        student.exam_result_declared_at
+          ? new Date(student.exam_result_declared_at).toISOString().slice(0, 16)
+          : new Date().toISOString().slice(0, 16)
+      )
+    }
+  }, [isOpen, student])
+
+  if (!isOpen) return null
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaving(true)
+    const updates = {
+      exam_result_status: status,
+      exam_result_obtained_marks: obtainedMarks || null,
+      exam_result_total_marks: totalMarks || null,
+      exam_result_marksheet_url: marksheetUrl || null,
+      exam_result_remarks: remarks || null,
+      exam_result_declared_at: declaredAt ? new Date(declaredAt).toISOString() : null,
+    }
+    const { error } = await supabase.from('students').update(updates).eq('id', student.id)
+    if (error) {
+      alert('Error saving result: ' + error.message)
+    } else {
+      onSaved({ ...student, ...updates })
+      onClose()
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50 shrink-0">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Manage Result</h3>
+            <p className="text-xs text-gray-500 font-mono mt-1">{student.student_name} ({student.enrollment_no})</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+        
+        <div className="p-6 overflow-y-auto flex-1">
+          <form id="result-form" onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">Result Status</label>
+              <select 
+                value={status} onChange={e => setStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18] outline-none"
+              >
+                <option value="Pending">Pending</option>
+                <option value="Pass">Pass</option>
+                <option value="Fail">Fail</option>
+              </select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">Obtained Marks</label>
+                <input 
+                  type="number" step="0.01" value={obtainedMarks} onChange={e => setObtainedMarks(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18] outline-none"
+                  placeholder="e.g. 450"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">Total Marks</label>
+                <input 
+                  type="number" step="0.01" value={totalMarks} onChange={e => setTotalMarks(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18] outline-none"
+                  placeholder="e.g. 600"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">Marksheet File URL</label>
+              <input 
+                type="url" value={marksheetUrl} onChange={e => setMarksheetUrl(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18] outline-none"
+                placeholder="https://..."
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">Declared At</label>
+              <input 
+                type="datetime-local" value={declaredAt} onChange={e => setDeclaredAt(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18] outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-600 mb-1">Remarks (Optional)</label>
+              <textarea 
+                rows="2" value={remarks} onChange={e => setRemarks(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18] outline-none"
+                placeholder="Any additional notes..."
+              />
+            </div>
+          </form>
+        </div>
+        
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-end gap-3">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" form="result-form" disabled={saving}>
+            {saving ? 'Saving...' : 'Save Result'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function ExamSection() {
   const [data, setData] = useState([])
@@ -21,13 +153,16 @@ export default function ExamSection() {
     // Only students the Account Dept. forwarded to the Exam Section appear here.
     const { data, error } = await supabase
       .from('students')
-      .select('id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, exam_forwarded_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .select('id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
       .not('exam_forwarded_at', 'is', null)
       .order('exam_forwarded_at', { ascending: false })
     if (error) console.error('ExamSection fetch error:', error)
     setData(data || [])
     setLoading(false)
   }
+
+  const [releasing, setReleasing] = useState(null)
+  const [resultModalStudent, setResultModalStudent] = useState(null)
 
   // Admit card is generated ONLY here — the single point in the workflow.
   async function handleAdmitCard(studentId) {
@@ -42,6 +177,23 @@ export default function ExamSection() {
       generateAdmitCard(resolved)
     }
     setBusy(null)
+  }
+
+  async function handleReleaseAdmitCard(studentId) {
+    if (!confirm('Are you sure you want to release the admit card to the student portal?')) return
+    
+    setReleasing(studentId)
+    const { error } = await supabase
+      .from('students')
+      .update({ admit_card_released_at: new Date().toISOString() })
+      .eq('id', studentId)
+      
+    if (error) {
+      alert('Error releasing admit card: ' + error.message)
+    } else {
+      setData(prev => prev.map(s => s.id === studentId ? { ...s, admit_card_released_at: new Date().toISOString() } : s))
+    }
+    setReleasing(null)
   }
 
   const filtered = data.filter(s => {
@@ -94,6 +246,7 @@ export default function ExamSection() {
               <Th>Registration No</Th>
               <Th>Forwarded On</Th>
               <Th>Admit Card</Th>
+              <Th>Result</Th>
             </tr>
           </Thead>
           <Tbody>
@@ -118,16 +271,54 @@ export default function ExamSection() {
                 <Td className="font-mono text-xs text-[#933d18] font-bold">{s.registration_no || '—'}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(s.exam_forwarded_at)}</Td>
                 <Td>
-                  <Button size="sm" variant="ghost" onClick={() => handleAdmitCard(s.id)} disabled={busy === s.id} title="Generate Admit Card">
-                    <ClipboardList size={14} className={busy === s.id ? 'animate-pulse text-[#933d18]' : 'text-amber-600'} />
-                    <span className="text-xs ml-1 text-amber-600">{busy === s.id ? '...' : 'Admit Card'}</span>
-                  </Button>
+                  <div className="flex flex-col gap-2">
+                    {s.admit_card_released_at ? (
+                      <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
+                        <BadgeCheck size={12} /> Released
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="ghost" onClick={() => handleReleaseAdmitCard(s.id)} disabled={releasing === s.id} title="Release to Student Portal" className="w-fit text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10">
+                        <Send size={14} className={releasing === s.id ? 'animate-pulse' : ''} />
+                        <span className="text-xs ml-1">Send to Student</span>
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => handleAdmitCard(s.id)} disabled={busy === s.id} title="Generate PDF Admit Card" className="w-fit">
+                      <ClipboardList size={14} className={busy === s.id ? 'animate-pulse text-amber-600' : 'text-amber-600'} />
+                      <span className="text-xs ml-1 text-amber-600">{busy === s.id ? '...' : 'Generate'}</span>
+                    </Button>
+                  </div>
+                </Td>
+                <Td>
+                  {s.exam_result_status && s.exam_result_status !== 'Pending' ? (
+                    <div className="flex flex-col gap-2">
+                      <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit ${s.exam_result_status === 'Pass' ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
+                        <Award size={12} /> {s.exam_result_status} ({s.exam_result_obtained_marks}/{s.exam_result_total_marks})
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => setResultModalStudent(s)} className="w-fit">
+                        <FileEdit size={14} className="text-blue-600" />
+                        <span className="text-xs ml-1 text-blue-600">Edit</span>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setResultModalStudent(s)}>
+                      Enter Result
+                    </Button>
+                  )}
                 </Td>
               </Tr>
             ))}
           </Tbody>
         </Table>
       )}
+      
+      <ResultModal 
+        isOpen={!!resultModalStudent} 
+        onClose={() => setResultModalStudent(null)} 
+        student={resultModalStudent}
+        onSaved={(updatedStudent) => {
+          setData(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s))
+        }}
+      />
     </div>
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { GraduationCap } from 'lucide-react'
+import { GraduationCap, Award } from 'lucide-react'
 
 const EDU_SECTIONS = [
   { key: 'tenth', label: '10th (Matriculation)' },
@@ -54,6 +54,44 @@ export default function StudentResults() {
         </div>
       ) : (
         <div className="space-y-4">
+          
+          {data?.exam_result_status && data.exam_result_status !== 'Pending' && (
+            <div className="bg-white rounded-xl border-2 border-emerald-100 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Award size={20} className="text-emerald-600" />
+                  <h3 className="font-black text-gray-900 text-lg">University Exam Result</h3>
+                </div>
+                <span className={`text-xs font-black px-3 py-1 rounded-lg ${data.exam_result_status === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                  {data.exam_result_status}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
+                <Field label="Obtained Marks" value={data.exam_result_obtained_marks} />
+                <Field label="Total Marks" value={data.exam_result_total_marks} />
+                <Field label="Percentage" value={pct(data.exam_result_obtained_marks, data.exam_result_total_marks)} />
+                <Field label="Declared On" value={data.exam_result_declared_at ? new Date(data.exam_result_declared_at).toLocaleDateString() : '—'} />
+              </div>
+
+              {data.exam_result_remarks && (
+                <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">
+                  "{data.exam_result_remarks}"
+                </div>
+              )}
+
+              {data.exam_result_marksheet_url && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <a href={data.exam_result_marksheet_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
+                    Download Marksheet
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          <h2 className="text-lg font-black text-gray-900 mt-8 mb-4">Previous Education</h2>
+
           {sections.map(({ key, label }) => {
             const percentage = pct(data?.[`${key}_obtained_marks`], data?.[`${key}_total_marks`])
             return (

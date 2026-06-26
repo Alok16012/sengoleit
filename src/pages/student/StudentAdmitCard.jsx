@@ -39,10 +39,8 @@ export default function StudentAdmitCard() {
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
   if (!data) return <div className="p-8 text-center text-gray-400">No data found.</div>
 
-  // The admit card is released only after the Exam Section processes the
-  // student (exam_forwarded_at is set by the Account Dept's "Forward to Exam
-  // Section" action). Until then it is not available.
-  const isApproved = !!data.exam_forwarded_at
+  // The admit card is released only after the Exam Section releases it explicitly.
+  const isApproved = !!data.admit_card_released_at
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">
