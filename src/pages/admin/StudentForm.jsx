@@ -400,6 +400,7 @@ const STEPS = [
   { id: 'sec-personal', label: 'Personal Info', icon: User },
   { id: 'sec-family', label: 'Family Info', icon: Users },
   { id: 'sec-contact', label: 'Contact', icon: MapPin },
+  { id: 'sec-bank', label: 'Bank Details', icon: CreditCard },
   { id: 'sec-education', label: 'Education', icon: FileText },
   { id: 'sec-documents', label: 'Documents', icon: Upload },
 ]
@@ -531,6 +532,11 @@ export default function StudentForm() {
   const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
   const [coupon, setCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
   const [availableCoupons, setAvailableCoupons] = useState([])
+  // Program IDs that have a fee structure (admin) OR are allotted+approved to
+  // this center (center/super-center). The Program Info dropdown only offers
+  // these, so a student can't be admitted into a course with no fee set up.
+  // null = not yet loaded (don't filter).
+  const [feeProgramIds, setFeeProgramIds] = useState(null)
 
   const toggleEdu = (key) => setOpenEdu(prev => ({ ...prev, [key]: !prev[key] }))
 
@@ -602,6 +608,33 @@ export default function StudentForm() {
       })
   }, [form.center_id])
 
+  // Resolve which programs can be admitted into. Admin: any program that has a
+  // fee structure. Center/super-center: only the courses allotted + approved to
+  // them (center_courses → fee_structures → program_id). This mirrors the
+  // "courses added in the fee section" the user sees in Center Course Fee.
+  useEffect(() => {
+    let cancelled = false
+    async function loadFeePrograms() {
+      if (isAdmin) {
+        const { data } = await supabase.from('fee_structures').select('program_id')
+        if (!cancelled) setFeeProgramIds(new Set((data || []).map(r => r.program_id).filter(Boolean)))
+        return
+      }
+      // Center / super-center: scope to its own approved allotments.
+      if (!user?.email) return
+      const { data: centerRow } = await supabase.from('centers').select('id').eq('email', user.email).maybeSingle()
+      if (!centerRow) { if (!cancelled) setFeeProgramIds(new Set()); return }
+      const { data: cc } = await supabase.from('center_courses')
+        .select('fee_structure_id').eq('center_id', centerRow.id).eq('status', 'approved')
+      const fsIds = [...new Set((cc || []).map(r => r.fee_structure_id).filter(Boolean))]
+      if (!fsIds.length) { if (!cancelled) setFeeProgramIds(new Set()); return }
+      const { data: fs } = await supabase.from('fee_structures').select('program_id').in('id', fsIds)
+      if (!cancelled) setFeeProgramIds(new Set((fs || []).map(r => r.program_id).filter(Boolean)))
+    }
+    loadFeePrograms()
+    return () => { cancelled = true }
+  }, [isAdmin, user?.email])
+
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
   // Numeric-only input, capped at `max` digits (strips everything else)
   const setDigits = (key, max) => (e) => setForm(f => ({ ...f, [key]: e.target.value.replace(/\D/g, '').slice(0, max) }))
@@ -665,9 +698,15 @@ export default function StudentForm() {
     return m ? Number(m[1]) : new Date().getFullYear()
   }
 
-  const filteredPrograms = form.department_id
+  const filteredPrograms = (form.department_id
     ? programs.filter(p => p.department_id === form.department_id)
     : programs
+  ).filter(p =>
+    // Only courses that exist in the fee section (admin) / are approved for this
+    // center. Keep the currently-selected program visible in edit mode even if
+    // it later falls out of the set, so the dropdown still shows its value.
+    feeProgramIds === null || feeProgramIds.has(p.id) || p.id === form.programme_id
+  )
 
   const selectedProgram = programs.find(p => p.id === form.programme_id)
   const progSemYear = selectedProgram?.semester_year
@@ -866,7 +905,8 @@ export default function StudentForm() {
           if (pin && pin.length !== 6) return 'PIN Code must be 6 digits'
         }
         return null
-      case 6:
+      // case 5 = Bank Details — all fields optional, no validation needed.
+      case 7:
         if (!form.photo_url) return 'Student Photo is required'
         if (!form.signature_url) return 'Signature is required'
         if (!form.aadhar_url) return 'Aadhar Card is required'
@@ -1153,22 +1193,6 @@ export default function StudentForm() {
               ) : (
                 <Input label="Center Name" value={form.center_name || ''} readOnly className="bg-gray-50 text-gray-500 cursor-not-allowed" />
               )}
-            </div>
-
-            {/* Bank Account Details */}
-            <div className="mt-5 pt-5 border-t border-gray-100">
-              <div className="flex items-center gap-2 mb-3">
-                <CreditCard size={15} className="text-[#933d18]" />
-                <h4 className="text-sm font-bold text-gray-800">Bank Account Details</h4>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Account Holder Name" value={form.bank_account_holder || ''} onChange={set('bank_account_holder')} readOnly={isReadOnly || isLocked('bank_account_holder')} />
-                <Input label="Account Number" value={form.bank_account_number || ''} onChange={set('bank_account_number')} readOnly={isReadOnly || isLocked('bank_account_number')} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                <Input label="IFSC Code" value={form.ifsc_code || ''} onChange={set('ifsc_code')} readOnly={isReadOnly || isLocked('ifsc_code')} />
-                <Input label="Bank Branch" value={form.bank_branch || ''} onChange={set('bank_branch')} readOnly={isReadOnly || isLocked('bank_branch')} />
-              </div>
             </div>
           </FormSection>
         )}
@@ -1502,8 +1526,22 @@ export default function StudentForm() {
           </FormSection>
         )}
 
-        {/* STEP 5: Education Qualification */}
+        {/* STEP 5: Bank Account Details */}
         {step === 5 && (
+          <FormSection title="Bank Account Details" icon={<CreditCard size={16} />}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="Account Holder Name" value={form.bank_account_holder || ''} onChange={set('bank_account_holder')} readOnly={isReadOnly || isLocked('bank_account_holder')} />
+              <Input label="Account Number" value={form.bank_account_number || ''} onChange={set('bank_account_number')} readOnly={isReadOnly || isLocked('bank_account_number')} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input label="IFSC Code" value={form.ifsc_code || ''} onChange={set('ifsc_code')} readOnly={isReadOnly || isLocked('ifsc_code')} />
+              <Input label="Bank Branch" value={form.bank_branch || ''} onChange={set('bank_branch')} readOnly={isReadOnly || isLocked('bank_branch')} />
+            </div>
+          </FormSection>
+        )}
+
+        {/* STEP 6: Education Qualification */}
+        {step === 6 && (
           <FormSection title="Education Qualification" icon={<FileText size={16} />}
             subtitle="Click on each level to expand and fill details">
             <div className="space-y-2">
@@ -1516,8 +1554,8 @@ export default function StudentForm() {
           </FormSection>
         )}
 
-        {/* STEP 6: Documents */}
-        {step === 6 && (
+        {/* STEP 7: Documents */}
+        {step === 7 && (
           <FormSection title="Documents" icon={<Upload size={16} />}
             subtitle="Upload student photo, Aadhar, signature and declaration">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
