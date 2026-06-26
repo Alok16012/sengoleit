@@ -228,8 +228,8 @@ export default function Syllabus() {
   const progMap = Object.fromEntries(programs.map(p => [p.id, p]))
   const keyOf = s => `${s.program_id}__${s.session_id || 'null'}`
 
-  // Only approved courses appear in the syllabus list.
-  const approvedCourses = structs.filter(s => approvedIds.has(s.id))
+  // Show every course from Fee Management; an Approved/Pending badge marks status.
+  const approvedCourses = structs
 
   const filtered = approvedCourses.filter(s => {
     const prog = progMap[s.program_id]
@@ -432,7 +432,7 @@ export default function Syllabus() {
   /* ═══════════════ COURSE LIST VIEW ═══════════════ */
   return (
     <div className="p-6">
-      <PageHeader title="Syllabus" subtitle="Add subjects/papers for approved courses — used in the Admit Card" />
+      <PageHeader title="Syllabus" subtitle="Add subjects/papers for courses — used in the Admit Card" />
 
       <div className="flex flex-wrap items-end gap-3 mb-4">
         <div className="relative flex-1 max-w-sm min-w-[200px]">
@@ -552,7 +552,7 @@ export default function Syllabus() {
               {filtered.length === 0 ? (
                 <tr><td colSpan={6} className="text-center text-gray-400 py-12">
                   {approvedCourses.length === 0
-                    ? 'No approved courses yet. Approve courses in Fee Management → Center Courses first.'
+                    ? 'No courses yet. Create courses in Fee Management first.'
                     : 'No courses match these filters.'}
                 </td></tr>
               ) : filtered.map((s, i) => {
@@ -560,7 +560,14 @@ export default function Syllabus() {
                 return (
                   <tr key={s.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                     <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-900">{s.programs?.program_name || '—'}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900">
+                      <div className="flex items-center gap-2">
+                        <span>{s.programs?.program_name || '—'}</span>
+                        {approvedIds.has(s.id)
+                          ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Approved</span>
+                          : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Pending</span>}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{s.academic_sessions?.session_name || 'All Sessions'}</td>
                     <td className="px-4 py-3 text-center">
                       <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{s.total_semesters} Sem</span>
