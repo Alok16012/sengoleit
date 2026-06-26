@@ -16,10 +16,14 @@ export async function fetchExamSettingsMeta() {
       .from('app_settings')
       .select('key, value')
       .in('key', ['exam_schedule', 'admit_card_time'])
-    if (error || !data) return { examSchedule: '', admitCardTime: '' }
+    if (error || !data) return { examSchedule: '', admitCardTime: '', admitCardAt: '' }
     const map = Object.fromEntries(data.map(r => [r.key, r.value]))
-    return { examSchedule: fmtDT(map.exam_schedule), admitCardTime: fmtDT(map.admit_card_time) }
+    return {
+      examSchedule: fmtDT(map.exam_schedule),
+      admitCardTime: fmtDT(map.admit_card_time),
+      admitCardAt: map.admit_card_time || '',   // raw value for the date gate
+    }
   } catch {
-    return { examSchedule: '', admitCardTime: '' }
+    return { examSchedule: '', admitCardTime: '', admitCardAt: '' }
   }
 }

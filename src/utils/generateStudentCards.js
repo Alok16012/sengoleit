@@ -215,6 +215,14 @@ export function generateIDCard(s) {
    2. ADMIT CARD
 ─────────────────────────────────────────────────── */
 export function generateAdmitCard(s, subjects = [], meta = {}) {
+  // Hard gate: admit card cannot be generated before the configured date/time.
+  if (meta.admitCardAt) {
+    const releaseAt = new Date(meta.admitCardAt)
+    if (!isNaN(releaseAt.getTime()) && Date.now() < releaseAt.getTime()) {
+      alert(`Admit card will be available from ${meta.admitCardTime || releaseAt.toLocaleString('en-IN')}. It cannot be generated before that.`)
+      return
+    }
+  }
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const deptCode = s.centers?.center_code || s.center_code || (s.departments?.name ? s.departments.name.substring(0,6).toUpperCase() : '—')

@@ -229,6 +229,7 @@ export default function ExamSection() {
       generateAdmitCard(resolved, subjects, {
         examSchedule: fmtDT(examSchedule),
         admitCardTime: fmtDT(admitCardTime),
+        admitCardAt: admitCardTime,   // raw value drives the date gate
       })
     }
     setBusy(null)
@@ -250,6 +251,10 @@ export default function ExamSection() {
     }
     setReleasing(null)
   }
+
+  // Admit card generation is locked until the configured Admit Card Time.
+  const admitLockedUntil = admitCardTime ? new Date(admitCardTime) : null
+  const admitLocked = !!(admitLockedUntil && !isNaN(admitLockedUntil.getTime()) && Date.now() < admitLockedUntil.getTime())
 
   const filtered = data.filter(s => {
     const haystack = [
@@ -306,6 +311,13 @@ export default function ExamSection() {
         )}
       </div>
 
+      {admitLocked && (
+        <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+          <Clock size={15} className="shrink-0" />
+          Admit card generation is locked until <strong>{fmtDT(admitCardTime)}</strong>. Change it from the “Admit Card Time” button above.
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
@@ -357,9 +369,16 @@ export default function ExamSection() {
                         <span className="text-xs ml-1">Send to Student</span>
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => handleAdmitCard(s.id)} disabled={busy === s.id} title="Generate PDF Admit Card" className="w-fit">
-                      <ClipboardList size={14} className={busy === s.id ? 'animate-pulse text-amber-600' : 'text-amber-600'} />
-                      <span className="text-xs ml-1 text-amber-600">{busy === s.id ? '...' : 'Generate'}</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleAdmitCard(s.id)}
+                      disabled={busy === s.id || admitLocked}
+                      title={admitLocked ? `Locked until ${fmtDT(admitCardTime)}` : 'Generate PDF Admit Card'}
+                      className="w-fit"
+                    >
+                      <ClipboardList size={14} className={busy === s.id ? 'animate-pulse text-amber-600' : admitLocked ? 'text-gray-400' : 'text-amber-600'} />
+                      <span className={`text-xs ml-1 ${admitLocked ? 'text-gray-400' : 'text-amber-600'}`}>{busy === s.id ? '...' : admitLocked ? 'Locked' : 'Generate'}</span>
                     </Button>
                   </div>
                 </Td>
