@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck } from 'lucide-react'
+import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock } from 'lucide-react'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
@@ -141,13 +141,48 @@ function ResultModal({ isOpen, onClose, student, onSaved }) {
   )
 }
 
+// Format a datetime-local / ISO value for display on screen & the admit card.
+function fmtDT(val) {
+  if (!val) return ''
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return val
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 export default function ExamSection() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(null)
+  // Section-wide settings printed on every Admit Card.
+  const [examSchedule, setExamSchedule] = useState('')
+  const [admitCardTime, setAdmitCardTime] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData(); loadSettings() }, [])
+
+  async function loadSettings() {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['exam_schedule', 'admit_card_time'])
+    if (error) { console.error('app_settings load error:', error); return }
+    const map = Object.fromEntries((data || []).map(r => [r.key, r.value]))
+    setExamSchedule(map.exam_schedule || '')
+    setAdmitCardTime(map.admit_card_time || '')
+  }
+
+  async function saveSettings(sched, admit) {
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('app_settings').upsert([
+      { key: 'exam_schedule',   value: sched || null, updated_at: now },
+      { key: 'admit_card_time', value: admit || null, updated_at: now },
+    ], { onConflict: 'key' })
+    if (error) { alert('Could not save settings: ' + error.message); return false }
+    setExamSchedule(sched)
+    setAdmitCardTime(admit)
+    return true
+  }
 
   async function fetchData() {
     setLoading(true)
@@ -191,7 +226,10 @@ export default function ExamSection() {
     if (s) {
       const resolved = await resolveStudentDocUrls(s)
       const subjects = await fetchAdmitCardSubjects(s)
-      generateAdmitCard(resolved, subjects)
+      generateAdmitCard(resolved, subjects, {
+        examSchedule: fmtDT(examSchedule),
+        admitCardTime: fmtDT(admitCardTime),
+      })
     }
     setBusy(null)
   }
@@ -227,6 +265,26 @@ export default function ExamSection() {
       <PageHeader
         title="Exam Section"
         subtitle={`${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`}
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSettingsOpen(true)}
+              title="Set Exam Schedule (printed on Admit Card)"
+              className="flex flex-col items-start px-3 py-1.5 rounded-xl border border-gray-200 hover:border-[#933d18]/40 hover:bg-[#933d18]/5 transition-colors"
+            >
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#933d18]"><CalendarClock size={13} /> Exam Schedule</span>
+              <span className="text-[11px] text-gray-500 leading-tight">{examSchedule ? fmtDT(examSchedule) : 'Not set — click to add'}</span>
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              title="Set Admit Card date/time (printed on Admit Card)"
+              className="flex flex-col items-start px-3 py-1.5 rounded-xl border border-gray-200 hover:border-[#933d18]/40 hover:bg-[#933d18]/5 transition-colors"
+            >
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#933d18]"><Clock size={13} /> Admit Card Time</span>
+              <span className="text-[11px] text-gray-500 leading-tight">{admitCardTime ? fmtDT(admitCardTime) : 'Not set — click to add'}</span>
+            </button>
+          </div>
+        }
       />
 
       <div className="flex flex-wrap gap-3 mb-4 items-end">
@@ -328,14 +386,68 @@ export default function ExamSection() {
         </Table>
       )}
       
-      <ResultModal 
-        isOpen={!!resultModalStudent} 
-        onClose={() => setResultModalStudent(null)} 
+      <ResultModal
+        isOpen={!!resultModalStudent}
+        onClose={() => setResultModalStudent(null)}
         student={resultModalStudent}
         onSaved={(updatedStudent) => {
           setData(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s))
         }}
       />
+
+      {settingsOpen && (
+        <ExamSettingsModal
+          examSchedule={examSchedule}
+          admitCardTime={admitCardTime}
+          onSave={saveSettings}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function ExamSettingsModal({ examSchedule, admitCardTime, onSave, onClose }) {
+  const [sched, setSched] = useState(examSchedule || '')
+  const [admit, setAdmit] = useState(admitCardTime || '')
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setSaving(true)
+    const ok = await onSave(sched, admit)
+    setSaving(false)
+    if (ok) onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <CalendarClock size={18} className="text-[#933d18]" />
+            <h3 className="font-bold text-gray-900">Exam Settings</h3>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSave} className="p-5 space-y-4">
+          <p className="text-xs text-gray-400">These apply to the whole Exam Section and are printed on every Admit Card.</p>
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1.5"><CalendarClock size={13} className="text-[#933d18]" /> Exam Schedule (date & time)</label>
+            <input type="datetime-local" value={sched} onChange={e => setSched(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1.5"><Clock size={13} className="text-[#933d18]" /> Admit Card Time (date & time)</label>
+            <input type="datetime-local" value={admit} onChange={e => setAdmit(e.target.value)}
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

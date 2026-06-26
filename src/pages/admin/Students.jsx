@@ -9,6 +9,7 @@ import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, Ale
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
+import { fetchExamSettingsMeta } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 
@@ -282,7 +283,8 @@ export default function Students() {
       else if (type === 'id') generateIDCard(resolved)
       else if (type === 'admit') {
         const subjects = await fetchAdmitCardSubjects(resolved)
-        generateAdmitCard(resolved, subjects)
+        const meta = await fetchExamSettingsMeta()
+        generateAdmitCard(resolved, subjects, meta)
       }
     }
     setDownloading(null)

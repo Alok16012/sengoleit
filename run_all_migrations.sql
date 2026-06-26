@@ -73,5 +73,16 @@ CREATE TABLE IF NOT EXISTS course_syllabus_pdfs (
 );
 CREATE INDEX IF NOT EXISTS idx_course_pdf_program ON course_syllabus_pdfs(program_id);
 
+-- 9) Global key/value settings. Used by the Exam Section to store the
+--    section-wide Exam Schedule and Admit Card date/time, printed on Admit Cards.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        text PRIMARY KEY,
+  value      text,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+INSERT INTO app_settings (key, value)
+VALUES ('exam_schedule', NULL), ('admit_card_time', NULL)
+ON CONFLICT (key) DO NOTHING;
+
 -- Done.
 SELECT 'all migrations applied' AS result;

@@ -214,11 +214,13 @@ export function generateIDCard(s) {
 /* ───────────────────────────────────────────────────
    2. ADMIT CARD
 ─────────────────────────────────────────────────── */
-export function generateAdmitCard(s, subjects = []) {
+export function generateAdmitCard(s, subjects = [], meta = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const deptCode = s.centers?.center_code || s.center_code || (s.departments?.name ? s.departments.name.substring(0,6).toUpperCase() : '—')
   const defaultSubjects = subjects.length ? subjects : []
+  const examSchedule  = meta.examSchedule || ''
+  const admitCardTime = meta.admitCardTime || ''
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>Admit Card — ${v(s.student_name)}</title>${baseStyle}
@@ -244,6 +246,7 @@ export function generateAdmitCard(s, subjects = []) {
     <div style="text-align:center;padding:8px;border-bottom:2px solid #333;background:#fafafa;">
       <span style="font-size:20px;font-weight:900;color:${BRAND};letter-spacing:0.12em;">ADMIT CARD</span>
       <div style="font-size:9px;color:#666;margin-top:2px;">${prog} &nbsp;—&nbsp; Semester Examination &nbsp;·&nbsp; ${sess}</div>
+      ${admitCardTime ? `<div style="font-size:8.5px;color:#888;margin-top:2px;">Issued: ${admitCardTime}</div>` : ''}
     </div>
 
     <!-- 3-col reference header -->
@@ -282,6 +285,10 @@ export function generateAdmitCard(s, subjects = []) {
               <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Center</td>
               <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${v(s.centers?.center_name)}</td>
             </tr>
+            ${examSchedule ? `<tr>
+              <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Exam Schedule</td>
+              <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${examSchedule}</td>
+            </tr>` : ''}
           </table>
 
           <!-- Subjects / Papers -->
