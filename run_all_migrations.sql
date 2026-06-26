@@ -61,5 +61,16 @@ ALTER TABLE syllabus_subjects ADD COLUMN IF NOT EXISTS pdf_url text;
 CREATE INDEX IF NOT EXISTS idx_syllabus_program ON syllabus_subjects(program_id);
 CREATE INDEX IF NOT EXISTS idx_syllabus_session ON syllabus_subjects(session_id);
 
+-- 8) Course-level full-syllabus PDF (one PDF per program + session),
+--    uploaded from the Syllabus list "Upload PDF" action.
+CREATE TABLE IF NOT EXISTS course_syllabus_pdfs (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id  uuid NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+  session_id  uuid REFERENCES academic_sessions(id) ON DELETE CASCADE,  -- null = all sessions
+  pdf_url     text,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_course_pdf_program ON course_syllabus_pdfs(program_id);
+
 -- Done.
 SELECT 'all migrations applied' AS result;

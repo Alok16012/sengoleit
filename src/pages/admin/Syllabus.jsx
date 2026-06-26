@@ -138,6 +138,8 @@ export default function Syllabus() {
   const [sessions, setSessions]       = useState([])
   const [approvedIds, setApprovedIds] = useState(new Set()) // fee_structure_ids approved for ≥1 center
   const [counts, setCounts]           = useState({})   // fee_structure_id -> subject count
+  const [coursePdfs, setCoursePdfs]   = useState({})   // program__session -> pdf_url (full syllabus PDF)
+  const [pdfBusyKey, setPdfBusyKey]   = useState(null)
   const [loading, setLoading]         = useState(true)
 
   // filters
@@ -187,7 +189,40 @@ export default function Syllabus() {
       m[key] = (m[key] || 0) + 1
     })
     setCounts(m)
+    // course-level full-syllabus PDFs (table may not be migrated yet — load resiliently)
+    const cp = await supabase.from('course_syllabus_pdfs').select('program_id, session_id, pdf_url')
+    if (!cp.error && cp.data) {
+      const pm = {}
+      cp.data.forEach(r => { pm[`${r.program_id}__${r.session_id || 'null'}`] = r.pdf_url })
+      setCoursePdfs(pm)
+    }
     setLoading(false)
+  }
+
+  async function uploadCoursePdf(s, file) {
+    if (!file) return
+    const key = keyOf(s)
+    setPdfBusyKey(key)
+    const ext = (file.name.split('.').pop() || 'pdf').toLowerCase()
+    const path = `syllabus/course_${s.program_id}_${s.session_id || 'all'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`
+    const up = await supabase.storage.from('documents').upload(path, file, { upsert: true })
+    if (up.error) { alert('Upload failed: ' + up.error.message); setPdfBusyKey(null); return }
+    const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path)
+    let dq = supabase.from('course_syllabus_pdfs').delete().eq('program_id', s.program_id)
+    dq = s.session_id ? dq.eq('session_id', s.session_id) : dq.is('session_id', null)
+    await dq
+    const ins = await supabase.from('course_syllabus_pdfs').insert({ program_id: s.program_id, session_id: s.session_id || null, pdf_url: publicUrl })
+    if (ins.error) { alert('Save failed (run the course_syllabus_pdfs migration): ' + ins.error.message); setPdfBusyKey(null); return }
+    setCoursePdfs(prev => ({ ...prev, [key]: publicUrl }))
+    setPdfBusyKey(null)
+  }
+
+  async function removeCoursePdf(s) {
+    const key = keyOf(s)
+    let dq = supabase.from('course_syllabus_pdfs').delete().eq('program_id', s.program_id)
+    dq = s.session_id ? dq.eq('session_id', s.session_id) : dq.is('session_id', null)
+    await dq
+    setCoursePdfs(prev => { const n = { ...prev }; delete n[key]; return n })
   }
 
   const progMap = Object.fromEntries(programs.map(p => [p.id, p]))
@@ -535,11 +570,34 @@ export default function Syllabus() {
                         ? <span className="bg-emerald-50 text-emerald-700 font-bold text-xs px-2.5 py-1 rounded-full">{cnt}</span>
                         : <span className="text-gray-300 text-xs">0</span>}
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <button onClick={() => openCourse(s)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors">
-                        {cnt > 0 ? 'Edit Syllabus' : 'Add Syllabus'} <ChevronRight size={13} />
-                      </button>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <button onClick={() => openCourse(s)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                          <Plus size={13} /> {cnt > 0 ? 'Edit' : 'Add'}
+                        </button>
+                        {coursePdfs[keyOf(s)] ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <a href={coursePdfs[keyOf(s)]} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Eye size={12} /> View PDF
+                            </a>
+                            <label className="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors">
+                              <Upload size={12} /> {pdfBusyKey === keyOf(s) ? '...' : 'Replace'}
+                              <input type="file" accept="application/pdf,image/*" className="hidden"
+                                onChange={e => { uploadCoursePdf(s, e.target.files?.[0]); e.target.value = '' }} />
+                            </label>
+                            <button onClick={() => removeCoursePdf(s)} title="Remove PDF"
+                              className="text-red-300 hover:text-red-500"><X size={14} /></button>
+                          </div>
+                        ) : (
+                          <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 border border-dashed border-gray-300 hover:border-[#933d18] hover:text-[#933d18] px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors">
+                            <FileText size={13} /> {pdfBusyKey === keyOf(s) ? 'Uploading...' : 'Upload PDF'}
+                            <input type="file" accept="application/pdf,image/*" className="hidden"
+                              onChange={e => { uploadCoursePdf(s, e.target.files?.[0]); e.target.value = '' }} />
+                          </label>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
