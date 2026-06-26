@@ -300,18 +300,18 @@ export default function ExamSection() {
             <button
               onClick={() => setSettingsOpen(true)}
               title="Set Exam Schedule (printed on Admit Card)"
-              className="flex flex-col items-start px-3 py-1.5 rounded-xl border border-gray-200 hover:border-[#933d18]/40 hover:bg-[#933d18]/5 transition-colors"
+              className="flex flex-col items-start px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 transition-colors"
             >
-              <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#933d18]"><CalendarClock size={13} /> Exam Schedule</span>
-              <span className="text-[11px] text-gray-500 leading-tight">{examSchedule ? fmtDT(examSchedule) : 'Not set — click to add'}</span>
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-indigo-700"><CalendarClock size={13} /> Exam Schedule</span>
+              <span className={`text-[11px] leading-tight ${examSchedule ? 'text-indigo-600 font-semibold' : 'text-indigo-400'}`}>{examSchedule ? fmtDT(examSchedule) : 'Not set — click to add'}</span>
             </button>
             <button
               onClick={() => setSettingsOpen(true)}
               title="Set Admit Card date/time (printed on Admit Card)"
-              className="flex flex-col items-start px-3 py-1.5 rounded-xl border border-gray-200 hover:border-[#933d18]/40 hover:bg-[#933d18]/5 transition-colors"
+              className="flex flex-col items-start px-3 py-1.5 rounded-xl border border-[#933d18]/30 bg-[#933d18]/10 hover:bg-[#933d18]/20 transition-colors"
             >
               <span className="flex items-center gap-1.5 text-[11px] font-bold text-[#933d18]"><Clock size={13} /> Admit Card Time</span>
-              <span className="text-[11px] text-gray-500 leading-tight">{admitCardTime ? fmtDT(admitCardTime) : 'Not set — click to add'}</span>
+              <span className={`text-[11px] leading-tight ${admitCardTime ? 'text-[#933d18] font-semibold' : 'text-[#933d18]/50'}`}>{admitCardTime ? fmtDT(admitCardTime) : 'Not set — click to add'}</span>
             </button>
           </div>
         }
