@@ -725,8 +725,8 @@ export default function Syllabus() {
 
       {/* ── Per-semester View / Download modal ── */}
       {semModal && (
-        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-16" onClick={() => setSemModal(null)}>
-          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-10" onClick={() => setSemModal(null)}>
+          <div className="w-full max-w-5xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
               <div className="min-w-0">
                 <h3 className="font-bold text-gray-800 flex items-center gap-2 truncate">
@@ -736,7 +736,7 @@ export default function Syllabus() {
               </div>
               <button onClick={() => setSemModal(null)} className="text-gray-400 hover:text-gray-700 shrink-0"><X size={18} /></button>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto p-3">
+            <div className="max-h-[82vh] overflow-y-auto p-4">
               {semLoading ? (
                 <div className="py-12 text-center text-sm text-gray-400">Loading...</div>
               ) : (
