@@ -2,7 +2,8 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen, Upload, FileText, Eye, ChevronDown, Check } from 'lucide-react'
+import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen, Upload, FileText, Eye, ChevronDown, Check, Download, Layers } from 'lucide-react'
+import { generateSyllabusPDF } from '../../utils/generateSyllabusPDF'
 
 let _k = 0
 const uid = () => ++_k
@@ -165,6 +166,12 @@ export default function Syllabus() {
   const [saved, setSaved]     = useState(false)
   const [uploadingKey, setUploadingKey] = useState(null)
 
+  // Per-semester View / Download modal
+  const [semModal, setSemModal]       = useState(null)   // the course (struct) being viewed, or null
+  const [semSubjects, setSemSubjects] = useState([])     // all subjects for that course
+  const [semLoading, setSemLoading]   = useState(false)
+  const [openSemView, setOpenSemView] = useState(null)   // which semester is expanded inline
+
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
@@ -287,6 +294,29 @@ export default function Syllabus() {
     const loaded = (data || []).map(r => ({ ...r, _key: uid() }))
     setRows(loaded.length ? loaded : [blankRow(1)])
     setEditorLoading(false)
+  }
+
+  // Open the per-semester View/Download modal for a course and load its subjects.
+  async function openSemesters(s) {
+    setSemModal(s); setOpenSemView(null); setSemLoading(true); setSemSubjects([])
+    let q = supabase.from('syllabus_subjects')
+      .select('semester, paper_no, subject_code, subject_name, criteria, sort_order')
+      .eq('program_id', s.program_id)
+    q = s.session_id ? q.eq('session_id', s.session_id) : q.is('session_id', null)
+    const { data } = await q.order('sort_order', { ascending: true })
+    setSemSubjects(data || [])
+    setSemLoading(false)
+  }
+
+  function downloadSemester(s, semNo, subjects) {
+    generateSyllabusPDF(
+      {
+        programName: s.programs?.program_name || '—',
+        session: s.academic_sessions?.session_name || 'All Sessions',
+        semester: `Semester ${semNo}`,
+      },
+      subjects,
+    )
   }
 
   function blankRow(sem = 1) {
@@ -656,6 +686,12 @@ export default function Syllabus() {
                           className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
                           <Plus size={13} /> {cnt > 0 ? 'Edit' : 'Add'}
                         </button>
+                        {cnt > 0 && (
+                          <button onClick={() => openSemesters(s)} title="View / download each semester"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                            <Layers size={13} /> Semesters
+                          </button>
+                        )}
                         {coursePdfs[keyOf(s)] ? (
                           <div className="inline-flex items-center gap-1.5">
                             <a href={coursePdfs[keyOf(s)]} target="_blank" rel="noreferrer"
@@ -684,6 +720,81 @@ export default function Syllabus() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* ── Per-semester View / Download modal ── */}
+      {semModal && (
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-16" onClick={() => setSemModal(null)}>
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+              <div className="min-w-0">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2 truncate">
+                  <Layers size={16} className="text-[#933d18] shrink-0" /> {semModal.programs?.program_name || '—'}
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">{semModal.academic_sessions?.session_name || 'All Sessions'} · {semModal.total_semesters} Semesters</p>
+              </div>
+              <button onClick={() => setSemModal(null)} className="text-gray-400 hover:text-gray-700 shrink-0"><X size={18} /></button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-3">
+              {semLoading ? (
+                <div className="py-12 text-center text-sm text-gray-400">Loading...</div>
+              ) : (
+                Array.from({ length: semModal.total_semesters || 0 }, (_, n) => n + 1).map(semNo => {
+                  const subs = semSubjects.filter(r => Number(r.semester) === semNo)
+                  const expanded = openSemView === semNo
+                  return (
+                    <div key={semNo} className="mb-2 border border-gray-100 rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-gray-50/70">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-800 text-sm">Semester {semNo}</span>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${subs.length ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {subs.length ? `${subs.length} subjects` : 'No subjects'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => setOpenSemView(expanded ? null : semNo)} disabled={!subs.length}
+                            title="View subjects" className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            <Eye size={12} /> View
+                          </button>
+                          <button onClick={() => downloadSemester(semModal, semNo, subs)} disabled={!subs.length}
+                            title="Download semester PDF" className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            <Download size={12} /> Download
+                          </button>
+                        </div>
+                      </div>
+                      {expanded && subs.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-white border-b border-gray-100 text-gray-400">
+                                <th className="text-left font-semibold px-4 py-2 w-10">#</th>
+                                <th className="text-left font-semibold px-3 py-2">Paper</th>
+                                <th className="text-left font-semibold px-3 py-2">Code</th>
+                                <th className="text-left font-semibold px-3 py-2">Subject Name</th>
+                                <th className="text-left font-semibold px-3 py-2">Criteria</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {subs.map((r, i) => (
+                                <tr key={i} className={`border-b border-gray-50 ${i % 2 ? 'bg-gray-50/40' : ''}`}>
+                                  <td className="px-4 py-2 text-gray-400">{i + 1}</td>
+                                  <td className="px-3 py-2 text-gray-700">{r.paper_no || '—'}</td>
+                                  <td className="px-3 py-2 text-gray-500">{r.subject_code || '—'}</td>
+                                  <td className="px-3 py-2 font-semibold text-gray-900">{r.subject_name || '—'}</td>
+                                  <td className="px-3 py-2 text-gray-500">{r.criteria || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
