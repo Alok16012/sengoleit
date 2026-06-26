@@ -712,6 +712,15 @@ export default function StudentForm() {
     feeProgramIds === null || feeProgramIds.has(p.id) || p.id === form.programme_id
   )
 
+  // Only departments that have at least one allowed program (fee exists / approved
+  // for this center). Keep the currently-selected department visible in edit mode.
+  const allowedDeptIds = feeProgramIds === null
+    ? null
+    : new Set(programs.filter(p => feeProgramIds.has(p.id)).map(p => p.department_id))
+  const filteredDepartments = departments.filter(d =>
+    allowedDeptIds === null || allowedDeptIds.has(d.id) || d.id === form.department_id
+  )
+
   const selectedProgram = programs.find(p => p.id === form.programme_id)
   const progSemYear = selectedProgram?.semester_year
 
@@ -1213,7 +1222,7 @@ export default function StudentForm() {
                   value={form.department_id}
                   onChange={handleDepartmentChange}
                   disabled={isReadOnly || isLocked('department_id')}
-                  options={departments.map(d => ({ id: d.id, label: d.name }))}
+                  options={filteredDepartments.map(d => ({ id: d.id, label: d.name }))}
                 />
                 <SearchSelect
                   label="Program Name *"
