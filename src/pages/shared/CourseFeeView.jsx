@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Search, ChevronDown, X, AlertCircle, Download } from 'lucide-react'
+import { Search, ChevronDown, X, AlertCircle, Download, Eye } from 'lucide-react'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import { generateCourseFeeListPDF } from '../../utils/generateCourseFeeListPDF'
@@ -138,6 +138,7 @@ export default function CourseFeeView() {
   const [loading,  setLoading]  = useState(false)
   const [searched, setSearched] = useState(false)
   const [errMsg,   setErrMsg]   = useState('')
+  const [viewRow,  setViewRow]  = useState(null)  // course selected for the detailed View modal
 
   // Resolve whether the logged-in user is a center (restrict results) or admin,
   // and derive the dropdown options from the center's allotted+approved courses.
@@ -476,6 +477,7 @@ export default function CourseFeeView() {
                     <Th className="text-right">Entry Fees</Th>
                     <Th className="text-right">Per Sem</Th>
                     <Th className="text-right">Grand Total</Th>
+                    <Th className="text-center">Actions</Th>
                   </tr>
                 </Thead>
                 <Tbody>
@@ -497,6 +499,15 @@ export default function CourseFeeView() {
                       <Td className="text-right font-mono font-semibold text-amber-700 whitespace-nowrap text-xs">{fmt(row.entryTotal)}</Td>
                       <Td className="text-right font-mono font-semibold text-[#933d18] whitespace-nowrap text-xs">{fmt(row.perSem)}</Td>
                       <Td className="text-right font-mono font-black text-gray-900 whitespace-nowrap">{fmt(row.grandTotal)}</Td>
+                      <Td className="text-center">
+                        <button
+                          onClick={() => setViewRow(row)}
+                          title="View"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                        >
+                          <Eye size={12} /> View
+                        </button>
+                      </Td>
                     </Tr>
                   ))}
                 </Tbody>
@@ -509,6 +520,137 @@ export default function CourseFeeView() {
           </div>
         )
       )}
+
+      {viewRow && <FeeViewModal row={viewRow} onClose={() => setViewRow(null)} />}
+    </div>
+  )
+}
+
+// ── Detailed fee-breakdown modal (mirrors the admin Fee Master "View") ───────
+function FeeViewModal({ row, onClose }) {
+  const sems     = row.totalSems || 4
+  const feeItems = row.feeItems || []
+  const entryItems     = feeItems.filter(i => i.category === 'entry')
+  const divideItems    = feeItems.filter(i => i.category === 'divide')
+  const multiply1Items = feeItems.filter(i => i.category === 'multiply')
+  const multiply2Items = feeItems.filter(i => i.category === 'multiply2')
+
+  const entryTotal      = entryItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const divideTotal     = divideItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const dividePerSem    = divideTotal / (sems || 1)
+  const multiply1PerSem = multiply1Items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const multiply2PerSem = multiply2Items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
+  const perSem1         = dividePerSem + multiply1PerSem
+  const perSem          = dividePerSem + multiply1PerSem + multiply2PerSem
+  const grandTotal      = entryTotal + divideTotal + multiply1PerSem * sems + multiply2PerSem * Math.max(sems - 1, 0)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Modal Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="font-black text-gray-900 text-base">{row.programName}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {row.__sessionCount > 1 ? `${row.__sessionCount} sessions` : row.session} &nbsp;•&nbsp; {sems} Semesters
+            </p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-lg hover:bg-gray-100 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Fee Structure Table */}
+        <div className="overflow-auto flex-1 p-4">
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-[#933d18]">
+                    <th className="text-left text-white font-semibold px-4 py-2.5 whitespace-nowrap">Fee Component</th>
+                    <th className="text-center text-white font-semibold px-3 py-2.5">Type</th>
+                    <th className="text-right text-white font-semibold px-3 py-2.5 whitespace-nowrap">Entry</th>
+                    {Array.from({ length: sems }, (_, i) => (
+                      <th key={i} className="text-right text-white font-semibold px-3 py-2.5 whitespace-nowrap">Sem {i + 1}</th>
+                    ))}
+                    <th className="text-right text-white font-semibold px-4 py-2.5 whitespace-nowrap">Course Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entryItems.filter(i => i.label).map((item, idx) => (
+                    <tr key={idx} className={idx % 2 === 0 ? 'bg-amber-50/40' : 'bg-white'}>
+                      <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                      <td className="px-3 py-2 text-center"><span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded text-[10px]">One-time</span></td>
+                      <td className="px-3 py-2 text-right font-semibold text-amber-700">{parseFloat(item.amount) > 0 ? fmt(parseFloat(item.amount)) : '—'}</td>
+                      {Array.from({ length: sems }, (_, i) => <td key={i} className="px-3 py-2 text-right text-gray-300">—</td>)}
+                      <td className="px-4 py-2 text-right font-bold text-gray-800">{parseFloat(item.amount) > 0 ? fmt(parseFloat(item.amount)) : '—'}</td>
+                    </tr>
+                  ))}
+                  {divideItems.filter(i => i.label).map((item, idx) => {
+                    const total = parseFloat(item.amount) || 0
+                    const ps    = sems > 0 ? total / sems : 0
+                    return (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-[#933d18]/5' : 'bg-white'}>
+                        <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                        <td className="px-3 py-2 text-center"><span className="bg-[#933d18]/10 text-[#933d18] font-bold px-2 py-0.5 rounded text-[10px]">÷{sems}</span></td>
+                        <td className="px-3 py-2 text-right text-gray-300">—</td>
+                        {Array.from({ length: sems }, (_, i) => <td key={i} className="px-3 py-2 text-right font-semibold text-[#933d18]">{ps > 0 ? fmt(ps) : '—'}</td>)}
+                        <td className="px-4 py-2 text-right font-bold text-gray-800">{total > 0 ? fmt(total) : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                  {multiply1Items.filter(i => i.label).map((item, idx) => {
+                    const ps = parseFloat(item.amount) || 0
+                    return (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-indigo-50/40' : 'bg-white'}>
+                        <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                        <td className="px-3 py-2 text-center"><span className="bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded text-[10px]">×{sems}</span></td>
+                        <td className="px-3 py-2 text-right text-gray-300">—</td>
+                        {Array.from({ length: sems }, (_, i) => <td key={i} className="px-3 py-2 text-right font-semibold text-indigo-700">{ps > 0 ? fmt(ps) : '—'}</td>)}
+                        <td className="px-4 py-2 text-right font-bold text-gray-800">{ps > 0 ? fmt(ps * sems) : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                  {multiply2Items.filter(i => i.label).map((item, idx) => {
+                    const ps = parseFloat(item.amount) || 0
+                    return (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-purple-50/40' : 'bg-white'}>
+                        <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
+                        <td className="px-3 py-2 text-center"><span className="bg-purple-100 text-purple-700 font-bold px-2 py-0.5 rounded text-[10px]">Sem 2+</span></td>
+                        <td className="px-3 py-2 text-right text-gray-300">—</td>
+                        <td className="px-3 py-2 text-right text-gray-300">—</td>
+                        {Array.from({ length: sems - 1 }, (_, i) => <td key={i} className="px-3 py-2 text-right font-semibold text-purple-700">{ps > 0 ? fmt(ps) : '—'}</td>)}
+                        <td className="px-4 py-2 text-right font-bold text-gray-800">{ps > 0 ? fmt(ps * Math.max(sems - 1, 0)) : '—'}</td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-800">
+                    <td className="px-4 py-3 font-black text-white">TOTAL</td>
+                    <td className="px-3 py-3"></td>
+                    <td className="px-3 py-3 text-right font-black text-amber-300">{entryTotal > 0 ? fmt(entryTotal) : '—'}</td>
+                    {Array.from({ length: sems }, (_, i) => {
+                      const semAmt = i === 0 ? entryTotal + perSem1 : perSem
+                      return <td key={i} className="px-3 py-3 text-right font-black text-white">{fmt(semAmt)}</td>
+                    })}
+                    <td className="px-4 py-3 text-right font-black text-emerald-400">{fmt(grandTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Summary bar */}
+          <div className="flex flex-wrap gap-5 mt-3 px-1 text-xs">
+            <span className="text-gray-500">Entry: <strong className="text-amber-700">{fmt(entryTotal)}</strong></span>
+            <span className="text-gray-500">Univ. Fee/sem: <strong className="text-[#933d18]">{fmt(dividePerSem)}</strong></span>
+            <span className="text-gray-500">Sem 1: <strong className="text-indigo-700">{fmt(entryTotal + perSem1)}</strong></span>
+            <span className="text-gray-500">Sem 2+: <strong className="text-purple-700">{fmt(perSem)}</strong></span>
+            <span className="text-gray-500">Grand Total: <strong className="text-[#933d18] text-sm">{fmt(grandTotal)}</strong></span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
