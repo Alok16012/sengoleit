@@ -151,12 +151,27 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const { data, error } = await supabase
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)'
+    // Minimal fallback used when the exam-result / admit-card columns have not
+    // been created yet (run_all_migrations.sql not applied). The forwarded
+    // students still appear; only the result/release features stay inactive.
+    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, exam_forwarded_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)'
+
+    let { data, error } = await supabase
       .from('students')
-      .select('id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .select(FULL)
       .not('exam_forwarded_at', 'is', null)
       .order('exam_forwarded_at', { ascending: false })
-    if (error) console.error('ExamSection fetch error:', error)
+
+    if (error) {
+      console.error('ExamSection fetch error (full select), retrying minimal:', error)
+      ;({ data, error } = await supabase
+        .from('students')
+        .select(MIN)
+        .not('exam_forwarded_at', 'is', null)
+        .order('exam_forwarded_at', { ascending: false }))
+      if (error) console.error('ExamSection fetch error (minimal select):', error)
+    }
     setData(data || [])
     setLoading(false)
   }
