@@ -7,6 +7,14 @@ import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, B
 let _k = 0
 const uid = () => ++_k
 
+/* Semester count derived from the program (matches Programs page SEM/YEAR). */
+const calcSemesters = (p) => {
+  if (!p) return 0
+  if (!p.duration) return 0
+  if (p.semester_year === 'Year') return p.duration * 2
+  return p.duration   // 'Semester' or default
+}
+
 /* Searchable single-select dropdown. value 'all' = show everything. */
 function SearchableSelect({ label, allLabel, value, onChange, options, minWidth = 170 }) {
   const [open, setOpen] = useState(false)
@@ -159,7 +167,7 @@ export default function Syllabus() {
     setLoading(true)
     const [fs, pr, dp, pt, se, cc, sy] = await Promise.all([
       supabase.from('fee_structures').select('id, total_semesters, program_id, session_id, programs(program_name), academic_sessions(session_name)').order('created_at', { ascending: false }),
-      supabase.from('programs').select('id, department_id, programme_type_id'),
+      supabase.from('programs').select('id, department_id, programme_type_id, duration, semester_year'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('programme_types').select('id, programme_type_name').order('programme_type_name'),
       supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false }),
@@ -268,7 +276,7 @@ export default function Syllabus() {
     setSaving(false); setSaved(true)
   }
 
-  const totalSems = active?.total_semesters || 8
+  const totalSems = (active ? calcSemesters(progMap[active.program_id]) : 0) || active?.total_semesters || 8
 
   /* ═══════════════ EDITOR VIEW ═══════════════ */
   if (active) {
@@ -285,7 +293,7 @@ export default function Syllabus() {
               <BookOpen size={17} className="text-[#933d18]" /> {active.programs?.program_name || '—'}
             </div>
             <span className="text-gray-500 text-xs">{active.academic_sessions?.session_name || 'All Sessions'}</span>
-            <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{active.total_semesters} Sem</span>
+            <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{totalSems} Sem</span>
           </div>
         </div>
 
