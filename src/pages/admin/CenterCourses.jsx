@@ -112,7 +112,11 @@ export default function CenterCourses() {
     .filter(c => !cq || (c.center_name || '').toLowerCase().includes(cq) || (c.center_code || '').toLowerCase().includes(cq))
 
   // ── Catalog (Add Course) ──
+  // A course+session that is already allotted to this center (pending OR
+  // approved) is hidden from the Add panel — manage it from the Pending /
+  // Approved tabs instead. This keeps "Add Course" to only NEW courses.
   const catalogFiltered = structs.filter(s => {
+    if (allot[s.id]) return false   // already added (session-wise) — don't show again
     const prog = progMap[s.program_id]
     if (fDept !== 'all' && prog?.department_id !== fDept) return false
     if (fType !== 'all' && prog?.programme_type_id !== fType) return false
@@ -460,8 +464,8 @@ export default function CenterCourses() {
                 {catalogDisplay.length === 0 ? (
                   <tr><td colSpan={6} className="text-center text-gray-400 py-12">
                     {catalogFilterActive
-                      ? 'No courses match these filters — try clearing them.'
-                      : 'No courses available.'}
+                      ? 'No new courses match these filters — they may already be allotted (see the Pending / Approved tabs), or try clearing filters.'
+                      : 'No new courses to add — all available courses are already allotted to this center.'}
                   </td></tr>
                 ) : catalogDisplay.map((s, i) => {
                   if (s.__programOnly) {
