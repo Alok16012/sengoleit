@@ -141,6 +141,9 @@ export default function Syllabus() {
   // add-course picker modal
   const [picker, setPicker]   = useState(false)
   const [pickQ, setPickQ]     = useState('')
+  const [mDept, setMDept]     = useState('all')
+  const [mType, setMType]     = useState('all')
+  const [mSession, setMSession] = useState('all')
 
   // editor
   const [active, setActive]   = useState(null)   // selected fee_structure (course)
@@ -414,31 +417,51 @@ export default function Syllabus() {
             <X size={14} /> Clear
           </button>
         )}
-        <button onClick={() => { setPicker(true); setPickQ('') }}
+        <button onClick={() => { setPicker(true); setPickQ(''); setMDept('all'); setMType('all'); setMSession('all') }}
           className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold text-white bg-[#933d18] hover:bg-[#7a3215] rounded-xl transition-colors ml-auto">
           <Plus size={15} /> Add
         </button>
       </div>
 
       {picker && (
-        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-24" onClick={() => setPicker(false)}>
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-20" onClick={() => setPicker(false)}>
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
               <h3 className="font-bold text-gray-800 flex items-center gap-2"><Plus size={16} className="text-[#933d18]" /> Add Syllabus — pick a course</h3>
               <button onClick={() => setPicker(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
             </div>
-            <div className="relative p-3 border-b border-gray-100">
-              <Search size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input autoFocus value={pickQ} onChange={e => setPickQ(e.target.value)} placeholder="Search course by program or session..."
-                className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-[#933d18]" />
+            <div className="p-4 border-b border-gray-100 bg-gray-50/60">
+              <div className="relative mb-3">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input autoFocus value={pickQ} onChange={e => setPickQ(e.target.value)} placeholder="Search by program or session..."
+                  className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18]" />
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <SearchableSelect label="Department" allLabel="All Departments" minWidth={180}
+                  value={mDept} onChange={setMDept}
+                  options={departments.map(d => ({ id: d.id, label: d.name }))} />
+                <SearchableSelect label="Program Type" allLabel="All Types" minWidth={150}
+                  value={mType} onChange={setMType}
+                  options={progTypes.map(t => ({ id: t.id, label: t.programme_type_name }))} />
+                <SearchableSelect label="Session" allLabel="All Sessions" minWidth={150}
+                  value={mSession} onChange={setMSession}
+                  options={sessions.map(s => ({ id: s.id, label: s.session_name }))} />
+              </div>
             </div>
-            <div className="max-h-80 overflow-y-auto p-2">
+            <div className="max-h-72 overflow-y-auto p-2">
               {(() => {
                 const q = pickQ.toLowerCase()
-                const list = approvedCourses.filter(s => !q || (
-                  (s.programs?.program_name || '').toLowerCase().includes(q) ||
-                  (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
-                ))
+                const list = approvedCourses.filter(s => {
+                  const prog = progMap[s.program_id]
+                  if (mDept !== 'all' && prog?.department_id !== mDept) return false
+                  if (mType !== 'all' && prog?.programme_type_id !== mType) return false
+                  if (mSession !== 'all' && s.session_id !== mSession) return false
+                  if (q && !(
+                    (s.programs?.program_name || '').toLowerCase().includes(q) ||
+                    (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
+                  )) return false
+                  return true
+                })
                 if (approvedCourses.length === 0) return <div className="px-3 py-8 text-center text-sm text-gray-400">No approved courses yet. Approve courses in Fee Management → Center Courses first.</div>
                 if (list.length === 0) return <div className="px-3 py-8 text-center text-sm text-gray-400">No courses match.</div>
                 return list.map(s => {
