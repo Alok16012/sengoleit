@@ -6,7 +6,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X } from 'lucide-react'
+import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X, Award } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
@@ -33,6 +33,7 @@ export default function StudentListReport({ status }) {
   const [myCenterId, setMyCenterId] = useState(null)
   const [forwardModal, setForwardModal] = useState(null) // { student, courseFee, discount, net, balance, loading }
   const [forwarding, setForwarding] = useState(false)
+  const [resultStudent, setResultStudent] = useState(null)
 
   const meta = STATUS_META[status] || { color: 'gray', label: status + ' Students', desc: '' }
 
@@ -61,7 +62,7 @@ export default function StudentListReport({ status }) {
 
     let q = supabase
       .from('students')
-      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, admit_card_released_at, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
+      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
       .in('center_id', centerIds)
 
     // Stage routing:
@@ -423,6 +424,17 @@ export default function StudentListReport({ status }) {
                             <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-admit` ? '...' : 'Admit Card'}</span>
                           </Button>
                         )}
+                        {s.exam_result_status && s.exam_result_status !== 'Pending' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setResultStudent(s)}
+                            title="View Result"
+                          >
+                            <Award size={14} className={s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
+                            <span className={`text-xs ml-1 ${s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'}`}>Result</span>
+                          </Button>
+                        )}
                       </>
                     )}
                   </div>
@@ -496,6 +508,60 @@ export default function StudentListReport({ status }) {
           </div>
         </div>
       )}
+
+      {resultStudent && (
+        <ResultViewModal student={resultStudent} onClose={() => setResultStudent(null)} />
+      )}
+    </div>
+  )
+}
+
+function ResultViewModal({ student, onClose }) {
+  const pct = (o, t) => (o && t ? `${((Number(o) / Number(t)) * 100).toFixed(1)}%` : '—')
+  const pass = student.exam_result_status === 'Pass'
+  const Field = ({ label, value }) => (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+      <p className="text-sm font-bold text-gray-800">{value}</p>
+    </div>
+  )
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Award size={18} className={pass ? 'text-emerald-600' : 'text-red-500'} />
+            <div>
+              <h3 className="font-bold text-gray-900 leading-tight">Exam Result</h3>
+              <p className="text-xs text-gray-400">{student.student_name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">Status</span>
+            <span className={`text-xs font-black px-3 py-1 rounded-lg ${pass ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+              {student.exam_result_status}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Obtained Marks" value={student.exam_result_obtained_marks ?? '—'} />
+            <Field label="Total Marks" value={student.exam_result_total_marks ?? '—'} />
+            <Field label="Percentage" value={pct(student.exam_result_obtained_marks, student.exam_result_total_marks)} />
+            <Field label="Declared On" value={student.exam_result_declared_at ? new Date(student.exam_result_declared_at).toLocaleDateString() : '—'} />
+          </div>
+          {student.exam_result_remarks && (
+            <p className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2">"{student.exam_result_remarks}"</p>
+          )}
+          {student.exam_result_marksheet_url && (
+            <a href={student.exam_result_marksheet_url} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
+              <Download size={14} /> Download Marksheet
+            </a>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
