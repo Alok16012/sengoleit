@@ -53,9 +53,11 @@ CREATE TABLE IF NOT EXISTS syllabus_subjects (
   paper_no     text,
   subject_code text,
   subject_name text,
+  pdf_url      text,
   sort_order   integer NOT NULL DEFAULT 0,
   created_at   timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE syllabus_subjects ADD COLUMN IF NOT EXISTS pdf_url text;
 CREATE INDEX IF NOT EXISTS idx_syllabus_program ON syllabus_subjects(program_id);
 CREATE INDEX IF NOT EXISTS idx_syllabus_session ON syllabus_subjects(session_id);
 

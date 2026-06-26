@@ -10,11 +10,15 @@ CREATE TABLE IF NOT EXISTS syllabus_subjects (
   paper_no     text,
   subject_code text,
   subject_name text,
+  pdf_url      text,           -- full subject-detail PDF
   sort_order   integer NOT NULL DEFAULT 0,
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_syllabus_program ON syllabus_subjects(program_id);
 CREATE INDEX IF NOT EXISTS idx_syllabus_session ON syllabus_subjects(session_id);
+
+-- If the table already existed, make sure the PDF column is present.
+ALTER TABLE syllabus_subjects ADD COLUMN IF NOT EXISTS pdf_url text;
 
 SELECT 'syllabus_subjects ready' AS result;

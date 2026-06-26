@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react'
+import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen, Upload, FileText, Eye } from 'lucide-react'
 
 let _k = 0
 const uid = () => ++_k
@@ -29,6 +29,7 @@ export default function Syllabus() {
   const [editorLoading, setEditorLoading] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [saved, setSaved]     = useState(false)
+  const [uploadingKey, setUploadingKey] = useState(null)
 
   useEffect(() => { loadAll() }, [])
 
@@ -84,7 +85,7 @@ export default function Syllabus() {
   async function openCourse(s) {
     setActive(s); setSaved(false); setEditorLoading(true)
     let q = supabase.from('syllabus_subjects')
-      .select('id, semester, paper_no, subject_code, subject_name, sort_order')
+      .select('id, semester, paper_no, subject_code, subject_name, pdf_url, sort_order')
       .eq('program_id', s.program_id)
     q = s.session_id ? q.eq('session_id', s.session_id) : q.is('session_id', null)
     const { data } = await q.order('sort_order', { ascending: true })
@@ -94,12 +95,24 @@ export default function Syllabus() {
   }
 
   function blankRow() {
-    return { _key: uid(), semester: 1, paper_no: '', subject_code: '', subject_name: '' }
+    return { _key: uid(), semester: 1, paper_no: '', subject_code: '', subject_name: '', pdf_url: '' }
   }
 
   const addRow = () => setRows(p => [...p, blankRow()])
   const updRow = (key, field, val) => setRows(p => p.map(r => r._key === key ? { ...r, [field]: val } : r))
   const delRow = (key) => setRows(p => p.filter(r => r._key !== key))
+
+  async function uploadPdf(key, file) {
+    if (!file) return
+    setUploadingKey(key)
+    const ext = (file.name.split('.').pop() || 'pdf').toLowerCase()
+    const path = `syllabus/${active.program_id}_${active.session_id || 'all'}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`
+    const { error } = await supabase.storage.from('documents').upload(path, file, { upsert: true })
+    if (error) { alert('Upload failed: ' + error.message); setUploadingKey(null); return }
+    const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path)
+    updRow(key, 'pdf_url', publicUrl)
+    setUploadingKey(null)
+  }
 
   async function handleSave() {
     if (!active) return
@@ -122,6 +135,7 @@ export default function Syllabus() {
           paper_no: (r.paper_no || '').trim() || null,
           subject_code: (r.subject_code || '').trim() || null,
           subject_name: (r.subject_name || '').trim() || null,
+          pdf_url: (r.pdf_url || '').trim() || null,
           sort_order: idx,
         }))
       )
@@ -172,7 +186,8 @@ export default function Syllabus() {
                     <th className="text-left text-white font-semibold px-4 py-3 w-32">Paper No</th>
                     <th className="text-left text-white font-semibold px-4 py-3 w-40">Subject Code</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Subject Name</th>
-                    <th className="text-center text-white font-semibold px-4 py-3 w-12"></th>
+                    <th className="text-center text-white font-semibold px-4 py-3 w-44">Detail PDF</th>
+                    <th className="text-center text-white font-semibold px-4 py-3 w-20">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -202,8 +217,34 @@ export default function Syllabus() {
                           placeholder="Subject name"
                           className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#933d18]" />
                       </td>
+                      <td className="px-4 py-2">
+                        {r.pdf_url ? (
+                          <div className="flex items-center gap-1.5">
+                            <a href={r.pdf_url} target="_blank" rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded-lg transition-colors">
+                              <Eye size={12} /> View
+                            </a>
+                            <label className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-2 py-1.5 rounded-lg cursor-pointer transition-colors">
+                              <Upload size={12} /> {uploadingKey === r._key ? '...' : 'Replace'}
+                              <input type="file" accept="application/pdf,image/*" className="hidden"
+                                onChange={e => { uploadPdf(r._key, e.target.files?.[0]); e.target.value = '' }} />
+                            </label>
+                            <button onClick={() => updRow(r._key, 'pdf_url', '')} title="Remove PDF"
+                              className="text-red-300 hover:text-red-500"><X size={14} /></button>
+                          </div>
+                        ) : (
+                          <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 border border-dashed border-gray-300 hover:border-[#933d18] hover:text-[#933d18] px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors">
+                            <FileText size={13} /> {uploadingKey === r._key ? 'Uploading...' : 'Upload PDF'}
+                            <input type="file" accept="application/pdf,image/*" className="hidden"
+                              onChange={e => { uploadPdf(r._key, e.target.files?.[0]); e.target.value = '' }} />
+                          </label>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-center">
-                        <button onClick={() => delRow(r._key)} className="text-red-300 hover:text-red-500"><Trash2 size={14} /></button>
+                        <button onClick={() => delRow(r._key)} title="Delete subject"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                          <Trash2 size={13} /> Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
