@@ -315,7 +315,7 @@ export default function StudentListReport({ status }) {
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{s.programs?.program_name || '—'}</Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">
                   {s.semester_year
-                    ? `${s.programs?.semester_year === 'Year' ? 'Year' : 'Sem'} ${s.semester_year}`
+                    ? `${String(s.semester_year).replace(/\s*(semesters?|sems?|years?)\s*/gi, '').trim() || s.semester_year} ${s.programs?.semester_year === 'Year' ? 'Year' : 'Sem'}`
                     : '—'}
                 </Td>
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
