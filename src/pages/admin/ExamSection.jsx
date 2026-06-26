@@ -4,6 +4,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock } from 'lucide-react'
+import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
@@ -158,8 +159,26 @@ export default function ExamSection() {
   const [examSchedule, setExamSchedule] = useState('')
   const [admitCardTime, setAdmitCardTime] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Course filters (same as Syllabus): Department / Program Type / Session.
+  const [departments, setDepartments] = useState([])
+  const [progTypes, setProgTypes] = useState([])
+  const [sessions, setSessions] = useState([])
+  const [fDept, setFDept] = useState('all')
+  const [fType, setFType] = useState('all')
+  const [fSession, setFSession] = useState([])   // multi-select; [] = all
 
-  useEffect(() => { fetchData(); loadSettings() }, [])
+  useEffect(() => { fetchData(); loadSettings(); loadFilterOptions() }, [])
+
+  async function loadFilterOptions() {
+    const [dp, pt, se] = await Promise.all([
+      supabase.from('departments').select('id, name').order('name'),
+      supabase.from('programme_types').select('id, programme_type_name').order('programme_type_name'),
+      supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false }),
+    ])
+    setDepartments(dp.data || [])
+    setProgTypes(pt.data || [])
+    setSessions(se.data || [])
+  }
 
   async function loadSettings() {
     const { data, error } = await supabase
@@ -187,11 +206,11 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)'
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, department_id, programme_type_id), academic_sessions(session_name), centers(center_name, center_code)'
     // Minimal fallback used when the exam-result / admit-card columns have not
     // been created yet (run_all_migrations.sql not applied). The forwarded
     // students still appear; only the result/release features stay inactive.
-    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, exam_forwarded_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)'
+    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id), academic_sessions(session_name), centers(center_name, center_code)'
 
     let { data, error } = await supabase
       .from('students')
@@ -257,6 +276,9 @@ export default function ExamSection() {
   const admitLocked = !!(admitLockedUntil && !isNaN(admitLockedUntil.getTime()) && Date.now() < admitLockedUntil.getTime())
 
   const filtered = data.filter(s => {
+    if (fDept !== 'all' && s.programs?.department_id !== fDept) return false
+    if (fType !== 'all' && s.programs?.programme_type_id !== fType) return false
+    if (fSession.length > 0 && (!s.session_id || !fSession.includes(s.session_id))) return false
     const haystack = [
       s.student_name, s.enrollment_no, s.registration_no, s.mobile_no,
       s.programs?.program_name, s.academic_sessions?.session_name,
@@ -264,6 +286,9 @@ export default function ExamSection() {
     ].filter(Boolean).join(' ').toLowerCase()
     return haystack.includes(search.toLowerCase())
   })
+
+  const filterActive = !!search || fDept !== 'all' || fType !== 'all' || fSession.length > 0
+  const clearFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSession([]) }
 
   return (
     <div className="p-6">
@@ -303,8 +328,17 @@ export default function ExamSection() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {search && (
-          <button onClick={() => setSearch('')}
+        <SearchableSelect label="Department" allLabel="All Departments" minWidth={180}
+          value={fDept} onChange={setFDept}
+          options={departments.map(d => ({ id: d.id, label: d.name }))} />
+        <SearchableSelect label="Program Type" allLabel="All Types" minWidth={150}
+          value={fType} onChange={setFType}
+          options={progTypes.map(t => ({ id: t.id, label: t.programme_type_name }))} />
+        <MultiSearchSelect label="Session" allLabel="All Sessions" minWidth={160}
+          values={fSession} onChange={setFSession}
+          options={sessions.map(se => ({ id: se.id, label: se.session_name }))} />
+        {filterActive && (
+          <button onClick={clearFilters}
             className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
             <X size={14} /> Clear
           </button>
