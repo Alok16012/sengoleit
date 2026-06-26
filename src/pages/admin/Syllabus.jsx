@@ -169,7 +169,7 @@ export default function Syllabus() {
     setLoading(true)
     const [fs, pr, dp, pt, se, cc, sy] = await Promise.all([
       supabase.from('fee_structures').select('id, total_semesters, program_id, session_id, programs(program_name), academic_sessions(session_name)').order('created_at', { ascending: false }),
-      supabase.from('programs').select('id, department_id, programme_type_id, duration, semester_year'),
+      supabase.from('programs').select('id, program_name, department_id, programme_type_id, duration, semester_year'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('programme_types').select('id, programme_type_name').order('programme_type_name'),
       supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false }),
@@ -228,8 +228,21 @@ export default function Syllabus() {
   const progMap = Object.fromEntries(programs.map(p => [p.id, p]))
   const keyOf = s => `${s.program_id}__${s.session_id || 'null'}`
 
-  // Show every course from Fee Management; an Approved/Pending badge marks status.
-  const approvedCourses = structs
+  // Show every course. Fee-structure courses keep their session; programs that
+  // have NO fee structure (e.g. B.Com) are added as "All Sessions" rows so they
+  // can still get a syllabus.
+  const structProgramIds = new Set(structs.map(s => s.program_id))
+  const programOnlyCourses = programs
+    .filter(p => !structProgramIds.has(p.id))
+    .map(p => ({
+      id: `prog_${p.id}`,
+      program_id: p.id,
+      session_id: null,
+      total_semesters: calcSemesters(p),
+      programs: { program_name: p.program_name },
+      academic_sessions: null,
+    }))
+  const approvedCourses = [...structs, ...programOnlyCourses]
 
   const filtered = approvedCourses.filter(s => {
     const prog = progMap[s.program_id]
