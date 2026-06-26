@@ -80,6 +80,23 @@ function SearchableSelect({ options, value, onChange, placeholder = 'All', label
 }
 
 // ── Fee calculation ─────────────────────────────────────────────────────────
+// Same maths as the admin Fee Master so the numbers line up exactly.
+function calcTotals(feeItems, totalSems) {
+  const sems = totalSems || 1
+  let entryTotal = 0, divideTotal = 0, multiplyPerSem = 0, multiply2PerSem = 0
+  ;(feeItems || []).forEach(i => {
+    const a = parseFloat(i.amount) || 0
+    if (i.category === 'entry')     entryTotal      += a
+    if (i.category === 'divide')    divideTotal     += a
+    if (i.category === 'multiply')  multiplyPerSem  += a
+    if (i.category === 'multiply2') multiply2PerSem += a
+  })
+  const dividePerSem = divideTotal / sems
+  const perSem       = dividePerSem + multiplyPerSem + multiply2PerSem  // Sem 2+ recurring
+  const grandTotal   = entryTotal + divideTotal + multiplyPerSem * sems + multiply2PerSem * Math.max(sems - 1, 0)
+  return { entryTotal, perSem, grandTotal }
+}
+
 function semFee(feeItems, semIndex, totalSems) {
   let total = 0
   ;(feeItems || []).forEach(item => {
@@ -293,7 +310,8 @@ export default function CourseFeeView() {
       const typeMap = Object.fromEntries(progTypes.map(t => [t.id, t.programme_type_name]))
       const modeMap = Object.fromEntries(modes.map(m => [m.id, m.mode_name]))
 
-      // Step 5: build rows
+      // Step 5: build ONE row per fee structure (program + session). The on-screen
+      // table groups these by course; the PDF expands them per semester.
       const rows = []
       fsList.forEach(fs => {
         const prog = progMap[fs.program_id]
@@ -304,18 +322,19 @@ export default function CourseFeeView() {
         const totalSems = fs.total_semesters ||
           (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
 
-        for (let i = 0; i < totalSems; i++) {
-          rows.push({
-            key:         `${fs.id}-${i}`,
-            session:     sess?.session_name              || '—',
-            department:  deptMap[prog.department_id]     || '—',
-            progType:    typeMap[prog.programme_type_id] || '—',
-            mode:        modeMap[prog.mode_id]           || '—',
-            programName: prog.program_name               || '—',
-            semester:    `Semester ${i + 1}`,
-            fee:         semFee(feeItems, i, totalSems),
-          })
-        }
+        rows.push({
+          key:           fs.id,
+          program_id:    fs.program_id,
+          session_id:    fs.session_id,
+          session:       sess?.session_name              || 'All Sessions',
+          department:    deptMap[prog.department_id]     || '—',
+          progType:      typeMap[prog.programme_type_id] || '—',
+          mode:          modeMap[prog.mode_id]           || '—',
+          programName:   prog.program_name               || '—',
+          feeItems,
+          totalSems,
+          feeComponents: feeItems.length,
+        })
       })
 
       setResults(rows)
@@ -325,7 +344,30 @@ export default function CourseFeeView() {
     setLoading(false)
   }
 
-  const grandTotal = results.reduce((s, r) => s + r.fee, 0)
+  // Group the per-session fee rows into ONE row per course (program), exactly
+  // like the admin Fee Master. Representative = first matching structure.
+  const byProgram = new Map()
+  results.forEach(r => {
+    if (!byProgram.has(r.program_id)) byProgram.set(r.program_id, [])
+    byProgram.get(r.program_id).push(r)
+  })
+  const groupedRows = [...byProgram.values()].map(list => {
+    const rep = list[0]
+    return { ...rep, __sessionCount: list.length, ...calcTotals(rep.feeItems, rep.totalSems) }
+  })
+  const grandTotal = groupedRows.reduce((s, g) => s + g.grandTotal, 0)
+
+  // Expand the (grouped) representative structures back to per-semester rows for
+  // the detailed PDF export.
+  const buildPdfRows = () => {
+    const out = []
+    groupedRows.forEach(g => {
+      for (let i = 0; i < g.totalSems; i++) {
+        out.push({ programName: g.programName, semester: `Semester ${i + 1}`, fee: semFee(g.feeItems, i, g.totalSems) })
+      }
+    })
+    return out
+  }
 
   // For a center, dropdown options cascade off the other selected filters so
   // that, e.g., picking a session only offers departments allotted in it.
@@ -408,9 +450,9 @@ export default function CourseFeeView() {
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-bold text-gray-800">Fee Structure</h3>
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg font-semibold">{results.length} rows</span>
+                <span className="text-xs text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg font-semibold">{groupedRows.length} course{groupedRows.length !== 1 ? 's' : ''}</span>
                 <button
-                  onClick={() => generateCourseFeeListPDF(results, {
+                  onClick={() => generateCourseFeeListPDF(buildPdfRows(), {
                     session:    sessions.find(s    => s.id === selSession)?.session_name,
                     department: departments.find(d => d.id === selDept)?.name,
                     progType:   progTypes.find(t   => t.id === selType)?.programme_type_name,
@@ -429,17 +471,32 @@ export default function CourseFeeView() {
                   <tr>
                     <Th>S.No</Th>
                     <Th>Program Name</Th>
-                    <Th>Sem</Th>
-                    <Th>Fee</Th>
+                    <Th>Session</Th>
+                    <Th className="text-center">Semesters</Th>
+                    <Th className="text-right">Entry Fees</Th>
+                    <Th className="text-right">Per Sem</Th>
+                    <Th className="text-right">Grand Total</Th>
                   </tr>
                 </Thead>
                 <Tbody>
-                  {results.map((row, i) => (
+                  {groupedRows.map((row, i) => (
                     <Tr key={row.key}>
                       <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                      <Td className="font-semibold text-gray-900">{row.programName}</Td>
-                      <Td className="text-gray-500 text-xs whitespace-nowrap">{row.semester}</Td>
-                      <Td className="font-mono font-bold text-[#933d18] whitespace-nowrap">{fmt(row.fee)}</Td>
+                      <Td>
+                        <span className="font-semibold text-gray-900">{row.programName}</span>
+                        <span className="block text-[11px] text-gray-400">{row.feeComponents} fee components</span>
+                      </Td>
+                      <Td className="text-gray-500 text-xs whitespace-nowrap">
+                        {row.__sessionCount > 1
+                          ? <span className="bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">{row.__sessionCount} sessions</span>
+                          : row.session}
+                      </Td>
+                      <Td className="text-center">
+                        <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full whitespace-nowrap">{row.totalSems} Sem</span>
+                      </Td>
+                      <Td className="text-right font-mono font-semibold text-amber-700 whitespace-nowrap text-xs">{fmt(row.entryTotal)}</Td>
+                      <Td className="text-right font-mono font-semibold text-[#933d18] whitespace-nowrap text-xs">{fmt(row.perSem)}</Td>
+                      <Td className="text-right font-mono font-black text-gray-900 whitespace-nowrap">{fmt(row.grandTotal)}</Td>
                     </Tr>
                   ))}
                 </Tbody>
