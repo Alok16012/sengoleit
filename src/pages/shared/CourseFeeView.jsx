@@ -234,7 +234,24 @@ export default function CourseFeeView() {
     if (selProg && !inMode.some(r => r.program_id === selProg)) setSelProg('')
   }, [allotRows, selSession, selDept, selType, selMode, selProg])
 
+  // All five filters are mandatory — the user must pick a specific value in
+  // each box before a search can run.
+  const missingFilters = [
+    !selSession && 'Session',
+    !selDept    && 'Department',
+    !selType    && 'Program Type',
+    !selMode    && 'Mode',
+    !selProg    && 'Program Name',
+  ].filter(Boolean)
+
   async function handleSearch() {
+    if (missingFilters.length) {
+      setSearched(false)
+      setResults([])
+      setErrMsg(`Please select: ${missingFilters.join(', ')}`)
+      return
+    }
+
     setLoading(true)
     setSearched(true)
     setResults([])
@@ -413,21 +430,27 @@ export default function CourseFeeView() {
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-          <SearchableSelect label="Session"      options={sessionOpts} value={selSession} onChange={v => { setSelSession(v); if (isCenter) { setSelDept(''); setSelType(''); setSelMode(''); setSelProg('') } }} placeholder="All Sessions" />
-          <SearchableSelect label="Department"   options={deptOpts}    value={selDept}    onChange={v => { setSelDept(v); setSelType(''); setSelMode(''); setSelProg('') }} placeholder="All Departments" />
-          <SearchableSelect label="Program Type" options={typeOpts}    value={selType}    onChange={v => { setSelType(v); setSelProg('') }} placeholder="All Types" />
-          <SearchableSelect label="Mode"         options={modeOpts}    value={selMode}    onChange={v => { setSelMode(v); setSelProg('') }} placeholder="All Modes" />
-          <SearchableSelect label="Program Name" options={programOpts} value={selProg}    onChange={setSelProg} placeholder="All Programs" />
+          <SearchableSelect label="Session *"      options={sessionOpts} value={selSession} onChange={v => { setSelSession(v); if (isCenter) { setSelDept(''); setSelType(''); setSelMode(''); setSelProg('') } }} placeholder="Select Session" />
+          <SearchableSelect label="Department *"   options={deptOpts}    value={selDept}    onChange={v => { setSelDept(v); setSelType(''); setSelMode(''); setSelProg('') }} placeholder="Select Department" />
+          <SearchableSelect label="Program Type *" options={typeOpts}    value={selType}    onChange={v => { setSelType(v); setSelProg('') }} placeholder="Select Program Type" />
+          <SearchableSelect label="Mode *"         options={modeOpts}    value={selMode}    onChange={v => { setSelMode(v); setSelProg('') }} placeholder="Select Mode" />
+          <SearchableSelect label="Program Name *" options={programOpts} value={selProg}    onChange={setSelProg} placeholder="Select Program" />
         </div>
 
         <button
           onClick={handleSearch}
-          disabled={loading}
-          className="flex items-center gap-2 px-6 py-2.5 bg-[#933d18] text-white rounded-xl text-sm font-bold hover:bg-[#b05a30] active:scale-[0.98] transition-all disabled:opacity-60"
+          disabled={loading || missingFilters.length > 0}
+          title={missingFilters.length ? `Please select: ${missingFilters.join(', ')}` : 'Search'}
+          className="flex items-center gap-2 px-6 py-2.5 bg-[#933d18] text-white rounded-xl text-sm font-bold hover:bg-[#b05a30] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
         >
           <Search size={15} />
           {loading ? 'Searching...' : 'Search'}
         </button>
+        {missingFilters.length > 0 && (
+          <p className="mt-2 text-xs text-gray-400">
+            All filters are required — please select: <span className="font-semibold text-[#933d18]">{missingFilters.join(', ')}</span>
+          </p>
+        )}
       </div>
 
       {/* Error */}
