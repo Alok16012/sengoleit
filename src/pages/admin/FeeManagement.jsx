@@ -123,6 +123,20 @@ export default function FeeManagement() {
     setTab('editor')
   }
 
+  // Open a fresh editor pre-selected for a program that has no fee structure yet.
+  function openEditorForProgram(pid) {
+    const prog = programs.find(p => p.id === pid)
+    setDeptId(prog?.department_id || '')
+    setTypeId(prog?.programme_type_id || '')
+    setSelectedProgIds(new Set([pid]))
+    setSelectedSessIds(new Set())
+    setTotalSems(prog?.duration ? (prog.semester_year === 'Year' ? prog.duration * 2 : prog.duration) : 4)
+    setIsEditMode(false)
+    setItems(keyed(DEFAULTS))
+    setSaved(false)
+    setTab('editor')
+  }
+
   // Auto-load when exactly 1 program is selected (fresh, not edit mode)
   useEffect(() => {
     if (tab !== 'editor' || isEditMode) return
@@ -318,15 +332,34 @@ export default function FeeManagement() {
                 )) return false
                 return true
               })
+              // Programs that have NO fee structure yet — show them too so every
+              // course is visible/searchable (e.g. B.Com without a fee structure).
+              const structProgramIds = new Set(masterList.map(s => s.program_id))
+              const programRows = programs
+                .filter(p => !structProgramIds.has(p.id))
+                .filter(p => {
+                  if (masterDept !== 'all' && p.department_id !== masterDept) return false
+                  if (masterType !== 'all' && p.programme_type_id !== masterType) return false
+                  if (q && !(p.program_name || '').toLowerCase().includes(q)) return false
+                  return true
+                })
+                .map(p => ({
+                  __programOnly: true,
+                  id: `prog_${p.id}`,
+                  program_id: p.id,
+                  total_semesters: p.duration ? (p.semester_year === 'Year' ? p.duration * 2 : p.duration) : null,
+                  programs: { program_name: p.program_name },
+                }))
+              const allRows = [...filtered, ...programRows]
               return (
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-              {filtered.length === 0 && (masterSearch || masterDept !== 'all' || masterType !== 'all' || masterSession !== 'all') && (
+              {allRows.length === 0 && (masterSearch || masterDept !== 'all' || masterType !== 'all' || masterSession !== 'all') && (
                 <div className="flex flex-col items-center justify-center py-14 text-gray-300">
                   <Search size={36} className="mb-2" />
-                  <p className="text-sm font-semibold text-gray-400">No fee structures match the selected filters</p>
+                  <p className="text-sm font-semibold text-gray-400">No courses match the selected filters</p>
                 </div>
               )}
-              {filtered.length > 0 && (
+              {allRows.length > 0 && (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#933d18]">
@@ -341,7 +374,36 @@ export default function FeeManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((struct, i) => {
+                  {allRows.map((struct, i) => {
+                    if (struct.__programOnly) {
+                      return (
+                        <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                          <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-gray-900">{struct.programs?.program_name || '—'}</p>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">No fee yet</span>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">Fee structure not created</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 text-xs"><span className="text-gray-300">All Sessions</span></td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">
+                              {struct.total_semesters ? `${struct.total_semesters} Sem` : '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-300 text-xs">—</td>
+                          <td className="px-4 py-3 text-right text-gray-300 text-xs">—</td>
+                          <td className="px-4 py-3 text-right text-gray-300 text-xs">—</td>
+                          <td className="px-4 py-3 text-center">
+                            <button onClick={() => openEditorForProgram(struct.program_id)} title="Add Fee Structure"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors">
+                              <Plus size={12} /> Add Fee
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    }
                     const t = calcTotals(struct.fee_items, struct.total_semesters)
                     return (
                       <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
@@ -394,7 +456,7 @@ export default function FeeManagement() {
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-200">
                     <td colSpan={4} className="px-4 py-3 font-bold text-gray-700 text-sm">
-                      {masterSearch ? `${filtered.length} of ${masterList.length} programs` : `Total (${masterList.length} programs)`}
+                      {`${allRows.length} courses (${filtered.length} with fee, ${programRows.length} without)`}
                     </td>
                     <td className="px-4 py-3 text-right font-black text-amber-700">
                       ₹{fmt(filtered.reduce((s, st) => s + calcTotals(st.fee_items, st.total_semesters).entryTotal, 0))}
