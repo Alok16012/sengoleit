@@ -65,6 +65,7 @@ export default function StudentListReport({ status }) {
       .from('students')
       .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
       .in('center_id', centerIds)
+      .not('is_hidden', 'is', true)   // students hidden by admin must not show to centers
 
     // Stage routing:
     //  - Pending   : submitted by center, NOT yet forwarded (forwarded_at null).
