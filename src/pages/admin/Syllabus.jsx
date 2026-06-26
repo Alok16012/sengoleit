@@ -143,6 +143,7 @@ export default function Syllabus() {
   const [loading, setLoading]         = useState(true)
 
   // filters
+  const [tab, setTab]       = useState('pending')   // 'all' | 'pending' | 'done'
   const [search, setSearch] = useState('')
   const [fDept, setFDept]   = useState('all')
   const [fType, setFType]   = useState('all')
@@ -244,7 +245,10 @@ export default function Syllabus() {
     }))
   const approvedCourses = [...structs, ...programOnlyCourses]
 
-  const filtered = approvedCourses.filter(s => {
+  const isDone = s => (counts[keyOf(s)] || 0) > 0
+
+  // apply Department / Program Type / Session / search (but NOT the status tab)
+  const base = approvedCourses.filter(s => {
     const prog = progMap[s.program_id]
     if (fDept !== 'all' && prog?.department_id !== fDept) return false
     if (fType !== 'all' && prog?.programme_type_id !== fType) return false
@@ -255,6 +259,15 @@ export default function Syllabus() {
       (s.programs?.program_name || '').toLowerCase().includes(q) ||
       (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
     )) return false
+    return true
+  })
+
+  const doneCount    = base.filter(isDone).length
+  const pendingCount = base.length - doneCount
+
+  const filtered = base.filter(s => {
+    if (tab === 'done') return isDone(s)
+    if (tab === 'pending') return !isDone(s)
     return true
   })
 
@@ -323,6 +336,9 @@ export default function Syllabus() {
     // refresh count for this course
     setCounts(prev => ({ ...prev, [keyOf(active)]: valid.length }))
     setSaving(false); setSaved(true)
+    // go back to the list and show the course under its new status
+    setActive(null)
+    setTab(valid.length > 0 ? 'done' : 'pending')
   }
 
   const totalSems = (active ? calcSemesters(progMap[active.program_id]) : 0) || active?.total_semesters || 8
@@ -546,6 +562,20 @@ export default function Syllabus() {
         </div>
       )}
 
+      <div className="flex items-center gap-2 mb-4">
+        {[
+          { key: 'pending', label: 'Pending', count: pendingCount, on: 'bg-amber-500 text-white', off: 'bg-amber-50 text-amber-700 hover:bg-amber-100' },
+          { key: 'done',    label: 'Done',    count: doneCount,    on: 'bg-emerald-600 text-white', off: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+          { key: 'all',     label: 'All',     count: base.length,  on: 'bg-gray-800 text-white', off: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === t.key ? t.on : t.off}`}>
+            {t.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === t.key ? 'bg-white/25' : 'bg-white/70'}`}>{t.count}</span>
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
@@ -566,7 +596,11 @@ export default function Syllabus() {
                 <tr><td colSpan={6} className="text-center text-gray-400 py-12">
                   {approvedCourses.length === 0
                     ? 'No courses yet. Create courses in Fee Management first.'
-                    : 'No courses match these filters.'}
+                    : tab === 'pending'
+                      ? 'No pending courses — every course has a syllabus. 🎉'
+                      : tab === 'done'
+                        ? 'No course has a syllabus yet. Open a course and add subjects.'
+                        : 'No courses match these filters.'}
                 </td></tr>
               ) : filtered.map((s, i) => {
                 const cnt = counts[keyOf(s)] || 0
