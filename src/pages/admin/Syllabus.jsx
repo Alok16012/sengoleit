@@ -138,6 +138,10 @@ export default function Syllabus() {
   const [fType, setFType]   = useState('all')
   const [fSession, setFSession] = useState([])   // multi-select; [] = all
 
+  // add-course picker modal
+  const [picker, setPicker]   = useState(false)
+  const [pickQ, setPickQ]     = useState('')
+
   // editor
   const [active, setActive]   = useState(null)   // selected fee_structure (course)
   const [rows, setRows]       = useState([])
@@ -410,7 +414,53 @@ export default function Syllabus() {
             <X size={14} /> Clear
           </button>
         )}
+        <button onClick={() => { setPicker(true); setPickQ('') }}
+          className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold text-white bg-[#933d18] hover:bg-[#7a3215] rounded-xl transition-colors ml-auto">
+          <Plus size={15} /> Add
+        </button>
       </div>
+
+      {picker && (
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-24" onClick={() => setPicker(false)}>
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+              <h3 className="font-bold text-gray-800 flex items-center gap-2"><Plus size={16} className="text-[#933d18]" /> Add Syllabus — pick a course</h3>
+              <button onClick={() => setPicker(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+            </div>
+            <div className="relative p-3 border-b border-gray-100">
+              <Search size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input autoFocus value={pickQ} onChange={e => setPickQ(e.target.value)} placeholder="Search course by program or session..."
+                className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-[#933d18]" />
+            </div>
+            <div className="max-h-80 overflow-y-auto p-2">
+              {(() => {
+                const q = pickQ.toLowerCase()
+                const list = approvedCourses.filter(s => !q || (
+                  (s.programs?.program_name || '').toLowerCase().includes(q) ||
+                  (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
+                ))
+                if (approvedCourses.length === 0) return <div className="px-3 py-8 text-center text-sm text-gray-400">No approved courses yet. Approve courses in Fee Management → Center Courses first.</div>
+                if (list.length === 0) return <div className="px-3 py-8 text-center text-sm text-gray-400">No courses match.</div>
+                return list.map(s => {
+                  const cnt = counts[keyOf(s)] || 0
+                  return (
+                    <button key={s.id} onClick={() => { setPicker(false); openCourse(s) }}
+                      className="w-full flex items-center justify-between gap-3 text-left px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-gray-900 text-sm truncate">{s.programs?.program_name || '—'}</p>
+                        <p className="text-xs text-gray-400">{s.academic_sessions?.session_name || 'All Sessions'} · {s.total_semesters} Sem</p>
+                      </div>
+                      <span className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full ${cnt > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {cnt > 0 ? `${cnt} subjects` : 'New'}
+                      </span>
+                    </button>
+                  )
+                })
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
