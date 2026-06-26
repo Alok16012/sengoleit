@@ -18,6 +18,7 @@ import CenterForm from './pages/admin/CenterForm'
 import Students from './pages/admin/Students'
 import StudentForm from './pages/admin/StudentForm'
 import ExamSection from './pages/admin/ExamSection'
+import Syllabus from './pages/admin/Syllabus'
 import Departments from './pages/admin/Departments'
 import Schemes from './pages/admin/Schemes'
 import SchemeForm from './pages/admin/SchemeForm'
@@ -159,6 +160,7 @@ export default function App() {
             <Route path="/admin/coupons" element={<CouponManagement />} />
             <Route path="/admin/center-pricing" element={<CenterPricing />} />
             <Route path="/admin/exam-section" element={<ExamSection />} />
+            <Route path="/admin/syllabus" element={<Syllabus />} />
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />

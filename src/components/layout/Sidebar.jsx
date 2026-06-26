@@ -31,6 +31,7 @@ const adminLinks = [
   { to: '/admin/fee-management', icon: IndianRupee, label: 'Fee Management' },
   { to: '/admin/center-pricing', icon: Tag, label: 'Center Pricing' },
   { to: '/admin/exam-section', icon: ClipboardList, label: 'Exam Section' },
+  { to: '/admin/syllabus', icon: ScrollText, label: 'Syllabus' },
 ]
 
 const reportItems = (base) => [

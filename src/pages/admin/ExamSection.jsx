@@ -6,6 +6,7 @@ import Button from '../../components/ui/Button'
 import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck } from 'lucide-react'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { formatDate } from '../../utils/formatDate'
 
 function ResultModal({ isOpen, onClose, student, onSaved }) {
@@ -189,7 +190,8 @@ export default function ExamSection() {
       .single()
     if (s) {
       const resolved = await resolveStudentDocUrls(s)
-      generateAdmitCard(resolved)
+      const subjects = await fetchAdmitCardSubjects(s)
+      generateAdmitCard(resolved, subjects)
     }
     setBusy(null)
   }

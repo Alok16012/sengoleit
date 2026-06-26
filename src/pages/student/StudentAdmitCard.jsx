@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { BadgeCheck, Download, BookOpen, Hash, MapPin } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
@@ -32,7 +33,8 @@ export default function StudentAdmitCard() {
   async function handleGenerate() {
     if (!data) return
     setGenerating(true)
-    generateAdmitCard(data)
+    const subjects = await fetchAdmitCardSubjects(data)
+    generateAdmitCard(data, subjects)
     setGenerating(false)
   }
 
