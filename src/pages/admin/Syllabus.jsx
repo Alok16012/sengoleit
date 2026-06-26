@@ -158,6 +158,7 @@ export default function Syllabus() {
 
   // editor
   const [active, setActive]   = useState(null)   // selected fee_structure (course)
+  const [activeSem, setActiveSem] = useState(1)  // which semester tab is open
   const [rows, setRows]       = useState([])
   const [editorLoading, setEditorLoading] = useState(false)
   const [saving, setSaving]   = useState(false)
@@ -275,22 +276,22 @@ export default function Syllabus() {
   const clearFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSession([]) }
 
   async function openCourse(s) {
-    setActive(s); setSaved(false); setEditorLoading(true)
+    setActive(s); setActiveSem(1); setSaved(false); setEditorLoading(true)
     let q = supabase.from('syllabus_subjects')
       .select('id, semester, paper_no, subject_code, subject_name, pdf_url, sort_order')
       .eq('program_id', s.program_id)
     q = s.session_id ? q.eq('session_id', s.session_id) : q.is('session_id', null)
     const { data } = await q.order('sort_order', { ascending: true })
     const loaded = (data || []).map(r => ({ ...r, _key: uid() }))
-    setRows(loaded.length ? loaded : [blankRow()])
+    setRows(loaded.length ? loaded : [blankRow(1)])
     setEditorLoading(false)
   }
 
-  function blankRow() {
-    return { _key: uid(), semester: 1, paper_no: '', subject_code: '', subject_name: '', pdf_url: '' }
+  function blankRow(sem = 1) {
+    return { _key: uid(), semester: sem, paper_no: '', subject_code: '', subject_name: '', pdf_url: '' }
   }
 
-  const addRow = () => setRows(p => [...p, blankRow()])
+  const addRow = () => setRows(p => [...p, blankRow(activeSem)])
   const updRow = (key, field, val) => setRows(p => p.map(r => r._key === key ? { ...r, [field]: val } : r))
   const delRow = (key) => setRows(p => p.filter(r => r._key !== key))
 
@@ -345,6 +346,9 @@ export default function Syllabus() {
 
   /* ═══════════════ EDITOR VIEW ═══════════════ */
   if (active) {
+    const rowFilled = r => (r.subject_name || '').trim() || (r.subject_code || '').trim() || (r.paper_no || '').trim()
+    const visibleRows = rows.filter(r => Number(r.semester) === activeSem)
+    const semCount = n => rows.filter(r => Number(r.semester) === n && rowFilled(r)).length
     return (
       <div className="p-6">
         <button onClick={() => setActive(null)}
@@ -362,12 +366,29 @@ export default function Syllabus() {
           </div>
         </div>
 
+        {/* Semester selector — pick a semester, then add that semester's subjects */}
+        <div className="mb-4">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Select Semester</p>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: totalSems }, (_, n) => n + 1).map(n => {
+              const c = semCount(n)
+              return (
+                <button key={n} onClick={() => setActiveSem(n)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${activeSem === n ? 'bg-[#933d18] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#933d18]'}`}>
+                  Sem {n}
+                  {c > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeSem === n ? 'bg-white/25' : 'bg-emerald-50 text-emerald-700'}`}>{c}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {editorLoading ? (
           <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
         ) : (
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <h3 className="font-bold text-gray-800">Subjects / Papers</h3>
+              <h3 className="font-bold text-gray-800">Semester {activeSem} — Subjects / Papers</h3>
               <Button onClick={handleSave} disabled={saving}>
                 <Save size={14} /> {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Syllabus'}
               </Button>
@@ -377,7 +398,6 @@ export default function Syllabus() {
                 <thead>
                   <tr className="bg-[#933d18]">
                     <th className="text-left text-white font-semibold px-4 py-3 w-12">S.No</th>
-                    <th className="text-left text-white font-semibold px-4 py-3 w-32">Sem</th>
                     <th className="text-left text-white font-semibold px-4 py-3 w-32">Paper No</th>
                     <th className="text-left text-white font-semibold px-4 py-3 w-40">Subject Code</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Subject Name</th>
@@ -386,17 +406,14 @@ export default function Syllabus() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, i) => (
+                  {visibleRows.length === 0 && (
+                    <tr><td colSpan={6} className="text-center text-gray-400 py-10 text-sm">
+                      No subjects in Semester {activeSem} yet — click “Add Subject” below.
+                    </td></tr>
+                  )}
+                  {visibleRows.map((r, i) => (
                     <tr key={r._key} className={`border-b border-gray-50 ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                       <td className="px-4 py-2 text-gray-400 text-xs">{i + 1}</td>
-                      <td className="px-4 py-2">
-                        <select value={r.semester || ''} onChange={e => updRow(r._key, 'semester', e.target.value)}
-                          className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-[#933d18] bg-white">
-                          {Array.from({ length: totalSems }, (_, n) => (
-                            <option key={n + 1} value={n + 1}>Sem {n + 1}</option>
-                          ))}
-                        </select>
-                      </td>
                       <td className="px-4 py-2">
                         <input value={r.paper_no || ''} onChange={e => updRow(r._key, 'paper_no', e.target.value)}
                           placeholder="e.g. I"
@@ -449,7 +466,7 @@ export default function Syllabus() {
             <div className="p-3 border-t border-gray-100">
               <button onClick={addRow}
                 className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold border border-dashed border-[#933d18]/30 text-[#933d18] rounded-lg hover:bg-[#933d18]/5 transition-colors">
-                <Plus size={13} /> Add Subject
+                <Plus size={13} /> Add Subject to Semester {activeSem}
               </button>
             </div>
           </div>
@@ -610,8 +627,8 @@ export default function Syllabus() {
                     <td className="px-4 py-3 font-semibold text-gray-900">
                       <div className="flex items-center gap-2">
                         <span>{s.programs?.program_name || '—'}</span>
-                        {approvedIds.has(s.id)
-                          ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Approved</span>
+                        {isDone(s)
+                          ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Done</span>
                           : <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Pending</span>}
                       </div>
                     </td>
