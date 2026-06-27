@@ -6,6 +6,10 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
+// Toggle the Email ID step on the Activate Approval Code modal.
+// Hidden for now — flip to true later to bring the email field back.
+const SHOW_EMAIL = false
+
 export default function CouponView({ type = 'wallet' }) {
   const { user } = useAuth()
   const [center, setCenter] = useState(null)
@@ -48,17 +52,20 @@ export default function CouponView({ type = 'wallet' }) {
   async function submitActivate(e) {
     e.preventDefault()
     const email = actEmail.trim()
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    // Email is only validated/saved while the email step is shown (see SHOW_EMAIL).
+    if (SHOW_EMAIL && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
       alert('Please enter a valid email ID.')
       return
     }
     setActSaving(true)
+    const payload = { is_activated: true, activated_at: new Date().toISOString() }
+    if (SHOW_EMAIL && email) payload.activation_email = email
     const { error: err } = await supabase.from('coupons')
-      .update({ activation_email: email, is_activated: true, activated_at: new Date().toISOString() })
+      .update(payload)
       .eq('id', actModal.id)
     setActSaving(false)
     if (err) { alert('Could not activate: ' + err.message); return }
-    setCoupons(prev => prev.map(c => c.id === actModal.id ? { ...c, activation_email: email, is_activated: true } : c))
+    setCoupons(prev => prev.map(c => c.id === actModal.id ? { ...c, ...(SHOW_EMAIL && email ? { activation_email: email } : {}), is_activated: true } : c))
     setActModal(null)
     setActEmail('')
   }
@@ -230,9 +237,17 @@ export default function CouponView({ type = 'wallet' }) {
             <form onSubmit={submitActivate} className="p-5 space-y-4">
               <div>
                 <p className="text-xs text-gray-400 mb-2">Code <span className="font-mono font-bold text-gray-700">{actModal.id?.slice(0, 8).toUpperCase()}</span> · ₹{Number(actModal.face_value || 0).toLocaleString('en-IN')}</p>
-                <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1.5"><Mail size={13} className="text-[#933d18]" /> Email ID</label>
-                <input type="email" autoFocus value={actEmail} onChange={e => setActEmail(e.target.value)} placeholder="name@example.com"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                {/* Email step hidden for now — flip SHOW_EMAIL to true to bring it back. */}
+                {SHOW_EMAIL && (
+                  <>
+                    <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1.5"><Mail size={13} className="text-[#933d18]" /> Email ID</label>
+                    <input type="email" autoFocus value={actEmail} onChange={e => setActEmail(e.target.value)} placeholder="name@example.com"
+                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                  </>
+                )}
+                {!SHOW_EMAIL && (
+                  <p className="text-sm text-gray-600">Activate this approval code for your center?</p>
+                )}
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={() => setActModal(null)} disabled={actSaving}
