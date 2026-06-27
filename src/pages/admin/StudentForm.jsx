@@ -384,8 +384,10 @@ const emptyForm = {
   ug_institute_name: '', ug_board_university: '', ug_passing_year: '', ug_obtained_marks: '', ug_total_marks: '',
   pg_institute_name: '', pg_board_university: '', pg_passing_year: '', pg_obtained_marks: '', pg_total_marks: '',
   diploma_institute_name: '', diploma_board_university: '', diploma_passing_year: '', diploma_obtained_marks: '', diploma_total_marks: '',
+  mphil_institute_name: '', mphil_board_university: '', mphil_passing_year: '', mphil_obtained_marks: '', mphil_total_marks: '',
+  others_institute_name: '', others_board_university: '', others_passing_year: '', others_obtained_marks: '', others_total_marks: '',
   photo_url: '', aadhar_url: '', signature_url: '', declaration_url: '',
-  tenth_marksheet_url: '', twelfth_marksheet_url: '', ug_marksheet_url: '', pg_marksheet_url: '', diploma_marksheet_url: '',
+  tenth_marksheet_url: '', twelfth_marksheet_url: '', ug_marksheet_url: '', pg_marksheet_url: '', diploma_marksheet_url: '', mphil_marksheet_url: '', others_marksheet_url: '',
   tc_url: '', migration_url: '',
 }
 
@@ -448,6 +450,7 @@ const STUDENT_LABEL_TO_FORM_FIELDS = {
   'Declaration Form': ['declaration_url'], '10th Marksheet': ['tenth_marksheet_url'],
   '12th Marksheet': ['twelfth_marksheet_url'], 'UG Marksheet': ['ug_marksheet_url'],
   'PG Marksheet': ['pg_marksheet_url'], 'Diploma Marksheet': ['diploma_marksheet_url'],
+  'MPhil Marksheet': ['mphil_marksheet_url'], 'Others Marksheet': ['others_marksheet_url'],
   'Transfer Certificate': ['tc_url'], 'Migration Certificate': ['migration_url'],
 }
 
@@ -458,6 +461,8 @@ const STUDENT_EDU_LEVEL_FIELDS = {
   'UG': ['ug_institute_name', 'ug_board_university', 'ug_passing_year', 'ug_obtained_marks', 'ug_total_marks', 'ug_marksheet_url'],
   'PG': ['pg_institute_name', 'pg_board_university', 'pg_passing_year', 'pg_obtained_marks', 'pg_total_marks', 'pg_marksheet_url'],
   'Diploma': ['diploma_institute_name', 'diploma_board_university', 'diploma_passing_year', 'diploma_obtained_marks', 'diploma_total_marks', 'diploma_marksheet_url'],
+  'MPhil': ['mphil_institute_name', 'mphil_board_university', 'mphil_passing_year', 'mphil_obtained_marks', 'mphil_total_marks', 'mphil_marksheet_url'],
+  'Others': ['others_institute_name', 'others_board_university', 'others_passing_year', 'others_obtained_marks', 'others_total_marks', 'others_marksheet_url'],
 }
 
 // Parse a hold remark ("Label: detail" per line) into the set of StudentForm fields it flags.
@@ -524,7 +529,7 @@ export default function StudentForm() {
   const [districts, setDistricts] = useState([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState({})
-  const [openEdu, setOpenEdu] = useState({ tenth: true, twelfth: false, ug: false, pg: false, diploma: false })
+  const [openEdu, setOpenEdu] = useState({ tenth: true, twelfth: false, ug: false, pg: false, diploma: false, mphil: false, others: false })
 
   const [step, setStep] = useState(0)
   const activeStepRef = useRef(null)
@@ -552,7 +557,7 @@ export default function StudentForm() {
   useEffect(() => {
     Promise.all([
       supabase.from('universities').select('id, university_name').order('university_name'),
-      supabase.from('programs').select('id, program_name, course_code, department_id, semester_year, duration, complete_duration').order('program_name'),
+      supabase.from('programs').select('id, program_name, course_code, department_id, required_education_level, semester_year, duration, complete_duration').order('program_name'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
       supabase.from('academic_sessions').select('id, session_name, start_date, end_date, academic_year').order('session_name'),
@@ -723,6 +728,24 @@ export default function StudentForm() {
 
   const selectedProgram = programs.find(p => p.id === form.programme_id)
   const progSemYear = selectedProgram?.semester_year
+
+  // Which prior education levels MUST be filled, driven by the program's
+  // required_education_level (set per-program on the Programs page):
+  //   1 = 10th, 2 = +12th, 3 = +UG, 4 = +PG, 5 = +MPhil. null/0 = no requirement.
+  // It is the MINIMUM ladder — the student may fill extra levels too.
+  const EDU_LADDER = ['tenth', 'twelfth', 'ug', 'pg', 'mphil']
+  const requiredEduLevels = (() => {
+    const lvl = parseInt(selectedProgram?.required_education_level, 10) || 0
+    return lvl > 0 ? EDU_LADDER.slice(0, lvl) : []
+  })()
+  const EDU_LEVEL_LABEL = { tenth: '10th', twelfth: '12th', ug: 'UG (Graduation)', pg: 'PG (Post Graduation)', mphil: 'MPhil' }
+  const isEduComplete = (pfx) => !!(
+    String(form[`${pfx}_institute_name`] || '').trim() &&
+    String(form[`${pfx}_board_university`] || '').trim() &&
+    String(form[`${pfx}_passing_year`] || '').trim() &&
+    String(form[`${pfx}_obtained_marks`] || '').trim() &&
+    String(form[`${pfx}_total_marks`] || '').trim()
+  )
 
   const parseDuration = (prog) => {
     if (!prog) return 0
@@ -919,6 +942,15 @@ export default function StudentForm() {
         }
         return null
       // case 5 = Bank Details — all fields optional, no validation needed.
+      case 6: {
+        // Education: require prior levels based on the program level.
+        for (const lv of requiredEduLevels) {
+          if (!isEduComplete(lv)) {
+            return `Please complete ${EDU_LEVEL_LABEL[lv]} education details (Institute, Board, Passing Year, Obtained & Total Marks) before continuing.`
+          }
+        }
+        return null
+      }
       case 7:
         if (!form.photo_url) return 'Student Photo is required'
         if (!form.signature_url) return 'Signature is required'
@@ -961,7 +993,7 @@ export default function StudentForm() {
     const err = validateStep(step)
     if (err) { setStepError(err); return }
 
-    const eduPrefixes = ['tenth', 'twelfth', 'ug', 'pg', 'diploma']
+    const eduPrefixes = ['tenth', 'twelfth', 'ug', 'pg', 'diploma', 'mphil', 'others']
     for (const pfx of eduPrefixes) {
       const obt = parseFloat(form[`${pfx}_obtained_marks`]) || 0
       const tot = parseFloat(form[`${pfx}_total_marks`]) || 0
@@ -1569,6 +1601,8 @@ export default function StudentForm() {
               <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.ug} onToggle={() => toggleEdu('ug')} readOnly={isReadOnly} isLocked={isLocked} />
               <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.pg} onToggle={() => toggleEdu('pg')} readOnly={isReadOnly} isLocked={isLocked} />
               <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.diploma} onToggle={() => toggleEdu('diploma')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="mphil" label="MPhil" boardType="MPhil" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.mphil} onToggle={() => toggleEdu('mphil')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="others" label="Others" boardType="Others" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.others} onToggle={() => toggleEdu('others')} readOnly={isReadOnly} isLocked={isLocked} />
             </div>
           </FormSection>
         )}

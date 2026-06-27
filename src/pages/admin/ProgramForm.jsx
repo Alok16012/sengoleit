@@ -12,7 +12,7 @@ const emptyForm = {
   university_id: '', department_id: '', programme_type_id: '', mode_id: '', mode_of_study_id: '',
   stream: '', duration: '', complete_duration: '', semester_year: '',
   seats_limit: '', fees_per_year: '', fees_per_semester: '',
-  eligibility: '', description: '', status: 'Active',
+  eligibility: '', required_education_level: '', description: '', status: 'Active',
 }
 
 export default function ProgramForm() {
@@ -59,6 +59,8 @@ export default function ProgramForm() {
     // Convert numeric fields, remove empty strings
     const numericFields = ['duration', 'fees_per_year', 'total_seats', 'admission_intake']
     numericFields.forEach(f => { if (payload[f] === '' || payload[f] === null) delete payload[f]; else if (payload[f]) payload[f] = Number(payload[f]) })
+    // Minimum required education level: store as int, or null when "None".
+    payload.required_education_level = form.required_education_level ? Number(form.required_education_level) : null
     Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
     const { error: err } = isEdit
       ? await supabase.from('programs').update(payload).eq('id', id)
@@ -139,7 +141,18 @@ export default function ProgramForm() {
         </FormSection>
 
         <FormSection title="Eligibility & Description" icon={<FileText size={16} />}>
-          <Input label="Eligibility" placeholder="E.g. 12th (PCM), 10+2 in any stream" value={form.eligibility} onChange={set('eligibility')} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input label="Eligibility" placeholder="E.g. 12th (PCM), 10+2 in any stream" value={form.eligibility} onChange={set('eligibility')} />
+            <Select label="Required Education (minimum)" value={form.required_education_level} onChange={set('required_education_level')}>
+              <option value="">None — no requirement</option>
+              <option value="1">1 — 10th</option>
+              <option value="2">2 — up to 12th</option>
+              <option value="3">3 — up to UG (Graduation)</option>
+              <option value="4">4 — up to PG (Post Graduation)</option>
+              <option value="5">5 — up to MPhil</option>
+            </Select>
+          </div>
+          <p className="text-xs text-gray-400 -mt-2">During student admission, all education levels up to this minimum must be filled before continuing. Extra (higher) levels are still allowed.</p>
           <Textarea label="Program Description" placeholder="Brief description about this program..." value={form.description} onChange={set('description')} />
         </FormSection>
 
