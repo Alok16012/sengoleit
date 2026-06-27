@@ -596,8 +596,8 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
     setDateForm(f => { const next = { ...f }; for (const s of paperSubs) next[s.id] = value; return next })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-12 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-8 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
           <div className="flex items-center gap-2">
             <CalendarClock size={18} className="text-[#933d18]" />
@@ -634,7 +634,7 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
               )}
             </div>
           )}
-          <div className="max-h-[65vh] overflow-y-auto p-4 space-y-3">
+          <div className="max-h-[78vh] overflow-y-auto p-4 space-y-3">
             {courses.length === 0 ? (
               <p className="py-10 text-center text-sm text-gray-400">No courses with a syllabus yet. Add a syllabus first (Syllabus page) — only courses that have a syllabus appear here.</p>
             ) : visible.length === 0 ? (
@@ -663,21 +663,27 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
                   {open && (
                     <div className="mt-3 space-y-3">
                       {groupBySem(c.subjects).map(([sem, subs]) => (
-                        <div key={sem} className="border border-gray-100 rounded-lg overflow-hidden">
-                          <div className="px-3 py-1.5 bg-gray-50 text-[11px] font-bold text-gray-600">Semester {sem}</div>
+                        <div key={sem} className="border border-gray-200 rounded-xl overflow-hidden">
+                          <div className="px-4 py-2.5 bg-[#933d18]/5 border-b border-gray-100 flex items-center gap-2">
+                            <span className="text-sm font-bold text-[#933d18]">Semester {sem}</span>
+                            <span className="text-[11px] font-semibold text-gray-400">· {groupByPaper(subs).length} papers</span>
+                          </div>
                           <div className="divide-y divide-gray-100">
                             {groupByPaper(subs).map(([paper, paperSubs]) => (
-                              <div key={paper} className="flex items-start gap-3 px-3 py-2.5">
+                              <div key={paper} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50/60">
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-[11px] font-bold text-[#933d18]">Paper {paper}{paperSubs.length > 1 ? ` · ${paperSubs.length} options (any one)` : ''}</p>
+                                  <p className="text-xs font-bold text-[#933d18]">{/^paper/i.test(String(paper)) ? paper : `Paper ${paper}`}{paperSubs.length > 1 ? ` · ${paperSubs.length} options (any one)` : ''}</p>
                                   {paperSubs.map(s => (
-                                    <p key={s.id} className="text-[11px] text-gray-600 truncate">
-                                      {s.subject_code ? `${s.subject_code} — ` : ''}{s.subject_name || '—'}
+                                    <p key={s.id} className="text-xs text-gray-600 truncate">
+                                      {s.subject_code ? <span className="font-mono text-gray-400">{s.subject_code}</span> : null} {s.subject_name || '—'}
                                     </p>
                                   ))}
                                 </div>
-                                <input type="date" value={dateForm[paperSubs[0].id] || ''} onChange={e => setPaperDate(paperSubs, e.target.value)}
-                                  className="w-40 shrink-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                                <div className="shrink-0">
+                                  <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Exam Date</label>
+                                  <input type="date" value={dateForm[paperSubs[0].id] || ''} onChange={e => setPaperDate(paperSubs, e.target.value)}
+                                    className="w-44 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                                </div>
                               </div>
                             ))}
                           </div>
