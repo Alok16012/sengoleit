@@ -580,6 +580,20 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
     for (const s of subs || []) { const k = s.semester || '—'; (m[k] ||= []).push(s) }
     return Object.entries(m).sort((a, b) => (Number(a[0]) || 0) - (Number(b[0]) || 0))
   }
+  // Within a semester, group subjects by Paper No (one exam date per paper —
+  // all subjects of a paper, e.g. electives, share the same slot).
+  const groupByPaper = (subs) => {
+    const m = new Map()
+    for (const s of subs || []) {
+      const k = s.paper_no || '—'
+      if (!m.has(k)) m.set(k, [])
+      m.get(k).push(s)
+    }
+    return [...m.entries()]
+  }
+  // Set one date across every subject of a paper.
+  const setPaperDate = (paperSubs, value) =>
+    setDateForm(f => { const next = { ...f }; for (const s of paperSubs) next[s.id] = value; return next })
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-12 overflow-y-auto" onClick={onClose}>
@@ -651,15 +665,19 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
                       {groupBySem(c.subjects).map(([sem, subs]) => (
                         <div key={sem} className="border border-gray-100 rounded-lg overflow-hidden">
                           <div className="px-3 py-1.5 bg-gray-50 text-[11px] font-bold text-gray-600">Semester {sem}</div>
-                          <div className="divide-y divide-gray-50">
-                            {subs.map(s => (
-                              <div key={s.id} className="flex items-center gap-3 px-3 py-2">
+                          <div className="divide-y divide-gray-100">
+                            {groupByPaper(subs).map(([paper, paperSubs]) => (
+                              <div key={paper} className="flex items-start gap-3 px-3 py-2.5">
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-gray-800 truncate">{s.subject_name || '—'}</p>
-                                  <p className="text-[10px] text-gray-400">{[s.paper_no && `Paper ${s.paper_no}`, s.subject_code].filter(Boolean).join(' · ') || '—'}</p>
+                                  <p className="text-[11px] font-bold text-[#933d18]">Paper {paper}{paperSubs.length > 1 ? ` · ${paperSubs.length} options (any one)` : ''}</p>
+                                  {paperSubs.map(s => (
+                                    <p key={s.id} className="text-[11px] text-gray-600 truncate">
+                                      {s.subject_code ? `${s.subject_code} — ` : ''}{s.subject_name || '—'}
+                                    </p>
+                                  ))}
                                 </div>
-                                <input type="date" value={dateForm[s.id] || ''} onChange={e => setDateForm(f => ({ ...f, [s.id]: e.target.value }))}
-                                  className="w-40 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                                <input type="date" value={dateForm[paperSubs[0].id] || ''} onChange={e => setPaperDate(paperSubs, e.target.value)}
+                                  className="w-40 shrink-0 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
                               </div>
                             ))}
                           </div>
