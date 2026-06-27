@@ -123,5 +123,8 @@ ALTER TABLE coupons ADD COLUMN IF NOT EXISTS activation_email text;
 ALTER TABLE coupons ADD COLUMN IF NOT EXISTS is_activated boolean NOT NULL DEFAULT false;
 ALTER TABLE coupons ADD COLUMN IF NOT EXISTS activated_at timestamptz;
 
+-- 15) Per-subject exam date (date sheet) on syllabus subjects.
+ALTER TABLE syllabus_subjects ADD COLUMN IF NOT EXISTS exam_date text;
+
 -- Done.
 SELECT 'all migrations applied' AS result;

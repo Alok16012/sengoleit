@@ -183,17 +183,22 @@ export default function ExamSection() {
     setSessions(se.data || [])
   }
 
-  // Distinct (program + session) combos that have a syllabus added.
+  // Distinct (program + session) combos that have a syllabus added, each with
+  // its subjects (the date sheet is built from these). Resilient to the
+  // exam_date column not existing yet.
   async function loadSyllabusCourses() {
-    const [sy, pr, se] = await Promise.all([
-      supabase.from('syllabus_subjects').select('program_id, session_id'),
+    const FULL = 'id, program_id, session_id, semester, paper_no, subject_code, subject_name, exam_date, sort_order'
+    const MIN  = 'id, program_id, session_id, semester, paper_no, subject_code, subject_name, sort_order'
+    let { data: subjects, error } = await supabase.from('syllabus_subjects').select(FULL)
+    if (error) ({ data: subjects } = await supabase.from('syllabus_subjects').select(MIN))
+    const [pr, se] = await Promise.all([
       supabase.from('programs').select('id, program_name, department_id, programme_type_id'),
       supabase.from('academic_sessions').select('id, session_name'),
     ])
     const progById = Object.fromEntries((pr.data || []).map(p => [p.id, p]))
     const sessName = Object.fromEntries((se.data || []).map(s => [s.id, s.session_name]))
     const map = new Map()
-    for (const r of sy.data || []) {
+    for (const r of subjects || []) {
       const key = courseKey(r.program_id, r.session_id)
       if (!map.has(key)) {
         const p = progById[r.program_id] || {}
@@ -205,8 +210,13 @@ export default function ExamSection() {
           programme_type_id: p.programme_type_id || null,
           programName: p.program_name || '—',
           sessionName: r.session_id ? (sessName[r.session_id] || '—') : 'All Sessions',
+          subjects: [],
         })
       }
+      map.get(key).subjects.push(r)
+    }
+    for (const c of map.values()) {
+      c.subjects.sort((a, b) => (Number(a.semester) || 0) - (Number(b.semester) || 0) || (a.sort_order || 0) - (b.sort_order || 0))
     }
     setSyllabusCourses([...map.values()].sort((a, b) => a.programName.localeCompare(b.programName)))
   }
@@ -501,6 +511,7 @@ export default function ExamSection() {
           progTypes={progTypes}
           sessions={sessions}
           onSave={saveCourseSettings}
+          reloadCourses={loadSyllabusCourses}
           onClose={() => setSettingsOpen(false)}
         />
       )}
@@ -508,16 +519,20 @@ export default function ExamSection() {
   )
 }
 
-function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [], sessions = [], onSave, onClose }) {
-  // Local editable form, seeded from saved settings.
-  const [form, setForm] = useState(() => {
+function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [], sessions = [], onSave, reloadCourses, onClose }) {
+  // Admit Card Time per course (keyed by course key).
+  const [admitForm, setAdmitForm] = useState(() => {
     const init = {}
-    for (const c of courses) {
-      const cur = settings[c.key] || {}
-      init[c.key] = { exam_schedule: cur.exam_schedule || '', admit_card_time: cur.admit_card_time || '' }
-    }
+    for (const c of courses) init[c.key] = settings[c.key]?.admit_card_time || ''
     return init
   })
+  // Per-subject exam date (the date sheet), keyed by subject id.
+  const [dateForm, setDateForm] = useState(() => {
+    const init = {}
+    for (const c of courses) for (const s of (c.subjects || [])) init[s.id] = s.exam_date || ''
+    return init
+  })
+  const [expanded, setExpanded] = useState(null)   // expanded course key
   const [saving, setSaving] = useState(false)
 
   const [q, setQ] = useState('')
@@ -533,21 +548,37 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
     return `${c.programName} ${c.sessionName}`.toLowerCase().includes(q.toLowerCase())
   })
 
-  const setField = (key, field, value) =>
-    setForm(f => ({ ...f, [key]: { ...f[key], [field]: value } }))
-
   async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
+    // 1) Admit Card Time per course (exam_schedules).
     const rows = courses.map(c => ({
       program_id: c.program_id,
       session_id: c.session_id,
-      exam_schedule: form[c.key]?.exam_schedule || '',
-      admit_card_time: form[c.key]?.admit_card_time || '',
+      exam_schedule: '',
+      admit_card_time: admitForm[c.key] || '',
     }))
     const ok = await onSave(rows)
+    if (!ok) { setSaving(false); return }
+    // 2) Per-subject exam dates (only changed ones).
+    const updates = []
+    for (const c of courses) for (const s of (c.subjects || [])) {
+      const v = dateForm[s.id] || ''
+      if ((s.exam_date || '') !== v) updates.push({ id: s.id, exam_date: v || null })
+    }
+    for (const u of updates) {
+      await supabase.from('syllabus_subjects').update({ exam_date: u.exam_date }).eq('id', u.id)
+    }
+    if (reloadCourses) await reloadCourses()
     setSaving(false)
-    if (ok) onClose()
+    onClose()
+  }
+
+  // Group a course's subjects by semester for the date sheet.
+  const groupBySem = (subs) => {
+    const m = {}
+    for (const s of subs || []) { const k = s.semester || '—'; (m[k] ||= []).push(s) }
+    return Object.entries(m).sort((a, b) => (Number(a[0]) || 0) - (Number(b[0]) || 0))
   }
 
   return (
@@ -558,7 +589,7 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
             <CalendarClock size={18} className="text-[#933d18]" />
             <div>
               <h3 className="font-bold text-gray-900 leading-tight">Exam Schedules</h3>
-              <p className="text-xs text-gray-400">Per-course Exam Schedule & Admit Card Time — printed on the Admit Card. Admit cards can’t be generated before the course’s Admit Card Time.</p>
+              <p className="text-xs text-gray-400">Set a fixed exam date per subject (semester-wise date sheet, from the syllabus) and the Admit Card Time per course. Both print on the Admit Card.</p>
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><X size={18} /></button>
@@ -594,26 +625,51 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
               <p className="py-10 text-center text-sm text-gray-400">No courses with a syllabus yet. Add a syllabus first (Syllabus page) — only courses that have a syllabus appear here.</p>
             ) : visible.length === 0 ? (
               <p className="py-10 text-center text-sm text-gray-400">No courses match your search.</p>
-            ) : visible.map(c => (
-              <div key={c.key} className="border border-gray-100 rounded-xl p-3.5">
-                <div className="flex items-center gap-2 mb-2.5">
-                  <span className="font-bold text-gray-800 text-sm">{c.programName}</span>
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#933d18]/8 text-[#933d18]">{c.sessionName}</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-600 mb-1 flex items-center gap-1.5"><CalendarClock size={12} className="text-indigo-600" /> Exam Schedule</label>
-                    <input type="datetime-local" value={form[c.key]?.exam_schedule || ''} onChange={e => setField(c.key, 'exam_schedule', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+            ) : visible.map(c => {
+              const open = expanded === c.key
+              return (
+                <div key={c.key} className="border border-gray-100 rounded-xl p-3.5">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-800 text-sm">{c.programName}</span>
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#933d18]/8 text-[#933d18]">{c.sessionName}</span>
+                    </div>
+                    <div className="w-full sm:w-56">
+                      <label className="block text-[11px] font-bold text-gray-600 mb-1 flex items-center gap-1.5"><Clock size={12} className="text-[#933d18]" /> Admit Card Time</label>
+                      <input type="datetime-local" value={admitForm[c.key] || ''} onChange={e => setAdmitForm(f => ({ ...f, [c.key]: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-600 mb-1 flex items-center gap-1.5"><Clock size={12} className="text-[#933d18]" /> Admit Card Time</label>
-                    <input type="datetime-local" value={form[c.key]?.admit_card_time || ''} onChange={e => setField(c.key, 'admit_card_time', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
-                  </div>
+
+                  <button type="button" onClick={() => setExpanded(open ? null : c.key)}
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                    <CalendarClock size={13} /> Date Sheet ({(c.subjects || []).length} subjects) {open ? '▲' : '▼'}
+                  </button>
+
+                  {open && (
+                    <div className="mt-3 space-y-3">
+                      {groupBySem(c.subjects).map(([sem, subs]) => (
+                        <div key={sem} className="border border-gray-100 rounded-lg overflow-hidden">
+                          <div className="px-3 py-1.5 bg-gray-50 text-[11px] font-bold text-gray-600">Semester {sem}</div>
+                          <div className="divide-y divide-gray-50">
+                            {subs.map(s => (
+                              <div key={s.id} className="flex items-center gap-3 px-3 py-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-gray-800 truncate">{s.subject_name || '—'}</p>
+                                  <p className="text-[10px] text-gray-400">{[s.paper_no && `Paper ${s.paper_no}`, s.subject_code].filter(Boolean).join(' · ') || '—'}</p>
+                                </div>
+                                <input type="date" value={dateForm[s.id] || ''} onChange={e => setDateForm(f => ({ ...f, [s.id]: e.target.value }))}
+                                  className="w-40 px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
             <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>

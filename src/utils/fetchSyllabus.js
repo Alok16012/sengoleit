@@ -8,14 +8,15 @@ export async function fetchAdmitCardSubjects(student) {
   if (!pid) return []
   const sid = student.session_id || null
 
-  let q = supabase.from('syllabus_subjects')
-    .select('semester, paper_no, subject_code, subject_name, sort_order')
-    .eq('program_id', pid)
-  // Match this session, plus rows saved for "all sessions" (null).
-  if (sid) q = q.or(`session_id.eq.${sid},session_id.is.null`)
-  else q = q.is('session_id', null)
-
-  const { data, error } = await q.order('sort_order', { ascending: true })
+  const build = (cols) => {
+    let q = supabase.from('syllabus_subjects').select(cols).eq('program_id', pid)
+    if (sid) q = q.or(`session_id.eq.${sid},session_id.is.null`)
+    else q = q.is('session_id', null)
+    return q.order('sort_order', { ascending: true })
+  }
+  // Include exam_date for the date sheet; fall back if the column is missing.
+  let { data, error } = await build('semester, paper_no, subject_code, subject_name, exam_date, sort_order')
+  if (error) ({ data, error } = await build('semester, paper_no, subject_code, subject_name, sort_order'))
   if (error || !data) return []
 
   let rows = data
@@ -25,10 +26,18 @@ export async function fetchAdmitCardSubjects(student) {
     if (matched.length) rows = matched   // only narrow when sem-specific rows exist
   }
 
+  const fmtDate = (v) => {
+    if (!v) return ''
+    const d = new Date(v)
+    if (isNaN(d.getTime())) return v
+    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
   return rows.map(r => {
     const paper = r.paper_no ? `Paper ${r.paper_no}: ` : ''
     const code  = r.subject_code ? `${r.subject_code} ` : ''
     const name  = r.subject_name || ''
-    return `${paper}${code}${name}`.trim()
+    const date  = r.exam_date ? `  —  ${fmtDate(r.exam_date)}` : ''
+    return `${paper}${code}${name}${date}`.trim()
   }).filter(Boolean)
 }
