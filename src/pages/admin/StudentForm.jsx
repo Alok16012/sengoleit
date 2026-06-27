@@ -626,32 +626,18 @@ export default function StudentForm() {
       })
   }, [form.center_id])
 
-  // Resolve which programs can be admitted into. Admin: any program that has a
-  // fee structure. Center/super-center: only the courses allotted + approved to
-  // them (center_courses → fee_structures → program_id). This mirrors the
-  // "courses added in the fee section" the user sees in Center Course Fee.
+  // Resolve which programs can be admitted into: any program that has a fee
+  // structure in Fee Management (same for admin and center/super-center). This
+  // mirrors the "courses added in the fee section".
   useEffect(() => {
     let cancelled = false
     async function loadFeePrograms() {
-      if (isAdmin) {
-        const { data } = await supabase.from('fee_structures').select('program_id')
-        if (!cancelled) setFeeProgramIds(new Set((data || []).map(r => r.program_id).filter(Boolean)))
-        return
-      }
-      // Center / super-center: scope to its own approved allotments.
-      if (!user?.email) return
-      const { data: centerRow } = await supabase.from('centers').select('id').eq('email', user.email).maybeSingle()
-      if (!centerRow) { if (!cancelled) setFeeProgramIds(new Set()); return }
-      const { data: cc } = await supabase.from('center_courses')
-        .select('fee_structure_id').eq('center_id', centerRow.id).eq('status', 'approved')
-      const fsIds = [...new Set((cc || []).map(r => r.fee_structure_id).filter(Boolean))]
-      if (!fsIds.length) { if (!cancelled) setFeeProgramIds(new Set()); return }
-      const { data: fs } = await supabase.from('fee_structures').select('program_id').in('id', fsIds)
-      if (!cancelled) setFeeProgramIds(new Set((fs || []).map(r => r.program_id).filter(Boolean)))
+      const { data } = await supabase.from('fee_structures').select('program_id')
+      if (!cancelled) setFeeProgramIds(new Set((data || []).map(r => r.program_id).filter(Boolean)))
     }
     loadFeePrograms()
     return () => { cancelled = true }
-  }, [isAdmin, user?.email])
+  }, [])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
   // Numeric-only input, capped at `max` digits (strips everything else)
