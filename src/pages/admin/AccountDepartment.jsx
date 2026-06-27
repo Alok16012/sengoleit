@@ -51,6 +51,9 @@ export default function AccountDepartment() {
   const [accChecks, setAccChecks] = useState({})
   const [accRemarks, setAccRemarks] = useState('')
   const [couponRate, setCouponRate] = useState('')
+  // 'coupon' = deposit into coupon wallet (coupons minted later);
+  // 'wallet'  = add straight to the spendable wallet balance (no coupons).
+  const [depositType, setDepositType] = useState('coupon')
   const [openLockedSecs, setOpenLockedSecs] = useState({})
   const [accSaving, setAccSaving] = useState(false)
   const [accHoldModal, setAccHoldModal] = useState(null)
@@ -271,23 +274,28 @@ export default function AccountDepartment() {
     return `${prefix}${String(next).padStart(3, '0')}`
   }
 
-  async function handleApprove(center, notes, walletAmount) {
+  async function handleApprove(center, notes, walletAmount, depType = 'coupon') {
     setAccSaving(true)
     const prefix = center.center_type === 'super_center' ? 'CTR' : 'SIU'
     const centerCode = center.center_code || await generateNextCode(prefix)
 
-    // Deposit the paid amount into the center's coupon wallet. Minting the actual
-    // coupons (amount ÷ per-coupon rate) happens later in Coupon Management.
     // The deposit can never exceed what the center actually paid.
     const paidCap = Math.round(Number(center.amount_paid || center.payment_amount || 0))
     const depositNum = Math.min(paidCap, Math.round(Number(walletAmount) || 0))
-    const newBalance = Math.round(Number(center.coupon_wallet_balance || 0)) + depositNum
+    const isWallet = depType === 'wallet'
+
+    // 'wallet'  → add straight to the spendable wallet balance (no coupons).
+    // 'coupon'  → deposit into the coupon wallet; coupons are minted later in
+    //             Coupon Management.
+    const newBalance = isWallet
+      ? Math.round(Number(center.virtual_balance || 0)) + depositNum
+      : Math.round(Number(center.coupon_wallet_balance || 0)) + depositNum
 
     const { error: approveErr } = await supabase.from('centers').update({
       approval_status: 'approved',
       status: 'Active',
       center_code: centerCode,
-      coupon_wallet_balance: newBalance,
+      ...(isWallet ? { virtual_balance: newBalance } : { coupon_wallet_balance: newBalance }),
       ...(notes && notes.trim() ? { approval_notes: notes.trim() } : {}),
     }).eq('id', center.id)
 
@@ -306,7 +314,8 @@ export default function AccountDepartment() {
     setAccVerifyModal(null)
     setAccChecks({})
     setCouponRate('')
-    setApprovedModal({ ...center, center_code: centerCode, walletDeposit: depositNum, couponWalletBalance: newBalance })
+    setDepositType('coupon')
+    setApprovedModal({ ...center, center_code: centerCode, walletDeposit: depositNum, couponWalletBalance: newBalance, depositType: depType })
     fetchAll()
   }
 
@@ -1263,8 +1272,8 @@ export default function AccountDepartment() {
           {approvedModal?.walletDeposit > 0 && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Coupon Wallet</p>
-                <p className="text-xs text-emerald-600/80 mt-0.5">Balance: ₹{Number(approvedModal.couponWalletBalance || 0).toLocaleString('en-IN')} · mint coupons in Coupon Management</p>
+                <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">{approvedModal?.depositType === 'wallet' ? 'Wallet Balance' : 'Coupon Wallet'}</p>
+                <p className="text-xs text-emerald-600/80 mt-0.5">Balance: ₹{Number(approvedModal.couponWalletBalance || 0).toLocaleString('en-IN')}{approvedModal?.depositType === 'wallet' ? ' · added directly to wallet' : ' · mint coupons in Coupon Management'}</p>
               </div>
               <span className="text-2xl font-black text-emerald-700">+₹{Number(approvedModal.walletDeposit).toLocaleString('en-IN')}</span>
             </div>
@@ -1596,7 +1605,7 @@ export default function AccountDepartment() {
       </Modal>
 
       {/* Verify Payment Modal (Account Dept) — Full Screen */}
-      <Modal isOpen={!!accVerifyModal} onClose={() => { setAccVerifyModal(null); setAccChecks({}); setCouponRate('') }} title="Verify Payment & Approve Center" size="fullscreen">
+      <Modal isOpen={!!accVerifyModal} onClose={() => { setAccVerifyModal(null); setAccChecks({}); setCouponRate(''); setDepositType('coupon') }} title="Verify Payment & Approve Center" size="fullscreen">
         {accVerifyModal && (() => {
           const c = accVerifyModal
           // Account Dept only verifies PAYMENT. Center & Bank details are already
@@ -1957,8 +1966,22 @@ export default function AccountDepartment() {
                   {!noPayment && (
                   <div className="p-5 border-b border-gray-100">
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="text-sm">🎟️</span>
-                      <p className="text-xs font-black text-gray-700 uppercase tracking-widest">Coupon Wallet Deposit</p>
+                      <span className="text-sm">{depositType === 'wallet' ? '💰' : '🎟️'}</span>
+                      <p className="text-xs font-black text-gray-700 uppercase tracking-widest">{depositType === 'wallet' ? 'Wallet Deposit' : 'Coupon Wallet Deposit'}</p>
+                    </div>
+                    {/* Choose where the paid amount goes: coupon wallet (coupons are
+                        minted later) or the spendable wallet balance directly. */}
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <button type="button" onClick={() => setDepositType('coupon')}
+                        className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${depositType === 'coupon' ? 'border-[#933d18] bg-[#933d18]/5 ring-1 ring-[#933d18]/20' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <p className={`text-xs font-bold ${depositType === 'coupon' ? 'text-[#933d18]' : 'text-gray-700'}`}>🎟️ Coupon Wallet</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Coupons minted in Coupon Mgmt.</p>
+                      </button>
+                      <button type="button" onClick={() => setDepositType('wallet')}
+                        className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${depositType === 'wallet' ? 'border-[#933d18] bg-[#933d18]/5 ring-1 ring-[#933d18]/20' : 'border-gray-200 hover:bg-gray-50'}`}>
+                        <p className={`text-xs font-bold ${depositType === 'wallet' ? 'text-[#933d18]' : 'text-gray-700'}`}>💰 Wallet</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Added straight to balance.</p>
+                      </button>
                     </div>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
@@ -1983,11 +2006,11 @@ export default function AccountDepartment() {
                         )}
                       </div>
                       <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                        <p className="text-[11px] font-bold text-emerald-700 uppercase">Will Add to Wallet</p>
+                        <p className="text-[11px] font-bold text-emerald-700 uppercase">{depositType === 'wallet' ? 'Will Add to Wallet Balance' : 'Will Add to Coupon Wallet'}</p>
                         <p className="text-sm text-emerald-800 mt-0.5">
                           <span className="text-xl font-black">₹{walletDeposit.toLocaleString('en-IN')}</span>
                         </p>
-                        <p className="text-[11px] text-emerald-600/80 mt-1">How many coupons to mint is decided in Coupon Management.</p>
+                        <p className="text-[11px] text-emerald-600/80 mt-1">{depositType === 'wallet' ? 'Added directly to the spendable wallet — no coupons are generated.' : 'How many coupons to mint is decided in Coupon Management.'}</p>
                       </div>
                     </div>
                   </div>
@@ -2047,7 +2070,7 @@ export default function AccountDepartment() {
                     : 'Generate a pay link and wait for the payment to arrive'
                   return (
                     <button
-                      onClick={() => handleApprove(c, accRemarks, walletDeposit)}
+                      onClick={() => handleApprove(c, accRemarks, walletDeposit, depositType)}
                       disabled={blocked}
                       title={title}
                       className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm whitespace-nowrap"
