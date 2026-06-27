@@ -48,18 +48,24 @@ export default function CouponManagement() {
   const [directAmount, setDirectAmount] = useState('')
   const [directSaving, setDirectSaving] = useState(false)
   const [directResult, setDirectResult] = useState(null) // { code, type, amount, centerName }
+  const [viewStatus, setViewStatus] = useState('All')    // status tab inside the type panel
+  const [genMode, setGenMode] = useState(false)          // inline generate form inside the panel
 
   function openDirect(type) {
     setDirectType(type)
     setDirectCenterId('')
     setDirectAmount('')
     setDirectResult(null)
+    setViewStatus('All')
+    setGenMode(false)
   }
   function closeDirect() {
     setDirectType(null)
     setDirectCenterId('')
     setDirectAmount('')
     setDirectResult(null)
+    setViewStatus('All')
+    setGenMode(false)
   }
 
   async function generateDirectCode() {
@@ -125,6 +131,25 @@ export default function CouponManagement() {
 
   const totalUsed = coupons.filter(c => !!(c.is_used || c.used_at)).length
   const totalUnused = coupons.length - totalUsed
+
+  // Per-center used/unused counts (used in group headers & wallet cards).
+  const statsByCenter = coupons.reduce((acc, c) => {
+    const k = c.center_id || 'none'
+    if (!acc[k]) acc[k] = { used: 0, unused: 0 }
+    if (c.is_used || c.used_at) acc[k].used++; else acc[k].unused++
+    return acc
+  }, {})
+
+  // The type panel (Approval Code / Discounted Coupon) — codes of one type with a Used/Unused tab.
+  const panelCoupons = directType ? coupons.filter(c => c.coupon_type === directType) : []
+  const panelUsed = panelCoupons.filter(c => !!(c.is_used || c.used_at)).length
+  const panelUnused = panelCoupons.length - panelUsed
+  const panelList = panelCoupons.filter(c => {
+    const used = !!(c.is_used || c.used_at)
+    if (viewStatus === 'Used') return used
+    if (viewStatus === 'Unused') return !used
+    return true
+  })
 
   // Group the visible coupons by their center so each center's list can be
   // collapsed (hidden) / expanded (unhidden) independently.
@@ -227,6 +252,10 @@ export default function CouponManagement() {
                   <p className="font-bold text-gray-900 truncate">{c.center_name}</p>
                   {c.center_code && <p className="text-xs text-gray-400 font-mono">{c.center_code}</p>}
                   <p className="text-lg font-black text-amber-700 mt-1">₹{Number(c.coupon_wallet_balance).toLocaleString('en-IN')}</p>
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">{statsByCenter[c.id]?.unused || 0} unused</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{statsByCenter[c.id]?.used || 0} used</span>
+                  </div>
                 </div>
                 <Button size="sm" onClick={() => { setGenCenter(c); setGenRate('') }} className="shrink-0">
                   <Sparkles size={13} /> Generate
@@ -294,6 +323,7 @@ export default function CouponManagement() {
             ) : groups.map((g) => {
               const hidden = !!hiddenCenters[g.key]
               const usedInGroup = g.items.filter(c => !!(c.is_used || c.used_at)).length
+              const unusedInGroup = g.items.length - usedInGroup
               return (
                 <Fragment key={g.key}>
                   {/* Per-center group header — click to hide / unhide its coupons */}
@@ -309,9 +339,8 @@ export default function CouponManagement() {
                         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-500">
                           {g.items.length} coupon{g.items.length > 1 ? 's' : ''}
                         </span>
-                        {usedInGroup > 0 && (
-                          <span className="text-[11px] text-gray-400">{usedInGroup} used</span>
-                        )}
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">{unusedInGroup} unused</span>
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">{usedInGroup} used</span>
                         <span className="ml-auto flex items-center gap-1 text-xs font-semibold text-gray-400 group-hover:text-[#933d18] transition-colors">
                           {hidden ? <><Eye size={13} /> Show</> : <><EyeOff size={13} /> Hide</>}
                         </span>
@@ -419,88 +448,137 @@ export default function CouponManagement() {
         )}
       </Modal>
 
-      {/* Direct generation — Approval Code / Discounted Coupon */}
+      {/* Type panel — Approval Codes / Discounted Coupons: list + Used/Unused tabs + generate */}
       <Modal
         isOpen={!!directType}
         onClose={closeDirect}
-        title={directType === 'approval' ? 'Generate Approval Code' : 'Generate Discounted Coupon'}
+        size="xl"
+        title={directType === 'approval' ? 'Approval Codes' : 'Discounted Coupons'}
       >
         {directType && (
           <div className="space-y-4">
-            {directResult ? (
-              <>
-                <div className={`rounded-xl border p-5 text-center ${
-                  directResult.type === 'approval' ? 'border-indigo-100 bg-indigo-50' : 'border-emerald-100 bg-emerald-50'
-                }`}>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
-                    {directResult.type === 'approval' ? 'Approval Code' : 'Coupon Code'}
-                  </p>
-                  <div className="flex items-center justify-center gap-2 mt-2">
-                    <span className="text-2xl font-black font-mono text-gray-900 tracking-wider">{directResult.code}</span>
-                    <button
-                      onClick={() => navigator.clipboard?.writeText(directResult.code)}
-                      title="Copy code"
-                      className="text-gray-400 hover:text-[#933d18] transition-colors"
-                    >
-                      <Copy size={16} />
+            {/* Top bar: status tabs + Generate button */}
+            {!genMode && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+                  {[
+                    { k: 'All', n: panelCoupons.length },
+                    { k: 'Unused', n: panelUnused },
+                    { k: 'Used', n: panelUsed },
+                  ].map(t => (
+                    <button key={t.k} onClick={() => setViewStatus(t.k)}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
+                        viewStatus === t.k ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+                      }`}>
+                      {t.k}
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${viewStatus === t.k ? 'bg-[#933d18]/10 text-[#933d18]' : 'bg-gray-200 text-gray-500'}`}>{t.n}</span>
                     </button>
+                  ))}
+                </div>
+                <Button onClick={() => { setGenMode(true); setDirectResult(null); setDirectCenterId(''); setDirectAmount('') }} className="ml-auto">
+                  <Sparkles size={14} /> Generate New
+                </Button>
+              </div>
+            )}
+
+            {/* Inline generate form / result */}
+            {genMode ? (
+              directResult ? (
+                <>
+                  <div className={`rounded-xl border p-5 text-center ${
+                    directResult.type === 'approval' ? 'border-indigo-100 bg-indigo-50' : 'border-emerald-100 bg-emerald-50'
+                  }`}>
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">
+                      {directResult.type === 'approval' ? 'Approval Code' : 'Coupon Code'}
+                    </p>
+                    <div className="flex items-center justify-center gap-2 mt-2">
+                      <span className="text-2xl font-black font-mono text-gray-900 tracking-wider">{directResult.code}</span>
+                      <button onClick={() => navigator.clipboard?.writeText(directResult.code)} title="Copy code"
+                        className="text-gray-400 hover:text-[#933d18] transition-colors">
+                        <Copy size={16} />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">₹{directResult.amount.toLocaleString('en-IN')} · {directResult.centerName}</p>
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    ₹{directResult.amount.toLocaleString('en-IN')} · {directResult.centerName}
+                  <div className="flex gap-3">
+                    <Button onClick={() => { setDirectResult(null); setDirectCenterId(''); setDirectAmount('') }} variant="outline" className="flex-1 justify-center">
+                      Generate Another
+                    </Button>
+                    <Button onClick={() => { setGenMode(false); setDirectResult(null) }} className="flex-1 justify-center">Back to List</Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Center / Super Center</label>
+                    <select value={directCenterId} onChange={e => setDirectCenterId(e.target.value)}
+                      className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white">
+                      <option value="">Select a center…</option>
+                      {centers.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.center_name}{c.center_code ? ` (${c.center_code})` : ''}{c.center_type === 'super_center' ? ' — Super Center' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Amount (₹)</label>
+                    <input type="number" min="1" placeholder="E.g. 500 or 1000" value={directAmount} onChange={e => setDirectAmount(e.target.value)}
+                      className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white" />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    A single {directType === 'approval' ? 'approval code' : 'discounted coupon'} will be created for the selected center with this amount.
                   </p>
-                </div>
-                <div className="flex gap-3">
-                  <Button onClick={() => openDirect(directResult.type)} variant="outline" className="flex-1 justify-center">
-                    Generate Another
-                  </Button>
-                  <Button onClick={closeDirect} className="flex-1 justify-center">Done</Button>
-                </div>
-              </>
+                  <div className="flex gap-3">
+                    <Button onClick={generateDirectCode} disabled={directSaving || !directCenterId || Math.round(Number(directAmount) || 0) < 1} className="flex-1 justify-center">
+                      <Sparkles size={14} /> {directSaving ? 'Generating…' : 'Generate Code'}
+                    </Button>
+                    <Button variant="outline" onClick={() => setGenMode(false)} className="flex-1 justify-center">Cancel</Button>
+                  </div>
+                </>
+              )
             ) : (
-              <>
-                <div>
-                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Center / Super Center</label>
-                  <select
-                    value={directCenterId}
-                    onChange={e => setDirectCenterId(e.target.value)}
-                    className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
-                  >
-                    <option value="">Select a center…</option>
-                    {centers.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.center_name}{c.center_code ? ` (${c.center_code})` : ''}{c.center_type === 'super_center' ? ' — Super Center' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Amount (₹)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="E.g. 500 or 1000"
-                    value={directAmount}
-                    onChange={e => setDirectAmount(e.target.value)}
-                    className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
-                  />
-                </div>
-
-                <p className="text-xs text-gray-500">
-                  A single {directType === 'approval' ? 'approval code' : 'discounted coupon'} will be created for the selected center with this amount.
-                </p>
-
-                <div className="flex gap-3">
-                  <Button
-                    onClick={generateDirectCode}
-                    disabled={directSaving || !directCenterId || Math.round(Number(directAmount) || 0) < 1}
-                    className="flex-1 justify-center"
-                  >
-                    <Sparkles size={14} /> {directSaving ? 'Generating…' : 'Generate Code'}
-                  </Button>
-                  <Button variant="outline" onClick={closeDirect} className="flex-1 justify-center">Cancel</Button>
-                </div>
-              </>
+              /* List of codes for this type */
+              <div className="border border-gray-100 rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left">
+                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Code</th>
+                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Center</th>
+                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Amount</th>
+                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Generated</th>
+                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {panelList.length === 0 ? (
+                      <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}{directType === 'approval' ? 'approval codes' : 'discounted coupons'} yet.
+                      </td></tr>
+                    ) : panelList.map(c => {
+                      const used = !!(c.is_used || c.used_at)
+                      return (
+                        <tr key={c.id} className="border-t border-gray-50 hover:bg-gray-50/60">
+                          <td className="px-4 py-2.5 font-mono text-xs font-bold text-gray-800">{c.id?.slice(0, 8).toUpperCase() || '—'}</td>
+                          <td className="px-4 py-2.5">
+                            <p className="font-semibold text-gray-900 text-xs">{c.centers?.center_name || '—'}</p>
+                            {c.centers?.center_type === 'super_center' && <span className="text-[10px] font-bold text-purple-600">Super Center</span>}
+                          </td>
+                          <td className="px-4 py-2.5 font-bold text-gray-900 text-xs">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-4 py-2.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
+                          <td className="px-4 py-2.5">
+                            {used ? (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Used</span>
+                            ) : (
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Unused</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         )}
