@@ -342,13 +342,22 @@ export default function ExamSection() {
         title="Exam Section"
         subtitle={`${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`}
         actions={
-          <button
-            onClick={() => setSettingsOpen(true)}
-            title="Set Exam Schedule & Admit Card Time per course"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#933d18]/30 bg-[#933d18]/10 hover:bg-[#933d18]/20 text-[#933d18] font-bold text-sm transition-colors"
-          >
-            <CalendarClock size={16} /> Exam Schedules
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSettingsOpen(true)}
+              title="Set per-course Exam Schedule"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm transition-colors"
+            >
+              <CalendarClock size={16} /> Exam Schedule
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              title="Set per-course Admit Card Time"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#933d18]/30 bg-[#933d18]/10 hover:bg-[#933d18]/20 text-[#933d18] font-bold text-sm transition-colors"
+            >
+              <Clock size={16} /> Admit Card Time
+            </button>
+          </div>
         }
       />
 
