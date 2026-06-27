@@ -598,18 +598,20 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6 pt-6 sm:pt-10 overflow-y-auto" onClick={onClose}>
       <div className="bg-gray-50 rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between gap-4 px-7 py-5 border-b border-gray-100 sticky top-0 bg-white z-10">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-[#933d18]/10 flex items-center justify-center shrink-0">
-              <CalendarClock size={20} className="text-[#933d18]" />
+        {/* Header — brand gradient band */}
+        <div className="relative px-8 py-6 bg-gradient-to-br from-[#933d18] via-[#a8451c] to-[#7a3215] sticky top-0 z-10">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center shrink-0 ring-1 ring-white/25">
+                <CalendarClock size={26} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-white leading-tight tracking-tight">Exam Schedules</h3>
+                <p className="text-[13px] text-white/75 mt-1 max-w-2xl leading-snug">Set a fixed exam date per subject (semester-wise date sheet) and the Admit Card Time per course. Both print on the Admit Card.</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-black text-gray-900 leading-tight">Exam Schedules</h3>
-              <p className="text-xs text-gray-400 mt-0.5 max-w-2xl">Set a fixed exam date per subject (semester-wise date sheet, from the syllabus) and the Admit Card Time per course. Both print on the Admit Card.</p>
-            </div>
+            <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors shrink-0"><X size={20} /></button>
           </div>
-          <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"><X size={18} /></button>
         </div>
         <form onSubmit={handleSave}>
           {/* Filter bar */}
@@ -647,21 +649,21 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
             ) : visible.map(c => {
               const open = expanded === c.key
               return (
-                <div key={c.key} className={`bg-white rounded-2xl border transition-all ${open ? 'border-[#933d18]/30 shadow-md' : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'}`}>
-                  <div className="flex flex-wrap items-center justify-between gap-4 p-5">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-[#933d18]/8 flex items-center justify-center shrink-0">
-                        <span className="text-base font-black text-[#933d18]">{c.programName?.[0]?.toUpperCase() || 'C'}</span>
+                <div key={c.key} className={`bg-white rounded-2xl border-2 transition-all ${open ? 'border-[#933d18]/30 shadow-lg' : 'border-gray-100 hover:border-gray-200 hover:shadow-md'}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-5 p-6">
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#933d18] to-[#a8451c] flex items-center justify-center shrink-0 shadow-sm">
+                        <span className="text-lg font-black text-white">{c.programName?.[0]?.toUpperCase() || 'C'}</span>
                       </div>
                       <div className="min-w-0">
-                        <p className="font-bold text-gray-900 text-[15px] truncate">{c.programName}</p>
-                        <span className="inline-block mt-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#933d18]/8 text-[#933d18]">{c.sessionName}</span>
+                        <p className="font-black text-gray-900 text-base truncate">{c.programName}</p>
+                        <span className="inline-block mt-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#933d18]/8 text-[#933d18]">{c.sessionName}</span>
                       </div>
                     </div>
-                    <div className="w-full sm:w-64">
-                      <label className="text-[11px] font-bold text-gray-500 mb-1.5 flex items-center gap-1.5"><Clock size={12} className="text-[#933d18]" /> Admit Card Time</label>
+                    <div className="w-full sm:w-72 bg-gray-50 rounded-2xl p-3.5 border border-gray-100">
+                      <label className="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1.5 flex items-center gap-1.5"><Clock size={12} className="text-[#933d18]" /> Admit Card Time</label>
                       <input type="datetime-local" value={admitForm[c.key] || ''} onChange={e => setAdmitForm(f => ({ ...f, [c.key]: e.target.value }))}
-                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 transition-colors" />
+                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 transition-colors" />
                     </div>
                   </div>
 
