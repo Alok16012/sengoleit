@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { formatDate } from '../../utils/formatDate'
-import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy } from 'lucide-react'
+import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search } from 'lucide-react'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -50,6 +50,7 @@ export default function CouponManagement() {
   const [directResult, setDirectResult] = useState(null) // { code, type, amount, centerName }
   const [viewStatus, setViewStatus] = useState('All')    // status tab inside the type panel
   const [genMode, setGenMode] = useState(false)          // inline generate form inside the panel
+  const [panelQ, setPanelQ] = useState('')               // search within the type panel
 
   function openDirect(type) {
     setDirectType(type)
@@ -58,6 +59,7 @@ export default function CouponManagement() {
     setDirectResult(null)
     setViewStatus('All')
     setGenMode(false)
+    setPanelQ('')
   }
   function closeDirect() {
     setDirectType(null)
@@ -66,6 +68,7 @@ export default function CouponManagement() {
     setDirectResult(null)
     setViewStatus('All')
     setGenMode(false)
+    setPanelQ('')
   }
 
   async function generateDirectCode() {
@@ -146,8 +149,12 @@ export default function CouponManagement() {
   const panelUnused = panelCoupons.length - panelUsed
   const panelList = panelCoupons.filter(c => {
     const used = !!(c.is_used || c.used_at)
-    if (viewStatus === 'Used') return used
-    if (viewStatus === 'Unused') return !used
+    if (viewStatus === 'Used' && !used) return false
+    if (viewStatus === 'Unused' && used) return false
+    if (panelQ) {
+      const hay = `${c.id || ''} ${c.centers?.center_name || ''} ${c.centers?.center_code || ''}`.toLowerCase()
+      if (!hay.includes(panelQ.toLowerCase())) return false
+    }
     return true
   })
 
@@ -459,26 +466,34 @@ export default function CouponManagement() {
           <div className="space-y-4">
             {/* Top bar: status tabs + Generate button */}
             {!genMode && (
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
-                  {[
-                    { k: 'All', n: panelCoupons.length },
-                    { k: 'Unused', n: panelUnused },
-                    { k: 'Used', n: panelUsed },
-                  ].map(t => (
-                    <button key={t.k} onClick={() => setViewStatus(t.k)}
-                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all ${
-                        viewStatus === t.k ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
-                      }`}>
-                      {t.k}
-                      <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${viewStatus === t.k ? 'bg-[#933d18]/10 text-[#933d18]' : 'bg-gray-200 text-gray-500'}`}>{t.n}</span>
-                    </button>
-                  ))}
+              <>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex gap-1.5 bg-gray-100/70 p-1.5 rounded-2xl">
+                    {[
+                      { k: 'All', n: panelCoupons.length, on: 'bg-white text-gray-800 shadow-sm', badgeOn: 'bg-gray-800 text-white' },
+                      { k: 'Unused', n: panelUnused, on: 'bg-white text-emerald-700 shadow-sm', badgeOn: 'bg-emerald-600 text-white' },
+                      { k: 'Used', n: panelUsed, on: 'bg-white text-gray-600 shadow-sm', badgeOn: 'bg-gray-500 text-white' },
+                    ].map(t => (
+                      <button key={t.k} onClick={() => setViewStatus(t.k)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                          viewStatus === t.k ? t.on : 'text-gray-500 hover:text-gray-700'
+                        }`}>
+                        {t.k}
+                        <span className={`text-[11px] px-1.5 py-0.5 rounded-full ${viewStatus === t.k ? t.badgeOn : 'bg-gray-200 text-gray-500'}`}>{t.n}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <Button onClick={() => { setGenMode(true); setDirectResult(null); setDirectCenterId(''); setDirectAmount('') }} className="ml-auto">
+                    <Sparkles size={14} /> Generate New
+                  </Button>
                 </div>
-                <Button onClick={() => { setGenMode(true); setDirectResult(null); setDirectCenterId(''); setDirectAmount('') }} className="ml-auto">
-                  <Sparkles size={14} /> Generate New
-                </Button>
-              </div>
+                <div className="relative">
+                  <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={panelQ} onChange={e => setPanelQ(e.target.value)}
+                    placeholder={`Search ${directType === 'approval' ? 'approval codes' : 'coupons'} by code or center…`}
+                    className="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 transition-colors" />
+                </div>
+              </>
             )}
 
             {/* Inline generate form / result */}
@@ -539,38 +554,46 @@ export default function CouponManagement() {
               )
             ) : (
               /* List of codes for this type */
-              <div className="border border-gray-100 rounded-xl overflow-hidden">
+              <div className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-gray-50 text-left">
-                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Code</th>
-                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Center</th>
-                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Amount</th>
-                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Generated</th>
-                      <th className="px-4 py-2.5 text-[11px] font-bold uppercase tracking-wide text-gray-500">Status</th>
+                    <tr className="bg-[#933d18] text-left">
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Code</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Center</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Amount</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {panelList.length === 0 ? (
-                      <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-400">
-                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}{directType === 'approval' ? 'approval codes' : 'discounted coupons'} yet.
+                      <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">
+                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}{directType === 'approval' ? 'approval codes' : 'discounted coupons'} {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
-                    ) : panelList.map(c => {
+                    ) : panelList.map((c, i) => {
                       const used = !!(c.is_used || c.used_at)
                       return (
-                        <tr key={c.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-                          <td className="px-4 py-2.5 font-mono text-xs font-bold text-gray-800">{c.id?.slice(0, 8).toUpperCase() || '—'}</td>
-                          <td className="px-4 py-2.5">
-                            <p className="font-semibold text-gray-900 text-xs">{c.centers?.center_name || '—'}</p>
-                            {c.centers?.center_type === 'super_center' && <span className="text-[10px] font-bold text-purple-600">Super Center</span>}
+                        <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold text-gray-800 tracking-wide">{c.id?.slice(0, 8).toUpperCase() || '—'}</span>
+                              <button onClick={() => navigator.clipboard?.writeText(c.id?.slice(0, 8).toUpperCase() || '')} title="Copy code"
+                                className="text-gray-300 hover:text-[#933d18] transition-colors"><Copy size={13} /></button>
+                            </div>
                           </td>
-                          <td className="px-4 py-2.5 font-bold text-gray-900 text-xs">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
-                          <td className="px-4 py-2.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
-                          <td className="px-4 py-2.5">
+                          <td className="px-5 py-3.5">
+                            <p className="font-semibold text-gray-900 text-sm">{c.centers?.center_name || '—'}</p>
+                            {c.centers?.center_type === 'super_center'
+                              ? <span className="text-[10px] font-bold text-purple-600">Super Center</span>
+                              : c.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.center_code}</span>}
+                          </td>
+                          <td className="px-5 py-3.5 font-bold text-gray-900 text-sm">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
+                          <td className="px-5 py-3.5">
                             {used ? (
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Used</span>
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
                             ) : (
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Unused</span>
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
                             )}
                           </td>
                         </tr>
