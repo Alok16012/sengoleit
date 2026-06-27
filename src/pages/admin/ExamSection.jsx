@@ -596,26 +596,30 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
     setDateForm(f => { const next = { ...f }; for (const s of paperSubs) next[s.id] = value; return next })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm p-4 pt-8 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white rounded-t-2xl">
-          <div className="flex items-center gap-2">
-            <CalendarClock size={18} className="text-[#933d18]" />
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6 pt-6 sm:pt-10 overflow-y-auto" onClick={onClose}>
+      <div className="bg-gray-50 rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4 px-7 py-5 border-b border-gray-100 sticky top-0 bg-white z-10">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-[#933d18]/10 flex items-center justify-center shrink-0">
+              <CalendarClock size={20} className="text-[#933d18]" />
+            </div>
             <div>
-              <h3 className="font-bold text-gray-900 leading-tight">Exam Schedules</h3>
-              <p className="text-xs text-gray-400">Set a fixed exam date per subject (semester-wise date sheet, from the syllabus) and the Admit Card Time per course. Both print on the Admit Card.</p>
+              <h3 className="text-lg font-black text-gray-900 leading-tight">Exam Schedules</h3>
+              <p className="text-xs text-gray-400 mt-0.5 max-w-2xl">Set a fixed exam date per subject (semester-wise date sheet, from the syllabus) and the Admit Card Time per course. Both print on the Admit Card.</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 shrink-0"><X size={18} /></button>
+          <button onClick={onClose} className="w-9 h-9 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"><X size={18} /></button>
         </div>
         <form onSubmit={handleSave}>
+          {/* Filter bar */}
           {courses.length > 0 && (
-            <div className="px-4 pt-4 flex flex-wrap gap-3 items-end">
-              <div className="relative flex-1 min-w-[200px]">
-                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
-                <Search size={14} className="absolute left-3 top-[34px] -translate-y-1/2 text-gray-400" />
+            <div className="px-7 pt-5 pb-1 flex flex-wrap gap-3 items-end bg-white">
+              <div className="relative flex-1 min-w-[220px]">
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Search</label>
+                <Search size={15} className="absolute left-3.5 top-[38px] -translate-y-1/2 text-gray-400" />
                 <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by program or session..."
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                  className="w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 transition-colors" />
               </div>
               <SearchableSelect label="Department" allLabel="All Departments" minWidth={170}
                 value={fDept} onChange={setFDept}
@@ -628,74 +632,83 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
                 options={sessions.map(se => ({ id: se.id, label: se.session_name }))} />
               {filterActive && (
                 <button type="button" onClick={clearFilters}
-                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
+                  className="flex items-center gap-1.5 px-3.5 py-3 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
                   <X size={14} /> Clear
                 </button>
               )}
             </div>
           )}
-          <div className="max-h-[78vh] overflow-y-auto p-4 space-y-3">
+          {/* List */}
+          <div className="max-h-[72vh] overflow-y-auto px-7 py-6 space-y-4">
             {courses.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400">No courses with a syllabus yet. Add a syllabus first (Syllabus page) — only courses that have a syllabus appear here.</p>
+              <p className="py-14 text-center text-sm text-gray-400">No courses with a syllabus yet. Add a syllabus first (Syllabus page) — only courses that have a syllabus appear here.</p>
             ) : visible.length === 0 ? (
-              <p className="py-10 text-center text-sm text-gray-400">No courses match your search.</p>
+              <p className="py-14 text-center text-sm text-gray-400">No courses match your search.</p>
             ) : visible.map(c => {
               const open = expanded === c.key
               return (
-                <div key={c.key} className="border border-gray-100 rounded-xl p-3.5">
-                  <div className="flex flex-wrap items-end justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-gray-800 text-sm">{c.programName}</span>
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#933d18]/8 text-[#933d18]">{c.sessionName}</span>
+                <div key={c.key} className={`bg-white rounded-2xl border transition-all ${open ? 'border-[#933d18]/30 shadow-md' : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-4 p-5">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-[#933d18]/8 flex items-center justify-center shrink-0">
+                        <span className="text-base font-black text-[#933d18]">{c.programName?.[0]?.toUpperCase() || 'C'}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 text-[15px] truncate">{c.programName}</p>
+                        <span className="inline-block mt-0.5 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#933d18]/8 text-[#933d18]">{c.sessionName}</span>
+                      </div>
                     </div>
-                    <div className="w-full sm:w-56">
-                      <label className="block text-[11px] font-bold text-gray-600 mb-1 flex items-center gap-1.5"><Clock size={12} className="text-[#933d18]" /> Admit Card Time</label>
+                    <div className="w-full sm:w-64">
+                      <label className="text-[11px] font-bold text-gray-500 mb-1.5 flex items-center gap-1.5"><Clock size={12} className="text-[#933d18]" /> Admit Card Time</label>
                       <input type="datetime-local" value={admitForm[c.key] || ''} onChange={e => setAdmitForm(f => ({ ...f, [c.key]: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 transition-colors" />
                     </div>
                   </div>
 
-                  <button type="button" onClick={() => setExpanded(open ? null : c.key)}
-                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
-                    <CalendarClock size={13} /> Date Sheet ({(c.subjects || []).length} subjects) {open ? '▲' : '▼'}
-                  </button>
+                  <div className="px-5 pb-5">
+                    <button type="button" onClick={() => setExpanded(open ? null : c.key)}
+                      className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl transition-colors ${open ? 'text-white bg-[#933d18] hover:bg-[#7a3215]' : 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100'}`}>
+                      <CalendarClock size={14} /> Date Sheet ({(c.subjects || []).length} subjects) {open ? '▲' : '▼'}
+                    </button>
 
-                  {open && (
-                    <div className="mt-3 space-y-3">
-                      {groupBySem(c.subjects).map(([sem, subs]) => (
-                        <div key={sem} className="border border-gray-200 rounded-xl overflow-hidden">
-                          <div className="px-4 py-2.5 bg-[#933d18]/5 border-b border-gray-100 flex items-center gap-2">
-                            <span className="text-sm font-bold text-[#933d18]">Semester {sem}</span>
-                            <span className="text-[11px] font-semibold text-gray-400">· {groupByPaper(subs).length} papers</span>
-                          </div>
-                          <div className="divide-y divide-gray-100">
-                            {groupByPaper(subs).map(([paper, paperSubs]) => (
-                              <div key={paper} className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50/60">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-bold text-[#933d18]">{/^paper/i.test(String(paper)) ? paper : `Paper ${paper}`}{paperSubs.length > 1 ? ` · ${paperSubs.length} options (any one)` : ''}</p>
-                                  {paperSubs.map(s => (
-                                    <p key={s.id} className="text-xs text-gray-600 truncate">
-                                      {s.subject_code ? <span className="font-mono text-gray-400">{s.subject_code}</span> : null} {s.subject_name || '—'}
-                                    </p>
-                                  ))}
+                    {open && (
+                      <div className="mt-4 space-y-4">
+                        {groupBySem(c.subjects).map(([sem, subs]) => (
+                          <div key={sem} className="border border-gray-200 rounded-2xl overflow-hidden">
+                            <div className="px-5 py-3 bg-[#933d18]/5 border-b border-gray-100 flex items-center gap-2">
+                              <span className="text-sm font-black text-[#933d18]">Semester {sem}</span>
+                              <span className="text-[11px] font-semibold text-gray-400">· {groupByPaper(subs).length} papers</span>
+                            </div>
+                            <div className="divide-y divide-gray-100">
+                              {groupByPaper(subs).map(([paper, paperSubs]) => (
+                                <div key={paper} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/80 transition-colors">
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-[#933d18]">{/^paper/i.test(String(paper)) ? paper : `Paper ${paper}`}{paperSubs.length > 1 ? ` · ${paperSubs.length} options (any one)` : ''}</p>
+                                    {paperSubs.map(s => (
+                                      <p key={s.id} className="text-xs text-gray-600 truncate mt-0.5">
+                                        {s.subject_code ? <span className="font-mono text-gray-400">{s.subject_code}</span> : null} {s.subject_name || '—'}
+                                      </p>
+                                    ))}
+                                  </div>
+                                  <div className="shrink-0">
+                                    <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Exam Date</label>
+                                    <input type="date" value={dateForm[paperSubs[0].id] || ''} onChange={e => setPaperDate(paperSubs, e.target.value)}
+                                      className="w-44 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 transition-colors" />
+                                  </div>
                                 </div>
-                                <div className="shrink-0">
-                                  <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">Exam Date</label>
-                                  <input type="date" value={dateForm[paperSubs[0].id] || ''} onChange={e => setPaperDate(paperSubs, e.target.value)}
-                                    className="w-44 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
-                                </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )
             })}
           </div>
-          <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+          {/* Footer */}
+          <div className="flex justify-end gap-2.5 px-7 py-4 border-t border-gray-100 bg-white">
             <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
             <Button type="submit" disabled={saving || courses.length === 0}>{saving ? 'Saving...' : 'Save All'}</Button>
           </div>
