@@ -533,6 +533,8 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
     return init
   })
   const [expanded, setExpanded] = useState(null)   // expanded course key
+  const [openSems, setOpenSems] = useState({})     // { `${ckey}__${sem}`: bool } — which semester accordions are open
+  const toggleSem = (k) => setOpenSems(p => ({ ...p, [k]: !p[k] }))
   const [saving, setSaving] = useState(false)
 
   const [q, setQ] = useState('')
@@ -714,12 +716,21 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
 
                     {open && (
                       <div className="mt-4 space-y-4">
-                        {groupBySem(c.subjects).map(([sem, subs]) => (
+                        {groupBySem(c.subjects).map(([sem, subs]) => {
+                          const semKey = `${c.key}__${sem}`
+                          const semOpen = !!openSems[semKey]
+                          const filled = groupByPaper(subs).filter(([, ps]) => !!dateForm[ps[0].id]).length
+                          const totalPapers = groupByPaper(subs).length
+                          return (
                           <div key={sem} className="border border-gray-200 rounded-2xl overflow-hidden">
-                            <div className="px-5 py-3 bg-[#933d18]/5 border-b border-gray-100 flex items-center gap-2">
+                            <button type="button" onClick={() => toggleSem(semKey)}
+                              className="w-full px-5 py-3 bg-[#933d18]/5 hover:bg-[#933d18]/10 border-b border-gray-100 flex items-center gap-2 transition-colors text-left">
                               <span className="text-sm font-black text-[#933d18]">Semester {sem}</span>
-                              <span className="text-[11px] font-semibold text-gray-400">· {groupByPaper(subs).length} papers</span>
-                            </div>
+                              <span className="text-[11px] font-semibold text-gray-400">· {totalPapers} papers</span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${filled === totalPapers && totalPapers > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{filled}/{totalPapers} dated</span>
+                              <span className="ml-auto text-[#933d18] text-xs">{semOpen ? '▲' : '▼'}</span>
+                            </button>
+                            {semOpen && (
                             <div className="divide-y divide-gray-100">
                               {groupByPaper(subs).map(([paper, paperSubs]) => (
                                 <div key={paper} className="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/80 transition-colors">
@@ -739,8 +750,10 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
                                 </div>
                               ))}
                             </div>
+                            )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                   </div>
