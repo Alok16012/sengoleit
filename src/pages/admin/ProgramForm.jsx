@@ -62,9 +62,18 @@ export default function ProgramForm() {
     // Minimum required education level: store as int, or null when "None".
     payload.required_education_level = form.required_education_level ? Number(form.required_education_level) : null
     Object.keys(payload).forEach(k => { if (payload[k] === '') delete payload[k] })
-    const { error: err } = isEdit
-      ? await supabase.from('programs').update(payload).eq('id', id)
-      : await supabase.from('programs').insert(payload)
+    const save = (p) => isEdit
+      ? supabase.from('programs').update(p).eq('id', id)
+      : supabase.from('programs').insert(p)
+    let { error: err } = await save(payload)
+    // If the required_education_level column hasn't been added yet, retry the
+    // save without it so program editing isn't blocked (run the migration to
+    // enable the eligibility feature).
+    if (err && /required_education_level/.test(err.message || '')) {
+      const { required_education_level, ...rest } = payload
+      ;({ error: err } = await save(rest))
+      if (!err) alert('Program saved, but the "Required Education" setting was NOT stored — the required_education_level column is missing. Run add_program_required_education.sql in Supabase to enable it.')
+    }
     if (err) { alert('Error: ' + err.message); setLoading(false); return }
     navigate('/admin/programs')
   }

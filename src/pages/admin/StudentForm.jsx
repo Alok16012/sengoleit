@@ -559,7 +559,7 @@ export default function StudentForm() {
   useEffect(() => {
     Promise.all([
       supabase.from('universities').select('id, university_name').order('university_name'),
-      supabase.from('programs').select('id, program_name, course_code, department_id, required_education_level, semester_year, duration, complete_duration').order('program_name'),
+      supabase.from('programs').select('id, program_name, course_code, department_id, semester_year, duration, complete_duration').order('program_name'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
       supabase.from('academic_sessions').select('id, session_name, start_date, end_date, academic_year').order('session_name'),
@@ -572,6 +572,13 @@ export default function StudentForm() {
       setUniversities(unis.data || [])
       setPrograms(progs.data || [])
       setDepartments(depts.data || [])
+      // Merge in required_education_level separately so a missing column (migration
+      // not yet run) never breaks the program list. Silently skipped on error.
+      supabase.from('programs').select('id, required_education_level').then(({ data, error }) => {
+        if (error || !data) return
+        const lvl = Object.fromEntries(data.map(p => [p.id, p.required_education_level]))
+        setPrograms(prev => prev.map(p => ({ ...p, required_education_level: lvl[p.id] })))
+      })
       setCenters(cents.data || [])
       setSessions(sess.data || [])
       setStudyModes(modes.data || [])
