@@ -241,7 +241,9 @@ function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, 
 
 function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading, isOpen, onToggle, readOnly, isLocked = () => false }) {
   const ro = (suffix) => readOnly || isLocked(`${prefix}_${suffix}`)
-  const levelBoards = boards.filter(b => b.type === 'All' || b.type === boardType)
+  // UG / PG / MPhil / Others: Board / University is free text (no dropdown).
+  const freeBoard = ['UG', 'PG', 'MPhil', 'Others'].includes(boardType)
+  const levelBoards = freeBoard ? [] : boards.filter(b => b.type === 'All' || b.type === boardType)
   const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
   const total = parseFloat(form[`${prefix}_total_marks`]) || 0
   const percentage = obtained > 0 && total > 0 ? ((obtained / total) * 100).toFixed(2) : ''
@@ -279,7 +281,7 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
                 {levelBoards.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </Select>
             ) : (
-              <Input label="Board / University" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} readOnly={ro('board_university')} />
+              <Input label="Board / University" placeholder="Type board / university name" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} readOnly={ro('board_university')} />
             )}
             <Input label="Passing Year" type="number" placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} readOnly={ro('passing_year')} />
           </div>
