@@ -1224,6 +1224,7 @@ export default function AccountDepartment() {
                   <Th>Super Center</Th>
                   <Th>Type</Th>
                   <Th>Amount</Th>
+                  <Th>Transaction ID</Th>
                   <Th>UTR Number</Th>
                   <Th>Screenshot</Th>
                   <Th>Notes</Th>
@@ -1235,7 +1236,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {rechargesList.length === 0 ? (
-                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {rechargeStatusFilter === 'approved' ? 'approved' : rechargeStatusFilter} recharge requests</Td></Tr>
+                  <Tr><Td colSpan={13} className="text-center text-gray-400 py-12">No {rechargeStatusFilter === 'approved' ? 'approved' : rechargeStatusFilter} recharge requests</Td></Tr>
                 ) : rechargesList.map((r, i) => (
                   <Tr key={r.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -1255,6 +1256,7 @@ export default function AccountDepartment() {
                     <Td>
                       <span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span>
                     </Td>
+                    <Td className="font-mono text-sm text-gray-700">{r.payment_txn_id || '—'}</Td>
                     <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
                     <Td>
                       {r.utr_screenshot_url ? (
@@ -1312,6 +1314,7 @@ export default function AccountDepartment() {
                   <Th>Super Center</Th>
                   <Th>Type</Th>
                   <Th>Approval Code Amount</Th>
+                  <Th>Transaction ID</Th>
                   <Th>UTR Number</Th>
                   <Th>Screenshot</Th>
                   <Th>Notes</Th>
@@ -1323,7 +1326,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {approvalReqsList.length === 0 ? (
-                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {approvalReqStatusFilter === 'pending' ? 'pending' : approvalReqStatusFilter === 'approved' ? 'approved' : 'rejected'} approval code requests</Td></Tr>
+                  <Tr><Td colSpan={13} className="text-center text-gray-400 py-12">No {approvalReqStatusFilter === 'pending' ? 'pending' : approvalReqStatusFilter === 'approved' ? 'approved' : 'rejected'} approval code requests</Td></Tr>
                 ) : approvalReqsList.map((r, i) => (
                   <Tr key={r.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -1343,6 +1346,7 @@ export default function AccountDepartment() {
                     <Td>
                       <span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span>
                     </Td>
+                    <Td className="font-mono text-sm text-gray-700">{r.payment_txn_id || '—'}</Td>
                     <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
                     <Td>
                       {r.utr_screenshot_url ? (
@@ -2363,6 +2367,10 @@ export default function AccountDepartment() {
                 <p className="text-2xl font-black text-[#933d18] mt-0.5">₹{Number(rechargeModal.amount).toLocaleString('en-IN')}</p>
               </div>
               <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Transaction ID</p>
+                <p className="text-sm font-mono font-semibold text-gray-800 mt-1.5 break-all">{rechargeModal.payment_txn_id || '—'}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">UTR / Transaction No.</p>
                 <p className="text-sm font-mono font-semibold text-gray-800 mt-1.5 break-all">{rechargeModal.utr_number || '—'}</p>
               </div>
@@ -2454,6 +2462,10 @@ export default function AccountDepartment() {
               <div className="border border-gray-100 rounded-xl px-4 py-3">
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Approval Code Amount</p>
                 <p className="text-2xl font-black text-[#933d18] mt-0.5">₹{Number(acReqModal.amount).toLocaleString('en-IN')}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Transaction ID</p>
+                <p className="text-sm font-mono font-semibold text-gray-800 mt-1.5 break-all">{acReqModal.payment_txn_id || '—'}</p>
               </div>
               <div className="border border-gray-100 rounded-xl px-4 py-3">
                 <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">UTR / Transaction No.</p>

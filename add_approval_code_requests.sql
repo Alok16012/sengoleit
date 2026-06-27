@@ -21,4 +21,9 @@ CREATE TABLE IF NOT EXISTS approval_code_requests (
 CREATE INDEX IF NOT EXISTS approval_code_requests_center_idx ON approval_code_requests(center_id);
 CREATE INDEX IF NOT EXISTS approval_code_requests_status_idx ON approval_code_requests(status);
 
+-- Transaction ID (payment_txn_id) shown in the admin Approval Code Requests /
+-- Recharge Requests tables and review modals. Idempotent on both tables.
+ALTER TABLE approval_code_requests ADD COLUMN IF NOT EXISTS payment_txn_id text;
+ALTER TABLE recharge_requests      ADD COLUMN IF NOT EXISTS payment_txn_id text;
+
 SELECT 'approval_code_requests table ready' AS result;
