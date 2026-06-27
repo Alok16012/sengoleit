@@ -97,5 +97,31 @@ CREATE TABLE IF NOT EXISTS exam_schedules (
 );
 CREATE INDEX IF NOT EXISTS idx_exam_schedules_program ON exam_schedules(program_id);
 
+-- 11) Student height (Personal Info).
+ALTER TABLE students ADD COLUMN IF NOT EXISTS height text;
+
+-- 12) Per-program minimum required prior education level (Programs page).
+--     1=10th, 2=12th, 3=UG, 4=PG, 5=MPhil. null = no requirement.
+ALTER TABLE programs ADD COLUMN IF NOT EXISTS required_education_level smallint;
+
+-- 13) Additional student education levels: MPhil and Others.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS mphil_institute_name   text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS mphil_board_university text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS mphil_passing_year     text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS mphil_obtained_marks   text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS mphil_total_marks      text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS mphil_marksheet_url    text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS others_institute_name   text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS others_board_university text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS others_passing_year     text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS others_obtained_marks   text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS others_total_marks      text;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS others_marksheet_url    text;
+
+-- 14) Approval-code activation (Super Center → Approval Code).
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS activation_email text;
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS is_activated boolean NOT NULL DEFAULT false;
+ALTER TABLE coupons ADD COLUMN IF NOT EXISTS activated_at timestamptz;
+
 -- Done.
 SELECT 'all migrations applied' AS result;
