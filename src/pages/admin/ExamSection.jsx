@@ -187,20 +187,23 @@ export default function ExamSection() {
   async function loadSyllabusCourses() {
     const [sy, pr, se] = await Promise.all([
       supabase.from('syllabus_subjects').select('program_id, session_id'),
-      supabase.from('programs').select('id, program_name'),
+      supabase.from('programs').select('id, program_name, department_id, programme_type_id'),
       supabase.from('academic_sessions').select('id, session_name'),
     ])
-    const progName = Object.fromEntries((pr.data || []).map(p => [p.id, p.program_name]))
+    const progById = Object.fromEntries((pr.data || []).map(p => [p.id, p]))
     const sessName = Object.fromEntries((se.data || []).map(s => [s.id, s.session_name]))
     const map = new Map()
     for (const r of sy.data || []) {
       const key = courseKey(r.program_id, r.session_id)
       if (!map.has(key)) {
+        const p = progById[r.program_id] || {}
         map.set(key, {
           key,
           program_id: r.program_id,
           session_id: r.session_id || null,
-          programName: progName[r.program_id] || '—',
+          department_id: p.department_id || null,
+          programme_type_id: p.programme_type_id || null,
+          programName: p.program_name || '—',
           sessionName: r.session_id ? (sessName[r.session_id] || '—') : 'All Sessions',
         })
       }
@@ -494,6 +497,9 @@ export default function ExamSection() {
         <ExamSchedulesModal
           courses={syllabusCourses}
           settings={courseSettings}
+          departments={departments}
+          progTypes={progTypes}
+          sessions={sessions}
           onSave={saveCourseSettings}
           onClose={() => setSettingsOpen(false)}
         />
@@ -502,7 +508,7 @@ export default function ExamSection() {
   )
 }
 
-function ExamSchedulesModal({ courses, settings, onSave, onClose }) {
+function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [], sessions = [], onSave, onClose }) {
   // Local editable form, seeded from saved settings.
   const [form, setForm] = useState(() => {
     const init = {}
@@ -515,9 +521,17 @@ function ExamSchedulesModal({ courses, settings, onSave, onClose }) {
   const [saving, setSaving] = useState(false)
 
   const [q, setQ] = useState('')
-  const visible = courses.filter(c =>
-    `${c.programName} ${c.sessionName}`.toLowerCase().includes(q.toLowerCase())
-  )
+  const [fDept, setFDept] = useState('all')
+  const [fType, setFType] = useState('all')
+  const [fSession, setFSession] = useState([])
+  const filterActive = !!q || fDept !== 'all' || fType !== 'all' || fSession.length > 0
+  const clearFilters = () => { setQ(''); setFDept('all'); setFType('all'); setFSession([]) }
+  const visible = courses.filter(c => {
+    if (fDept !== 'all' && c.department_id !== fDept) return false
+    if (fType !== 'all' && c.programme_type_id !== fType) return false
+    if (fSession.length > 0 && (!c.session_id || !fSession.includes(c.session_id))) return false
+    return `${c.programName} ${c.sessionName}`.toLowerCase().includes(q.toLowerCase())
+  })
 
   const setField = (key, field, value) =>
     setForm(f => ({ ...f, [key]: { ...f[key], [field]: value } }))
@@ -551,12 +565,28 @@ function ExamSchedulesModal({ courses, settings, onSave, onClose }) {
         </div>
         <form onSubmit={handleSave}>
           {courses.length > 0 && (
-            <div className="px-4 pt-4">
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search course by program or session..."
+            <div className="px-4 pt-4 flex flex-wrap gap-3 items-end">
+              <div className="relative flex-1 min-w-[200px]">
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
+                <Search size={14} className="absolute left-3 top-[34px] -translate-y-1/2 text-gray-400" />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by program or session..."
                   className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
               </div>
+              <SearchableSelect label="Department" allLabel="All Departments" minWidth={170}
+                value={fDept} onChange={setFDept}
+                options={departments.map(d => ({ id: d.id, label: d.name }))} />
+              <SearchableSelect label="Program Type" allLabel="All Types" minWidth={140}
+                value={fType} onChange={setFType}
+                options={progTypes.map(t => ({ id: t.id, label: t.programme_type_name }))} />
+              <MultiSearchSelect label="Session" allLabel="All Sessions" minWidth={150}
+                values={fSession} onChange={setFSession}
+                options={sessions.map(se => ({ id: se.id, label: se.session_name }))} />
+              {filterActive && (
+                <button type="button" onClick={clearFilters}
+                  className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
+                  <X size={14} /> Clear
+                </button>
+              )}
             </div>
           )}
           <div className="max-h-[65vh] overflow-y-auto p-4 space-y-3">
