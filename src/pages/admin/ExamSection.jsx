@@ -539,14 +539,45 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
   const [fDept, setFDept] = useState('all')
   const [fType, setFType] = useState('all')
   const [fSession, setFSession] = useState([])
+  const [tab, setTab] = useState('all')            // 'all' | 'pending' | 'done'
   const filterActive = !!q || fDept !== 'all' || fType !== 'all' || fSession.length > 0
   const clearFilters = () => { setQ(''); setFDept('all'); setFType('all'); setFSession([]) }
-  const visible = courses.filter(c => {
+
+  // Group a course's subjects by semester for the date sheet.
+  const groupBySem = (subs) => {
+    const m = {}
+    for (const s of subs || []) { const k = s.semester || '—'; (m[k] ||= []).push(s) }
+    return Object.entries(m).sort((a, b) => (Number(a[0]) || 0) - (Number(b[0]) || 0))
+  }
+  // Within a semester, group subjects by Paper No (one exam date per paper).
+  const groupByPaper = (subs) => {
+    const m = new Map()
+    for (const s of subs || []) {
+      const k = s.paper_no || '—'
+      if (!m.has(k)) m.set(k, [])
+      m.get(k).push(s)
+    }
+    return [...m.entries()]
+  }
+
+  // A course is "Done" when its Admit Card Time is set AND every paper has an exam date.
+  const isDone = (c) => {
+    if (!admitForm[c.key]) return false
+    const papers = groupBySem(c.subjects).flatMap(([, subs]) => groupByPaper(subs))
+    if (papers.length === 0) return false
+    return papers.every(([, ps]) => !!dateForm[ps[0].id])
+  }
+
+  // Dept / Type / Session / search filters (status tab applied after).
+  const base = courses.filter(c => {
     if (fDept !== 'all' && c.department_id !== fDept) return false
     if (fType !== 'all' && c.programme_type_id !== fType) return false
     if (fSession.length > 0 && (!c.session_id || !fSession.includes(c.session_id))) return false
     return `${c.programName} ${c.sessionName}`.toLowerCase().includes(q.toLowerCase())
   })
+  const pendingCount = base.filter(c => !isDone(c)).length
+  const doneCount = base.filter(isDone).length
+  const visible = base.filter(c => tab === 'all' ? true : tab === 'done' ? isDone(c) : !isDone(c))
 
   async function handleSave(e) {
     e.preventDefault()
@@ -574,23 +605,6 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
     onClose()
   }
 
-  // Group a course's subjects by semester for the date sheet.
-  const groupBySem = (subs) => {
-    const m = {}
-    for (const s of subs || []) { const k = s.semester || '—'; (m[k] ||= []).push(s) }
-    return Object.entries(m).sort((a, b) => (Number(a[0]) || 0) - (Number(b[0]) || 0))
-  }
-  // Within a semester, group subjects by Paper No (one exam date per paper —
-  // all subjects of a paper, e.g. electives, share the same slot).
-  const groupByPaper = (subs) => {
-    const m = new Map()
-    for (const s of subs || []) {
-      const k = s.paper_no || '—'
-      if (!m.has(k)) m.set(k, [])
-      m.get(k).push(s)
-    }
-    return [...m.entries()]
-  }
   // Set one date across every subject of a paper.
   const setPaperDate = (paperSubs, value) =>
     setDateForm(f => { const next = { ...f }; for (const s of paperSubs) next[s.id] = value; return next })
@@ -640,12 +654,32 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
               )}
             </div>
           )}
+          {/* Status tabs */}
+          {courses.length > 0 && (
+            <div className="px-7 pt-4 flex items-center gap-2 bg-white">
+              {[
+                { key: 'pending', label: 'Pending', count: pendingCount, on: 'bg-amber-500 text-white', off: 'bg-amber-50 text-amber-700 hover:bg-amber-100' },
+                { key: 'done',    label: 'Done',    count: doneCount,    on: 'bg-emerald-600 text-white', off: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
+                { key: 'all',     label: 'All',     count: base.length,  on: 'bg-gray-800 text-white', off: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
+              ].map(t => (
+                <button key={t.key} type="button" onClick={() => setTab(t.key)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === t.key ? t.on : t.off}`}>
+                  {t.label}
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === t.key ? 'bg-white/25' : 'bg-white/70'}`}>{t.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {/* List */}
           <div className="max-h-[72vh] overflow-y-auto px-7 py-6 space-y-4">
             {courses.length === 0 ? (
               <p className="py-14 text-center text-sm text-gray-400">No courses with a syllabus yet. Add a syllabus first (Syllabus page) — only courses that have a syllabus appear here.</p>
             ) : visible.length === 0 ? (
-              <p className="py-14 text-center text-sm text-gray-400">No courses match your search.</p>
+              <p className="py-14 text-center text-sm text-gray-400">
+                {tab === 'pending' ? 'No pending courses — every course has its date sheet set. 🎉'
+                  : tab === 'done' ? 'No course is fully set yet. Add admit time + exam dates.'
+                  : 'No courses match your search.'}
+              </p>
             ) : visible.map(c => {
               const open = expanded === c.key
               return (
@@ -656,7 +690,12 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
                         <span className="text-lg font-black text-white">{c.programName?.[0]?.toUpperCase() || 'C'}</span>
                       </div>
                       <div className="min-w-0">
-                        <p className="font-black text-gray-900 text-base truncate">{c.programName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-black text-gray-900 text-base truncate">{c.programName}</p>
+                          {isDone(c)
+                            ? <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Done</span>
+                            : <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Pending</span>}
+                        </div>
                         <span className="inline-block mt-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#933d18]/8 text-[#933d18]">{c.sessionName}</span>
                       </div>
                     </div>
