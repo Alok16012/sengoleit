@@ -169,7 +169,7 @@ export default function CouponView({ type = 'wallet' }) {
             <Th>Generated On</Th>
             <Th>Used On</Th>
             <Th>Status</Th>
-            {isApproval && <Th className="text-center">Action</Th>}
+            {isApproval && <Th className="text-center">Activation</Th>}
           </tr>
         </Thead>
         <Tbody>
@@ -205,16 +205,15 @@ export default function CouponView({ type = 'wallet' }) {
                 </Td>
                 {isApproval && (
                   <Td className="text-center">
+                    {/* Read-only on the center side — admin controls activation now. */}
                     {c.is_activated ? (
-                      <button onClick={() => deactivate(c)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
-                        <Power size={12} /> Deactivate
-                      </button>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
+                        <Power size={10} /> Activated
+                      </span>
                     ) : (
-                      <button onClick={() => openActivate(c)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
-                        <Power size={12} /> Activate
-                      </button>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-50 text-gray-400">
+                        Not activated
+                      </span>
                     )}
                   </Td>
                 )}

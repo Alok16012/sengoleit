@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { formatDate } from '../../utils/formatDate'
-import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search } from 'lucide-react'
+import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff } from 'lucide-react'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -69,6 +69,17 @@ export default function CouponManagement() {
     setViewStatus('All')
     setGenMode(false)
     setPanelQ('')
+  }
+
+  // Admin activates / deactivates an approval code (centers can only view now).
+  async function toggleActivate(c) {
+    const next = !c.is_activated
+    const payload = next
+      ? { is_activated: true, activated_at: new Date().toISOString() }
+      : { is_activated: false }
+    const { error } = await supabase.from('coupons').update(payload).eq('id', c.id)
+    if (error) { alert('Could not update: ' + error.message); return }
+    setCoupons(prev => prev.map(x => x.id === c.id ? { ...x, is_activated: next } : x))
   }
 
   async function generateDirectCode() {
@@ -569,11 +580,12 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Amount</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {panelList.length === 0 ? (
-                      <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">
+                      <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">
                         No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}{directType === 'approval' ? 'approval codes' : 'discounted coupons'} {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
                     ) : panelList.map((c, i) => {
@@ -598,8 +610,25 @@ export default function CouponManagement() {
                           <td className="px-5 py-3.5">
                             {used ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
+                            ) : c.is_activated ? (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
                             ) : (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-center">
+                            {used ? (
+                              <span className="text-xs text-gray-300">—</span>
+                            ) : c.is_activated ? (
+                              <button onClick={() => toggleActivate(c)}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                                <PowerOff size={13} /> Deactivate
+                              </button>
+                            ) : (
+                              <button onClick={() => toggleActivate(c)}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                                <Power size={13} /> Activate
+                              </button>
                             )}
                           </td>
                         </tr>
