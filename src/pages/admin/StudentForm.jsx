@@ -241,8 +241,8 @@ function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, 
 
 function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading, isOpen, onToggle, readOnly, isLocked = () => false }) {
   const ro = (suffix) => readOnly || isLocked(`${prefix}_${suffix}`)
-  // UG / PG / MPhil / Others: Board / University is free text (no dropdown).
-  const freeBoard = ['UG', 'PG', 'MPhil', 'Others'].includes(boardType)
+  // UG / PG / Diploma / MPhil / Others: Board / University is free text (no dropdown).
+  const freeBoard = ['UG', 'PG', 'Diploma', 'MPhil', 'Others'].includes(boardType)
   const levelBoards = freeBoard ? [] : boards.filter(b => b.type === 'All' || b.type === boardType)
   const obtained = parseFloat(form[`${prefix}_obtained_marks`]) || 0
   const total = parseFloat(form[`${prefix}_total_marks`]) || 0
