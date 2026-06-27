@@ -233,16 +233,27 @@ export default function CouponManagement() {
         <StatCard label="Wallet Balance" value={`₹${totalWallet.toLocaleString('en-IN')}`} color="amber" />
       </div>
 
-      {/* Direct code generation — pick a center / super center + amount */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <Button variant="outline" onClick={() => openDirect('approval')}>
-          <BadgeCheck size={15} /> Approval Code
-        </Button>
-        <Button variant="outline" onClick={() => openDirect('discount')}>
-          <Tag size={15} /> Discounted Coupon
-        </Button>
+      {/* Section tabs — switch the page body inline (no popup) */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {[
+          { k: null, label: 'All Coupons', icon: Ticket },
+          { k: 'approval', label: 'Approval Codes', icon: BadgeCheck },
+          { k: 'discount', label: 'Discounted Coupons', icon: Tag },
+        ].map(t => {
+          const active = directType === t.k
+          return (
+            <button key={t.label} onClick={() => (t.k ? openDirect(t.k) : closeDirect())}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                active ? 'bg-white text-[#933d18] border border-gray-200 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}>
+              <t.icon size={15} /> {t.label}
+            </button>
+          )
+        })}
       </div>
 
+      {/* ─────────── OVERVIEW (All Coupons) ─────────── */}
+      {!directType && (<>
       {/* Coupon wallets — deposited money waiting to be minted into coupons */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
         <div className="flex items-center gap-2 mb-4">
@@ -398,6 +409,7 @@ export default function CouponManagement() {
           </Tbody>
         </Table>
       )}
+      </>)}
 
       {/* Generate coupons modal */}
       <Modal isOpen={!!genCenter} onClose={() => { setGenCenter(null); setGenRate('') }} title="Generate Coupons">
@@ -455,14 +467,8 @@ export default function CouponManagement() {
         )}
       </Modal>
 
-      {/* Type panel — Approval Codes / Discounted Coupons: list + Used/Unused tabs + generate */}
-      <Modal
-        isOpen={!!directType}
-        onClose={closeDirect}
-        size="xl"
-        title={directType === 'approval' ? 'Approval Codes' : 'Discounted Coupons'}
-      >
-        {directType && (
+      {/* Type panel — Approval Codes / Discounted Coupons: inline (no popup) */}
+      {directType && (
           <div className="space-y-4">
             {/* Top bar: status tabs + Generate button */}
             {!genMode && (
@@ -604,8 +610,7 @@ export default function CouponManagement() {
               </div>
             )}
           </div>
-        )}
-      </Modal>
+      )}
     </div>
   )
 }
