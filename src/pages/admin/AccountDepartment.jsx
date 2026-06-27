@@ -16,6 +16,7 @@ const TABS = [
   { key: 'approvals', label: 'Center Applications' },
   { key: 'super_approvals', label: 'Super Center Applications' },
   { key: 'recharges', label: 'Recharge Requests' },
+  { key: 'approval_codes', label: 'Approval Code Requests' },
 ]
 
 export default function AccountDepartment() {
@@ -23,6 +24,14 @@ export default function AccountDepartment() {
   const [appStatusFilter, setAppStatusFilter] = useState('pending')
   const [rechargeStatusFilter, setRechargeStatusFilter] = useState('pending')
   const [studentStatusFilter, setStudentStatusFilter] = useState('pending')
+  // Approval Code requests (centers request an approval-code amount; verified
+  // here credits the coupon wallet). Same shape as recharge requests.
+  const [approvalReqs, setApprovalReqs] = useState([])
+  const [approvalReqStatusFilter, setApprovalReqStatusFilter] = useState('pending')
+  const [acReqModal, setAcReqModal] = useState(null)
+  const [acReqChecked, setAcReqChecked] = useState(false)
+  const [acReqRemark, setAcReqRemark] = useState('')
+  const [acReqSaving, setAcReqSaving] = useState(false)
   const [approvals, setApprovals] = useState([])
   const [recharges, setRecharges] = useState([])
   const [centers, setCenters] = useState([])
@@ -157,11 +166,12 @@ export default function AccountDepartment() {
     setLoading(true)
     // Pending Approvals: centers forwarded by doc dept ('doc_verified') OR held by THIS dept ('account_hold').
     // 'account_hold' is distinct from doc dept's 'hold' so held centers stay inside Account Dept, not Doc Dept.
-    const [docVerified, rech, ctr, holdStu] = await Promise.all([
+    const [docVerified, rech, ctr, holdStu, acReq] = await Promise.all([
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, exam_forwarded_at, fee_held, coupon_discount, coupon_code, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
+      supabase.from('approval_code_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -186,6 +196,22 @@ export default function AccountDepartment() {
       }
     }
     setRecharges(rechRows)
+
+    // Approval code requests — same center-name fallback as recharges. The
+    // table may not exist yet (run add_approval_code_requests.sql); if the
+    // query errors we just show an empty list rather than blocking the page.
+    let acRows = acReq.error ? [] : (acReq.data || [])
+    if (!acReq.error && acRows.some(r => !r.centers)) {
+      const ids = [...new Set(acRows.map(r => r.center_id).filter(Boolean))]
+      if (ids.length) {
+        const { data: ctrs } = await supabase.from('centers')
+          .select('id, center_name, center_code, center_type, super_center:super_center_id(center_name, center_code)')
+          .in('id', ids)
+        const byId = Object.fromEntries((ctrs || []).map(c => [c.id, c]))
+        acRows = acRows.map(r => ({ ...r, centers: r.centers || byId[r.center_id] || null }))
+      }
+    }
+    setApprovalReqs(acRows)
     setLoading(false)
   }
 
@@ -538,6 +564,62 @@ export default function AccountDepartment() {
     fetchAll()
   }
 
+  // ---- Approval Code requests (verify -> credit coupon wallet) ----
+  function closeAcReqModal() {
+    setAcReqModal(null); setAcReqChecked(false); setAcReqRemark('')
+  }
+
+  async function saveAcReqRemark(id, remark) {
+    if (!remark) return
+    try {
+      await supabase.from('approval_code_requests').update({ admin_remarks: remark }).eq('id', id)
+    } catch { /* column may not exist yet — ignore */ }
+  }
+
+  async function handleVerifyAcReq(req) {
+    setAcReqSaving(true)
+    // Atomically claim the request so a double-click can't credit twice.
+    const { data: claimed } = await supabase
+      .from('approval_code_requests')
+      .update({ status: 'verified', verified_at: new Date().toISOString() })
+      .eq('id', req.id)
+      .eq('status', 'pending')
+      .select('id')
+    if (!claimed || claimed.length === 0) {
+      setAcReqSaving(false); closeAcReqModal(); fetchAll(); return
+    }
+    if (acReqRemark.trim()) await saveAcReqRemark(req.id, acReqRemark.trim())
+
+    // Credit the approval-code amount into the center's coupon wallet so
+    // approval codes can be minted from Coupon Management.
+    const { data: centerData } = await supabase.from('centers').select('coupon_wallet_balance').eq('id', req.center_id).single()
+    const newBalance = Math.round(Number(centerData?.coupon_wallet_balance || 0)) + Math.round(Number(req.amount))
+    const { error: balErr } = await supabase.from('centers').update({ coupon_wallet_balance: newBalance }).eq('id', req.center_id)
+    if (balErr && /coupon_wallet_balance/.test(balErr.message)) {
+      alert('Credited request, but the `coupon_wallet_balance` column is missing. Run add_coupon_wallet_balance.sql in Supabase.')
+    }
+    setAcReqSaving(false); closeAcReqModal()
+    fetchAll()
+  }
+
+  async function handleRejectAcReq(req, remark) {
+    setAcReqSaving(true)
+    const { data: claimed, error } = await supabase
+      .from('approval_code_requests')
+      .update({ status: 'rejected' })
+      .eq('id', req.id)
+      .eq('status', 'pending')
+      .select('id')
+    if (error) {
+      setAcReqSaving(false)
+      alert('Could not reject: ' + error.message)
+      return
+    }
+    if (claimed && claimed.length > 0) await saveAcReqRemark(req.id, remark)
+    setAcReqSaving(false); closeAcReqModal()
+    fetchAll()
+  }
+
   async function handleViewStudent(studentId) {
     setViewLoading(true)
     const { data } = await supabase
@@ -799,6 +881,19 @@ export default function AccountDepartment() {
     rejected: recharges.filter(RECHARGE_STATUS_MATCH.rejected).length,
   }
   const rechargesList = recharges.filter(RECHARGE_STATUS_MATCH[rechargeStatusFilter] || (() => true))
+  // Approval Code requests status sub-filter (To Verify / Approved / Rejected)
+  const AC_REQ_STATUS_MATCH = {
+    pending:  r => r.status === 'pending',
+    approved: r => r.status === 'verified',
+    rejected: r => r.status === 'rejected',
+  }
+  const approvalReqCounts = {
+    pending:  approvalReqs.filter(AC_REQ_STATUS_MATCH.pending).length,
+    approved: approvalReqs.filter(AC_REQ_STATUS_MATCH.approved).length,
+    rejected: approvalReqs.filter(AC_REQ_STATUS_MATCH.rejected).length,
+  }
+  const approvalReqsList = approvalReqs.filter(AC_REQ_STATUS_MATCH[approvalReqStatusFilter] || (() => true))
+  const pendingApprovalReqs = approvalReqCounts.pending
   // Student applications status sub-filter (To Verify / Hold / Approved / Rejected).
   // 'To Verify' = forwarded by Doc Dept (Hold + doc_verified_at set, awaiting account).
   // 'Hold'      = sent back for correction by Doc Dept (Hold + doc_verified_at null).
@@ -844,6 +939,9 @@ export default function AccountDepartment() {
             )}
             {t.key === 'recharges' && pendingRecharges > 0 && (
               <span className="ml-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingRecharges}</span>
+            )}
+            {t.key === 'approval_codes' && pendingApprovalReqs > 0 && (
+              <span className="ml-2 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingApprovalReqs}</span>
             )}
           </button>
         ))}
@@ -1171,6 +1269,94 @@ export default function AccountDepartment() {
                       {(r.status === 'pending' || r.status === 'hold') ? (
                         <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false); setRechargeRemark(r.admin_remarks || '') }}>
                           <CheckCircle size={13} /> {r.status === 'hold' ? 'Re-Review' : 'Review'}
+                        </Button>
+                      ) : (
+                        <span className="text-gray-300 text-xs">—</span>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+            </>
+          )}
+
+          {/* APPROVAL CODE REQUESTS TAB */}
+          {tab === 'approval_codes' && (
+            <>
+            <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+              {[
+                { key: 'pending',  label: 'To Verify', color: 'bg-amber-500' },
+                { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
+                { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
+              ].map(s => (
+                <button
+                  key={s.key}
+                  onClick={() => setApprovalReqStatusFilter(s.key)}
+                  className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    approvalReqStatusFilter === s.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {s.label}
+                  {approvalReqCounts[s.key] > 0 && (
+                    <span className={`ml-2 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.color}`}>{approvalReqCounts[s.key]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>Center</Th>
+                  <Th>Super Center</Th>
+                  <Th>Type</Th>
+                  <Th>Approval Code Amount</Th>
+                  <Th>UTR Number</Th>
+                  <Th>Screenshot</Th>
+                  <Th>Notes</Th>
+                  <Th>Date</Th>
+                  <Th>Status</Th>
+                  <Th>Remarks</Th>
+                  <Th>Actions</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {approvalReqsList.length === 0 ? (
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {approvalReqStatusFilter === 'pending' ? 'pending' : approvalReqStatusFilter === 'approved' ? 'approved' : 'rejected'} approval code requests</Td></Tr>
+                ) : approvalReqsList.map((r, i) => (
+                  <Tr key={r.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td>
+                      <p className="font-semibold text-gray-900">{r.centers?.center_name || '—'}</p>
+                      {r.centers?.center_code && <p className="text-xs text-gray-400">{r.centers.center_code}</p>}
+                    </Td>
+                    <Td>
+                      <p className="font-medium text-gray-700">{r.centers?.super_center?.center_name || '—'}</p>
+                      {r.centers?.super_center?.center_code && <p className="text-xs text-gray-400">{r.centers.super_center.center_code}</p>}
+                    </Td>
+                    <Td>
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${r.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                        {r.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
+                      </span>
+                    </Td>
+                    <Td>
+                      <span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span>
+                    </Td>
+                    <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
+                    <Td>
+                      {r.utr_screenshot_url ? (
+                        <a href={r.utr_screenshot_url} target="_blank" rel="noreferrer" className="text-[#933d18] text-xs font-semibold underline">View</a>
+                      ) : '—'}
+                    </Td>
+                    <Td className="text-gray-500 text-xs max-w-[120px] truncate">{r.notes || '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
+                    <Td><Badge status={r.status === 'verified' ? 'approved' : r.status?.toLowerCase()}>{r.status === 'verified' ? 'Approved' : (r.status || 'Pending')}</Badge></Td>
+                    <Td className="text-gray-500 text-xs max-w-[160px] truncate" title={r.admin_remarks || ''}>{r.admin_remarks || '—'}</Td>
+                    <Td>
+                      {r.status === 'pending' ? (
+                        <Button size="sm" variant="success" onClick={() => { setAcReqModal(r); setAcReqChecked(false); setAcReqRemark(r.admin_remarks || '') }}>
+                          <CheckCircle size={13} /> Review
                         </Button>
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>
@@ -2243,6 +2429,96 @@ export default function AccountDepartment() {
                 <XCircle size={14} /> Reject
               </Button>
               <Button variant="ghost" onClick={closeRechargeModal}>Cancel</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Review Approval Code Request Modal */}
+      <Modal isOpen={!!acReqModal} onClose={closeAcReqModal} title="Review Approval Code Request">
+        {acReqModal && (
+          <div className="space-y-4">
+            {/* Center summary */}
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+              <div>
+                <p className="font-bold text-gray-900">{acReqModal.centers?.center_name || '—'}</p>
+                <p className="text-xs text-gray-400">{acReqModal.centers?.center_code || ''}{acReqModal.centers?.super_center?.center_name ? ` · Super Center: ${acReqModal.centers.super_center.center_name}` : ''}</p>
+              </div>
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${acReqModal.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                {acReqModal.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
+              </span>
+            </div>
+
+            {/* Payment details */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Approval Code Amount</p>
+                <p className="text-2xl font-black text-[#933d18] mt-0.5">₹{Number(acReqModal.amount).toLocaleString('en-IN')}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">UTR / Transaction No.</p>
+                <p className="text-sm font-mono font-semibold text-gray-800 mt-1.5 break-all">{acReqModal.utr_number || '—'}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Payment Date</p>
+                <p className="text-sm font-semibold text-gray-800 mt-1.5">{formatDate(acReqModal.payment_date)}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Requested On</p>
+                <p className="text-sm font-semibold text-gray-800 mt-1.5">{formatDate(acReqModal.created_at)}</p>
+              </div>
+            </div>
+
+            {acReqModal.notes && (
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Notes</p>
+                <p className="text-sm text-gray-700 mt-1">{acReqModal.notes}</p>
+              </div>
+            )}
+
+            {/* Screenshot */}
+            <div className="border border-gray-100 rounded-xl px-4 py-3">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Payment Screenshot</p>
+              {acReqModal.utr_screenshot_url ? (
+                <a href={acReqModal.utr_screenshot_url} target="_blank" rel="noreferrer" className="block">
+                  <img src={acReqModal.utr_screenshot_url} alt="payment" className="max-h-52 rounded-lg border border-gray-200 object-contain" />
+                  <span className="text-[#933d18] text-xs font-semibold underline mt-1 inline-flex items-center gap-1"><ExternalLink size={11} /> Open full image</span>
+                </a>
+              ) : (
+                <p className="text-sm text-gray-400">No screenshot uploaded</p>
+              )}
+            </div>
+
+            {/* Remarks */}
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Remarks {acReqChecked ? '(optional)' : '(required for Reject)'}</label>
+              <textarea
+                className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:border-[#933d18] resize-none"
+                rows={2}
+                placeholder="Reason for rejection, or any note..."
+                value={acReqRemark}
+                onChange={e => setAcReqRemark(e.target.value)}
+              />
+            </div>
+
+            {/* Confirmation */}
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input type="checkbox" checked={acReqChecked} onChange={e => setAcReqChecked(e.target.checked)} className="w-4 h-4 accent-[#933d18]" />
+              <span className="text-sm text-gray-700">I have verified the payment receipt / UTR and confirm this approval code amount.</span>
+            </label>
+
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
+              On <strong>Verify</strong>, ₹{Number(acReqModal.amount).toLocaleString('en-IN')} will be credited to the center's coupon wallet (mint approval codes in Coupon Management). <strong>Reject</strong> does not credit anything.
+            </div>
+
+            <div className="flex flex-wrap gap-3 pt-1">
+              <Button variant="success" disabled={!acReqChecked || acReqSaving} onClick={() => handleVerifyAcReq(acReqModal)}>
+                <CheckCircle size={14} /> {acReqSaving ? 'Crediting...' : 'Verify & Credit Coupon Wallet'}
+              </Button>
+              <Button variant="danger" disabled={!acReqRemark.trim() || acReqSaving} onClick={() => handleRejectAcReq(acReqModal, acReqRemark.trim())}>
+                <XCircle size={14} /> Reject
+              </Button>
+              <Button variant="ghost" onClick={closeAcReqModal}>Cancel</Button>
             </div>
           </div>
         )}
