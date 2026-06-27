@@ -360,7 +360,7 @@ const emptyForm = {
   status: 'Pending', remarks: '',
   student_name: '', date_of_birth: '', profession: '', gender: '', email: '',
   mobile_no: '', whatsapp_no: '', nationality: 'Indian',
-  caste: '', religion: '', blood_group: '', mother_tongue: '',
+  caste: '', religion: '', blood_group: '', height: '', mother_tongue: '',
   physically_handicapped: 'No', aadhar_link_mobile: '', aadhar_no: '',
   identification_marks: '', scholarship_applied: 'None', pan_no: '',
   fathers_name: '', fathers_occupation: '',
@@ -1471,7 +1471,12 @@ export default function StudentForm() {
                 {SCHOLARSHIP_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
             </div>
-            <Input label="Identification Marks" placeholder="Any visible identification marks..." value={form.identification_marks} onChange={set('identification_marks')} readOnly={isReadOnly || isLocked('identification_marks')} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input label="Height" placeholder="e.g. 5'7&quot; or 170 cm" value={form.height} onChange={set('height')} readOnly={isReadOnly || isLocked('height')} />
+              <div className="sm:col-span-2">
+                <Input label="Identification Marks" placeholder="Any visible identification marks..." value={form.identification_marks} onChange={set('identification_marks')} readOnly={isReadOnly || isLocked('identification_marks')} />
+              </div>
+            </div>
           </FormSection>
         )}
 
