@@ -653,6 +653,7 @@ export default function StudentForm() {
   const [pressSameAsPerm, setPressSameAsPerm] = useState(false)
   const [guardianPresSameAsStudent, setGuardianPresSameAsStudent] = useState(false)
   const [guardianPermSameAsPres, setGuardianPermSameAsPres] = useState(false)
+  const [guardianPermSameAsStudentPerm, setGuardianPermSameAsStudentPerm] = useState(false)
 
   const handleDepartmentChange = (e) => {
     setForm(f => ({ ...f, department_id: e.target.value, programme_id: '', course_code: '', semester_year: '' }))
@@ -1559,13 +1560,13 @@ export default function StudentForm() {
                     label: 'Same as Guardian Present Address',
                     checked: guardianPermSameAsPres,
                     onCopy: () => copyAddress('guardian_pres', 'guardian_perm'),
-                    onToggle: v => setGuardianPermSameAsPres(v),
+                    onToggle: v => { setGuardianPermSameAsPres(v); if (v) setGuardianPermSameAsStudentPerm(false) },
                   },
                   {
                     label: "Same as Student's Permanent Address",
-                    checked: false,
+                    checked: guardianPermSameAsStudentPerm,
                     onCopy: () => copyAddress('student_perm', 'guardian_perm'),
-                    onToggle: () => {},
+                    onToggle: v => { setGuardianPermSameAsStudentPerm(v); if (v) setGuardianPermSameAsPres(false) },
                   },
                 ]} />
             </div>
