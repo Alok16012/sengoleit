@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
-import { Ticket, CheckCircle2, Clock, Eye, EyeOff } from 'lucide-react'
+import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 export default function CouponView({ type = 'wallet' }) {
@@ -14,6 +14,10 @@ export default function CouponView({ type = 'wallet' }) {
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('All')
   const [hideTotal, setHideTotal] = useState(false)
+  // Approval-code activation modal
+  const [actModal, setActModal] = useState(null)   // the coupon being activated
+  const [actEmail, setActEmail] = useState('')
+  const [actSaving, setActSaving] = useState(false)
 
   useEffect(() => {
     if (!user?.email) return
@@ -35,6 +39,36 @@ export default function CouponView({ type = 'wallet' }) {
           })
       })
   }, [user?.email])
+
+  function openActivate(c) {
+    setActModal(c)
+    setActEmail(c.activation_email || '')
+  }
+
+  async function submitActivate(e) {
+    e.preventDefault()
+    const email = actEmail.trim()
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      alert('Please enter a valid email ID.')
+      return
+    }
+    setActSaving(true)
+    const { error: err } = await supabase.from('coupons')
+      .update({ activation_email: email, is_activated: true, activated_at: new Date().toISOString() })
+      .eq('id', actModal.id)
+    setActSaving(false)
+    if (err) { alert('Could not activate: ' + err.message); return }
+    setCoupons(prev => prev.map(c => c.id === actModal.id ? { ...c, activation_email: email, is_activated: true } : c))
+    setActModal(null)
+    setActEmail('')
+  }
+
+  async function deactivate(c) {
+    if (!confirm('Deactivate this approval code?')) return
+    const { error: err } = await supabase.from('coupons').update({ is_activated: false }).eq('id', c.id)
+    if (err) { alert('Could not deactivate: ' + err.message); return }
+    setCoupons(prev => prev.map(x => x.id === c.id ? { ...x, is_activated: false } : x))
+  }
 
   const isApproval = type === 'approval'
   // Approval Code view only lists approval-type coupons; other views show all.
@@ -128,12 +162,13 @@ export default function CouponView({ type = 'wallet' }) {
             <Th>Generated On</Th>
             <Th>Used On</Th>
             <Th>Status</Th>
+            {isApproval && <Th className="text-center">Action</Th>}
           </tr>
         </Thead>
         <Tbody>
           {filtered.length === 0 ? (
             <Tr>
-              <Td colSpan={6} className="text-center text-gray-400 py-16">
+              <Td colSpan={isApproval ? 7 : 6} className="text-center text-gray-400 py-16">
                 <Ticket size={28} className="mx-auto mb-2 opacity-30" />
                 <p>No coupons found</p>
               </Td>
@@ -157,12 +192,60 @@ export default function CouponView({ type = 'wallet' }) {
                       <Clock size={10} /> Available
                     </span>
                   )}
+                  {isApproval && c.is_activated && c.activation_email && (
+                    <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1"><Mail size={9} /> {c.activation_email}</p>
+                  )}
                 </Td>
+                {isApproval && (
+                  <Td className="text-center">
+                    {c.is_activated ? (
+                      <button onClick={() => deactivate(c)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                        <Power size={12} /> Deactivate
+                      </button>
+                    ) : (
+                      <button onClick={() => openActivate(c)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                        <Power size={12} /> Activate
+                      </button>
+                    )}
+                  </Td>
+                )}
               </Tr>
             )
           })}
         </Tbody>
       </Table>
+
+      {actModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setActModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Power size={18} className="text-emerald-600" />
+                <h3 className="font-bold text-gray-900">Activate Approval Code</h3>
+              </div>
+              <button onClick={() => setActModal(null)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+            </div>
+            <form onSubmit={submitActivate} className="p-5 space-y-4">
+              <div>
+                <p className="text-xs text-gray-400 mb-2">Code <span className="font-mono font-bold text-gray-700">{actModal.id?.slice(0, 8).toUpperCase()}</span> · ₹{Number(actModal.face_value || 0).toLocaleString('en-IN')}</p>
+                <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1.5"><Mail size={13} className="text-[#933d18]" /> Email ID</label>
+                <input type="email" autoFocus value={actEmail} onChange={e => setActEmail(e.target.value)} placeholder="name@example.com"
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setActModal(null)} disabled={actSaving}
+                  className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700">Cancel</button>
+                <button type="submit" disabled={actSaving}
+                  className="px-4 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl disabled:opacity-50">
+                  {actSaving ? 'Activating...' : 'Submit & Activate'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
