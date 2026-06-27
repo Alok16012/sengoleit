@@ -197,6 +197,7 @@ export default function App() {
             <Route path="/super-center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
             <Route path="/super-center/reports/wallet-coupon" element={<CouponView type="wallet" />} />
             <Route path="/super-center/reports/admission-coupon" element={<CouponView type="admission" />} />
+            <Route path="/super-center/approval-codes" element={<CouponView type="approval" />} />
 
             {/* Center portal */}
             <Route path="/center/dashboard" element={<CenterDashboard />} />

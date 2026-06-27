@@ -60,6 +60,7 @@ const superCenterNavGroups = [
     items: [
       { to: '/super-center/center-applications', icon: Building2, label: 'Center Applications' },
       { to: '/super-center/centers', icon: Building2, label: 'My Centers' },
+      { to: '/super-center/approval-codes', icon: BadgeCheck, label: 'Approval Code' },
     ],
   },
   {

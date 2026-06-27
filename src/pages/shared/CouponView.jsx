@@ -36,22 +36,30 @@ export default function CouponView({ type = 'wallet' }) {
       })
   }, [user?.email])
 
-  const filtered = coupons.filter(c => {
+  const isApproval = type === 'approval'
+  // Approval Code view only lists approval-type coupons; other views show all.
+  const scoped = isApproval
+    ? coupons.filter(c => (c.coupon_type || '').toLowerCase() === 'approval')
+    : coupons
+
+  const filtered = scoped.filter(c => {
     const isUsed = !!(c.is_used || c.used_at)
     if (filter === 'Used') return isUsed
     if (filter === 'Unused') return !isUsed
     return true
   })
 
-  const total = coupons.length
-  const used = coupons.filter(c => !!(c.is_used || c.used_at)).length
+  const total = scoped.length
+  const used = scoped.filter(c => !!(c.is_used || c.used_at)).length
   const unused = total - used
 
   const isWallet = type === 'wallet'
-  const title = isWallet ? 'Wallet Coupons' : 'Admission Coupons'
-  const subtitle = isWallet
-    ? 'Coupons allocated to your center for wallet recharge'
-    : 'Admission coupons allocated to your center'
+  const title = isApproval ? 'Approval Codes' : isWallet ? 'Wallet Coupons' : 'Admission Coupons'
+  const subtitle = isApproval
+    ? 'Approval codes allocated to your center'
+    : isWallet
+      ? 'Coupons allocated to your center for wallet recharge'
+      : 'Admission coupons allocated to your center'
 
   if (loading) return (
     <div className="p-6 flex items-center justify-center py-20">
