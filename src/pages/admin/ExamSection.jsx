@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock } from 'lucide-react'
+import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2 } from 'lucide-react'
 import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -535,6 +535,7 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
   const [expanded, setExpanded] = useState(null)   // expanded course key
   const [openSems, setOpenSems] = useState({})     // { `${ckey}__${sem}`: bool } — which semester accordions are open
   const toggleSem = (k) => setOpenSems(p => ({ ...p, [k]: !p[k] }))
+  const [maximized, setMaximized] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [q, setQ] = useState('')
@@ -612,8 +613,8 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
     setDateForm(f => { const next = { ...f }; for (const s of paperSubs) next[s.id] = value; return next })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6 pt-6 sm:pt-10 overflow-y-auto" onClick={onClose}>
-      <div className="bg-gray-50 rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className={`fixed inset-0 z-50 flex bg-black/50 backdrop-blur-sm overflow-y-auto ${maximized ? 'p-0' : 'items-start justify-center p-4 sm:p-6 pt-6 sm:pt-10'}`} onClick={onClose}>
+      <div className={`bg-gray-50 shadow-2xl w-full overflow-hidden ${maximized ? 'min-h-screen rounded-none max-w-none' : 'rounded-3xl max-w-6xl'}`} onClick={e => e.stopPropagation()}>
         {/* Header — brand gradient band */}
         <div className="relative px-8 py-6 bg-gradient-to-br from-[#933d18] via-[#a8451c] to-[#7a3215] sticky top-0 z-10">
           <div className="flex items-start justify-between gap-4">
@@ -626,7 +627,13 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
                 <p className="text-[13px] text-white/75 mt-1 max-w-2xl leading-snug">Set a fixed exam date per subject (semester-wise date sheet) and the Admit Card Time per course. Both print on the Admit Card.</p>
               </div>
             </div>
-            <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors shrink-0"><X size={20} /></button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button type="button" onClick={() => setMaximized(m => !m)} title={maximized ? 'Exit full screen' : 'Full screen'}
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors">
+                {maximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              </button>
+              <button onClick={onClose} className="w-10 h-10 rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/15 transition-colors"><X size={20} /></button>
+            </div>
           </div>
         </div>
         <form onSubmit={handleSave}>
@@ -673,7 +680,7 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
             </div>
           )}
           {/* List */}
-          <div className="max-h-[72vh] overflow-y-auto px-7 py-6 space-y-4">
+          <div className={`overflow-y-auto px-7 py-6 space-y-4 ${maximized ? 'max-h-[calc(100vh-280px)]' : 'max-h-[72vh]'}`}>
             {courses.length === 0 ? (
               <p className="py-14 text-center text-sm text-gray-400">No courses with a syllabus yet. Add a syllabus first (Syllabus page) — only courses that have a syllabus appear here.</p>
             ) : visible.length === 0 ? (
