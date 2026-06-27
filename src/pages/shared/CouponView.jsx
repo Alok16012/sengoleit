@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
-import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X } from 'lucide-react'
+import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X, Hash, IndianRupee } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 // Toggle the Email ID step on the Activate Approval Code modal.
@@ -14,6 +14,8 @@ export default function CouponView({ type = 'wallet' }) {
   const { user } = useAuth()
   const [center, setCenter] = useState(null)
   const [coupons, setCoupons] = useState([])
+  // Approval-code payment requests made from the public website (paid online / UTR).
+  const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('All')
@@ -29,6 +31,16 @@ export default function CouponView({ type = 'wallet' }) {
       .then(({ data, error: err }) => {
         if (err || !data) { setError('Center not found. Contact admin.'); setLoading(false); return }
         setCenter(data)
+        // Approval-code payment requests (created when the center pays on the
+        // public website). Shows Amount / Transaction ID / Status here so the
+        // center can track a payment after it's done. Best-effort: the table /
+        // some columns may not exist yet, so it must never blank the page.
+        if (type === 'approval') {
+          supabase.from('approval_code_requests').select('*').eq('center_id', data.id).order('created_at', { ascending: false })
+            .then(({ data: reqs, error: rErr }) => {
+              if (!rErr) setRequests(reqs || [])
+            })
+        }
         // Order by created_at if it exists, otherwise fall back to an
         // unordered fetch so a missing column doesn't blank the list.
         supabase.from('coupons').select('*').eq('center_id', data.id).order('created_at', { ascending: false })
@@ -146,6 +158,54 @@ export default function CouponView({ type = 'wallet' }) {
             <p className="text-xs font-bold uppercase tracking-widest text-[#933d18]/60 mb-1">Wallet Balance</p>
             <p className="text-2xl font-black text-[#933d18]">₹{Number(center.virtual_balance || 0).toLocaleString('en-IN')}</p>
           </div>
+        </div>
+      )}
+
+      {/* Approval-code payment requests made online — track Amount / Transaction
+          ID / Status here. Account Dept verifies these and mints the codes. */}
+      {isApproval && requests.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <IndianRupee size={15} className="text-[#933d18]" /> Approval Code Payment Requests
+          </h2>
+          <Table>
+            <Thead>
+              <tr>
+                <Th>#</Th>
+                <Th>Amount</Th>
+                <Th>Transaction ID</Th>
+                <Th>Requested On</Th>
+                <Th>Verified On</Th>
+                <Th>Status</Th>
+                <Th>Remarks</Th>
+              </tr>
+            </Thead>
+            <Tbody>
+              {requests.map((r, i) => {
+                const st = (r.status || 'pending').toLowerCase()
+                const badge = st === 'verified'
+                  ? { cls: 'bg-emerald-50 text-emerald-700', label: 'Approved', Icon: CheckCircle2 }
+                  : st === 'rejected'
+                    ? { cls: 'bg-red-50 text-red-700', label: 'Rejected', Icon: X }
+                    : { cls: 'bg-amber-50 text-amber-700', label: 'To Verify', Icon: Clock }
+                return (
+                  <Tr key={r.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td className="font-bold text-gray-900">₹{Number(r.amount || 0).toLocaleString('en-IN')}</Td>
+                    <Td className="font-mono text-xs text-gray-700">{r.payment_txn_id || '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(r.verified_at)}</Td>
+                    <Td>
+                      <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${badge.cls}`}>
+                        <badge.Icon size={10} /> {badge.label}
+                      </span>
+                    </Td>
+                    <Td className="text-gray-500 text-xs max-w-[200px]">{r.admin_remarks || '—'}</Td>
+                  </Tr>
+                )
+              })}
+            </Tbody>
+          </Table>
         </div>
       )}
 
