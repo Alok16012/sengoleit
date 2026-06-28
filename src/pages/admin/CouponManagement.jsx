@@ -88,13 +88,13 @@ export default function CouponManagement() {
     setDirectSaving(true)
     const { data: inserted, error } = await supabase.from('coupons')
       .insert({ center_id: directCenterId, face_value: amount, coupon_type: directType })
-      .select('id')
+      .select('id, coupon_code')
       .single()
     setDirectSaving(false)
     if (error) { alert('Error generating code: ' + error.message); return }
     const center = centers.find(c => c.id === directCenterId)
     setDirectResult({
-      code: inserted?.id?.slice(0, 8).toUpperCase() || '—',
+      code: inserted?.coupon_code || inserted?.id?.slice(0, 8).toUpperCase() || '—',
       type: directType,
       amount,
       centerName: center?.center_name || '',
@@ -381,7 +381,7 @@ export default function CouponManagement() {
                     return (
                       <Tr key={c.id}>
                         <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                        <Td className="font-mono text-xs text-gray-700">{c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
+                        <Td className="font-mono text-xs text-gray-700">{c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
                         <Td>
                           <p className="font-semibold text-gray-900">{c.centers?.center_name || '—'}</p>
                           {c.centers?.center_code && <p className="text-xs text-gray-400">{c.centers.center_code}</p>}
@@ -594,8 +594,8 @@ export default function CouponManagement() {
                         <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-2">
-                              <span className="font-mono text-sm font-bold text-gray-800 tracking-wide">{c.id?.slice(0, 8).toUpperCase() || '—'}</span>
-                              <button onClick={() => navigator.clipboard?.writeText(c.id?.slice(0, 8).toUpperCase() || '')} title="Copy code"
+                              <span className="font-mono text-sm font-bold text-gray-800 tracking-wide">{c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'}</span>
+                              <button onClick={() => navigator.clipboard?.writeText(c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '')} title="Copy code"
                                 className="text-gray-300 hover:text-[#933d18] transition-colors"><Copy size={13} /></button>
                             </div>
                           </td>

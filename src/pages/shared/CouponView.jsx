@@ -245,7 +245,7 @@ export default function CouponView({ type = 'wallet' }) {
             return (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                <Td className="font-mono text-xs font-bold text-gray-800">{c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
+                <Td className="font-mono text-xs font-bold text-gray-800">{c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
                 <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
@@ -295,7 +295,7 @@ export default function CouponView({ type = 'wallet' }) {
             </div>
             <form onSubmit={submitActivate} className="p-5 space-y-4">
               <div>
-                <p className="text-xs text-gray-400 mb-2">Code <span className="font-mono font-bold text-gray-700">{actModal.id?.slice(0, 8).toUpperCase()}</span> · ₹{Number(actModal.face_value || 0).toLocaleString('en-IN')}</p>
+                <p className="text-xs text-gray-400 mb-2">Code <span className="font-mono font-bold text-gray-700">{actModal.coupon_code || actModal.id?.slice(0, 8).toUpperCase()}</span> · ₹{Number(actModal.face_value || 0).toLocaleString('en-IN')}</p>
                 {/* Email step hidden for now — flip SHOW_EMAIL to true to bring it back. */}
                 {SHOW_EMAIL && (
                   <>
