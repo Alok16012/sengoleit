@@ -229,7 +229,7 @@ export default function CouponView({ type = 'wallet' }) {
             <Th>Generated On</Th>
             <Th>Used On</Th>
             <Th>Status</Th>
-            {isApproval && <Th className="text-center">Activation</Th>}
+            {isApproval && <Th className="text-center">Verification</Th>}
           </tr>
         </Thead>
         <Tbody>
@@ -265,14 +265,18 @@ export default function CouponView({ type = 'wallet' }) {
                 </Td>
                 {isApproval && (
                   <Td className="text-center">
-                    {/* Read-only on the center side — admin controls activation now. */}
-                    {c.is_activated ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
-                        <Power size={10} /> Activated
+                    {/* Read-only — mirrors the Account Dept verification status. */}
+                    {c.is_rejected ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">
+                        <X size={10} /> Rejected
+                      </span>
+                    ) : (c.is_activated || isUsed) ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                        <CheckCircle2 size={10} /> Approved
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-50 text-gray-400">
-                        Not activated
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
+                        <Clock size={10} /> To Verify
                       </span>
                     )}
                   </Td>
