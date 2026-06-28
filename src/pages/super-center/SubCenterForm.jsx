@@ -437,15 +437,26 @@ export default function SubCenterForm() {
       scId = sc?.id || null
       if (scId) setSuperCenterId(scId)
     }
-    const { data, error: err } = await supabase.from('coupons')
-      .select('id, coupon_code, face_value, center_id, coupon_type, is_used')
+    // is_rejected may not exist in older DBs — fall back to a slimmer select so
+    // the check still works before add_approval_code_review.sql is run.
+    const buildCodeQuery = (cols) => supabase.from('coupons')
+      .select(cols)
       .eq('coupon_code', code)
       .eq('coupon_type', 'approval')
       .maybeSingle()
+    let { data, error: err } = await buildCodeQuery('id, coupon_code, face_value, center_id, coupon_type, is_used, is_activated, is_rejected')
+    if (err && /is_rejected/.test(err.message || '')) {
+      ({ data, error: err } = await buildCodeQuery('id, coupon_code, face_value, center_id, coupon_type, is_used, is_activated'))
+    }
     setCodeChecking(false)
     if (err) { setCodeError('Could not check the code. Try again.'); return }
     if (!data) { setCodeError('Invalid approval code. Please check and try again.'); return }
-    if (data.is_used) { setCodeError('This approval code has already been used.'); return }
+    if (data.is_used) { setCodeError('This approval code has already been used to create a center.'); return }
+    if (data.is_rejected) { setCodeError('This approval code was rejected by the Account Department. Please contact the office.'); return }
+    // The fee must be PAID (on the website) and the payment VERIFIED by the
+    // Account Department (which sets is_activated) before the code can create a
+    // center. Until then the code is not usable.
+    if (!data.is_activated) { setCodeError('Payment for this approval code is not verified yet. It becomes usable once the Account Department verifies the payment.'); return }
     if (scId && data.center_id && data.center_id !== scId) {
       setCodeError('This approval code does not belong to your super center.'); return
     }
