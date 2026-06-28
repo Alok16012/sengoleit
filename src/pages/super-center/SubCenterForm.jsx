@@ -204,7 +204,21 @@ export default function SubCenterForm() {
   const [pricing, setPricing] = useState(null)            // admin-set { with_letter_price, without_letter_price }
   const [correctionFields, setCorrectionFields] = useState([]) // fields Doc Dept flagged for edit
   const [payNow, setPayNow] = useState(false)             // super center is paying offline at creation time
+  // Approval-code entry gateway (only when creating a brand-new center).
+  // entryMode: null = choose path, 'code-entry' = typing the code, 'code' = code
+  // applied (skip Payment step), 'nocode' = normal flow with payment.
+  const [entryMode, setEntryMode] = useState(isEdit ? 'nocode' : null)
+  const [codeInput, setCodeInput] = useState('')
+  const [codeCoupon, setCodeCoupon] = useState(null)      // the validated approval coupon
+  const [codeChecking, setCodeChecking] = useState(false)
+  const [codeError, setCodeError] = useState('')
   const isResubmit = isEdit && ['hold', 'account_hold', 'rejected', 'pending'].includes(loadedStatus)
+  // When an approval code is applied the center has already paid, so the
+  // Payment / Letter-Type step (index 5) is skipped.
+  const hasCode = entryMode === 'code' && !!codeCoupon
+  const PAYMENT_STEP = 5
+  const visibleSteps = STEPS.map((_, i) => i).filter(i => !(hasCode && i === PAYMENT_STEP))
+  const lastStep = visibleSteps[visibleSteps.length - 1]
   const backDest = isResubmit ? '/super-center/center-applications' : '/super-center/centers'
 
   // Account Dept hold ('account_hold'): the Document Dept already verified everything, so ONLY
@@ -399,16 +413,49 @@ export default function SubCenterForm() {
     const err = validateStep(step)
     if (err) { setStepError(err); return }
     setStepError('')
-    setStep(s => s + 1)
+    const idx = visibleSteps.indexOf(step)
+    const next = visibleSteps[idx + 1]
+    if (next !== undefined) setStep(next)
   }
 
   function handlePrev() {
     setStepError('')
-    setStep(s => s - 1)
+    const idx = visibleSteps.indexOf(step)
+    const prev = visibleSteps[idx - 1]
+    if (prev !== undefined) setStep(prev)
+  }
+
+  // Validate the approval code typed at the entry gateway: it must be an
+  // unused approval coupon that belongs to THIS super center.
+  async function applyApprovalCode() {
+    const code = codeInput.trim().toUpperCase()
+    if (!code) { setCodeError('Enter your approval code'); return }
+    setCodeChecking(true); setCodeError('')
+    let scId = superCenterId
+    if (!scId && user?.email) {
+      const { data: sc } = await supabase.from('centers').select('id').eq('email', user.email).eq('center_type', 'super_center').single()
+      scId = sc?.id || null
+      if (scId) setSuperCenterId(scId)
+    }
+    const { data, error: err } = await supabase.from('coupons')
+      .select('id, coupon_code, face_value, center_id, coupon_type, is_used')
+      .eq('coupon_code', code)
+      .eq('coupon_type', 'approval')
+      .maybeSingle()
+    setCodeChecking(false)
+    if (err) { setCodeError('Could not check the code. Try again.'); return }
+    if (!data) { setCodeError('Invalid approval code. Please check and try again.'); return }
+    if (data.is_used) { setCodeError('This approval code has already been used.'); return }
+    if (scId && data.center_id && data.center_id !== scId) {
+      setCodeError('This approval code does not belong to your super center.'); return
+    }
+    setCodeCoupon(data)
+    setEntryMode('code')
+    setStep(0)
   }
 
   async function handleSubmit() {
-    if (step !== STEPS.length - 1) return
+    if (step !== lastStep) return
     setLoading(true)
     setError(null)
     try {
@@ -425,11 +472,20 @@ export default function SubCenterForm() {
       // pending application — and any old hold remark is cleared so it is verified again from scratch.
       // Editing an already-approved / doc-verified center must NOT silently demote it to pending.
       const resubmit = !isEdit || ['hold', 'account_hold', 'rejected', 'pending'].includes(loadedStatus) || !loadedStatus
-      const payload = { ...form, center_type: 'center', super_center_id: scId, base_fee: basePrice, payment_amount: basePrice }
+      // With an approval code the fee is the code's face value (already paid).
+      const effectiveBase = hasCode ? Number(codeCoupon.face_value || 0) : basePrice
+      const payload = { ...form, center_type: 'center', super_center_id: scId, base_fee: effectiveBase, payment_amount: effectiveBase }
       delete payload.id; delete payload.created_at; delete payload.updated_at
       // Offline payment recorded at creation: keep the amount/UTR/receipt and flag it for the
       // Account Dept to verify. If not paying now, drop those fields so the pay-link flow runs.
-      if (payNow) {
+      if (hasCode) {
+        // Already paid via approval code — record it as an already-paid offline
+        // payment, with the approval code itself as the reference.
+        payload.amount_paid = Number(codeCoupon.face_value || 0)
+        payload.utr_number = codeCoupon.coupon_code
+        payload.payment_status = 'offline_review'
+        payload.payment_remark = 'Paid via Approval Code ' + codeCoupon.coupon_code
+      } else if (payNow) {
         payload.amount_paid = Number(form.amount_paid) || basePrice
         payload.payment_status = 'offline_review'
       } else {
@@ -487,6 +543,13 @@ export default function SubCenterForm() {
       } else {
         const { error: err } = await supabase.from('centers').insert(payload)
         if (err) throw err
+        // Mark the approval code used so it can't be reused. Guard on is_used
+        // so a retry doesn't matter.
+        if (hasCode && codeCoupon) {
+          await supabase.from('coupons')
+            .update({ is_used: true, used_at: new Date().toISOString() })
+            .eq('id', codeCoupon.id).eq('is_used', false)
+        }
       }
       navigate(resubmit ? '/super-center/center-applications' : '/super-center/centers')
     } catch (err) {
@@ -519,9 +582,81 @@ export default function SubCenterForm() {
   ]
   const docsUploaded = docFields.filter(([k]) => !!form[k]).length
 
+  // GATEWAY: when creating a brand-new center, first ask whether the super
+  // center already has an approval code (paid in advance) or not.
+  if (!isEdit && entryMode === null) {
+    return (
+      <div className="p-4 lg:p-6 pb-20">
+        <PageHeader title="Create Center" backTo={backDest} />
+        <div className="max-w-2xl mx-auto mt-6">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700 mb-6">
+            Kya aapke paas pehle se <strong>Approval Code</strong> hai? (Jisme aapne payment already kar diya hai)
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <button type="button" onClick={() => setEntryMode('code-entry')}
+              className="text-left rounded-2xl border-2 border-gray-200 hover:border-[#933d18] bg-white p-5 transition-all group">
+              <div className="w-11 h-11 rounded-xl bg-[#933d18]/10 flex items-center justify-center mb-3 group-hover:bg-[#933d18]/15">
+                <CheckCircle2 size={20} className="text-[#933d18]" />
+              </div>
+              <p className="text-base font-bold text-gray-900">Mere paas Approval Code hai</p>
+              <p className="text-xs text-gray-500 mt-1">Code daalein — payment already ho chuka hai, to payment step nahi aayega.</p>
+            </button>
+            <button type="button" onClick={() => { setCodeCoupon(null); setEntryMode('nocode') }}
+              className="text-left rounded-2xl border-2 border-gray-200 hover:border-[#933d18] bg-white p-5 transition-all group">
+              <div className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center mb-3 group-hover:bg-gray-200">
+                <Wallet size={20} className="text-gray-500" />
+              </div>
+              <p className="text-base font-bold text-gray-900">Approval Code nahi hai</p>
+              <p className="text-xs text-gray-500 mt-1">Normal process — form ke saath payment bhi karein (pehle jaisa).</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // CODE ENTRY: type and validate the approval code before opening the form.
+  if (!isEdit && entryMode === 'code-entry') {
+    return (
+      <div className="p-4 lg:p-6 pb-20">
+        <PageHeader title="Create Center" backTo={backDest} />
+        <div className="max-w-md mx-auto mt-6">
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <div className="w-12 h-12 rounded-xl bg-[#933d18]/10 flex items-center justify-center mb-4">
+              <CheckCircle2 size={22} className="text-[#933d18]" />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900">Enter Approval Code</h2>
+            <p className="text-sm text-gray-500 mt-1 mb-4">Apna approval code daalein. Verify hone par form khulega aur payment step nahi aayega.</p>
+            <Input label="Approval Code *" value={codeInput}
+              onChange={e => { setCodeInput(e.target.value); setCodeError('') }}
+              placeholder="e.g. CPN1234ABCD" />
+            {codeError && (
+              <div className="mt-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" /> {codeError}
+              </div>
+            )}
+            <div className="flex gap-3 mt-5">
+              <Button type="button" onClick={applyApprovalCode} disabled={codeChecking}>
+                {codeChecking ? 'Checking...' : 'Verify & Continue'} <ArrowRight size={14} />
+              </Button>
+              <Button type="button" variant="outline" onClick={() => { setEntryMode(null); setCodeInput(''); setCodeError('') }}>Back</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-4 lg:p-6 pb-20">
       <PageHeader title={isResubmit ? 'Resubmit Application' : isEdit ? 'Edit Center' : 'Create Center'} backTo={backDest} />
+
+      {hasCode && (
+        <div className="mt-3 mb-1 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-700">
+          <CheckCircle2 size={15} className="shrink-0" />
+          Approval Code <strong className="font-mono">{codeCoupon?.coupon_code}</strong> applied · ₹{Number(codeCoupon?.face_value || 0).toLocaleString('en-IN')} already paid — payment step skipped.
+        </div>
+      )}
 
       {isAccountHold ? (
         <div className="mt-3 mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
@@ -579,15 +714,16 @@ export default function SubCenterForm() {
       <div className="sticky top-0 z-20 mb-5 bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden">
         <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <div className="flex items-stretch min-w-max">
-            {STEPS.map((s, i) => {
-              const isActive = step === i
-              const isPast = i < step
+            {visibleSteps.map((origIdx, pos) => {
+              const s = STEPS[origIdx]
+              const isActive = step === origIdx
+              const isPast = visibleSteps.indexOf(step) > pos
               const Icon = s.icon
               return (
-                <div key={i} className="flex items-center">
+                <div key={origIdx} className="flex items-center">
                   <button
                     type="button"
-                    onClick={() => { setStepError(''); setStep(i) }}
+                    onClick={() => { setStepError(''); setStep(origIdx) }}
                     className={`relative flex items-center gap-2.5 px-5 py-3.5 transition-all cursor-pointer
                       ${isActive
                         ? 'bg-[#933d18] text-white'
@@ -598,7 +734,7 @@ export default function SubCenterForm() {
                   >
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shrink-0
                       ${isActive ? 'bg-white/20 text-white' : isPast ? 'bg-[#933d18]/20 text-[#933d18]' : 'bg-gray-100 text-gray-400'}`}>
-                      {isPast ? <CheckCircle2 size={13} /> : i + 1}
+                      {isPast ? <CheckCircle2 size={13} /> : pos + 1}
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Icon size={13} className={isActive ? 'text-white/80' : isPast ? 'text-[#933d18]/60' : 'text-gray-300'} />
@@ -608,7 +744,7 @@ export default function SubCenterForm() {
                     </div>
                     {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/40 rounded-full" />}
                   </button>
-                  {i < STEPS.length - 1 && (
+                  {pos < visibleSteps.length - 1 && (
                     <div className={`w-px self-stretch my-2 ${isPast ? 'bg-[#933d18]/20' : 'bg-gray-200'}`} />
                   )}
                 </div>
@@ -1091,7 +1227,7 @@ export default function SubCenterForm() {
           </div>
           <div className="flex gap-3">
             <Button type="button" variant="outline" onClick={() => navigate(backDest)}>Cancel</Button>
-            {step < STEPS.length - 1 ? (
+            {step !== lastStep ? (
               <Button type="button" onClick={handleNext}>
                 Next <ArrowRight size={14} />
               </Button>
