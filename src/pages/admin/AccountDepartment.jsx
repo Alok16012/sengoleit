@@ -29,6 +29,9 @@ export default function AccountDepartment() {
   const [approvalReqs, setApprovalReqs] = useState([])
   const [approvalReqStatusFilter, setApprovalReqStatusFilter] = useState('pending')
   const [acReqSaving, setAcReqSaving] = useState(false)
+  // Verify-with-reference modal for an approval code coupon.
+  const [verifyAcModal, setVerifyAcModal] = useState(null)
+  const [verifyRef, setVerifyRef] = useState('')
   const [approvals, setApprovals] = useState([])
   const [recharges, setRecharges] = useState([])
   const [centers, setCenters] = useState([])
@@ -562,23 +565,26 @@ export default function AccountDepartment() {
 
   // ---- Approval code coupons: Account-Dept verify / reject ----
   // Approve = activate the approval code (is_activated). Reject = is_rejected.
-  async function verifyApprovalCode(c) {
+  // Verify an approval code. The PayU/payment reference (ref) is saved into
+  // payment_txn_id so it shows in the Transaction ID column afterwards.
+  async function verifyApprovalCode(c, ref = '') {
     setAcReqSaving(true)
+    const base = { is_activated: true, activated_at: new Date().toISOString() }
+    if (ref && ref.trim()) base.payment_txn_id = ref.trim()
     const { error } = await supabase.from('coupons')
-      .update({ is_activated: true, activated_at: new Date().toISOString(), is_rejected: false })
+      .update({ ...base, is_rejected: false })
       .eq('id', c.id)
     setAcReqSaving(false)
     if (error) {
       // is_rejected may not exist yet — retry without it so verify still works.
       if (/is_rejected/.test(error.message)) {
-        const { error: e2 } = await supabase.from('coupons')
-          .update({ is_activated: true, activated_at: new Date().toISOString() })
-          .eq('id', c.id)
+        const { error: e2 } = await supabase.from('coupons').update(base).eq('id', c.id)
         if (e2) { alert('Could not verify: ' + e2.message); return }
       } else {
         alert('Could not verify: ' + error.message); return
       }
     }
+    setVerifyAcModal(null); setVerifyRef('')
     fetchAll()
   }
 
@@ -1338,7 +1344,7 @@ export default function AccountDepartment() {
                     <Td>
                       {st === 'pending' ? (
                         <div className="flex gap-1">
-                          <Button size="sm" variant="success" disabled={acReqSaving} onClick={() => verifyApprovalCode(r)}>
+                          <Button size="sm" variant="success" disabled={acReqSaving} onClick={() => { setVerifyAcModal(r); setVerifyRef(r.payment_txn_id || '') }}>
                             <CheckCircle size={13} /> Verify
                           </Button>
                           <Button size="sm" variant="danger" disabled={acReqSaving} onClick={() => rejectApprovalCode(r)}>
@@ -1346,7 +1352,7 @@ export default function AccountDepartment() {
                           </Button>
                         </div>
                       ) : st === 'rejected' ? (
-                        <Button size="sm" variant="success" disabled={acReqSaving} onClick={() => verifyApprovalCode(r)}>
+                        <Button size="sm" variant="success" disabled={acReqSaving} onClick={() => { setVerifyAcModal(r); setVerifyRef(r.payment_txn_id || '') }}>
                           <CheckCircle size={13} /> Verify
                         </Button>
                       ) : (
@@ -2425,6 +2431,56 @@ export default function AccountDepartment() {
                 <XCircle size={14} /> Reject
               </Button>
               <Button variant="ghost" onClick={closeRechargeModal}>Cancel</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Verify Approval Code (with PayU / payment reference) */}
+      <Modal isOpen={!!verifyAcModal} onClose={() => { setVerifyAcModal(null); setVerifyRef('') }} title="Verify Approval Code">
+        {verifyAcModal && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3">
+              <div>
+                <p className="font-bold text-gray-900">{verifyAcModal.centers?.center_name || '—'}</p>
+                <p className="text-xs text-gray-400">{verifyAcModal.centers?.center_code || ''}{verifyAcModal.centers?.super_center?.center_name ? ` · Super Center: ${verifyAcModal.centers.super_center.center_name}` : ''}</p>
+              </div>
+              <span className="font-mono text-xs font-bold text-gray-700">{verifyAcModal.coupon_code || verifyAcModal.id?.slice(0, 8).toUpperCase()}</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Approval Code Amount</p>
+                <p className="text-2xl font-black text-[#933d18] mt-0.5">₹{Number(verifyAcModal.face_value || 0).toLocaleString('en-IN')}</p>
+              </div>
+              <div className="border border-gray-100 rounded-xl px-4 py-3">
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Generated On</p>
+                <p className="text-sm font-semibold text-gray-800 mt-1.5">{formatDate(verifyAcModal.created_at)}</p>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1 block">Payment Reference No. (PayU)</label>
+              <input
+                type="text"
+                autoFocus
+                value={verifyRef}
+                onChange={e => setVerifyRef(e.target.value)}
+                placeholder="e.g. PayU txn / bank reference number"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">PayU dashboard se reference number daalein — verify ke baad yeh Transaction ID column me dikhega.</p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
+              Verify karne par yeh approval code <strong>activate</strong> ho jayega aur Approved me chala jayega.
+            </div>
+
+            <div className="flex flex-wrap gap-3 pt-1">
+              <Button variant="success" disabled={acReqSaving} onClick={() => verifyApprovalCode(verifyAcModal, verifyRef)}>
+                <CheckCircle size={14} /> {acReqSaving ? 'Verifying...' : 'Verify & Activate'}
+              </Button>
+              <Button variant="ghost" onClick={() => { setVerifyAcModal(null); setVerifyRef('') }}>Cancel</Button>
             </div>
           </div>
         )}
