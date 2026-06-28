@@ -590,7 +590,7 @@ export default function SubCenterForm() {
         <PageHeader title="Create Center" backTo={backDest} />
         <div className="max-w-2xl mx-auto mt-6">
           <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700 mb-6">
-            Kya aapke paas pehle se <strong>Approval Code</strong> hai? (Jisme aapne payment already kar diya hai)
+            Do you already have an <strong>Approval Code</strong>? (One for which the payment has already been made)
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <button type="button" onClick={() => setEntryMode('code-entry')}
@@ -598,16 +598,16 @@ export default function SubCenterForm() {
               <div className="w-11 h-11 rounded-xl bg-[#933d18]/10 flex items-center justify-center mb-3 group-hover:bg-[#933d18]/15">
                 <CheckCircle2 size={20} className="text-[#933d18]" />
               </div>
-              <p className="text-base font-bold text-gray-900">Mere paas Approval Code hai</p>
-              <p className="text-xs text-gray-500 mt-1">Code daalein — payment already ho chuka hai, to payment step nahi aayega.</p>
+              <p className="text-base font-bold text-gray-900">I have an Approval Code</p>
+              <p className="text-xs text-gray-500 mt-1">Enter the code — payment is already done, so the payment step won't appear.</p>
             </button>
             <button type="button" onClick={() => { setCodeCoupon(null); setEntryMode('nocode') }}
               className="text-left rounded-2xl border-2 border-gray-200 hover:border-[#933d18] bg-white p-5 transition-all group">
               <div className="w-11 h-11 rounded-xl bg-gray-100 flex items-center justify-center mb-3 group-hover:bg-gray-200">
                 <Wallet size={20} className="text-gray-500" />
               </div>
-              <p className="text-base font-bold text-gray-900">Approval Code nahi hai</p>
-              <p className="text-xs text-gray-500 mt-1">Normal process — form ke saath payment bhi karein (pehle jaisa).</p>
+              <p className="text-base font-bold text-gray-900">I don't have an Approval Code</p>
+              <p className="text-xs text-gray-500 mt-1">Normal process — complete the form along with payment (as before).</p>
             </button>
           </div>
         </div>
@@ -626,7 +626,7 @@ export default function SubCenterForm() {
               <CheckCircle2 size={22} className="text-[#933d18]" />
             </div>
             <h2 className="text-lg font-bold text-gray-900">Enter Approval Code</h2>
-            <p className="text-sm text-gray-500 mt-1 mb-4">Apna approval code daalein. Verify hone par form khulega aur payment step nahi aayega.</p>
+            <p className="text-sm text-gray-500 mt-1 mb-4">Enter your approval code. Once verified, the form will open and the payment step will be skipped.</p>
             <Input label="Approval Code *" value={codeInput}
               onChange={e => { setCodeInput(e.target.value); setCodeError('') }}
               placeholder="e.g. CPN1234ABCD" />

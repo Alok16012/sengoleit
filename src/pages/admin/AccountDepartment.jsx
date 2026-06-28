@@ -2469,11 +2469,11 @@ export default function AccountDepartment() {
                 placeholder="e.g. PayU txn / bank reference number"
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15"
               />
-              <p className="text-[11px] text-gray-400 mt-1">PayU dashboard se reference number daalein — verify ke baad yeh Transaction ID column me dikhega.</p>
+              <p className="text-[11px] text-gray-400 mt-1">Enter the PayU reference number — after verifying, it will appear in the Transaction ID column.</p>
             </div>
 
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
-              Verify karne par yeh approval code <strong>activate</strong> ho jayega aur Approved me chala jayega.
+              On <strong>Verify</strong>, this approval code will be activated and moved to Approved.
             </div>
 
             <div className="flex flex-wrap gap-3 pt-1">
