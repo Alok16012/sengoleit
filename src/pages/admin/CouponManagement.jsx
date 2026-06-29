@@ -133,9 +133,9 @@ export default function CouponManagement() {
     // embedded join would otherwise error and blank the whole list. Try the
     // richest query first, then degrade until one works.
     const attempts = [
-      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type)').order('created_at', { ascending: false }),
+      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       () => supabase.from('coupons').select('*').order('created_at', { ascending: false }),
-      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type)'),
+      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))'),
       () => supabase.from('coupons').select('*'),
     ]
     let cpData = null, cpErr = null
@@ -647,7 +647,105 @@ export default function CouponManagement() {
               )
             ) : (
               /* List of codes for this type */
-              <div className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+              <div className="border border-gray-100 rounded-2xl overflow-x-auto shadow-sm">
+                {isApprovalPanel ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#933d18] text-left">
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">#</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Center</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Super Center</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Type</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Approval Code Amount</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Coupon Code</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Transaction ID</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated On</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Actions</th>
+                      {viewStatus === 'Unused' && (
+                        <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Edit &amp; Delete</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {panelList.length === 0 ? (
+                      <tr><td colSpan={viewStatus === 'Unused' ? 11 : 10} className="px-4 py-12 text-center text-gray-400">
+                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}approval codes {panelQ ? 'match your search.' : 'yet.'}
+                      </td></tr>
+                    ) : panelList.map((c, i) => {
+                      const used = !!(c.is_used || c.used_at)
+                      return (
+                        <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
+                          <td className="px-5 py-3.5 text-gray-400 text-xs">{i + 1}</td>
+                          <td className="px-5 py-3.5">
+                            <p className="font-semibold text-gray-900 text-sm">{c.centers?.center_name || '—'}</p>
+                            {c.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.center_code}</span>}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <p className="font-medium text-gray-700 text-sm">{c.centers?.super_center?.center_name || '—'}</p>
+                            {c.centers?.super_center?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.super_center.center_code}</span>}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                              {c.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3.5 font-bold text-gray-900 text-sm">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold text-gray-800 tracking-wide">{c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'}</span>
+                              <button onClick={() => navigator.clipboard?.writeText(c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '')} title="Copy code"
+                                className="text-gray-300 hover:text-[#933d18] transition-colors"><Copy size={13} /></button>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 font-mono text-xs text-gray-700">{c.payment_txn_id || '—'}</td>
+                          <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
+                          <td className="px-5 py-3.5">
+                            {used ? (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
+                            ) : c.is_activated ? (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
+                            ) : (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-center">
+                            {used ? (
+                              <span className="text-xs text-gray-300">—</span>
+                            ) : c.is_activated ? (
+                              <button onClick={() => toggleActivate(c)}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                                <PowerOff size={13} /> Deactivate
+                              </button>
+                            ) : (
+                              <button onClick={() => toggleActivate(c)}
+                                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                                <Power size={13} /> Activate
+                              </button>
+                            )}
+                          </td>
+                          {viewStatus === 'Unused' && (
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center justify-center gap-2">
+                                <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
+                                  title="Edit amount"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
+                                  <Pencil size={13} /> Edit
+                                </button>
+                                <button onClick={() => deleteCode(c)}
+                                  title="Delete code"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#933d18] text-left">
@@ -657,15 +755,12 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Action</th>
-                      {isApprovalPanel && viewStatus === 'Unused' && (
-                        <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Edit &amp; Delete</th>
-                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {panelList.length === 0 ? (
-                      <tr><td colSpan={isApprovalPanel && viewStatus === 'Unused' ? 7 : 6} className="px-4 py-12 text-center text-gray-400">
-                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}{directType === 'approval' ? 'approval codes' : 'discounted coupons'} {panelQ ? 'match your search.' : 'yet.'}
+                      <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}discounted coupons {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
                     ) : panelList.map((c, i) => {
                       const used = !!(c.is_used || c.used_at)
@@ -710,27 +805,12 @@ export default function CouponManagement() {
                               </button>
                             )}
                           </td>
-                          {isApprovalPanel && viewStatus === 'Unused' && (
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center justify-center gap-2">
-                                <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
-                                  title="Edit amount"
-                                  className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
-                                  <Pencil size={13} /> Edit
-                                </button>
-                                <button onClick={() => deleteCode(c)}
-                                  title="Delete code"
-                                  className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
-                                  <Trash2 size={13} /> Delete
-                                </button>
-                              </div>
-                            </td>
-                          )}
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
+                )}
               </div>
             )}
           </div>
