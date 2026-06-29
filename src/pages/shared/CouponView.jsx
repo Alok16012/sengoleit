@@ -27,7 +27,7 @@ export default function CouponView({ type = 'wallet' }) {
 
   useEffect(() => {
     if (!user?.email) return
-    supabase.from('centers').select('id, center_name, center_code, center_type, virtual_balance').eq('email', user.email).maybeSingle()
+    supabase.from('centers').select('id, center_name, center_code, center_type, payment_date, virtual_balance').eq('email', user.email).maybeSingle()
       .then(({ data, error: err }) => {
         if (err || !data) { setError('Center not found. Contact admin.'); setLoading(false); return }
         setCenter(data)
@@ -118,6 +118,8 @@ export default function CouponView({ type = 'wallet' }) {
   // The Unused tab (approval codes) uses a simplified column set:
   // Code / Center / Amount / Generated / Status.
   const unusedView = isApproval && filter === 'Unused'
+  // To Verify tab shows the center's payment date instead of the generated date.
+  const showPaymentDate = isApproval && filter === 'To Verify'
 
   const isWallet = type === 'wallet'
   const title = isApproval ? 'Approval Codes' : isWallet ? 'Wallet Coupons' : 'Admission Coupons'
@@ -249,7 +251,7 @@ export default function CouponView({ type = 'wallet' }) {
                 <Th>#</Th>
                 <Th>Coupon ID</Th>
                 <Th>Face Value</Th>
-                <Th>Generated On</Th>
+                <Th>{showPaymentDate ? 'Payment Date' : 'Generated On'}</Th>
                 <Th>Used On</Th>
                 <Th>Status</Th>
                 {isApproval && <Th className="text-center">Verification</Th>}
@@ -315,7 +317,7 @@ export default function CouponView({ type = 'wallet' }) {
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td className="font-mono text-xs font-bold text-gray-800">{code}</Td>
                 <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
-                <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
+                <Td className="text-gray-400 text-xs">{showPaymentDate ? (center?.payment_date ? formatDate(center.payment_date) : '—') : formatDate(c.created_at)}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
                 <Td>
                   {statusBadge}
