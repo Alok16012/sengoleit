@@ -689,13 +689,15 @@ export default function CouponManagement() {
                         <td className="px-5 py-3.5 font-bold text-gray-900 text-sm">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
                         <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
                         <td className="px-5 py-3.5">
+                          {/* Status = actual state (mirrors super center): activated → Activated, else Deactivated. */}
                           {c.is_activated ? (
                             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
                           ) : (
-                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivated</span>
                           )}
                         </td>
                         <td className="px-5 py-3.5 text-center">
+                          {/* Button = the action performed on click. */}
                           {c.is_activated ? (
                             <button onClick={() => toggleActivate(c)}
                               className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
@@ -770,7 +772,7 @@ export default function CouponManagement() {
                             ) : c.is_activated ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
                             ) : (
-                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivated</span>
                             )}
                           </td>
                           <td className="px-5 py-3.5 text-center">
