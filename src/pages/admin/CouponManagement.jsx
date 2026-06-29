@@ -204,6 +204,8 @@ export default function CouponManagement() {
     }
     return true
   })
+  // To Verify / Reject / Hold tabs show the center's online Payment Date instead of Generated On.
+  const showPanelPaymentDate = isApprovalPanel && (viewStatus === 'To Verify' || viewStatus === 'Reject' || viewStatus === 'Hold')
   // Tab definitions — approval codes get the full 6-state bar; discount keeps the simple set.
   const panelTabs = isApprovalPanel
     ? [
@@ -704,7 +706,7 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Approval Code Amount</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Coupon Code</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Transaction ID</th>
-                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">{viewStatus === 'To Verify' ? 'Payment Date' : 'Generated On'}</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">{showPanelPaymentDate ? 'Payment Date' : 'Generated On'}</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Actions</th>
                       {viewStatus === 'Unused' && (
@@ -744,7 +746,7 @@ export default function CouponManagement() {
                             </div>
                           </td>
                           <td className="px-5 py-3.5 font-mono text-xs text-gray-700">{c.payment_txn_id || '—'}</td>
-                          <td className="px-5 py-3.5 text-gray-400 text-xs">{viewStatus === 'To Verify' ? (c.centers?.payment_date ? formatDate(c.centers.payment_date) : '—') : formatDate(c.created_at)}</td>
+                          <td className="px-5 py-3.5 text-gray-400 text-xs">{showPanelPaymentDate ? (c.centers?.payment_date ? formatDate(c.centers.payment_date) : '—') : formatDate(c.created_at)}</td>
                           <td className="px-5 py-3.5">
                             {used ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>

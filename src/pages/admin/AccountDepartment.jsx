@@ -888,9 +888,9 @@ export default function AccountDepartment() {
     hold:     approvalReqs.filter(AC_REQ_STATUS_MATCH.hold).length,
   }
   const approvalReqsList = approvalReqs.filter(AC_REQ_STATUS_MATCH[approvalReqStatusFilter] || (() => true))
-  // In the "To Verify" (pending) and "Hold" tabs the relevant date is when the
-  // center paid online, so show Payment Date instead of the code's Generated On.
-  const showAcPaymentDate = approvalReqStatusFilter === 'pending' || approvalReqStatusFilter === 'hold'
+  // In the "To Verify" (pending), "Hold" and "Rejected" tabs the relevant date is
+  // when the center paid online, so show Payment Date instead of Generated On.
+  const showAcPaymentDate = approvalReqStatusFilter === 'pending' || approvalReqStatusFilter === 'hold' || approvalReqStatusFilter === 'rejected'
   const pendingApprovalReqs = approvalReqCounts.pending
   // Student applications status sub-filter (To Verify / Hold / Approved / Rejected).
   // 'To Verify' = forwarded by Doc Dept (Hold + doc_verified_at set, awaiting account).

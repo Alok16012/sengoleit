@@ -118,8 +118,8 @@ export default function CouponView({ type = 'wallet' }) {
   // The Unused tab (approval codes) uses a simplified column set:
   // Code / Center / Amount / Generated / Status.
   const unusedView = isApproval && filter === 'Unused'
-  // To Verify tab shows the center's payment date instead of the generated date.
-  const showPaymentDate = isApproval && filter === 'To Verify'
+  // To Verify / Hold / Reject tabs show the center's payment date instead of the generated date.
+  const showPaymentDate = isApproval && (filter === 'To Verify' || filter === 'Hold' || filter === 'Reject')
 
   const isWallet = type === 'wallet'
   const title = isApproval ? 'Approval Codes' : isWallet ? 'Wallet Coupons' : 'Admission Coupons'
