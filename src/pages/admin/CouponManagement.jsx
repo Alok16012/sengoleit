@@ -648,7 +648,67 @@ export default function CouponManagement() {
             ) : (
               /* List of codes for this type */
               <div className="border border-gray-100 rounded-2xl overflow-x-auto shadow-sm">
-                {isApprovalPanel ? (
+                {isApprovalPanel && viewStatus === 'Unused' ? (
+                /* Unused approval codes — compact column set (Code / Center / Amount / Generated / Status) + Edit & Delete. */
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#933d18] text-left">
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Code</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Center</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Amount</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Edit &amp; Delete</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {panelList.length === 0 ? (
+                      <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                        No unused approval codes {panelQ ? 'match your search.' : 'yet.'}
+                      </td></tr>
+                    ) : panelList.map((c, i) => (
+                      <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-bold text-gray-800 tracking-wide">{c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'}</span>
+                            <button onClick={() => navigator.clipboard?.writeText(c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '')} title="Copy code"
+                              className="text-gray-300 hover:text-[#933d18] transition-colors"><Copy size={13} /></button>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <p className="font-semibold text-gray-900 text-sm">{c.centers?.center_name || '—'}</p>
+                          {c.centers?.center_type === 'super_center'
+                            ? <span className="text-[10px] font-bold text-purple-600">Super Center</span>
+                            : c.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.center_code}</span>}
+                        </td>
+                        <td className="px-5 py-3.5 font-bold text-gray-900 text-sm">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
+                        <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
+                        <td className="px-5 py-3.5">
+                          {c.is_activated ? (
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
+                          ) : (
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
+                              title="Edit amount"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Pencil size={13} /> Edit
+                            </button>
+                            <button onClick={() => deleteCode(c)}
+                              title="Delete code"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                ) : isApprovalPanel ? (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-[#933d18] text-left">
