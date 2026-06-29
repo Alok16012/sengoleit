@@ -115,6 +115,10 @@ export default function CouponView({ type = 'wallet' }) {
   const used = scoped.filter(c => !!(c.is_used || c.used_at)).length
   const unused = total - used
 
+  // The Unused tab (approval codes) uses a simplified column set:
+  // Code / Center / Amount / Generated / Status.
+  const unusedView = isApproval && filter === 'Unused'
+
   const isWallet = type === 'wallet'
   const title = isApproval ? 'Approval Codes' : isWallet ? 'Wallet Coupons' : 'Admission Coupons'
   const subtitle = isApproval
@@ -232,46 +236,72 @@ export default function CouponView({ type = 'wallet' }) {
       <Table>
         <Thead>
           <tr>
-            <Th>#</Th>
-            <Th>Coupon ID</Th>
-            <Th>Face Value</Th>
-            <Th>Generated On</Th>
-            <Th>Used On</Th>
-            <Th>Status</Th>
-            {isApproval && <Th className="text-center">Verification</Th>}
+            {unusedView ? (
+              <>
+                <Th>Code</Th>
+                <Th>Center</Th>
+                <Th>Amount</Th>
+                <Th>Generated</Th>
+                <Th>Status</Th>
+              </>
+            ) : (
+              <>
+                <Th>#</Th>
+                <Th>Coupon ID</Th>
+                <Th>Face Value</Th>
+                <Th>Generated On</Th>
+                <Th>Used On</Th>
+                <Th>Status</Th>
+                {isApproval && <Th className="text-center">Verification</Th>}
+              </>
+            )}
           </tr>
         </Thead>
         <Tbody>
           {filtered.length === 0 ? (
             <Tr>
-              <Td colSpan={isApproval ? 7 : 6} className="text-center text-gray-400 py-16">
+              <Td colSpan={unusedView ? 5 : isApproval ? 7 : 6} className="text-center text-gray-400 py-16">
                 <Ticket size={28} className="mx-auto mb-2 opacity-30" />
                 <p>No coupons found</p>
               </Td>
             </Tr>
           ) : filtered.map((c, i) => {
             const isUsed = !!(c.is_used || c.used_at)
+            // Status badge reused across both layouts.
+            const statusBadge = isUsed ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                <CheckCircle2 size={10} /> Used
+              </span>
+            ) : isApproval && !c.is_activated && c.activated_at && !c.is_rejected ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">
+                <Power size={10} /> Deactivated
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                <Clock size={10} /> Available
+              </span>
+            )
+            const code = c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'
+            if (unusedView) {
+              return (
+                <Tr key={c.id}>
+                  <Td className="font-mono text-xs font-bold text-gray-800">{code}</Td>
+                  <Td className="font-semibold text-gray-900 text-sm">{center?.center_name || '—'}</Td>
+                  <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
+                  <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
+                  <Td>{statusBadge}</Td>
+                </Tr>
+              )
+            }
             return (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                <Td className="font-mono text-xs font-bold text-gray-800">{c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
+                <Td className="font-mono text-xs font-bold text-gray-800">{code}</Td>
                 <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
                 <Td>
-                  {isUsed ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                      <CheckCircle2 size={10} /> Used
-                    </span>
-                  ) : isApproval && !c.is_activated && c.activated_at && !c.is_rejected ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">
-                      <Power size={10} /> Deactivated
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                      <Clock size={10} /> Available
-                    </span>
-                  )}
+                  {statusBadge}
                   {isApproval && c.is_activated && c.activation_email && (
                     <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1"><Mail size={9} /> {c.activation_email}</p>
                   )}
