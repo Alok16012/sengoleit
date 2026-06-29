@@ -154,20 +154,47 @@ export default function CouponManagement() {
     return acc
   }, {})
 
-  // The type panel (Approval Code / Discounted Coupon) — codes of one type with a Used/Unused tab.
+  // The type panel (Approval Code / Discounted Coupon) — codes of one type with a status tab.
   const panelCoupons = directType ? coupons.filter(c => c.coupon_type === directType) : []
-  const panelUsed = panelCoupons.filter(c => !!(c.is_used || c.used_at)).length
-  const panelUnused = panelCoupons.length - panelUsed
+  const isApprovalPanel = directType === 'approval'
+  // Status matchers shared by the panel tabs + the list filter.
+  //  Used     = code consumed to create a center
+  //  Unused   = approval: verified/approved & available; discount: any not-used
+  //  To Verify= awaiting Account-Dept verification
+  //  Reject   = rejected; Hold = on hold (needs is_hold column, empty until then)
+  const PANEL_MATCH = {
+    All:         () => true,
+    Used:        c => !!(c.is_used || c.used_at),
+    Unused:      c => !(c.is_used || c.used_at) && (isApprovalPanel ? !!c.is_activated : true),
+    'To Verify': c => !(c.is_used || c.used_at) && !c.is_activated && !c.activated_at && !c.is_rejected,
+    Reject:      c => !!c.is_rejected,
+    Hold:        c => !!c.is_hold,
+  }
+  const panelUsed = panelCoupons.filter(PANEL_MATCH.Used).length
+  const panelUnused = panelCoupons.filter(PANEL_MATCH.Unused).length
   const panelList = panelCoupons.filter(c => {
-    const used = !!(c.is_used || c.used_at)
-    if (viewStatus === 'Used' && !used) return false
-    if (viewStatus === 'Unused' && used) return false
+    if (!(PANEL_MATCH[viewStatus] || (() => true))(c)) return false
     if (panelQ) {
       const hay = `${c.id || ''} ${c.centers?.center_name || ''} ${c.centers?.center_code || ''}`.toLowerCase()
       if (!hay.includes(panelQ.toLowerCase())) return false
     }
     return true
   })
+  // Tab definitions — approval codes get the full 6-state bar; discount keeps the simple set.
+  const panelTabs = isApprovalPanel
+    ? [
+        { k: 'All',       on: 'bg-white text-gray-800 shadow-sm',   badgeOn: 'bg-gray-800 text-white' },
+        { k: 'Used',      on: 'bg-white text-gray-600 shadow-sm',   badgeOn: 'bg-gray-500 text-white' },
+        { k: 'Unused',    on: 'bg-white text-emerald-700 shadow-sm', badgeOn: 'bg-emerald-600 text-white' },
+        { k: 'To Verify', on: 'bg-white text-amber-700 shadow-sm',  badgeOn: 'bg-amber-500 text-white' },
+        { k: 'Reject',    on: 'bg-white text-red-700 shadow-sm',    badgeOn: 'bg-red-500 text-white' },
+        { k: 'Hold',      on: 'bg-white text-orange-700 shadow-sm', badgeOn: 'bg-orange-500 text-white' },
+      ].map(t => ({ ...t, n: panelCoupons.filter(PANEL_MATCH[t.k]).length }))
+    : [
+        { k: 'All',    n: panelCoupons.length, on: 'bg-white text-gray-800 shadow-sm',   badgeOn: 'bg-gray-800 text-white' },
+        { k: 'Unused', n: panelUnused,          on: 'bg-white text-emerald-700 shadow-sm', badgeOn: 'bg-emerald-600 text-white' },
+        { k: 'Used',   n: panelUsed,            on: 'bg-white text-gray-600 shadow-sm',   badgeOn: 'bg-gray-500 text-white' },
+      ]
 
   // Group the visible coupons by their center so each center's list can be
   // collapsed (hidden) / expanded (unhidden) independently.
@@ -485,12 +512,8 @@ export default function CouponManagement() {
             {!genMode && (
               <>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex gap-1.5 bg-gray-100/70 p-1.5 rounded-2xl">
-                    {[
-                      { k: 'All', n: panelCoupons.length, on: 'bg-white text-gray-800 shadow-sm', badgeOn: 'bg-gray-800 text-white' },
-                      { k: 'Unused', n: panelUnused, on: 'bg-white text-emerald-700 shadow-sm', badgeOn: 'bg-emerald-600 text-white' },
-                      { k: 'Used', n: panelUsed, on: 'bg-white text-gray-600 shadow-sm', badgeOn: 'bg-gray-500 text-white' },
-                    ].map(t => (
+                  <div className="flex gap-1.5 bg-gray-100/70 p-1.5 rounded-2xl flex-wrap">
+                    {panelTabs.map(t => (
                       <button key={t.k} onClick={() => setViewStatus(t.k)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                           viewStatus === t.k ? t.on : 'text-gray-500 hover:text-gray-700'
