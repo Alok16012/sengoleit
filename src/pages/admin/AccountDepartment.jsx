@@ -864,17 +864,28 @@ export default function AccountDepartment() {
     rejected: recharges.filter(RECHARGE_STATUS_MATCH.rejected).length,
   }
   const rechargesList = recharges.filter(RECHARGE_STATUS_MATCH[rechargeStatusFilter] || (() => true))
-  // Approval code coupons status sub-filter. Approved = activated (or used);
-  // Rejected = is_rejected flag; To Verify = everything still awaiting action.
+  // Approval code coupons status sub-filter.
+  //  all      = no filter
+  //  used     = code consumed to create a center
+  //  unused   = verified/approved and still available to use
+  //  pending  = To Verify (awaiting Account-Dept verification)
+  //  rejected = is_rejected flag
+  //  hold     = on hold (needs is_hold column; empty until that exists)
   const AC_REQ_STATUS_MATCH = {
-    pending:  c => !c.is_rejected && !c.is_activated && !c.is_used,
-    approved: c => !c.is_rejected && (c.is_activated || c.is_used),
+    all:      () => true,
+    used:     c => !!(c.is_used || c.used_at),
+    unused:   c => !(c.is_used || c.used_at) && !!c.is_activated,
+    pending:  c => !c.is_rejected && !c.is_activated && !c.activated_at && !(c.is_used || c.used_at),
     rejected: c => !!c.is_rejected,
+    hold:     c => !!c.is_hold,
   }
   const approvalReqCounts = {
+    all:      approvalReqs.length,
+    used:     approvalReqs.filter(AC_REQ_STATUS_MATCH.used).length,
+    unused:   approvalReqs.filter(AC_REQ_STATUS_MATCH.unused).length,
     pending:  approvalReqs.filter(AC_REQ_STATUS_MATCH.pending).length,
-    approved: approvalReqs.filter(AC_REQ_STATUS_MATCH.approved).length,
     rejected: approvalReqs.filter(AC_REQ_STATUS_MATCH.rejected).length,
+    hold:     approvalReqs.filter(AC_REQ_STATUS_MATCH.hold).length,
   }
   const approvalReqsList = approvalReqs.filter(AC_REQ_STATUS_MATCH[approvalReqStatusFilter] || (() => true))
   const pendingApprovalReqs = approvalReqCounts.pending
@@ -1272,9 +1283,12 @@ export default function AccountDepartment() {
             <>
             <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
               {[
+                { key: 'all',      label: 'All',       color: 'bg-gray-500' },
+                { key: 'used',     label: 'Used',      color: 'bg-blue-500' },
+                { key: 'unused',   label: 'Unused',    color: 'bg-emerald-500' },
                 { key: 'pending',  label: 'To Verify', color: 'bg-amber-500' },
-                { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
-                { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
+                { key: 'rejected', label: 'Reject',    color: 'bg-red-500' },
+                { key: 'hold',     label: 'Hold',      color: 'bg-orange-500' },
               ].map(s => (
                 <button
                   key={s.key}
@@ -1307,7 +1321,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {approvalReqsList.length === 0 ? (
-                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No {approvalReqStatusFilter === 'pending' ? 'pending' : approvalReqStatusFilter === 'approved' ? 'approved' : 'rejected'} approval codes</Td></Tr>
+                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No {approvalReqStatusFilter === 'all' ? '' : approvalReqStatusFilter === 'pending' ? 'to-verify ' : approvalReqStatusFilter + ' '}approval codes</Td></Tr>
                 ) : approvalReqsList.map((r, i) => {
                   const st = r.is_rejected ? 'rejected' : (r.is_activated || r.is_used) ? 'approved' : 'pending'
                   return (

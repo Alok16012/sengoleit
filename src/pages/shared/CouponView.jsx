@@ -104,6 +104,10 @@ export default function CouponView({ type = 'wallet' }) {
     // Unused = verified/approved and still available to use. For non-approval
     // coupons there's no verification step, so any not-used coupon counts.
     if (filter === 'Unused') return !isUsed && (isApproval ? !!c.is_activated : true)
+    // Reject = rejected by Account Dept.
+    if (filter === 'Reject') return !!c.is_rejected
+    // Hold = on hold (needs is_hold column; empty until that exists).
+    if (filter === 'Hold') return !!c.is_hold
     return true
   })
 
@@ -215,7 +219,7 @@ export default function CouponView({ type = 'wallet' }) {
       )}
 
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
-        {(isApproval ? ['All', 'Unused', 'Used', 'To Verify'] : ['All', 'Unused', 'Used']).map(s => (
+        {(isApproval ? ['All', 'Used', 'Unused', 'To Verify', 'Reject', 'Hold'] : ['All', 'Unused', 'Used']).map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               filter === s ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
