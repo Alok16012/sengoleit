@@ -660,11 +660,12 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Amount</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {panelList.length === 0 ? (
-                      <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-400">
+                      <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">
                         No unused approval codes {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
                     ) : panelList.map((c, i) => (
@@ -689,6 +690,19 @@ export default function CouponManagement() {
                             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
                           ) : (
                             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          {c.is_activated ? (
+                            <button onClick={() => toggleActivate(c)}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                              <PowerOff size={13} /> Deactivate
+                            </button>
+                          ) : (
+                            <button onClick={() => toggleActivate(c)}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                              <Power size={13} /> Activate
+                            </button>
                           )}
                         </td>
                       </tr>
