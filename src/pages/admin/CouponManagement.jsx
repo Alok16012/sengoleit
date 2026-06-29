@@ -689,11 +689,11 @@ export default function CouponManagement() {
                         <td className="px-5 py-3.5 font-bold text-gray-900 text-sm">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
                         <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
                         <td className="px-5 py-3.5">
-                          {/* Status = actual state (mirrors super center): activated → Activated, else Deactivated. */}
+                          {/* Status mirrors the Action button label: activated → Deactivate, else Activate. */}
                           {c.is_activated ? (
-                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivate</span>
                           ) : (
-                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivated</span>
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Activate</span>
                           )}
                         </td>
                         <td className="px-5 py-3.5 text-center">
@@ -770,9 +770,9 @@ export default function CouponManagement() {
                             {used ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
                             ) : c.is_activated ? (
-                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivate</span>
                             ) : (
-                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivated</span>
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Activate</span>
                             )}
                           </td>
                           <td className="px-5 py-3.5 text-center">
