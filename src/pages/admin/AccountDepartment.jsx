@@ -1310,44 +1310,33 @@ export default function AccountDepartment() {
             <Table>
               <Thead>
                 <tr>
-                  <Th>#</Th>
+                  <Th>Code</Th>
                   <Th>Center</Th>
-                  <Th>Super Center</Th>
-                  <Th>Type</Th>
-                  <Th>Approval Code Amount</Th>
-                  <Th>Coupon Code</Th>
-                  <Th>Transaction ID</Th>
+                  <Th>Amount</Th>
                   <Th>{showAcPaymentDate ? 'Payment Date' : 'Generated On'}</Th>
                   <Th>Status</Th>
-                  <Th>Actions</Th>
+                  <Th className="text-center">Action</Th>
                 </tr>
               </Thead>
               <Tbody>
                 {approvalReqsList.length === 0 ? (
-                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No {approvalReqStatusFilter === 'all' ? '' : approvalReqStatusFilter === 'pending' ? 'to-verify ' : approvalReqStatusFilter + ' '}approval codes</Td></Tr>
-                ) : approvalReqsList.map((r, i) => {
+                  <Tr><Td colSpan={6} className="text-center text-gray-400 py-12">No {approvalReqStatusFilter === 'all' ? '' : approvalReqStatusFilter === 'pending' ? 'to-verify ' : approvalReqStatusFilter + ' '}approval codes</Td></Tr>
+                ) : approvalReqsList.map((r) => {
                   const st = r.is_rejected ? 'rejected' : (r.is_activated || r.is_used) ? 'approved' : 'pending'
                   return (
                   <Tr key={r.id}>
-                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td className="font-mono text-xs font-bold text-gray-800">{r.coupon_code || r.id?.slice(0, 8).toUpperCase() || '—'}</Td>
                     <Td>
                       <p className="font-semibold text-gray-900">{r.centers?.center_name || '—'}</p>
-                      {r.centers?.center_code && <p className="text-xs text-gray-400">{r.centers.center_code}</p>}
-                    </Td>
-                    <Td>
-                      <p className="font-medium text-gray-700">{r.centers?.super_center?.center_name || '—'}</p>
-                      {r.centers?.super_center?.center_code && <p className="text-xs text-gray-400">{r.centers.super_center.center_code}</p>}
-                    </Td>
-                    <Td>
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${r.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                        {r.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
-                      </span>
+                      {r.centers?.center_type === 'super_center'
+                        ? <span className="text-[10px] font-bold text-purple-600">Super Center</span>
+                        : r.centers?.super_center?.center_name
+                          ? <span className="text-[10px] text-gray-400">SC: {r.centers.super_center.center_name}</span>
+                          : r.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{r.centers.center_code}</span>}
                     </Td>
                     <Td>
                       <span className="font-bold text-gray-900">₹{Number(r.face_value || 0).toLocaleString()}</span>
                     </Td>
-                    <Td className="font-mono text-xs text-gray-700">{r.coupon_code || r.id?.slice(0, 8).toUpperCase() || '—'}</Td>
-                    <Td className="font-mono text-sm text-gray-700">{r.payment_txn_id || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{showAcPaymentDate ? (r.centers?.payment_date ? formatDate(r.centers.payment_date) : '—') : formatDate(r.created_at)}</Td>
                     <Td>
                       {st === 'approved' ? (
@@ -1358,9 +1347,9 @@ export default function AccountDepartment() {
                         <Badge status="pending">To Verify</Badge>
                       )}
                     </Td>
-                    <Td>
+                    <Td className="text-center">
                       {st === 'pending' ? (
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 justify-center">
                           <Button size="sm" variant="success" disabled={acReqSaving} onClick={() => { setVerifyAcModal(r); setVerifyRef(r.payment_txn_id || '') }}>
                             <CheckCircle size={13} /> Verify
                           </Button>
