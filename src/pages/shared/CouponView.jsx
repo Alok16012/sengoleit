@@ -99,6 +99,8 @@ export default function CouponView({ type = 'wallet' }) {
     const isUsed = !!(c.is_used || c.used_at)
     if (filter === 'Used') return isUsed
     if (filter === 'Unused') return !isUsed
+    // Pending Account-Dept verification: not yet activated, not rejected, not used.
+    if (filter === 'To Verify') return !isUsed && !c.is_activated && !c.activated_at && !c.is_rejected
     return true
   })
 
@@ -210,7 +212,7 @@ export default function CouponView({ type = 'wallet' }) {
       )}
 
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
-        {['All', 'Unused', 'Used'].map(s => (
+        {(isApproval ? ['All', 'Unused', 'Used', 'To Verify'] : ['All', 'Unused', 'Used']).map(s => (
           <button key={s} onClick={() => setFilter(s)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               filter === s ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
@@ -254,6 +256,10 @@ export default function CouponView({ type = 'wallet' }) {
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
                       <CheckCircle2 size={10} /> Used
                     </span>
+                  ) : isApproval && !c.is_activated && c.activated_at && !c.is_rejected ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">
+                      <Power size={10} /> Deactivated
+                    </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
                       <Clock size={10} /> Available
@@ -270,7 +276,7 @@ export default function CouponView({ type = 'wallet' }) {
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">
                         <X size={10} /> Rejected
                       </span>
-                    ) : (c.is_activated || isUsed) ? (
+                    ) : (c.is_activated || isUsed || c.activated_at) ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
                         <CheckCircle2 size={10} /> Approved
                       </span>
