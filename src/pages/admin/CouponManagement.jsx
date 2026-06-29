@@ -191,7 +191,9 @@ export default function CouponManagement() {
     Used:        c => !!(c.is_used || c.used_at),
     // Approval: every available code (generated, not used/rejected/held) — activated or not.
     Unused:      c => !(c.is_used || c.used_at) && (isApprovalPanel ? (!c.is_rejected && !c.is_hold) : true),
-    'To Verify': c => !(c.is_used || c.used_at) && !c.is_activated && !c.activated_at && !c.is_rejected,
+    // To Verify = a payment reference exists and is awaiting verification. Admin-generated
+    // codes (no payment_txn_id) stay out of here and live only in Unused.
+    'To Verify': c => !(c.is_used || c.used_at) && !c.is_activated && !c.activated_at && !c.is_rejected && !!c.payment_txn_id,
     Reject:      c => !!c.is_rejected,
     Hold:        c => !!c.is_hold,
   }
