@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { formatDate } from '../../utils/formatDate'
-import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff } from 'lucide-react'
+import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2 } from 'lucide-react'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -51,6 +51,10 @@ export default function CouponManagement() {
   const [viewStatus, setViewStatus] = useState('All')    // status tab inside the type panel
   const [genMode, setGenMode] = useState(false)          // inline generate form inside the panel
   const [panelQ, setPanelQ] = useState('')               // search within the type panel
+  // Edit-amount modal for an unused approval code (admin only).
+  const [editCode, setEditCode] = useState(null)
+  const [editAmount, setEditAmount] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
 
   function openDirect(type) {
     setDirectType(type)
@@ -80,6 +84,26 @@ export default function CouponManagement() {
     const { error } = await supabase.from('coupons').update(payload).eq('id', c.id)
     if (error) { alert('Could not update: ' + error.message); return }
     setCoupons(prev => prev.map(x => x.id === c.id ? { ...x, is_activated: next } : x))
+  }
+
+  // Edit an unused approval code's amount. Edit modal state holds the row + value.
+  async function saveEditCode() {
+    const amount = Math.round(Number(editAmount) || 0)
+    if (!editCode || amount < 1) { alert('Enter a valid amount (₹1 or more).'); return }
+    setEditSaving(true)
+    const { error } = await supabase.from('coupons').update({ face_value: amount }).eq('id', editCode.id)
+    setEditSaving(false)
+    if (error) { alert('Could not update: ' + error.message); return }
+    setCoupons(prev => prev.map(x => x.id === editCode.id ? { ...x, face_value: amount } : x))
+    setEditCode(null); setEditAmount('')
+  }
+
+  // Delete an unused approval code outright.
+  async function deleteCode(c) {
+    if (!confirm(`Delete approval code ${c.coupon_code || c.id?.slice(0, 8).toUpperCase()}? This cannot be undone.`)) return
+    const { error } = await supabase.from('coupons').delete().eq('id', c.id)
+    if (error) { alert('Could not delete: ' + error.message); return }
+    setCoupons(prev => prev.filter(x => x.id !== c.id))
   }
 
   async function generateDirectCode() {
@@ -505,6 +529,35 @@ export default function CouponManagement() {
         )}
       </Modal>
 
+      {/* Edit amount for an unused approval code (admin only). */}
+      <Modal isOpen={!!editCode} onClose={() => { setEditCode(null); setEditAmount('') }} title="Edit Approval Code">
+        {editCode && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+              <p className="font-mono font-bold text-gray-900">{editCode.coupon_code || editCode.id?.slice(0, 8).toUpperCase()}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{editCode.centers?.center_name || '—'}</p>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Amount (₹)</label>
+              <input
+                type="number"
+                min="1"
+                autoFocus
+                value={editAmount}
+                onChange={e => setEditAmount(e.target.value)}
+                className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+              />
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={saveEditCode} disabled={editSaving} className="flex-1 justify-center">
+                {editSaving ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button variant="outline" onClick={() => { setEditCode(null); setEditAmount('') }} className="flex-1 justify-center">Cancel</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* Type panel — Approval Codes / Discounted Coupons: inline (no popup) */}
       {directType && (
           <div className="space-y-4">
@@ -604,11 +657,14 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Action</th>
+                      {isApprovalPanel && viewStatus === 'Unused' && (
+                        <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Edit &amp; Delete</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {panelList.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                      <tr><td colSpan={isApprovalPanel && viewStatus === 'Unused' ? 7 : 6} className="px-4 py-12 text-center text-gray-400">
                         No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}{directType === 'approval' ? 'approval codes' : 'discounted coupons'} {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
                     ) : panelList.map((c, i) => {
@@ -654,6 +710,22 @@ export default function CouponManagement() {
                               </button>
                             )}
                           </td>
+                          {isApprovalPanel && viewStatus === 'Unused' && (
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center justify-center gap-2">
+                                <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
+                                  title="Edit amount"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
+                                  <Pencil size={13} /> Edit
+                                </button>
+                                <button onClick={() => deleteCode(c)}
+                                  title="Delete code"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
