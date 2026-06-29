@@ -97,10 +97,13 @@ export default function CouponView({ type = 'wallet' }) {
 
   const filtered = scoped.filter(c => {
     const isUsed = !!(c.is_used || c.used_at)
+    // Used = the code has been consumed to create a center.
     if (filter === 'Used') return isUsed
-    if (filter === 'Unused') return !isUsed
-    // Pending Account-Dept verification: not yet activated, not rejected, not used.
+    // Pending Account-Dept verification (awaiting verify) — not used/approved/rejected.
     if (filter === 'To Verify') return !isUsed && !c.is_activated && !c.activated_at && !c.is_rejected
+    // Unused = verified/approved and still available to use. For non-approval
+    // coupons there's no verification step, so any not-used coupon counts.
+    if (filter === 'Unused') return !isUsed && (isApproval ? !!c.is_activated : true)
     return true
   })
 
