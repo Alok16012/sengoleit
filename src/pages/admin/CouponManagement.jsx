@@ -133,9 +133,9 @@ export default function CouponManagement() {
     // embedded join would otherwise error and blank the whole list. Try the
     // richest query first, then degrade until one works.
     const attempts = [
-      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
+      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, payment_date, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       () => supabase.from('coupons').select('*').order('created_at', { ascending: false }),
-      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))'),
+      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, payment_date, super_center:super_center_id(center_name, center_code))'),
       () => supabase.from('coupons').select('*'),
     ]
     let cpData = null, cpErr = null
@@ -704,7 +704,7 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Approval Code Amount</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Coupon Code</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Transaction ID</th>
-                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated On</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">{viewStatus === 'To Verify' ? 'Payment Date' : 'Generated On'}</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Actions</th>
                       {viewStatus === 'Unused' && (
@@ -744,7 +744,7 @@ export default function CouponManagement() {
                             </div>
                           </td>
                           <td className="px-5 py-3.5 font-mono text-xs text-gray-700">{c.payment_txn_id || '—'}</td>
-                          <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
+                          <td className="px-5 py-3.5 text-gray-400 text-xs">{viewStatus === 'To Verify' ? (c.centers?.payment_date ? formatDate(c.centers.payment_date) : '—') : formatDate(c.created_at)}</td>
                           <td className="px-5 py-3.5">
                             {used ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
