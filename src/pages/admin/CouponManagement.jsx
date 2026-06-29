@@ -189,7 +189,8 @@ export default function CouponManagement() {
   const PANEL_MATCH = {
     All:         () => true,
     Used:        c => !!(c.is_used || c.used_at),
-    Unused:      c => !(c.is_used || c.used_at) && (isApprovalPanel ? !!c.is_activated : true),
+    // Approval: every available code (generated, not used/rejected/held) — activated or not.
+    Unused:      c => !(c.is_used || c.used_at) && (isApprovalPanel ? (!c.is_rejected && !c.is_hold) : true),
     'To Verify': c => !(c.is_used || c.used_at) && !c.is_activated && !c.activated_at && !c.is_rejected,
     Reject:      c => !!c.is_rejected,
     Hold:        c => !!c.is_hold,
