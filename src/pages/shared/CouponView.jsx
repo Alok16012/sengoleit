@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
-import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X, Hash, IndianRupee } from 'lucide-react'
+import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X, Hash, IndianRupee, Copy } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 // Toggle the Email ID step on the Activate Approval Code modal.
@@ -27,7 +27,7 @@ export default function CouponView({ type = 'wallet' }) {
 
   useEffect(() => {
     if (!user?.email) return
-    supabase.from('centers').select('id, center_name, center_code, virtual_balance').eq('email', user.email).maybeSingle()
+    supabase.from('centers').select('id, center_name, center_code, center_type, virtual_balance').eq('email', user.email).maybeSingle()
       .then(({ data, error: err }) => {
         if (err || !data) { setError('Center not found. Contact admin.'); setLoading(false); return }
         setCenter(data)
@@ -285,11 +285,28 @@ export default function CouponView({ type = 'wallet' }) {
             if (unusedView) {
               return (
                 <Tr key={c.id}>
-                  <Td className="font-mono text-xs font-bold text-gray-800">{code}</Td>
-                  <Td className="font-semibold text-gray-900 text-sm">{center?.center_name || '—'}</Td>
+                  <Td>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-gray-800 tracking-wide">{code}</span>
+                      <button onClick={() => navigator.clipboard?.writeText(code)} title="Copy code"
+                        className="text-gray-300 hover:text-[#933d18] transition-colors"><Copy size={13} /></button>
+                    </div>
+                  </Td>
+                  <Td>
+                    <p className="font-semibold text-gray-900 text-sm">{center?.center_name || '—'}</p>
+                    {center?.center_type === 'super_center'
+                      ? <span className="text-[10px] font-bold text-purple-600">Super Center</span>
+                      : center?.center_code && <span className="text-[10px] text-gray-400 font-mono">{center.center_code}</span>}
+                  </Td>
                   <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
                   <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
-                  <Td>{statusBadge}</Td>
+                  <Td>
+                    {c.is_activated ? (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
+                    ) : (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
+                    )}
+                  </Td>
                 </Tr>
               )
             }
