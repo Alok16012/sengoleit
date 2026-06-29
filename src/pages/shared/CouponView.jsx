@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
-import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X, Hash, IndianRupee, Plus } from 'lucide-react'
+import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X, Hash, IndianRupee } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 // Toggle the Email ID step on the Activate Approval Code modal.
@@ -13,7 +12,6 @@ const SHOW_EMAIL = false
 
 export default function CouponView({ type = 'wallet' }) {
   const { user } = useAuth()
-  const navigate = useNavigate()
   const [center, setCenter] = useState(null)
   const [coupons, setCoupons] = useState([])
   // Approval-code payment requests made from the public website (paid online / UTR).
@@ -245,7 +243,6 @@ export default function CouponView({ type = 'wallet' }) {
                 <Th>Amount</Th>
                 <Th>Generated</Th>
                 <Th>Status</Th>
-                <Th className="text-center">Create Center</Th>
               </>
             ) : (
               <>
@@ -263,7 +260,7 @@ export default function CouponView({ type = 'wallet' }) {
         <Tbody>
           {filtered.length === 0 ? (
             <Tr>
-              <Td colSpan={unusedView ? 6 : isApproval ? 7 : 6} className="text-center text-gray-400 py-16">
+              <Td colSpan={unusedView ? 5 : isApproval ? 7 : 6} className="text-center text-gray-400 py-16">
                 <Ticket size={28} className="mx-auto mb-2 opacity-30" />
                 <p>No coupons found</p>
               </Td>
@@ -293,20 +290,6 @@ export default function CouponView({ type = 'wallet' }) {
                   <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
                   <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                   <Td>{statusBadge}</Td>
-                  <Td className="text-center">
-                    {/* Only an approved (activated) + unused code can create a center. */}
-                    {!isUsed && c.is_activated && !c.is_rejected ? (
-                      <button
-                        type="button"
-                        onClick={() => navigate('/super-center/centers/new', { state: { approvalCode: code } })}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition-colors"
-                      >
-                        <Plus size={12} /> Create Center
-                      </button>
-                    ) : (
-                      <span className="text-gray-300 text-xs">—</span>
-                    )}
-                  </Td>
                 </Tr>
               )
             }
