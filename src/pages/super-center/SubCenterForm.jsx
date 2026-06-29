@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
@@ -183,8 +183,12 @@ function FileCard({ label, fieldKey, accept, isImage, value, onUpload, isUploadi
 export default function SubCenterForm() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const isEdit = Boolean(id)
+  // An approval code passed from the Approval Codes view ("Create Center" button)
+  // pre-fills the code-entry gateway so the super center can apply it directly.
+  const presetApprovalCode = !isEdit ? (location.state?.approvalCode || '') : ''
 
   const [form, setForm] = useState(emptyForm)
   const [superCenterId, setSuperCenterId] = useState(null)
@@ -207,8 +211,8 @@ export default function SubCenterForm() {
   // Approval-code entry gateway (only when creating a brand-new center).
   // entryMode: null = choose path, 'code-entry' = typing the code, 'code' = code
   // applied (skip Payment step), 'nocode' = normal flow with payment.
-  const [entryMode, setEntryMode] = useState(isEdit ? 'nocode' : null)
-  const [codeInput, setCodeInput] = useState('')
+  const [entryMode, setEntryMode] = useState(isEdit ? 'nocode' : (presetApprovalCode ? 'code-entry' : null))
+  const [codeInput, setCodeInput] = useState(presetApprovalCode)
   const [codeCoupon, setCodeCoupon] = useState(null)      // the validated approval coupon
   const [codeChecking, setCodeChecking] = useState(false)
   const [codeError, setCodeError] = useState('')

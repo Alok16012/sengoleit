@@ -171,7 +171,7 @@ export default function AccountDepartment() {
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, exam_forwarded_at, fee_held, coupon_discount, coupon_code, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
-      supabase.from('coupons').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').eq('coupon_type', 'approval').order('created_at', { ascending: false }),
+      supabase.from('coupons').select('*, centers(center_name, center_code, center_type, payment_date, super_center:super_center_id(center_name, center_code))').eq('coupon_type', 'approval').order('created_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
@@ -888,6 +888,9 @@ export default function AccountDepartment() {
     hold:     approvalReqs.filter(AC_REQ_STATUS_MATCH.hold).length,
   }
   const approvalReqsList = approvalReqs.filter(AC_REQ_STATUS_MATCH[approvalReqStatusFilter] || (() => true))
+  // In the "To Verify" (pending) and "Hold" tabs the relevant date is when the
+  // center paid online, so show Payment Date instead of the code's Generated On.
+  const showAcPaymentDate = approvalReqStatusFilter === 'pending' || approvalReqStatusFilter === 'hold'
   const pendingApprovalReqs = approvalReqCounts.pending
   // Student applications status sub-filter (To Verify / Hold / Approved / Rejected).
   // 'To Verify' = forwarded by Doc Dept (Hold + doc_verified_at set, awaiting account).
@@ -1314,7 +1317,7 @@ export default function AccountDepartment() {
                   <Th>Approval Code Amount</Th>
                   <Th>Coupon Code</Th>
                   <Th>Transaction ID</Th>
-                  <Th>Generated On</Th>
+                  <Th>{showAcPaymentDate ? 'Payment Date' : 'Generated On'}</Th>
                   <Th>Status</Th>
                   <Th>Actions</Th>
                 </tr>
@@ -1345,7 +1348,7 @@ export default function AccountDepartment() {
                     </Td>
                     <Td className="font-mono text-xs text-gray-700">{r.coupon_code || r.id?.slice(0, 8).toUpperCase() || '—'}</Td>
                     <Td className="font-mono text-sm text-gray-700">{r.payment_txn_id || '—'}</Td>
-                    <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
+                    <Td className="text-gray-400 text-xs">{showAcPaymentDate ? (r.centers?.payment_date ? formatDate(r.centers.payment_date) : '—') : formatDate(r.created_at)}</Td>
                     <Td>
                       {st === 'approved' ? (
                         <Badge status="approved">Approved</Badge>
