@@ -248,6 +248,19 @@ export default function CouponView({ type = 'wallet' }) {
                 <Th>Generated</Th>
                 <Th>Status</Th>
               </>
+            ) : isApproval ? (
+              <>
+                <Th>#</Th>
+                <Th>Center</Th>
+                <Th>Super Center</Th>
+                <Th>Type</Th>
+                <Th>Approval Code Amount</Th>
+                <Th>Coupon Code</Th>
+                <Th>Transaction ID</Th>
+                <Th>{showPaymentDate ? 'Payment Date' : 'Generated On'}</Th>
+                <Th>Status</Th>
+                <Th className="text-center">Actions</Th>
+              </>
             ) : (
               <>
                 <Th>#</Th>
@@ -256,7 +269,6 @@ export default function CouponView({ type = 'wallet' }) {
                 <Th>{showPaymentDate ? 'Payment Date' : 'Generated On'}</Th>
                 <Th>Used On</Th>
                 <Th>Status</Th>
-                {isApproval && <Th className="text-center">Verification</Th>}
               </>
             )}
           </tr>
@@ -264,7 +276,7 @@ export default function CouponView({ type = 'wallet' }) {
         <Tbody>
           {filtered.length === 0 ? (
             <Tr>
-              <Td colSpan={unusedView ? 5 : isApproval ? 7 : 6} className="text-center text-gray-400 py-16">
+              <Td colSpan={unusedView ? 5 : isApproval ? 10 : 6} className="text-center text-gray-400 py-16">
                 <Ticket size={28} className="mx-auto mb-2 opacity-30" />
                 <p>No coupons found</p>
               </Td>
@@ -321,6 +333,48 @@ export default function CouponView({ type = 'wallet' }) {
                 </Tr>
               )
             }
+            if (isApproval) {
+              // Wide layout — mirrors the admin Coupon Management approval table.
+              return (
+                <Tr key={c.id}>
+                  <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                  <Td>
+                    <p className="font-semibold text-gray-900 text-sm">{center?.center_name || '—'}</p>
+                    {center?.center_code && <span className="text-[10px] text-gray-400 font-mono">{center.center_code}</span>}
+                  </Td>
+                  <Td className="text-gray-400">—</Td>
+                  <Td>
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${center?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                      {center?.center_type === 'super_center' ? 'Super Center' : 'Center'}
+                    </span>
+                  </Td>
+                  <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
+                  <Td>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-gray-800 tracking-wide">{code}</span>
+                      <button onClick={() => navigator.clipboard?.writeText(code)} title="Copy code"
+                        className="text-gray-300 hover:text-[#933d18] transition-colors"><Copy size={13} /></button>
+                    </div>
+                  </Td>
+                  <Td className="font-mono text-xs text-gray-700">{c.payment_txn_id || '—'}</Td>
+                  <Td className="text-gray-400 text-xs">{showPaymentDate ? (paymentDateFromTxn(c.payment_txn_id) ? formatDate(paymentDateFromTxn(c.payment_txn_id)) : (center?.payment_date ? formatDate(center.payment_date) : '—')) : formatDate(c.created_at)}</Td>
+                  <Td>
+                    {isUsed ? (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
+                    ) : c.is_rejected ? (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Rejected</span>
+                    ) : pendingAccounts ? (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">● Accounts</span>
+                    ) : c.is_activated ? (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivate</span>
+                    ) : (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Activate</span>
+                    )}
+                  </Td>
+                  <Td className="text-center"><span className="text-xs text-gray-300">—</span></Td>
+                </Tr>
+              )
+            }
             return (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -330,28 +384,7 @@ export default function CouponView({ type = 'wallet' }) {
                 <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
                 <Td>
                   {statusBadge}
-                  {isApproval && c.is_activated && c.activation_email && (
-                    <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1"><Mail size={9} /> {c.activation_email}</p>
-                  )}
                 </Td>
-                {isApproval && (
-                  <Td className="text-center">
-                    {/* Read-only — mirrors the Account Dept verification status. */}
-                    {c.is_rejected ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">
-                        <X size={10} /> Rejected
-                      </span>
-                    ) : (c.is_activated || isUsed) ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
-                        <CheckCircle2 size={10} /> Approved
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
-                        <Clock size={10} /> To Verify
-                      </span>
-                    )}
-                  </Td>
-                )}
               </Tr>
             )
           })}
