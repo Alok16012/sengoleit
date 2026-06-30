@@ -210,6 +210,10 @@ export default function AccountDepartment() {
         acRows = acRows.map(r => ({ ...r, centers: r.centers || byId[r.center_id] || null }))
       }
     }
+    // Account Dept only deals with codes tied to an online payment (payment_txn_id
+    // set by the PayU webhook) or that were rejected. Admin-generated codes with no
+    // payment live only in Coupon Management, so keep them out of here.
+    acRows = acRows.filter(r => r.payment_txn_id || r.is_rejected)
     setApprovalReqs(acRows)
     setLoading(false)
   }
