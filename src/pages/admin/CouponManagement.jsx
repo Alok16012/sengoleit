@@ -665,11 +665,12 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Action</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Edit &amp; Delete</th>
                     </tr>
                   </thead>
                   <tbody>
                     {panelList.length === 0 ? (
-                      <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                      <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                         No unused approval codes {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
                     ) : panelList.map((c, i) => (
@@ -710,6 +711,20 @@ export default function CouponManagement() {
                               <Power size={13} /> Activate
                             </button>
                           )}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center justify-center gap-2">
+                            <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
+                              title="Edit amount"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Pencil size={13} /> Edit
+                            </button>
+                            <button onClick={() => deleteCode(c)}
+                              title="Delete code"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
