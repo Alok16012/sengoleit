@@ -341,7 +341,7 @@ export default function CouponView({ type = 'wallet' }) {
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">
                         <X size={10} /> Rejected
                       </span>
-                    ) : (c.is_activated || isUsed || c.activated_at) ? (
+                    ) : (c.is_activated || isUsed) ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
                         <CheckCircle2 size={10} /> Approved
                       </span>
