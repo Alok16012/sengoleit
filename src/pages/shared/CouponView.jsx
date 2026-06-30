@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X, Hash, IndianRupee, Copy } from 'lucide-react'
-import { formatDate } from '../../utils/formatDate'
+import { formatDate, paymentDateFromTxn } from '../../utils/formatDate'
 
 // Toggle the Email ID step on the Activate Approval Code modal.
 // Hidden for now — flip to true later to bring the email field back.
@@ -320,7 +320,7 @@ export default function CouponView({ type = 'wallet' }) {
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td className="font-mono text-xs font-bold text-gray-800">{code}</Td>
                 <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
-                <Td className="text-gray-400 text-xs">{showPaymentDate ? (center?.payment_date ? formatDate(center.payment_date) : '—') : formatDate(c.created_at)}</Td>
+                <Td className="text-gray-400 text-xs">{showPaymentDate ? (paymentDateFromTxn(c.payment_txn_id) ? formatDate(paymentDateFromTxn(c.payment_txn_id)) : (center?.payment_date ? formatDate(center.payment_date) : '—')) : formatDate(c.created_at)}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
                 <Td>
                   {statusBadge}

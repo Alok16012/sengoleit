@@ -4,7 +4,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
-import { formatDate } from '../../utils/formatDate'
+import { formatDate, approvalPaymentDate } from '../../utils/formatDate'
 import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2 } from 'lucide-react'
 
 function StatCard({ label, value, color = 'gray' }) {
@@ -781,7 +781,7 @@ export default function CouponManagement() {
                             </div>
                           </td>
                           <td className="px-5 py-3.5 font-mono text-xs text-gray-700">{c.payment_txn_id || '—'}</td>
-                          <td className="px-5 py-3.5 text-gray-400 text-xs">{showPanelPaymentDate ? (c.centers?.payment_date ? formatDate(c.centers.payment_date) : '—') : formatDate(c.created_at)}</td>
+                          <td className="px-5 py-3.5 text-gray-400 text-xs">{showPanelPaymentDate ? approvalPaymentDate(c) : formatDate(c.created_at)}</td>
                           <td className="px-5 py-3.5">
                             {used ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>

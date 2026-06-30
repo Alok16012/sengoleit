@@ -9,7 +9,7 @@ import VerifyRow from '../../components/ui/VerifyRow'
 import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, Clock, ExternalLink, ChevronDown, ChevronRight, Hash, Copy, Wallet, Send } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
-import { formatDate, formatDateTime } from '../../utils/formatDate'
+import { formatDate, formatDateTime, approvalPaymentDate } from '../../utils/formatDate'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
@@ -1352,7 +1352,7 @@ export default function AccountDepartment() {
                     </Td>
                     <Td className="font-mono text-xs text-gray-700">{r.coupon_code || r.id?.slice(0, 8).toUpperCase() || '—'}</Td>
                     <Td className="font-mono text-sm text-gray-700">{r.payment_txn_id || '—'}</Td>
-                    <Td className="text-gray-400 text-xs">{showAcPaymentDate ? (r.centers?.payment_date ? formatDate(r.centers.payment_date) : '—') : formatDate(r.created_at)}</Td>
+                    <Td className="text-gray-400 text-xs">{showAcPaymentDate ? approvalPaymentDate(r) : formatDate(r.created_at)}</Td>
                     <Td>
                       {st === 'approved' ? (
                         <Badge status="approved">Approved</Badge>
