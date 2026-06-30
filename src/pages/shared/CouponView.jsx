@@ -271,10 +271,16 @@ export default function CouponView({ type = 'wallet' }) {
             </Tr>
           ) : filtered.map((c, i) => {
             const isUsed = !!(c.is_used || c.used_at)
+            // Paid online and waiting on the Account Department to verify.
+            const pendingAccounts = isApproval && !!c.payment_txn_id && !c.is_activated && !c.is_rejected && !isUsed
             // Status badge reused across both layouts.
             const statusBadge = isUsed ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
                 <CheckCircle2 size={10} /> Used
+              </span>
+            ) : pendingAccounts ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                <Clock size={10} /> Accounts
               </span>
             ) : isApproval && !c.is_activated && c.activated_at && !c.is_rejected ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">

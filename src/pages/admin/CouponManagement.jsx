@@ -756,6 +756,9 @@ export default function CouponManagement() {
                       </td></tr>
                     ) : panelList.map((c, i) => {
                       const used = !!(c.is_used || c.used_at)
+                      // Paid online and waiting on the Account Department to verify —
+                      // it sits with Accounts, so no activate/deactivate here.
+                      const pendingAccounts = !!c.payment_txn_id && !c.is_activated && !c.is_rejected && !used
                       return (
                         <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                           <td className="px-5 py-3.5 text-gray-400 text-xs">{i + 1}</td>
@@ -785,6 +788,8 @@ export default function CouponManagement() {
                           <td className="px-5 py-3.5">
                             {used ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
+                            ) : pendingAccounts ? (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">● Accounts</span>
                             ) : c.is_activated ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivate</span>
                             ) : (
@@ -792,7 +797,7 @@ export default function CouponManagement() {
                             )}
                           </td>
                           <td className="px-5 py-3.5 text-center">
-                            {used ? (
+                            {used || pendingAccounts ? (
                               <span className="text-xs text-gray-300">—</span>
                             ) : c.is_activated ? (
                               <button onClick={() => toggleActivate(c)}
