@@ -305,11 +305,11 @@ export default function CouponView({ type = 'wallet' }) {
                   <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
                   <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                   <Td>
-                    {/* Mirrors the admin's Activate/Deactivate action: activated → Activated, otherwise Deactivated. */}
+                    {/* Same label as the admin status/action: activated → Deactivate, otherwise Activate. */}
                     {c.is_activated ? (
-                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivate</span>
                     ) : (
-                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivated</span>
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Activate</span>
                     )}
                   </Td>
                 </Tr>
