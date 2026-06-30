@@ -879,7 +879,7 @@ export default function AccountDepartment() {
     all:      () => true,
     used:     c => !!(c.is_used || c.used_at),
     unused:   c => !(c.is_used || c.used_at) && !!c.is_activated,
-    pending:  c => !c.is_rejected && !c.is_activated && !c.activated_at && !(c.is_used || c.used_at),
+    pending:  c => !c.is_rejected && !c.is_activated && !(c.is_used || c.used_at),
     rejected: c => !!c.is_rejected,
     hold:     c => !!c.is_hold,
   }

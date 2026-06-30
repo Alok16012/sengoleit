@@ -100,12 +100,12 @@ export default function CouponView({ type = 'wallet' }) {
     // Used = the code has been consumed to create a center.
     if (filter === 'Used') return isUsed
     // Pending Account-Dept verification (awaiting verify) — not used/approved/rejected.
-    // To Verify = a payment reference exists and is awaiting verification. Admin-generated
+    // To Verify = paid online (payment_txn_id) and not yet verified/activated. Admin-generated
     // codes (no payment_txn_id) stay out of here and live only in Unused.
-    if (filter === 'To Verify') return !isUsed && !c.is_activated && !c.activated_at && !c.is_rejected && !!c.payment_txn_id
-    // Unused = every available code (not used/rejected/held), whether activated or not.
-    // For non-approval coupons there's no verification step, so any not-used coupon counts.
-    if (filter === 'Unused') return !isUsed && (isApproval ? (!c.is_rejected && !c.is_hold) : true)
+    if (filter === 'To Verify') return !isUsed && !c.is_activated && !c.is_rejected && !!c.payment_txn_id
+    // Unused = available codes (not used/rejected/held), EXCEPT ones paid online and awaiting
+    // verification (those move to To Verify). For non-approval coupons any not-used coupon counts.
+    if (filter === 'Unused') return !isUsed && (isApproval ? (!c.is_rejected && !c.is_hold && !(c.payment_txn_id && !c.is_activated)) : true)
     // Reject = rejected by Account Dept.
     if (filter === 'Reject') return !!c.is_rejected
     // Hold = on hold (needs is_hold column; empty until that exists).
