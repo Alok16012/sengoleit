@@ -738,7 +738,7 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Center</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Super Center</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Type</th>
-                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Approval Code Amount</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Amount</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Coupon Code</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Transaction ID</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">{showPanelPaymentDate ? 'Payment Date' : 'Generated On'}</th>

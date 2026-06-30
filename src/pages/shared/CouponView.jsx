@@ -254,7 +254,7 @@ export default function CouponView({ type = 'wallet' }) {
                 <Th>Center</Th>
                 <Th>Super Center</Th>
                 <Th>Type</Th>
-                <Th>Approval Code Amount</Th>
+                <Th>Amount</Th>
                 <Th>Coupon Code</Th>
                 <Th>Transaction ID</Th>
                 <Th>{showPaymentDate ? 'Payment Date' : 'Generated On'}</Th>

@@ -1318,7 +1318,7 @@ export default function AccountDepartment() {
                   <Th>Center</Th>
                   <Th>Super Center</Th>
                   <Th>Type</Th>
-                  <Th>Approval Code Amount</Th>
+                  <Th>Amount</Th>
                   <Th>Coupon Code</Th>
                   <Th>Transaction ID</Th>
                   <Th>{showAcPaymentDate ? 'Payment Date' : 'Generated On'}</Th>
@@ -2471,7 +2471,7 @@ export default function AccountDepartment() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="border border-gray-100 rounded-xl px-4 py-3">
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Approval Code Amount</p>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Amount</p>
                 <p className="text-2xl font-black text-[#933d18] mt-0.5">₹{Number(verifyAcModal.face_value || 0).toLocaleString('en-IN')}</p>
               </div>
               <div className="border border-gray-100 rounded-xl px-4 py-3">
