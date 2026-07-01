@@ -673,7 +673,11 @@ export default function CouponManagement() {
                       <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                         No unused approval codes {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
-                    ) : panelList.map((c, i) => (
+                    ) : panelList.map((c, i) => {
+                      // Paid online AND verified by the Account Dept → approved. It's
+                      // read-only here (no toggle / edit / delete); only the status shows.
+                      const approvedPaid = !!c.payment_txn_id && c.is_activated
+                      return (
                       <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
@@ -691,16 +695,20 @@ export default function CouponManagement() {
                         <td className="px-5 py-3.5 font-bold text-gray-900 text-sm">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
                         <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
                         <td className="px-5 py-3.5">
-                          {/* Status mirrors the Action button label: activated → Deactivate, else Activate. */}
-                          {c.is_activated ? (
+                          {/* Approved (paid + verified) is read-only; otherwise status mirrors the action. */}
+                          {approvedPaid ? (
+                            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Approved</span>
+                          ) : c.is_activated ? (
                             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivate</span>
                           ) : (
                             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Activate</span>
                           )}
                         </td>
                         <td className="px-5 py-3.5 text-center">
-                          {/* Button = the action performed on click. */}
-                          {c.is_activated ? (
+                          {/* Button = the action performed on click. Approved codes have no action. */}
+                          {approvedPaid ? (
+                            <span className="text-xs text-gray-300">—</span>
+                          ) : c.is_activated ? (
                             <button onClick={() => toggleActivate(c)}
                               className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
                               <PowerOff size={13} /> Deactivate
@@ -713,21 +721,26 @@ export default function CouponManagement() {
                           )}
                         </td>
                         <td className="px-5 py-3.5">
-                          <div className="flex items-center justify-center gap-2">
-                            <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
-                              title="Edit amount"
-                              className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
-                              <Pencil size={13} /> Edit
-                            </button>
-                            <button onClick={() => deleteCode(c)}
-                              title="Delete code"
-                              className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
-                              <Trash2 size={13} /> Delete
-                            </button>
-                          </div>
+                          {approvedPaid ? (
+                            <div className="text-center"><span className="text-xs text-gray-300">—</span></div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
+                                title="Edit amount"
+                                className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
+                                <Pencil size={13} /> Edit
+                              </button>
+                              <button onClick={() => deleteCode(c)}
+                                title="Delete code"
+                                className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                                <Trash2 size={13} /> Delete
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
                 ) : isApprovalPanel ? (
@@ -759,6 +772,8 @@ export default function CouponManagement() {
                       // Paid online and waiting on the Account Department to verify —
                       // it sits with Accounts, so no activate/deactivate here.
                       const pendingAccounts = !!c.payment_txn_id && !c.is_activated && !c.is_rejected && !used
+                      // Paid AND verified by the Account Dept → approved and read-only.
+                      const approvedPaid = !!c.payment_txn_id && c.is_activated && !used
                       return (
                         <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                           <td className="px-5 py-3.5 text-gray-400 text-xs">{i + 1}</td>
@@ -790,6 +805,8 @@ export default function CouponManagement() {
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
                             ) : pendingAccounts ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">● Accounts</span>
+                            ) : approvedPaid ? (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Approved</span>
                             ) : c.is_activated ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivate</span>
                             ) : (
@@ -797,7 +814,7 @@ export default function CouponManagement() {
                             )}
                           </td>
                           <td className="px-5 py-3.5 text-center">
-                            {used || pendingAccounts ? (
+                            {used || pendingAccounts || approvedPaid ? (
                               <span className="text-xs text-gray-300">—</span>
                             ) : c.is_activated ? (
                               <button onClick={() => toggleActivate(c)}
