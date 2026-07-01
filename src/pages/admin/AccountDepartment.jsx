@@ -348,6 +348,8 @@ export default function AccountDepartment() {
         status: 'verified',
         verified_at: new Date().toISOString(),
         utr_number: center.utr_number || null,
+        payment_date: center.payment_date || null,
+        utr_screenshot_url: center.payment_screenshot_url || null,
         notes: 'Center registration deposit',
       })
     }
