@@ -448,8 +448,8 @@ export default function SubCenterForm() {
       .eq('coupon_code', code)
       .eq('coupon_type', 'approval')
       .maybeSingle()
-    let { data, error: err } = await buildCodeQuery('id, coupon_code, face_value, center_id, coupon_type, is_used, is_activated, is_rejected')
-    if (err && /is_rejected/.test(err.message || '')) {
+    let { data, error: err } = await buildCodeQuery('id, coupon_code, face_value, center_id, coupon_type, is_used, is_activated, is_rejected, payment_txn_id')
+    if (err && /is_rejected|payment_txn_id/.test(err.message || '')) {
       ({ data, error: err } = await buildCodeQuery('id, coupon_code, face_value, center_id, coupon_type, is_used, is_activated'))
     }
     setCodeChecking(false)
@@ -457,10 +457,14 @@ export default function SubCenterForm() {
     if (!data) { setCodeError('Invalid approval code. Please check and try again.'); return }
     if (data.is_used) { setCodeError('This approval code has already been used to create a center.'); return }
     if (data.is_rejected) { setCodeError('This approval code was rejected by the Account Department. Please contact the office.'); return }
-    // The fee must be PAID (on the website) and the payment VERIFIED by the
-    // Account Department (which sets is_activated) before the code can create a
-    // center. Until then the code is not usable.
-    if (!data.is_activated) { setCodeError('Payment for this approval code is not verified yet. It becomes usable once the Account Department verifies the payment.'); return }
+    // A code becomes usable ONLY after the fee is PAID online (payment_txn_id, set
+    // by the PayU webhook) AND the payment is VERIFIED by the Account Department
+    // (is_activated). An admin toggling is_activated on its own is NOT enough — the
+    // online payment must exist first.
+    if ('payment_txn_id' in data && !data.payment_txn_id) {
+      setCodeError('This approval code has not been paid online yet. Please pay the fee on the website first.'); return
+    }
+    if (!data.is_activated) { setCodeError('Your payment is under review by the Account Department. This code becomes usable once the payment is verified.'); return }
     if (scId && data.center_id && data.center_id !== scId) {
       setCodeError('This approval code does not belong to your super center.'); return
     }
