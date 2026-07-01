@@ -84,14 +84,17 @@ export default function WalletSummary() {
   const pendingRecharges = filteredRecharges.filter(r => r.status === 'pending')
   const totalPendingAmount = pendingRecharges.reduce((s, r) => s + Number(r.amount || 0), 0)
   const totalVerified = filteredRecharges.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
+  // Used = total recharged into the wallet minus what's still available.
+  const totalUsed = Math.max(0, totalVerified - totalBalance)
 
   return (
     <div className="p-6">
       <PageHeader title="Wallet Summary" subtitle="Center virtual balances and recharge history" />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-4 mb-6">
         <StatCard label="Total Centers" value={filteredCenters.length} color="blue" />
         <StatCard label="Total Wallet Balance" value={`₹${totalBalance.toLocaleString('en-IN')}`} color="green" sub={superFilter === 'all' && centerFilter === 'all' ? 'across all centers' : 'for current filter'} />
+        <StatCard label="Used Recharge" value={`₹${totalUsed.toLocaleString('en-IN')}`} color="amber" sub="spent so far" />
         <StatCard label="Pending Recharges" value={pendingRecharges.length} sub={`₹${totalPendingAmount.toLocaleString('en-IN')} awaiting`} color="amber" />
         <StatCard label="Total Verified" value={`₹${totalVerified.toLocaleString('en-IN')}`} color="gray" sub="all time" />
       </div>
