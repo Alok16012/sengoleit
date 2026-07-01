@@ -189,12 +189,12 @@ export default function CouponManagement() {
   const PANEL_MATCH = {
     All:         () => true,
     Used:        c => !!(c.is_used || c.used_at),
-    // Approval: available codes (generated, not used/rejected/held), EXCEPT ones that
-    // have been paid online and are awaiting verification — those move to To Verify.
-    Unused:      c => !(c.is_used || c.used_at) && (isApprovalPanel ? (!c.is_rejected && !c.is_hold && !(c.payment_txn_id && !c.is_activated)) : true),
-    // To Verify = paid online (payment_txn_id) and not yet verified/activated. Admin-generated
-    // codes (no payment_txn_id) stay out of here and live only in Unused.
-    'To Verify': c => !(c.is_used || c.used_at) && !c.is_activated && !c.is_rejected && !!c.payment_txn_id,
+    // Approval: admin-generated available codes with NO online payment. Any paid code
+    // lives under To Verify (through verification), not here.
+    Unused:      c => !(c.is_used || c.used_at) && (isApprovalPanel ? (!c.is_rejected && !c.is_hold && !c.payment_txn_id) : true),
+    // To Verify = any code paid online (payment_txn_id). It stays here through
+    // verification — status flips from Accounts to Approved once verified.
+    'To Verify': c => !(c.is_used || c.used_at) && !c.is_rejected && !!c.payment_txn_id,
     Reject:      c => !!c.is_rejected,
     Hold:        c => !!c.is_hold,
   }
