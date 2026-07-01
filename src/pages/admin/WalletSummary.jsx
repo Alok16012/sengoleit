@@ -74,6 +74,12 @@ export default function WalletSummary() {
     return true
   })
 
+  // Per-center total verified recharge (money added to the wallet over time).
+  const verifiedByCenter = {}
+  recharges.filter(r => r.status === 'verified').forEach(r => {
+    verifiedByCenter[r.center_id] = (verifiedByCenter[r.center_id] || 0) + Number(r.amount || 0)
+  })
+
   const totalBalance = filteredCenters.reduce((s, c) => s + Number(c.virtual_balance || 0), 0)
   const pendingRecharges = filteredRecharges.filter(r => r.status === 'pending')
   const totalPendingAmount = pendingRecharges.reduce((s, r) => s + Number(r.amount || 0), 0)
@@ -147,12 +153,14 @@ export default function WalletSummary() {
               <Th>Code</Th>
               <Th>Email</Th>
               <Th>Status</Th>
+              <Th>Total Recharge</Th>
+              <Th>Used Recharge</Th>
               <Th>Wallet Balance</Th>
             </tr>
           </Thead>
           <Tbody>
             {filteredCenters.length === 0 ? (
-              <Tr><Td colSpan={7} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
+              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
             ) : filteredCenters.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -171,11 +179,22 @@ export default function WalletSummary() {
                 <Td>
                   <Badge status={c.approval_status?.toLowerCase()}>{c.approval_status || 'pending'}</Badge>
                 </Td>
-                <Td>
-                  <span className={`text-sm font-black ${Number(c.virtual_balance) > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
-                    ₹{Number(c.virtual_balance || 0).toLocaleString('en-IN')}
-                  </span>
-                </Td>
+                {(() => {
+                  const totalRecharge = verifiedByCenter[c.id] || 0
+                  const balance = Number(c.virtual_balance || 0)
+                  const used = Math.max(0, totalRecharge - balance)
+                  return (
+                    <>
+                      <Td><span className="text-sm font-bold text-gray-700">₹{totalRecharge.toLocaleString('en-IN')}</span></Td>
+                      <Td><span className="text-sm font-bold text-amber-700">₹{used.toLocaleString('en-IN')}</span></Td>
+                      <Td>
+                        <span className={`text-sm font-black ${balance > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                          ₹{balance.toLocaleString('en-IN')}
+                        </span>
+                      </Td>
+                    </>
+                  )
+                })()}
               </Tr>
             ))}
           </Tbody>

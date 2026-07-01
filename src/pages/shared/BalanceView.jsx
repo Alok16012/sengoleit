@@ -17,6 +17,9 @@ export default function BalanceView() {
   const [centerErr, setCenterErr] = useState('')
   const [requests, setRequests] = useState([])
   const [statusFilter, setStatusFilter] = useState('all')
+  // Super center only: list of its sub-centers + a center-wise filter.
+  const [subCenters, setSubCenters] = useState([])
+  const [centerFilter, setCenterFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -32,11 +35,27 @@ export default function BalanceView() {
   useEffect(() => {
     if (!user) return
     supabase.from('centers').select('id, center_name, center_code, virtual_balance, center_type').eq('email', user.email).maybeSingle()
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
         if (error) { setCenterErr(`Center lookup failed: ${error.message}`); setLoading(false); return }
         if (!data) { setCenterErr('No center found linked to your account. Contact admin.'); setLoading(false); return }
         setCenter(data)
-        fetchRequests(data.id)
+        if (data.center_type === 'super_center') {
+          // Super center sees the recharge history of all its centers, not its own.
+          const { data: subs } = await supabase.from('centers')
+            .select('id, center_name, center_code').eq('super_center_id', data.id).order('center_name')
+          setSubCenters(subs || [])
+          const ids = (subs || []).map(s => s.id)
+          if (ids.length) {
+            const { data: reqs } = await supabase.from('recharge_requests')
+              .select('*, centers(center_name, center_code)').in('center_id', ids).order('created_at', { ascending: false })
+            setRequests(reqs || [])
+          } else {
+            setRequests([])
+          }
+          setLoading(false)
+        } else {
+          fetchRequests(data.id)
+        }
       })
   }, [user])
 
@@ -46,6 +65,8 @@ export default function BalanceView() {
     setRequests(data || [])
     setLoading(false)
   }
+
+  const isSuperCenter = center?.center_type === 'super_center'
 
   function openModal() {
     setEditingId(null)
@@ -173,14 +194,16 @@ export default function BalanceView() {
     verified: requests.filter(STATUS_MATCH.verified).length,
     rejected: requests.filter(STATUS_MATCH.rejected).length,
   }
-  const filteredRequests = requests.filter(STATUS_MATCH[statusFilter] || (() => true))
+  const filteredRequests = requests
+    .filter(STATUS_MATCH[statusFilter] || (() => true))
+    .filter(r => !isSuperCenter || centerFilter === 'all' || r.center_id === centerFilter)
 
   return (
     <div className="p-6">
       <PageHeader
         title="Virtual Balance"
-        subtitle="Recharge your account to register students"
-        action={{ label: <><Plus size={15} /> Request Recharge</>, onClick: openModal }}
+        subtitle={isSuperCenter ? 'Recharge history of your centers' : 'Recharge your account to register students'}
+        action={isSuperCenter ? undefined : { label: <><Plus size={15} /> Request Recharge</>, onClick: openModal }}
       />
 
       {centerErr && (
@@ -230,6 +253,19 @@ export default function BalanceView() {
       {/* Requests Table */}
       <h2 className="text-sm font-bold text-gray-700 mb-3">Recharge History</h2>
 
+      {isSuperCenter && (
+        <div className="mb-3">
+          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Center</label>
+          <select value={centerFilter} onChange={e => setCenterFilter(e.target.value)}
+            className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+            <option value="all">All Centers</option>
+            {subCenters.map(sc => (
+              <option key={sc.id} value={sc.id}>{sc.center_name}{sc.center_code ? ` (${sc.center_code})` : ''}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
         {[
           { key: 'all',      label: 'All',      color: 'bg-gray-500' },
@@ -260,6 +296,7 @@ export default function BalanceView() {
           <Thead>
             <tr>
               <Th>#</Th>
+              {isSuperCenter && <Th>Center</Th>}
               <Th>Amount</Th>
               <Th>UTR Number</Th>
               <Th>Payment Date</Th>
@@ -274,10 +311,16 @@ export default function BalanceView() {
           </Thead>
           <Tbody>
             {filteredRequests.length === 0 ? (
-              <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No {statusFilter === 'all' ? '' : statusFilter + ' '}recharge requests{statusFilter === 'all' ? ' yet' : ''}</Td></Tr>
+              <Tr><Td colSpan={isSuperCenter ? 12 : 11} className="text-center text-gray-400 py-12">No {statusFilter === 'all' ? '' : statusFilter + ' '}recharge requests{statusFilter === 'all' ? ' yet' : ''}</Td></Tr>
             ) : filteredRequests.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                {isSuperCenter && (
+                  <Td>
+                    <p className="font-semibold text-gray-900 text-sm">{r.centers?.center_name || '—'}</p>
+                    {r.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{r.centers.center_code}</span>}
+                  </Td>
+                )}
                 <Td><span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span></Td>
                 <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{formatDate(r.payment_date)}</Td>
