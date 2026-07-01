@@ -214,7 +214,7 @@ export default function WalletSummary() {
                 </Td>
                 <Td><span className="font-bold text-gray-900">₹{Number(r.amount || 0).toLocaleString('en-IN')}</span></Td>
                 <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
-                <Td className="text-gray-500 text-xs max-w-[120px] truncate">{r.notes || '—'}</Td>
+                <Td className="text-gray-500 text-xs max-w-[220px] whitespace-normal break-words">{r.notes || '—'}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(r.verified_at)}</Td>
                 <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'pending'}</Badge></Td>
