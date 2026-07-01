@@ -339,6 +339,19 @@ export default function AccountDepartment() {
       return
     }
 
+    // Record a wallet deposit as a verified recharge so it shows in the center's
+    // Recharge History (coupon-wallet deposits are tracked separately in Coupon Mgmt).
+    if (isWallet && depositNum > 0) {
+      await (supabaseAdmin || supabase).from('recharge_requests').insert({
+        center_id: center.id,
+        amount: depositNum,
+        status: 'verified',
+        verified_at: new Date().toISOString(),
+        utr_number: center.utr_number || null,
+        notes: 'Center registration deposit',
+      })
+    }
+
     setAccSaving(false)
     setAccVerifyModal(null)
     setAccChecks({})
