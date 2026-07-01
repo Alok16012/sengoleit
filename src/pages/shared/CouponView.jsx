@@ -100,12 +100,12 @@ export default function CouponView({ type = 'wallet' }) {
     // Used = the code has been consumed to create a center.
     if (filter === 'Used') return isUsed
     // Pending Account-Dept verification (awaiting verify) — not used/approved/rejected.
-    // To Verify = paid online (payment_txn_id) and not yet verified/activated. Admin-generated
-    // codes (no payment_txn_id) stay out of here and live only in Unused.
-    if (filter === 'To Verify') return !isUsed && !c.is_activated && !c.is_rejected && !!c.payment_txn_id
-    // Unused = available codes (not used/rejected/held), EXCEPT ones paid online and awaiting
-    // verification (those move to To Verify). For non-approval coupons any not-used coupon counts.
-    if (filter === 'Unused') return !isUsed && (isApproval ? (!c.is_rejected && !c.is_hold && !(c.payment_txn_id && !c.is_activated)) : true)
+    // To Verify = any code paid online (payment_txn_id). It stays here through
+    // verification — the status flips from Accounts to Approved once verified.
+    if (filter === 'To Verify') return !isUsed && !c.is_rejected && !!c.payment_txn_id
+    // Unused = admin-generated available codes (no online payment). Any paid code
+    // lives under To Verify, not here. Non-approval coupons: any not-used coupon.
+    if (filter === 'Unused') return !isUsed && (isApproval ? (!c.is_rejected && !c.is_hold && !c.payment_txn_id) : true)
     // Reject = rejected by Account Dept.
     if (filter === 'Reject') return !!c.is_rejected
     // Hold = on hold (needs is_hold column; empty until that exists).
@@ -285,6 +285,8 @@ export default function CouponView({ type = 'wallet' }) {
             const isUsed = !!(c.is_used || c.used_at)
             // Paid online and waiting on the Account Department to verify.
             const pendingAccounts = isApproval && !!c.payment_txn_id && !c.is_activated && !c.is_rejected && !isUsed
+            // Paid online AND verified by the Account Dept → approved.
+            const approvedPaid = isApproval && !!c.payment_txn_id && c.is_activated && !c.is_rejected && !isUsed
             // Status badge reused across both layouts.
             const statusBadge = isUsed ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
@@ -363,6 +365,8 @@ export default function CouponView({ type = 'wallet' }) {
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
                     ) : c.is_rejected ? (
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Rejected</span>
+                    ) : approvedPaid ? (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Approved</span>
                     ) : pendingAccounts ? (
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">● Accounts</span>
                     ) : c.is_activated ? (
