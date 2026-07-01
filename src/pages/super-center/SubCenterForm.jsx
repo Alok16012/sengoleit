@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
@@ -208,6 +208,9 @@ export default function SubCenterForm() {
   const [pricing, setPricing] = useState(null)            // admin-set { with_letter_price, without_letter_price }
   const [correctionFields, setCorrectionFields] = useState([]) // fields Doc Dept flagged for edit
   const [payNow, setPayNow] = useState(false)             // super center is paying offline at creation time
+  // Where the approval-code amount is deposited into the super center's own wallet:
+  // 'coupon' = coupon wallet (mint coupons later), 'wallet' = spendable balance.
+  const [depositType, setDepositType] = useState('coupon')
   // Approval-code entry gateway (only when creating a brand-new center).
   // entryMode: null = choose path, 'code-entry' = typing the code, 'code' = code
   // applied (skip Payment step), 'nocode' = normal flow with payment.
@@ -568,6 +571,21 @@ export default function SubCenterForm() {
           await supabase.from('coupons')
             .update({ is_used: true, used_at: new Date().toISOString() })
             .eq('id', codeCoupon.id).eq('is_used', false)
+          // Deposit the code's amount into THIS super center's own wallet — coupon
+          // wallet (mint coupons later) or the spendable balance, per the choice above.
+          const depositAmt = Math.round(Number(codeCoupon.face_value || 0))
+          if (depositAmt > 0) {
+            const db = supabaseAdmin || supabase
+            const { data: sc } = await db.from('centers')
+              .select('coupon_wallet_balance, virtual_balance').eq('id', scId).single()
+            if (depositType === 'wallet') {
+              const newBal = Math.round(Number(sc?.virtual_balance || 0)) + depositAmt
+              await db.from('centers').update({ virtual_balance: newBal }).eq('id', scId)
+            } else {
+              const newBal = Math.round(Number(sc?.coupon_wallet_balance || 0)) + depositAmt
+              await db.from('centers').update({ coupon_wallet_balance: newBal }).eq('id', scId)
+            }
+          }
         }
       }
       navigate(resubmit ? '/super-center/center-applications' : '/super-center/centers')
@@ -674,6 +692,32 @@ export default function SubCenterForm() {
         <div className="mt-3 mb-1 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-700">
           <CheckCircle2 size={15} className="shrink-0" />
           Approval Code <strong className="font-mono">{codeCoupon?.coupon_code}</strong> applied · ₹{Number(codeCoupon?.face_value || 0).toLocaleString('en-IN')} already paid — payment step skipped.
+        </div>
+      )}
+
+      {hasCode && !isEdit && (
+        <div className="mt-3 mb-1 border border-gray-200 rounded-xl px-4 py-3.5">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="text-sm">{depositType === 'wallet' ? '💰' : '🎟️'}</span>
+            <p className="text-xs font-black text-gray-700 uppercase tracking-widest">{depositType === 'wallet' ? 'Wallet Deposit' : 'Coupon Wallet Deposit'}</p>
+          </div>
+          {/* Where the code's amount is added to YOUR (super center) wallet. */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button type="button" onClick={() => setDepositType('coupon')}
+              className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${depositType === 'coupon' ? 'border-[#933d18] bg-[#933d18]/5 ring-1 ring-[#933d18]/20' : 'border-gray-200 hover:bg-gray-50'}`}>
+              <p className={`text-xs font-bold ${depositType === 'coupon' ? 'text-[#933d18]' : 'text-gray-700'}`}>🎟️ Coupon Wallet</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Coupons minted in Coupon Mgmt.</p>
+            </button>
+            <button type="button" onClick={() => setDepositType('wallet')}
+              className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${depositType === 'wallet' ? 'border-[#933d18] bg-[#933d18]/5 ring-1 ring-[#933d18]/20' : 'border-gray-200 hover:bg-gray-50'}`}>
+              <p className={`text-xs font-bold ${depositType === 'wallet' ? 'text-[#933d18]' : 'text-gray-700'}`}>💰 Wallet</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">Added straight to balance.</p>
+            </button>
+          </div>
+          <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 flex items-center justify-between">
+            <p className="text-[11px] font-bold text-emerald-700 uppercase">{depositType === 'wallet' ? 'Will add to your wallet balance' : 'Will add to your coupon wallet'}</p>
+            <span className="text-lg font-black text-emerald-700">+₹{Number(codeCoupon?.face_value || 0).toLocaleString('en-IN')}</span>
+          </div>
         </div>
       )}
 
