@@ -757,14 +757,12 @@ export default function CouponManagement() {
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">{showPanelPaymentDate ? 'Payment Date' : 'Generated On'}</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
                       <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Actions</th>
-                      {viewStatus === 'Unused' && (
-                        <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Edit &amp; Delete</th>
-                      )}
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Edit &amp; Delete</th>
                     </tr>
                   </thead>
                   <tbody>
                     {panelList.length === 0 ? (
-                      <tr><td colSpan={viewStatus === 'Unused' ? 11 : 10} className="px-4 py-12 text-center text-gray-400">
+                      <tr><td colSpan={11} className="px-4 py-12 text-center text-gray-400">
                         No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}approval codes {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
                     ) : panelList.map((c, i) => {
@@ -828,8 +826,9 @@ export default function CouponManagement() {
                               </button>
                             )}
                           </td>
-                          {viewStatus === 'Unused' && (
-                            <td className="px-5 py-3.5">
+                          <td className="px-5 py-3.5">
+                            {/* Only admin-generated codes (no online payment, not used) can be edited/deleted. */}
+                            {!c.payment_txn_id && !used && !c.is_rejected ? (
                               <div className="flex items-center justify-center gap-2">
                                 <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
                                   title="Edit amount"
@@ -842,8 +841,10 @@ export default function CouponManagement() {
                                   <Trash2 size={13} /> Delete
                                 </button>
                               </div>
-                            </td>
-                          )}
+                            ) : (
+                              <div className="text-center"><span className="text-xs text-gray-300">—</span></div>
+                            )}
+                          </td>
                         </tr>
                       )
                     })}
