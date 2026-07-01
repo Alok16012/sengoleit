@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
@@ -98,11 +98,16 @@ export default function CouponManagement() {
     setEditCode(null); setEditAmount('')
   }
 
-  // Delete an unused approval code outright.
+  // Delete an unused approval code outright. RLS on `coupons` blocks DELETE for the
+  // anon role (UPDATE is allowed), so a plain delete returns 200 with 0 rows removed
+  // and silently fails. Use the service-role admin client (as elsewhere) and verify a
+  // row was actually deleted before updating the UI.
   async function deleteCode(c) {
     if (!confirm(`Delete approval code ${c.coupon_code || c.id?.slice(0, 8).toUpperCase()}? This cannot be undone.`)) return
-    const { error } = await supabase.from('coupons').delete().eq('id', c.id)
+    const db = supabaseAdmin || supabase
+    const { data, error } = await db.from('coupons').delete().eq('id', c.id).select('id')
     if (error) { alert('Could not delete: ' + error.message); return }
+    if (!data || data.length === 0) { alert('Could not delete this code — permission denied.'); return }
     setCoupons(prev => prev.filter(x => x.id !== c.id))
   }
 
