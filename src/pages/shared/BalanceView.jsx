@@ -8,7 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import DateInput from '../../components/ui/DateInput'
-import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2, Pencil } from 'lucide-react'
+import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2, Pencil, TrendingDown } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 export default function BalanceView() {
@@ -179,6 +179,10 @@ export default function BalanceView() {
   }
 
   const totalPending = requests.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
+  // Total recharged (all verified) vs currently available vs used (spent).
+  const totalRecharged = requests.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
+  const availableBalance = Number(center?.virtual_balance || 0)
+  const usedBalance = Math.max(0, totalRecharged - availableBalance)
 
   // Status sub-filter for the recharge history table.
   const STATUS_MATCH = {
@@ -220,33 +224,55 @@ export default function BalanceView() {
         </div>
       )}
 
-      {/* Balance Card */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className="bg-gradient-to-br from-[#933d18] to-[#7d3314] rounded-2xl p-6 text-white">
-          <div className="flex items-center gap-3 mb-3">
-            <Wallet size={20} className="opacity-80" />
-            <p className="text-sm font-semibold opacity-80">Available Balance</p>
+      {/* Balance Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+        <div className="bg-gradient-to-br from-[#933d18] to-[#7d3314] rounded-2xl p-4 text-white">
+          <div className="flex items-center gap-2 mb-2">
+            <Wallet size={16} className="opacity-80" />
+            <p className="text-xs font-semibold opacity-80">Available Balance</p>
           </div>
-          <p className="text-3xl font-bold">₹{Number(center?.virtual_balance || 0).toLocaleString()}</p>
-          <p className="text-xs opacity-60 mt-1">{center?.center_name}</p>
+          <p className="text-2xl font-bold">₹{availableBalance.toLocaleString()}</p>
+          <p className="text-[11px] opacity-60 mt-1 truncate">{center?.center_name}</p>
         </div>
 
-        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <RefreshCw size={20} className="text-amber-600" />
-            <p className="text-sm font-semibold text-amber-700">Pending Recharges</p>
+        {!isSuperCenter && (
+          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <TrendingDown size={16} className="text-orange-600" />
+              <p className="text-xs font-semibold text-orange-700">Used Balance</p>
+            </div>
+            <p className="text-2xl font-bold text-orange-800">₹{usedBalance.toLocaleString()}</p>
+            <p className="text-[11px] text-orange-500 mt-1">Spent so far</p>
           </div>
-          <p className="text-3xl font-bold text-amber-800">₹{Number(totalPending).toLocaleString()}</p>
-          <p className="text-xs text-amber-500 mt-1">Awaiting Account Dept verification</p>
+        )}
+
+        {!isSuperCenter && (
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Wallet size={16} className="text-blue-500" />
+              <p className="text-xs font-semibold text-blue-700">Total Balance</p>
+            </div>
+            <p className="text-2xl font-bold text-blue-800">₹{totalRecharged.toLocaleString()}</p>
+            <p className="text-[11px] text-blue-500 mt-1">Total recharged</p>
+          </div>
+        )}
+
+        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <RefreshCw size={16} className="text-amber-600" />
+            <p className="text-xs font-semibold text-amber-700">Pending Recharges</p>
+          </div>
+          <p className="text-2xl font-bold text-amber-800">₹{Number(totalPending).toLocaleString()}</p>
+          <p className="text-[11px] text-amber-500 mt-1">Awaiting verification</p>
         </div>
 
-        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <RefreshCw size={20} className="text-gray-400" />
-            <p className="text-sm font-semibold text-gray-600">Total Requests</p>
+        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <RefreshCw size={16} className="text-gray-400" />
+            <p className="text-xs font-semibold text-gray-600">Total Requests</p>
           </div>
-          <p className="text-3xl font-bold text-gray-800">{requests.length}</p>
-          <p className="text-xs text-gray-400 mt-1">All time recharge requests</p>
+          <p className="text-2xl font-bold text-gray-800">{requests.length}</p>
+          <p className="text-[11px] text-gray-400 mt-1">All time requests</p>
         </div>
       </div>
 
