@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
-import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X, Hash, IndianRupee, Copy } from 'lucide-react'
+import { Ticket, CheckCircle2, Clock, Eye, EyeOff, Power, Mail, X, Hash, IndianRupee, Copy, Plus } from 'lucide-react'
 import { formatDate, paymentDateFromTxn } from '../../utils/formatDate'
 
 // Toggle the Email ID step on the Activate Approval Code modal.
@@ -12,6 +13,7 @@ const SHOW_EMAIL = false
 
 export default function CouponView({ type = 'wallet' }) {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [center, setCenter] = useState(null)
   const [coupons, setCoupons] = useState([])
   // Approval-code payment requests made from the public website (paid online / UTR).
@@ -375,7 +377,16 @@ export default function CouponView({ type = 'wallet' }) {
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Activate</span>
                     )}
                   </Td>
-                  <Td className="text-center"><span className="text-xs text-gray-300">—</span></Td>
+                  <Td className="text-center">
+                    {approvedPaid ? (
+                      <button onClick={() => navigate('/super-center/centers/new', { state: { approvalCode: c.coupon_code || code } })}
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                        <Plus size={13} /> Create Center
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-300">—</span>
+                    )}
+                  </Td>
                 </Tr>
               )
             }
