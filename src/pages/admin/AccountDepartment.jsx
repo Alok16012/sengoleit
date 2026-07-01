@@ -878,7 +878,8 @@ export default function AccountDepartment() {
   const AC_REQ_STATUS_MATCH = {
     all:      () => true,
     used:     c => !!(c.is_used || c.used_at),
-    unused:   c => !(c.is_used || c.used_at) && !!c.is_activated,
+    // Verified by the Account Dept (is_activated) and not yet used = Approved.
+    approved: c => !(c.is_used || c.used_at) && !!c.is_activated && !c.is_rejected,
     pending:  c => !c.is_rejected && !c.is_activated && !(c.is_used || c.used_at),
     rejected: c => !!c.is_rejected,
     hold:     c => !!c.is_hold,
@@ -886,7 +887,7 @@ export default function AccountDepartment() {
   const approvalReqCounts = {
     all:      approvalReqs.length,
     used:     approvalReqs.filter(AC_REQ_STATUS_MATCH.used).length,
-    unused:   approvalReqs.filter(AC_REQ_STATUS_MATCH.unused).length,
+    approved: approvalReqs.filter(AC_REQ_STATUS_MATCH.approved).length,
     pending:  approvalReqs.filter(AC_REQ_STATUS_MATCH.pending).length,
     rejected: approvalReqs.filter(AC_REQ_STATUS_MATCH.rejected).length,
     hold:     approvalReqs.filter(AC_REQ_STATUS_MATCH.hold).length,
@@ -894,7 +895,7 @@ export default function AccountDepartment() {
   const approvalReqsList = approvalReqs.filter(AC_REQ_STATUS_MATCH[approvalReqStatusFilter] || (() => true))
   // In the "To Verify" (pending), "Hold" and "Rejected" tabs the relevant date is
   // when the center paid online, so show Payment Date instead of Generated On.
-  const showAcPaymentDate = approvalReqStatusFilter === 'pending' || approvalReqStatusFilter === 'hold' || approvalReqStatusFilter === 'rejected'
+  const showAcPaymentDate = approvalReqStatusFilter === 'pending' || approvalReqStatusFilter === 'hold' || approvalReqStatusFilter === 'rejected' || approvalReqStatusFilter === 'approved'
   const pendingApprovalReqs = approvalReqCounts.pending
   // Student applications status sub-filter (To Verify / Hold / Approved / Rejected).
   // 'To Verify' = forwarded by Doc Dept (Hold + doc_verified_at set, awaiting account).
@@ -1292,7 +1293,7 @@ export default function AccountDepartment() {
               {[
                 { key: 'all',      label: 'All',       color: 'bg-gray-500' },
                 { key: 'used',     label: 'Used',      color: 'bg-blue-500' },
-                { key: 'unused',   label: 'Unused',    color: 'bg-emerald-500' },
+                { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
                 { key: 'pending',  label: 'To Verify', color: 'bg-amber-500' },
                 { key: 'rejected', label: 'Reject',    color: 'bg-red-500' },
                 { key: 'hold',     label: 'Hold',      color: 'bg-orange-500' },
