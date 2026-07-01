@@ -91,7 +91,7 @@ const centerNavGroups = [
     items: [
       { to: '/center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
       { to: '/center/students', icon: Users, label: 'Registered Student List', end: true },
-      { to: '/center/balance', icon: Wallet, label: 'Payment Deposit' },
+      { to: '/center/balance', icon: Wallet, label: 'Wallet Summary' },
       { to: '/center/courier', icon: Truck, label: 'Courier Entry' },
       { to: '/center/answersheet', icon: FileCheck, label: 'Student Answersheet' },
       { to: '/center/supplementary', icon: UserCheck, label: 'Supplementary Student' },
@@ -99,7 +99,9 @@ const centerNavGroups = [
   },
   {
     group: 'Reports',
-    items: reportItems('/center'),
+    // Wallet Summary lives in the Entry group for centers (renamed from Payment
+    // Deposit), so drop the duplicate that reportItems adds here.
+    items: reportItems('/center').filter(item => item.to !== '/center/balance'),
   },
 ]
 
