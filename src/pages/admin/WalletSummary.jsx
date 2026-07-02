@@ -34,6 +34,7 @@ export default function WalletSummary() {
   const [loading, setLoading] = useState(true)
   const [superFilter, setSuperFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
 
   useEffect(() => {
     async function fetchData() {
@@ -86,6 +87,23 @@ export default function WalletSummary() {
   const totalVerified = filteredRecharges.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
   // Used = total recharged into the wallet minus what's still available.
   const totalUsed = Math.max(0, totalVerified - totalBalance)
+
+  // Status sub-filter for the Recharge History table (counts based on the
+  // super-center/center filters above, before the status filter itself).
+  const STATUS_MATCH = {
+    all:      () => true,
+    pending:  r => r.status === 'pending',
+    hold:     r => r.status === 'hold',
+    verified: r => r.status === 'verified',
+    rejected: r => r.status === 'rejected',
+  }
+  const statusCounts = {
+    pending:  filteredRecharges.filter(STATUS_MATCH.pending).length,
+    hold:     filteredRecharges.filter(STATUS_MATCH.hold).length,
+    verified: filteredRecharges.filter(STATUS_MATCH.verified).length,
+    rejected: filteredRecharges.filter(STATUS_MATCH.rejected).length,
+  }
+  const statusedRecharges = filteredRecharges.filter(STATUS_MATCH[statusFilter] || (() => true))
 
   return (
     <div className="p-6">
@@ -143,6 +161,31 @@ export default function WalletSummary() {
           </button>
         ))}
       </div>
+
+      {tab === 'recharges' && (
+        <div className="flex flex-wrap gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+          {[
+            { key: 'all',      label: 'All',      color: 'bg-gray-500' },
+            { key: 'pending',  label: 'Pending',  color: 'bg-amber-500' },
+            { key: 'hold',     label: 'Hold',     color: 'bg-indigo-500' },
+            { key: 'verified', label: 'Verified', color: 'bg-emerald-500' },
+            { key: 'rejected', label: 'Rejected', color: 'bg-red-500' },
+          ].map(s => (
+            <button
+              key={s.key}
+              onClick={() => setStatusFilter(s.key)}
+              className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                statusFilter === s.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {s.label}
+              {s.key !== 'all' && statusCounts[s.key] > 0 && (
+                <span className={`ml-2 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ${s.color}`}>{statusCounts[s.key]}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
@@ -218,9 +261,9 @@ export default function WalletSummary() {
             </tr>
           </Thead>
           <Tbody>
-            {filteredRecharges.length === 0 ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No recharge requests</Td></Tr>
-            ) : filteredRecharges.map((r, i) => (
+            {statusedRecharges.length === 0 ? (
+              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No {statusFilter === 'all' ? '' : statusFilter + ' '}recharge requests</Td></Tr>
+            ) : statusedRecharges.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>

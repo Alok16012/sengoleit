@@ -17,8 +17,10 @@ export default function BalanceView() {
   const [centerErr, setCenterErr] = useState('')
   const [requests, setRequests] = useState([])
   const [statusFilter, setStatusFilter] = useState('all')
-  // Super center only: list of its sub-centers + a center-wise filter.
+  // Super center only: list of its sub-centers + their recharge history, for
+  // the "My Centers" oversight section (separate from its own wallet above).
   const [subCenters, setSubCenters] = useState([])
+  const [childRequests, setChildRequests] = useState([])
   const [centerFilter, setCenterFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
@@ -40,7 +42,8 @@ export default function BalanceView() {
         if (!data) { setCenterErr('No center found linked to your account. Contact admin.'); setLoading(false); return }
         setCenter(data)
         if (data.center_type === 'super_center') {
-          // Super center sees the recharge history of all its centers, not its own.
+          // Super center also has its own wallet + recharge history (fetched
+          // below via fetchRequests), plus visibility into its centers' recharges.
           const { data: subs } = await supabase.from('centers')
             .select('id, center_name, center_code').eq('super_center_id', data.id).order('center_name')
           setSubCenters(subs || [])
@@ -48,14 +51,12 @@ export default function BalanceView() {
           if (ids.length) {
             const { data: reqs } = await supabase.from('recharge_requests')
               .select('*, centers(center_name, center_code)').in('center_id', ids).order('created_at', { ascending: false })
-            setRequests(reqs || [])
+            setChildRequests(reqs || [])
           } else {
-            setRequests([])
+            setChildRequests([])
           }
-          setLoading(false)
-        } else {
-          fetchRequests(data.id)
         }
+        fetchRequests(data.id)
       })
   }, [user])
 
@@ -198,16 +199,17 @@ export default function BalanceView() {
     verified: requests.filter(STATUS_MATCH.verified).length,
     rejected: requests.filter(STATUS_MATCH.rejected).length,
   }
-  const filteredRequests = requests
-    .filter(STATUS_MATCH[statusFilter] || (() => true))
-    .filter(r => !isSuperCenter || centerFilter === 'all' || r.center_id === centerFilter)
+  const filteredRequests = requests.filter(STATUS_MATCH[statusFilter] || (() => true))
+
+  // Sub-centers' recharge history, for the super center's oversight section.
+  const filteredChildRequests = childRequests.filter(r => centerFilter === 'all' || r.center_id === centerFilter)
 
   return (
     <div className="p-6">
       <PageHeader
         title="Virtual Balance"
-        subtitle={isSuperCenter ? 'Recharge history of your centers' : 'Recharge your account to register students'}
-        action={isSuperCenter ? undefined : { label: <><Plus size={15} /> Request Recharge</>, onClick: openModal }}
+        subtitle="Recharge your account to register students"
+        action={{ label: <><Plus size={15} /> Request Recharge</>, onClick: openModal }}
       />
 
       {centerErr && (
@@ -235,27 +237,23 @@ export default function BalanceView() {
           <p className="text-[11px] opacity-60 mt-1 truncate">{center?.center_name}</p>
         </div>
 
-        {!isSuperCenter && (
-          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingDown size={16} className="text-orange-600" />
-              <p className="text-xs font-semibold text-orange-700">Used Balance</p>
-            </div>
-            <p className="text-2xl font-bold text-orange-800">₹{usedBalance.toLocaleString()}</p>
-            <p className="text-[11px] text-orange-500 mt-1">Spent so far</p>
+        <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingDown size={16} className="text-orange-600" />
+            <p className="text-xs font-semibold text-orange-700">Used Balance</p>
           </div>
-        )}
+          <p className="text-2xl font-bold text-orange-800">₹{usedBalance.toLocaleString()}</p>
+          <p className="text-[11px] text-orange-500 mt-1">Spent so far</p>
+        </div>
 
-        {!isSuperCenter && (
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Wallet size={16} className="text-blue-500" />
-              <p className="text-xs font-semibold text-blue-700">Total Balance</p>
-            </div>
-            <p className="text-2xl font-bold text-blue-800">₹{totalRecharged.toLocaleString()}</p>
-            <p className="text-[11px] text-blue-500 mt-1">Total recharged</p>
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Wallet size={16} className="text-blue-500" />
+            <p className="text-xs font-semibold text-blue-700">Total Balance</p>
           </div>
-        )}
+          <p className="text-2xl font-bold text-blue-800">₹{totalRecharged.toLocaleString()}</p>
+          <p className="text-[11px] text-blue-500 mt-1">Total recharged</p>
+        </div>
 
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -278,19 +276,6 @@ export default function BalanceView() {
 
       {/* Requests Table */}
       <h2 className="text-sm font-bold text-gray-700 mb-3">Recharge History</h2>
-
-      {isSuperCenter && (
-        <div className="mb-3">
-          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Center</label>
-          <select value={centerFilter} onChange={e => setCenterFilter(e.target.value)}
-            className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
-            <option value="all">All Centers</option>
-            {subCenters.map(sc => (
-              <option key={sc.id} value={sc.id}>{sc.center_name}{sc.center_code ? ` (${sc.center_code})` : ''}</option>
-            ))}
-          </select>
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
         {[
@@ -322,7 +307,6 @@ export default function BalanceView() {
           <Thead>
             <tr>
               <Th>#</Th>
-              {isSuperCenter && <Th>Center</Th>}
               <Th>Amount</Th>
               <Th>UTR Number</Th>
               <Th>Payment Date</Th>
@@ -337,16 +321,10 @@ export default function BalanceView() {
           </Thead>
           <Tbody>
             {filteredRequests.length === 0 ? (
-              <Tr><Td colSpan={isSuperCenter ? 12 : 11} className="text-center text-gray-400 py-12">No {statusFilter === 'all' ? '' : statusFilter + ' '}recharge requests{statusFilter === 'all' ? ' yet' : ''}</Td></Tr>
+              <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No {statusFilter === 'all' ? '' : statusFilter + ' '}recharge requests{statusFilter === 'all' ? ' yet' : ''}</Td></Tr>
             ) : filteredRequests.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                {isSuperCenter && (
-                  <Td>
-                    <p className="font-semibold text-gray-900 text-sm">{r.centers?.center_name || '—'}</p>
-                    {r.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{r.centers.center_code}</span>}
-                  </Td>
-                )}
                 <Td><span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span></Td>
                 <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{formatDate(r.payment_date)}</Td>
@@ -376,6 +354,70 @@ export default function BalanceView() {
             ))}
           </Tbody>
         </Table>
+      )}
+
+      {/* Super center only: recharge activity of its own centers. */}
+      {isSuperCenter && (
+        <div className="mt-8">
+          <h2 className="text-sm font-bold text-gray-700 mb-3">My Centers' Recharge History</h2>
+
+          <div className="mb-3">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Center</label>
+            <select value={centerFilter} onChange={e => setCenterFilter(e.target.value)}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+              <option value="all">All Centers</option>
+              {subCenters.map(sc => (
+                <option key={sc.id} value={sc.id}>{sc.center_name}{sc.center_code ? ` (${sc.center_code})` : ''}</option>
+              ))}
+            </select>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
+          ) : (
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>Center</Th>
+                  <Th>Amount</Th>
+                  <Th>UTR Number</Th>
+                  <Th>Payment Date</Th>
+                  <Th>Screenshot</Th>
+                  <Th>Notes</Th>
+                  <Th>Requested On</Th>
+                  <Th>Verified On</Th>
+                  <Th>Status</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {filteredChildRequests.length === 0 ? (
+                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No recharge requests from your centers yet</Td></Tr>
+                ) : filteredChildRequests.map((r, i) => (
+                  <Tr key={r.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td>
+                      <p className="font-semibold text-gray-900 text-sm">{r.centers?.center_name || '—'}</p>
+                      {r.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{r.centers.center_code}</span>}
+                    </Td>
+                    <Td><span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span></Td>
+                    <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
+                    <Td className="text-gray-500 text-xs">{formatDate(r.payment_date)}</Td>
+                    <Td>
+                      {r.utr_screenshot_url ? (
+                        <a href={r.utr_screenshot_url} target="_blank" rel="noreferrer" className="text-[#933d18] text-xs font-semibold underline">View</a>
+                      ) : '—'}
+                    </Td>
+                    <Td className="text-gray-500 text-xs">{r.notes || '—'}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
+                    <Td className="text-gray-400 text-xs">{formatDate(r.verified_at)}</Td>
+                    <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          )}
+        </div>
       )}
 
       {/* Recharge Modal */}

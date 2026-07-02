@@ -312,10 +312,11 @@ export default function CouponManagement() {
           { k: null, label: 'All Coupons', icon: Ticket },
           { k: 'approval', label: 'Approval Codes', icon: BadgeCheck },
           { k: 'discount', label: 'Discounted Coupons', icon: Tag },
+          { k: 'wallet', label: 'Coupon Wallet', icon: Wallet },
         ].map(t => {
           const active = directType === t.k
           return (
-            <button key={t.label} onClick={() => (t.k ? openDirect(t.k) : closeDirect())}
+            <button key={t.label} onClick={() => (t.k === 'wallet' ? setDirectType('wallet') : t.k ? openDirect(t.k) : closeDirect())}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${
                 active ? 'bg-white text-[#933d18] border border-gray-200 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}>
@@ -325,38 +326,40 @@ export default function CouponManagement() {
         })}
       </div>
 
+      {/* ─────────── COUPON WALLET (deposited money waiting to be minted) ─────────── */}
+      {directType === 'wallet' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Wallet size={16} className="text-[#933d18]" />
+            <h2 className="text-sm font-black text-gray-700 uppercase tracking-widest">Coupon Wallets — Mint Coupons</h2>
+          </div>
+          {walletCenters.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center">No center currently has a balance in its coupon wallet.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {walletCenters.map(c => (
+                <div key={c.id} className="rounded-xl border border-amber-100 bg-amber-50/50 p-4 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 truncate">{c.center_name}</p>
+                    {c.center_code && <p className="text-xs text-gray-400 font-mono">{c.center_code}</p>}
+                    <p className="text-lg font-black text-amber-700 mt-1">₹{Number(c.coupon_wallet_balance).toLocaleString('en-IN')}</p>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">{statsByCenter[c.id]?.unused || 0} unused</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{statsByCenter[c.id]?.used || 0} used</span>
+                    </div>
+                  </div>
+                  <Button size="sm" onClick={() => { setGenCenter(c); setGenRate('') }} className="shrink-0">
+                    <Sparkles size={13} /> Generate
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ─────────── OVERVIEW (All Coupons) ─────────── */}
       {!directType && (<>
-      {/* Coupon wallets — deposited money waiting to be minted into coupons */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Wallet size={16} className="text-[#933d18]" />
-          <h2 className="text-sm font-black text-gray-700 uppercase tracking-widest">Coupon Wallets — Mint Coupons</h2>
-        </div>
-        {walletCenters.length === 0 ? (
-          <p className="text-sm text-gray-400 py-4 text-center">No center currently has a balance in its coupon wallet.</p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {walletCenters.map(c => (
-              <div key={c.id} className="rounded-xl border border-amber-100 bg-amber-50/50 p-4 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-bold text-gray-900 truncate">{c.center_name}</p>
-                  {c.center_code && <p className="text-xs text-gray-400 font-mono">{c.center_code}</p>}
-                  <p className="text-lg font-black text-amber-700 mt-1">₹{Number(c.coupon_wallet_balance).toLocaleString('en-IN')}</p>
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">{statsByCenter[c.id]?.unused || 0} unused</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{statsByCenter[c.id]?.used || 0} used</span>
-                  </div>
-                </div>
-                <Button size="sm" onClick={() => { setGenCenter(c); setGenRate('') }} className="shrink-0">
-                  <Sparkles size={13} /> Generate
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Filters */}
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
@@ -570,7 +573,7 @@ export default function CouponManagement() {
       </Modal>
 
       {/* Type panel — Approval Codes / Discounted Coupons: inline (no popup) */}
-      {directType && (
+      {directType && directType !== 'wallet' && (
           <div className="space-y-4">
             {/* Top bar: status tabs + Generate button */}
             {!genMode && (

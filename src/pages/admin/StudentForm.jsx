@@ -1034,35 +1034,37 @@ export default function StudentForm() {
       // Document Dept verifies the application. We still reserve the coupon
       // here (mark it used + link it to this application) so the Account Dept
       // can apply its discount when it collects the fee.
+      // Mark the coupon used + link it to this application via a SECURITY
+      // DEFINER RPC (the center role can't UPDATE the coupons table directly
+      // under RLS). reserve_coupon() returns true only if it actually flipped
+      // a still-unused coupon — false means someone else (another student
+      // submitted moments earlier) already claimed it. Only keep the discount
+      // on this student's record when the reservation truly succeeded, so a
+      // coupon can never be applied to two students.
+      let couponReserveFailed = false
       if (!isEdit && coupon.applied?.id) {
-        // Mark the coupon used + link it to this application. Done via a
-        // SECURITY DEFINER RPC because the center role can't UPDATE the coupons
-        // table directly (RLS) — a plain update silently failed and left the
-        // coupon showing as Available. Fall back to a direct update (works for
-        // admins) if the RPC isn't deployed yet.
-        const { error: rpcErr } = await supabase.rpc('reserve_coupon', {
+        const { data: reserved, error: rpcErr } = await supabase.rpc('reserve_coupon', {
           p_coupon_id: coupon.applied.id,
           p_application_id: saved?.id || null,
         })
-        if (rpcErr) {
-          await supabase.from('coupons')
-            .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
-            .eq('id', coupon.applied.id)
-        }
+        couponReserveFailed = !!rpcErr || reserved !== true
       }
-      // Also persist the discount on the student row itself. The center always
-      // has write access to its own student records, so this survives even if
-      // RLS blocks the center from updating the coupons table — letting the
-      // Account Dept apply the discount reliably at fee collection. Best-effort:
-      // if the migration (add_student_coupon_discount.sql) hasn't run, the
-      // unknown-column error is ignored and the insert above still stands.
+      // Persist (or clear) the discount on the student row itself. The center
+      // always has write access to its own student records, so this survives
+      // even if RLS blocks the center from updating the coupons table —
+      // letting the Account Dept apply the discount reliably at fee
+      // collection. Best-effort: if the migration (add_student_coupon_discount.sql)
+      // hasn't run, the unknown-column error is ignored and the insert above still stands.
       if (!isEdit && saved?.id) {
         await supabase.from('students')
           .update({
-            coupon_discount: coupon.applied ? (coupon.discount || 0) : null,
-            coupon_code: coupon.applied ? coupon.code.trim().toUpperCase() : null,
+            coupon_discount: (coupon.applied && !couponReserveFailed) ? (coupon.discount || 0) : null,
+            coupon_code: (coupon.applied && !couponReserveFailed) ? coupon.code.trim().toUpperCase() : null,
           })
           .eq('id', saved.id)
+      }
+      if (couponReserveFailed) {
+        alert('This coupon was already used (by another student submitted just now) and could not be applied. The student has been saved WITHOUT the discount — please collect the full fee.')
       }
       navigate(backPath)
     } else {
