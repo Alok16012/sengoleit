@@ -15,6 +15,9 @@ export default function MyCenters() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  // Verified recharge total per center id, for the Total/Used Recharge columns
+  // (same wallet breakdown admin sees on Wallet Summary -> Center Balances).
+  const [verifiedByCenter, setVerifiedByCenter] = useState({})
 
   useEffect(() => {
     if (!user?.email) return
@@ -50,6 +53,22 @@ export default function MyCenters() {
       .eq('approval_status', 'approved')
       .order('created_at', { ascending: false })
     setData(data || [])
+
+    const ids = (data || []).map(c => c.id)
+    if (ids.length) {
+      const { data: reqs } = await supabase
+        .from('recharge_requests')
+        .select('center_id, amount, status')
+        .in('center_id', ids)
+        .eq('status', 'verified')
+      const totals = {}
+      ;(reqs || []).forEach(r => {
+        totals[r.center_id] = (totals[r.center_id] || 0) + Number(r.amount || 0)
+      })
+      setVerifiedByCenter(totals)
+    } else {
+      setVerifiedByCenter({})
+    }
     setLoading(false)
   }
 
@@ -116,38 +135,51 @@ export default function MyCenters() {
               <Th>Contact Person</Th>
               <Th>State</Th>
               <Th>Phone</Th>
-              <Th>Virtual Balance</Th>
+              <Th>Total Recharge</Th>
+              <Th>Used Recharge</Th>
+              <Th>Wallet Balance</Th>
               <Th>Approval</Th>
               <Th>Status</Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No centers created yet</Td></Tr>
-            ) : filtered.map((c, i) => (
-              <Tr key={c.id}>
-                <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                <Td>
-                  <p className="font-semibold text-gray-900">{c.center_name}</p>
-                  {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
-                </Td>
-                <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
-                <Td className="text-gray-500 font-mono text-xs">{c.application_no || '—'}</Td>
-                <Td className="text-gray-500">{c.contact_person || '—'}</Td>
-                <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
-                <Td className="text-gray-500">{c.phone || '—'}</Td>
-                <Td><span className="font-semibold text-emerald-700">₹{Number(c.virtual_balance || 0).toLocaleString()}</span></Td>
-                <Td>
-                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full capitalize ${
-                    c.approval_status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
-                    c.approval_status === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
-                  }`}>
-                    {c.approval_status || 'Pending'}
-                  </span>
-                </Td>
-                <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
-              </Tr>
-            ))}
+              <Tr><Td colSpan={13} className="text-center text-gray-400 py-12">No centers created yet</Td></Tr>
+            ) : filtered.map((c, i) => {
+              const totalRecharge = verifiedByCenter[c.id] || 0
+              const walletBalance = Number(c.virtual_balance || 0)
+              const usedRecharge = Math.max(0, totalRecharge - walletBalance)
+              return (
+                <Tr key={c.id}>
+                  <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                  <Td>
+                    <p className="font-semibold text-gray-900">{c.center_name}</p>
+                    {c.email && <p className="text-xs text-gray-400 mt-0.5">{c.email}</p>}
+                  </Td>
+                  <Td className="text-gray-500 font-mono text-xs">{c.center_code || '—'}</Td>
+                  <Td className="text-gray-500 font-mono text-xs">{c.application_no || '—'}</Td>
+                  <Td className="text-gray-500">{c.contact_person || '—'}</Td>
+                  <Td className="text-gray-500 text-xs">{c.states?.state_name || '—'}</Td>
+                  <Td className="text-gray-500">{c.phone || '—'}</Td>
+                  <Td><span className="text-sm font-bold text-gray-700">₹{totalRecharge.toLocaleString('en-IN')}</span></Td>
+                  <Td><span className="text-sm font-bold text-amber-700">₹{usedRecharge.toLocaleString('en-IN')}</span></Td>
+                  <Td>
+                    <span className={`text-sm font-black ${walletBalance > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                      ₹{walletBalance.toLocaleString('en-IN')}
+                    </span>
+                  </Td>
+                  <Td>
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full capitalize ${
+                      c.approval_status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                      c.approval_status === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
+                    }`}>
+                      {c.approval_status || 'Pending'}
+                    </span>
+                  </Td>
+                  <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
+                </Tr>
+              )
+            })}
           </Tbody>
         </Table>
       )}

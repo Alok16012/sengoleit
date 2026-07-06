@@ -45,7 +45,7 @@ export default function BalanceView() {
           // Super center also has its own wallet + recharge history (fetched
           // below via fetchRequests), plus visibility into its centers' recharges.
           const { data: subs } = await supabase.from('centers')
-            .select('id, center_name, center_code').eq('super_center_id', data.id).order('center_name')
+            .select('id, center_name, center_code, virtual_balance').eq('super_center_id', data.id).order('center_name')
           setSubCenters(subs || [])
           const ids = (subs || []).map(s => s.id)
           if (ids.length) {
@@ -179,11 +179,24 @@ export default function BalanceView() {
     }
   }
 
-  const totalPending = requests.filter(r => r.status === 'pending').reduce((s, r) => s + r.amount, 0)
+  // Own numbers first...
+  const ownTotalPending = requests.filter(r => r.status === 'pending').reduce((s, r) => s + Number(r.amount || 0), 0)
+  const ownTotalRecharged = requests.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
+
+  // ...then, for a super center, add its sub-centers' numbers on top, same as
+  // admin's Wallet Summary aggregates "Total Wallet Balance" across centers.
+  const childTotalPending = childRequests.filter(r => r.status === 'pending').reduce((s, r) => s + Number(r.amount || 0), 0)
+  const childTotalVerified = childRequests.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
+  const childBalanceSum = subCenters.reduce((s, c) => s + Number(c.virtual_balance || 0), 0)
+
+  const totalPending = isSuperCenter ? ownTotalPending + childTotalPending : ownTotalPending
   // Total recharged (all verified) vs currently available vs used (spent).
-  const totalRecharged = requests.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
-  const availableBalance = Number(center?.virtual_balance || 0)
+  const totalRecharged = isSuperCenter ? ownTotalRecharged + childTotalVerified : ownTotalRecharged
+  const availableBalance = isSuperCenter
+    ? Number(center?.virtual_balance || 0) + childBalanceSum
+    : Number(center?.virtual_balance || 0)
   const usedBalance = Math.max(0, totalRecharged - availableBalance)
+  const totalRequestsCount = isSuperCenter ? requests.length + childRequests.length : requests.length
 
   // Status sub-filter for the recharge history table.
   const STATUS_MATCH = {
@@ -203,6 +216,14 @@ export default function BalanceView() {
 
   // Sub-centers' recharge history, for the super center's oversight section.
   const filteredChildRequests = childRequests.filter(r => centerFilter === 'all' || r.center_id === centerFilter)
+
+  // Per sub-center verified recharge total, for the "My Centers' Balances"
+  // breakdown table below (same columns as admin's Center Balances tab).
+  const verifiedByChildCenter = {}
+  childRequests.filter(r => r.status === 'verified').forEach(r => {
+    verifiedByChildCenter[r.center_id] = (verifiedByChildCenter[r.center_id] || 0) + Number(r.amount || 0)
+  })
+  const filteredSubCenters = subCenters.filter(sc => centerFilter === 'all' || sc.id === centerFilter)
 
   return (
     <div className="p-6">
@@ -234,7 +255,9 @@ export default function BalanceView() {
             <p className="text-xs font-semibold opacity-80">Available Balance</p>
           </div>
           <p className="text-2xl font-bold">₹{availableBalance.toLocaleString()}</p>
-          <p className="text-[11px] opacity-60 mt-1 truncate">{center?.center_name}</p>
+          <p className="text-[11px] opacity-60 mt-1 truncate">
+            {center?.center_name}{isSuperCenter ? ' + your centers' : ''}
+          </p>
         </div>
 
         <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4">
@@ -269,7 +292,7 @@ export default function BalanceView() {
             <RefreshCw size={16} className="text-gray-400" />
             <p className="text-xs font-semibold text-gray-600">Total Requests</p>
           </div>
-          <p className="text-2xl font-bold text-gray-800">{requests.length}</p>
+          <p className="text-2xl font-bold text-gray-800">{totalRequestsCount}</p>
           <p className="text-[11px] text-gray-400 mt-1">All time requests</p>
         </div>
       </div>
@@ -356,10 +379,52 @@ export default function BalanceView() {
         </Table>
       )}
 
-      {/* Super center only: recharge activity of its own centers. */}
+      {/* Super center only: per-center wallet breakdown + recharge activity of its own centers. */}
       {isSuperCenter && (
         <div className="mt-8">
-          <h2 className="text-sm font-bold text-gray-700 mb-3">My Centers' Recharge History</h2>
+          <h2 className="text-sm font-bold text-gray-700 mb-3">My Centers' Balances</h2>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
+          ) : (
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>Center Name</Th>
+                  <Th>Code</Th>
+                  <Th>Total Recharge</Th>
+                  <Th>Used Recharge</Th>
+                  <Th>Wallet Balance</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {filteredSubCenters.length === 0 ? (
+                  <Tr><Td colSpan={6} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
+                ) : filteredSubCenters.map((sc, i) => {
+                  const scTotalRecharge = verifiedByChildCenter[sc.id] || 0
+                  const scBalance = Number(sc.virtual_balance || 0)
+                  const scUsed = Math.max(0, scTotalRecharge - scBalance)
+                  return (
+                    <Tr key={sc.id}>
+                      <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                      <Td><p className="font-semibold text-gray-900">{sc.center_name}</p></Td>
+                      <Td className="font-mono text-xs text-gray-500">{sc.center_code || '—'}</Td>
+                      <Td><span className="text-sm font-bold text-gray-700">₹{scTotalRecharge.toLocaleString('en-IN')}</span></Td>
+                      <Td><span className="text-sm font-bold text-amber-700">₹{scUsed.toLocaleString('en-IN')}</span></Td>
+                      <Td>
+                        <span className={`text-sm font-black ${scBalance > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                          ₹{scBalance.toLocaleString('en-IN')}
+                        </span>
+                      </Td>
+                    </Tr>
+                  )
+                })}
+              </Tbody>
+            </Table>
+          )}
+
+          <h2 className="text-sm font-bold text-gray-700 mb-3 mt-8">My Centers' Recharge History</h2>
 
           <div className="mb-3">
             <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Center</label>

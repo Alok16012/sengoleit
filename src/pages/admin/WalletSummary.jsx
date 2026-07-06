@@ -85,8 +85,15 @@ export default function WalletSummary() {
   const pendingRecharges = filteredRecharges.filter(r => r.status === 'pending')
   const totalPendingAmount = pendingRecharges.reduce((s, r) => s + Number(r.amount || 0), 0)
   const totalVerified = filteredRecharges.filter(r => r.status === 'verified').reduce((s, r) => s + Number(r.amount || 0), 0)
-  // Used = total recharged into the wallet minus what's still available.
-  const totalUsed = Math.max(0, totalVerified - totalBalance)
+  // Used = sum of each center's own (recharged - balance), clamped at 0 per
+  // center. NOT (totalVerified - totalBalance) globally — a center whose
+  // balance was set directly (no matching recharge_request) would otherwise
+  // contribute a large negative number and mask genuine usage elsewhere.
+  const totalUsed = filteredCenters.reduce((s, c) => {
+    const recharge = verifiedByCenter[c.id] || 0
+    const balance = Number(c.virtual_balance || 0)
+    return s + Math.max(0, recharge - balance)
+  }, 0)
 
   // Status sub-filter for the Recharge History table (counts based on the
   // super-center/center filters above, before the status filter itself).
