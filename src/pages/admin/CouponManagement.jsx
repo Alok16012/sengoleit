@@ -203,8 +203,14 @@ export default function CouponManagement() {
     return true
   })
 
-  const totalUsed = coupons.filter(c => !!(c.is_used || c.used_at)).length
-  const totalUnused = coupons.length - totalUsed
+  // Top summary cards honor the Super Center / Center filter, and — when a
+  // specific coupon-type panel (Approval / Discounted) is open — that type too,
+  // so the numbers match the list below instead of always showing global totals.
+  const typeScope = (directType === 'approval' || directType === 'discount') ? directType : null
+  const scopedCoupons = coupons.filter(c => scopeMatch(c) && (!typeScope || c.coupon_type === typeScope))
+  const totalCount = scopedCoupons.length
+  const totalUsed = scopedCoupons.filter(c => !!(c.is_used || c.used_at)).length
+  const totalUnused = totalCount - totalUsed
 
   // Per-center used/unused counts (used in group headers & wallet cards).
   const statsByCenter = coupons.reduce((acc, c) => {
@@ -281,7 +287,7 @@ export default function CouponManagement() {
 
   // Centers that have money deposited in their coupon wallet but not yet minted.
   const walletCenters = centers.filter(c => Number(c.coupon_wallet_balance || 0) > 0 && centerScopeMatch(c))
-  const totalWallet = centers.reduce((sum, c) => sum + Number(c.coupon_wallet_balance || 0), 0)
+  const totalWallet = centers.filter(centerScopeMatch).reduce((sum, c) => sum + Number(c.coupon_wallet_balance || 0), 0)
 
   const genBalance = Math.round(Number(genCenter?.coupon_wallet_balance || 0))
   const genRateNum = Math.round(Number(genRate) || 0)
@@ -331,7 +337,7 @@ export default function CouponManagement() {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 mb-6">
-        <StatCard label="Total Coupons" value={coupons.length} color="blue" />
+        <StatCard label="Total Coupons" value={totalCount} color="blue" />
         <StatCard label="Used" value={totalUsed} color="gray" />
         <StatCard label="Unused / Available" value={totalUnused} color="green" />
         <StatCard label="Wallet Balance" value={`₹${totalWallet.toLocaleString('en-IN')}`} color="amber" />
