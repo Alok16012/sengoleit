@@ -83,8 +83,16 @@ export default function CouponManagement() {
     const payload = next
       ? { is_activated: true, activated_at: new Date().toISOString() }
       : { is_activated: false }
-    const { error } = await supabase.from('coupons').update(payload).eq('id', c.id)
+    // Must use the admin client: anon UPDATE on `coupons` silently no-ops under
+    // RLS, so the change never reaches the DB and the center/super-center view
+    // keeps showing the old status. Verify the row actually changed via .select().
+    const db = supabaseAdmin || supabase
+    const { data, error } = await db.from('coupons').update(payload).eq('id', c.id).select('id')
     if (error) { alert('Could not update: ' + error.message); return }
+    if (!data || data.length === 0) {
+      alert('Update did not apply (row not changed). Check coupons RLS / admin key.')
+      return
+    }
     setCoupons(prev => prev.map(x => x.id === c.id ? { ...x, is_activated: next } : x))
   }
 

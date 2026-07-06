@@ -286,9 +286,15 @@ export default function CouponView({ type = 'wallet' }) {
           ) : filtered.map((c, i) => {
             const isUsed = !!(c.is_used || c.used_at)
             // Paid online and waiting on the Account Department to verify.
-            const pendingAccounts = isApproval && !!c.payment_txn_id && !c.is_activated && !c.is_rejected && !isUsed
+            // Paid online, awaiting the Account Dept's FIRST verification (never
+            // activated yet — no activated_at). Once admin deactivates a code
+            // that was activated before, it must read as "Deactivated", not
+            // fall back here, so we exclude codes that carry an activated_at.
+            const pendingAccounts = isApproval && !!c.payment_txn_id && !c.is_activated && !c.activated_at && !c.is_rejected && !isUsed
             // Paid online AND verified by the Account Dept → approved.
             const approvedPaid = isApproval && !!c.payment_txn_id && c.is_activated && !c.is_rejected && !isUsed
+            // Was activated by admin at some point, then deactivated.
+            const deactivated = isApproval && !c.is_activated && !!c.activated_at && !c.is_rejected && !isUsed
             // Status badge reused across both layouts.
             const statusBadge = isUsed ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
@@ -371,6 +377,8 @@ export default function CouponView({ type = 'wallet' }) {
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Approved</span>
                     ) : pendingAccounts ? (
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">● Accounts</span>
+                    ) : deactivated ? (
+                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivated</span>
                     ) : c.is_activated ? (
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivate</span>
                     ) : (
