@@ -64,7 +64,7 @@ export default function CenterStudents() {
     setLoading(true)
     const { data } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, doc_verified_at, programs(program_name), academic_sessions(session_name)')
+      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, doc_verified_at, forwarded_at, programs(program_name), academic_sessions(session_name)')
       .eq('center_id', centerId)
       .order('created_at', { ascending: false })
     setData(data || [])
@@ -74,7 +74,13 @@ export default function CenterStudents() {
   const filtered = data.filter(s => {
     const searchStr = `${s.student_name} ${s.enrollment_no} ${s.mobile_no} ${s.admission_number} ${s.programs?.program_name || ''} ${s.academic_sessions?.session_name || ''}`.toLowerCase()
     const matchSearch = searchStr.includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'All' || s.status === statusFilter
+    // "Pending" must mean the same thing as the sidebar Pending Student List:
+    // status Pending AND not yet forwarded to the Document Dept. A forwarded
+    // pending student is "in process", so it drops out of this tab.
+    const matchStatus =
+      statusFilter === 'All' ? true :
+      statusFilter === 'Pending' ? (s.status === 'Pending' && !s.forwarded_at) :
+      s.status === statusFilter
     return matchSearch && matchStatus
   })
 
