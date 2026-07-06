@@ -46,7 +46,9 @@ function CouponSearchSelect({ coupons, value, onSelect }) {
   }
 
   const opts = coupons.map(c => ({
-    code: c.id.slice(0, 8).toUpperCase(),
+    // Show the real coupon_code (same as admin Coupon Management), falling back to
+    // the id prefix only for legacy coupons that have no coupon_code.
+    code: (c.coupon_code || c.id.slice(0, 8).toUpperCase()).toUpperCase(),
     face: Number(c.face_value || 0),
   }))
   const filtered = query
@@ -618,10 +620,14 @@ export default function StudentForm() {
   useEffect(() => {
     if (!form.center_id || isEdit) { setAvailableCoupons([]); return }
     supabase.from('coupons')
-      .select('id, face_value, is_used, used_at, center_id')
+      .select('id, coupon_code, coupon_type, face_value, is_used, used_at, center_id')
       .eq('center_id', form.center_id)
       .then(({ data }) => {
-        const avail = (data || []).filter(c => !c.is_used && !c.used_at)
+        // Only unused DISCOUNT coupons — must be strictly coupon_type 'discount'
+        // so it matches exactly what admin's Coupon Management shows. Legacy
+        // coupons with a null coupon_type are NOT offered (they don't appear in
+        // admin either), avoiding phantom codes the center can't reconcile.
+        const avail = (data || []).filter(c => !c.is_used && !c.used_at && c.coupon_type === 'discount')
         setAvailableCoupons(avail)
       })
   }, [form.center_id])
@@ -858,7 +864,7 @@ export default function StudentForm() {
       let rows = null
       const withType = await supabase
         .from('coupons')
-        .select('id, face_value, is_used, used_at, center_id, coupon_type')
+        .select('id, coupon_code, face_value, is_used, used_at, center_id, coupon_type')
         .eq('center_id', form.center_id)
       if (withType.error) {
         const plain = await supabase
@@ -871,8 +877,10 @@ export default function StudentForm() {
       }
       const match = (rows || []).find(
         r => !r.is_used && !r.used_at
-          && (r.coupon_type || 'discount') !== 'approval'
-          && r.id?.slice(0, 8).toUpperCase() === code
+          && r.coupon_type === 'discount'
+          // Match the code the center actually sees: the real coupon_code (as in
+          // admin), falling back to the id prefix only for legacy coupons.
+          && (r.coupon_code || r.id?.slice(0, 8).toUpperCase() || '').toUpperCase() === code
       )
       if (!match) {
         setCoupon(c => ({ ...c, applying: false, applied: null, discount: 0, error: 'Invalid or already-used coupon code for this center' }))
