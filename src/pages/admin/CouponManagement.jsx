@@ -829,12 +829,28 @@ export default function CouponManagement() {
                         <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                           <td className="px-5 py-3.5 text-gray-400 text-xs">{i + 1}</td>
                           <td className="px-5 py-3.5">
-                            <p className="font-semibold text-gray-900 text-sm">{c.centers?.center_name || '—'}</p>
-                            {c.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.center_code}</span>}
+                            {/* A super-center-owned code (approval code) shows only in the Super Center column. */}
+                            {c.centers?.center_type === 'super_center' ? (
+                              <span className="text-gray-300">—</span>
+                            ) : (
+                              <>
+                                <p className="font-semibold text-gray-900 text-sm">{c.centers?.center_name || '—'}</p>
+                                {c.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.center_code}</span>}
+                              </>
+                            )}
                           </td>
                           <td className="px-5 py-3.5">
-                            <p className="font-medium text-gray-700 text-sm">{c.centers?.super_center?.center_name || '—'}</p>
-                            {c.centers?.super_center?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.super_center.center_code}</span>}
+                            {c.centers?.center_type === 'super_center' ? (
+                              <>
+                                <p className="font-medium text-gray-700 text-sm">{c.centers?.center_name || '—'}</p>
+                                {c.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.center_code}</span>}
+                              </>
+                            ) : (
+                              <>
+                                <p className="font-medium text-gray-700 text-sm">{c.centers?.super_center?.center_name || '—'}</p>
+                                {c.centers?.super_center?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.super_center.center_code}</span>}
+                              </>
+                            )}
                           </td>
                           <td className="px-5 py-3.5">
                             <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.centers?.center_type === 'super_center' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
