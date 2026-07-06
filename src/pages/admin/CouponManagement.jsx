@@ -30,6 +30,8 @@ export default function CouponManagement() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('All')
   const [centerFilter, setCenterFilter] = useState('')
+  // Super Center / Center scope filter, applied across every coupon tab.
+  const [superFilter, setSuperFilter] = useState('all')
   const [fetchErr, setFetchErr] = useState(null)
   const [hiddenCenters, setHiddenCenters] = useState({})
 
@@ -138,9 +140,9 @@ export default function CouponManagement() {
     // embedded join would otherwise error and blank the whole list. Try the
     // richest query first, then degrade until one works.
     const attempts = [
-      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, payment_date, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
+      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, super_center_id, payment_date, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       () => supabase.from('coupons').select('*').order('created_at', { ascending: false }),
-      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, payment_date, super_center:super_center_id(center_name, center_code))'),
+      () => supabase.from('coupons').select('*, centers(center_name, center_code, center_type, super_center_id, payment_date, super_center:super_center_id(center_name, center_code))'),
       () => supabase.from('coupons').select('*'),
     ]
     let cpData = null, cpErr = null
@@ -155,7 +157,7 @@ export default function CouponManagement() {
 
     const ctrs = await supabase
       .from('centers')
-      .select('id, center_name, center_code, center_type, coupon_wallet_balance')
+      .select('id, center_name, center_code, center_type, super_center_id, coupon_wallet_balance')
       .order('center_name')
     if (ctrs.error) console.error('centers fetch failed:', ctrs.error)
     setCenters(ctrs.data || [])
@@ -164,11 +166,32 @@ export default function CouponManagement() {
 
   useEffect(() => { fetchData() }, [])
 
+  // Super Center / Center scope, applied to every tab. A coupon's owning super
+  // center = the center itself if it IS a super center (approval codes), else its
+  // parent super_center_id (discount coupons under a sub-center).
+  function scopeMatch(c) {
+    if (superFilter !== 'all') {
+      const scId = c.centers?.center_type === 'super_center' ? c.center_id : c.centers?.super_center_id
+      if (scId !== superFilter) return false
+    }
+    if (centerFilter && c.center_id !== centerFilter) return false
+    return true
+  }
+  // Same scope test for a plain center row (used by the Coupon Wallet tab).
+  function centerScopeMatch(ctr) {
+    if (superFilter !== 'all') {
+      const scId = ctr.center_type === 'super_center' ? ctr.id : ctr.super_center_id
+      if (scId !== superFilter) return false
+    }
+    if (centerFilter && ctr.id !== centerFilter) return false
+    return true
+  }
+
   const filtered = coupons.filter(c => {
     const isUsed = !!(c.is_used || c.used_at)
     if (statusFilter === 'Used' && !isUsed) return false
     if (statusFilter === 'Unused' && isUsed) return false
-    if (centerFilter && c.center_id !== centerFilter) return false
+    if (!scopeMatch(c)) return false
     return true
   })
 
@@ -184,7 +207,7 @@ export default function CouponManagement() {
   }, {})
 
   // The type panel (Approval Code / Discounted Coupon) — codes of one type with a status tab.
-  const panelCoupons = directType ? coupons.filter(c => c.coupon_type === directType) : []
+  const panelCoupons = directType ? coupons.filter(c => c.coupon_type === directType && scopeMatch(c)) : []
   const isApprovalPanel = directType === 'approval'
   // Status matchers shared by the panel tabs + the list filter.
   //  Used     = code consumed to create a center
@@ -249,7 +272,7 @@ export default function CouponManagement() {
   }
 
   // Centers that have money deposited in their coupon wallet but not yet minted.
-  const walletCenters = centers.filter(c => Number(c.coupon_wallet_balance || 0) > 0)
+  const walletCenters = centers.filter(c => Number(c.coupon_wallet_balance || 0) > 0 && centerScopeMatch(c))
   const totalWallet = centers.reduce((sum, c) => sum + Number(c.coupon_wallet_balance || 0), 0)
 
   const genBalance = Math.round(Number(genCenter?.coupon_wallet_balance || 0))
@@ -326,6 +349,38 @@ export default function CouponManagement() {
         })}
       </div>
 
+      {/* Super Center / Center scope — applies to every tab above. */}
+      <div className="flex flex-wrap gap-3 mb-6 items-end">
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Super Center</label>
+          <select
+            value={superFilter}
+            onChange={e => { setSuperFilter(e.target.value); setCenterFilter('') }}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white min-w-[200px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20"
+          >
+            <option value="all">All Super Centers</option>
+            {centers.filter(c => c.center_type === 'super_center').map(s => (
+              <option key={s.id} value={s.id}>{s.center_name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Center</label>
+          <select
+            value={centerFilter}
+            onChange={e => setCenterFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white min-w-[200px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20"
+          >
+            <option value="">All Centers</option>
+            {centers
+              .filter(c => c.center_type === 'center' && (superFilter === 'all' || c.super_center_id === superFilter))
+              .map(c => (
+                <option key={c.id} value={c.id}>{c.center_name}</option>
+              ))}
+          </select>
+        </div>
+      </div>
+
       {/* ─────────── COUPON WALLET (deposited money waiting to be minted) ─────────── */}
       {directType === 'wallet' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
@@ -372,16 +427,6 @@ export default function CouponManagement() {
             </button>
           ))}
         </div>
-        <select
-          value={centerFilter}
-          onChange={e => setCenterFilter(e.target.value)}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-[#933d18]/50 bg-white"
-        >
-          <option value="">All Centers</option>
-          {centers.map(c => (
-            <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>
-          ))}
-        </select>
         {groups.length > 0 && (
           <button
             onClick={toggleAll}
