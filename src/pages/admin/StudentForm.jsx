@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { supabase } from '../../lib/supabase'
+import { supabase, supabaseAdmin } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import DateInput from '../../components/ui/DateInput'
@@ -1043,11 +1043,16 @@ export default function StudentForm() {
       // coupon can never be applied to two students.
       let couponReserveFailed = false
       if (!isEdit && coupon.applied?.id) {
-        const { data: reserved, error: rpcErr } = await supabase.rpc('reserve_coupon', {
-          p_coupon_id: coupon.applied.id,
-          p_application_id: saved?.id || null,
-        })
-        couponReserveFailed = !!rpcErr || reserved !== true
+        // Mark the coupon used + link it to this application. The center role can't
+        // UPDATE the coupons table under RLS, so use the service-role admin client.
+        // The `is_used=false` guard makes it atomic: only the first student to claim
+        // a still-unused coupon flips it — a second claim updates 0 rows and fails,
+        // so a coupon can never be applied to two students.
+        const db = supabaseAdmin || supabase
+        const { data: reserved, error: rpcErr } = await db.from('coupons')
+          .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
+          .eq('id', coupon.applied.id).eq('is_used', false).select('id')
+        couponReserveFailed = !!rpcErr || !reserved || reserved.length === 0
       }
       // Persist (or clear) the discount on the student row itself. The center
       // always has write access to its own student records, so this survives
