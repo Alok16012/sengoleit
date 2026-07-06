@@ -242,6 +242,13 @@ export default function CouponManagement() {
   }
   const panelUsed = panelCoupons.filter(PANEL_MATCH.Used).length
   const panelUnused = panelCoupons.filter(PANEL_MATCH.Unused).length
+  // Top summary cards: when an Approval / Discounted panel is open, mirror THAT
+  // panel's own tab counts so the cards exactly match the status bar below
+  // (All / Used / Unused). Otherwise fall back to the scoped totals.
+  const isTypePanel = directType === 'approval' || directType === 'discount'
+  const cardTotal  = isTypePanel ? panelCoupons.length : totalCount
+  const cardUsed   = isTypePanel ? panelUsed   : totalUsed
+  const cardUnused = isTypePanel ? panelUnused : totalUnused
   const panelList = panelCoupons.filter(c => {
     if (!(PANEL_MATCH[viewStatus] || (() => true))(c)) return false
     if (panelQ) {
@@ -337,9 +344,9 @@ export default function CouponManagement() {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 mb-6">
-        <StatCard label="Total Coupons" value={totalCount} color="blue" />
-        <StatCard label="Used" value={totalUsed} color="gray" />
-        <StatCard label="Unused / Available" value={totalUnused} color="green" />
+        <StatCard label="Total Coupons" value={cardTotal} color="blue" />
+        <StatCard label="Used" value={cardUsed} color="gray" />
+        <StatCard label="Unused / Available" value={cardUnused} color="green" />
         <StatCard label="Wallet Balance" value={`₹${totalWallet.toLocaleString('en-IN')}`} color="amber" />
       </div>
 
