@@ -292,14 +292,20 @@ export default function AccountDepartment() {
   }
 
   // Code structure: Super Center => CTR001, CTR002...  Center => SIU001, SIU002...
+  // Numbering starts at 001 and fills the LOWEST free slot: if earlier codes
+  // were freed up (centers deleted), the next center reuses the smallest unused
+  // number instead of always climbing past the current max.
   async function generateNextCode(prefix) {
     const { data } = await supabase.from('centers').select('center_code').not('center_code', 'is', null)
     const re = new RegExp(`^${prefix}(\\d+)$`)
-    const nums = (data || [])
-      .map(c => c.center_code?.match(re)?.[1])
-      .filter(Boolean)
-      .map(Number)
-    const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
+    const used = new Set(
+      (data || [])
+        .map(c => c.center_code?.match(re)?.[1])
+        .filter(Boolean)
+        .map(Number)
+    )
+    let next = 1
+    while (used.has(next)) next++
     return `${prefix}${String(next).padStart(3, '0')}`
   }
 
