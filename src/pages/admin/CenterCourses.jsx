@@ -32,7 +32,8 @@ export default function CenterCourses() {
   // List view state
   const [listTab, setListTab]       = useState('pending') // 'pending' | 'approved'
   const [centerSearch, setCenterSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState('all')     // 'all' | 'super_center' | 'center'
+  const [superFilter, setSuperFilter] = useState('all')   // super_center id or 'all'
+  const [centerFilter, setCenterFilter] = useState('all') // center id or 'all'
 
   // Detail view state
   const [centerId, setCenterId]     = useState('')
@@ -111,8 +112,18 @@ export default function CenterCourses() {
   const cq = centerSearch.toLowerCase()
   // Super centers rank before regular centers, then alphabetical by name.
   const typeRank = c => (c.center_type === 'super_center' ? 0 : 1)
+  const superCenters = centers
+    .filter(c => c.center_type === 'super_center')
+    .sort((a, b) => (a.center_name || '').localeCompare(b.center_name || ''))
+  // Center dropdown is scoped to the chosen super center.
+  const centersForDropdown = centers
+    .filter(c => c.center_type === 'center' && (superFilter === 'all' || c.super_center_id === superFilter))
+    .sort((a, b) => (a.center_name || '').localeCompare(b.center_name || ''))
   const listCenters = (listTab === 'approved' ? approvedCenters : pendingCenters)
-    .filter(c => typeFilter === 'all' || c.center_type === typeFilter)
+    // Super Center filter → that super center's child centers (and the super
+    // center row itself). Then optionally narrow to one specific center.
+    .filter(c => superFilter === 'all' || c.super_center_id === superFilter || c.id === superFilter)
+    .filter(c => centerFilter === 'all' || c.id === centerFilter)
     .filter(c => !cq || (c.center_name || '').toLowerCase().includes(cq) || (c.center_code || '').toLowerCase().includes(cq))
     .sort((a, b) => typeRank(a) - typeRank(b) || (a.center_name || '').localeCompare(b.center_name || ''))
 
@@ -302,15 +313,20 @@ export default function CenterCourses() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2 flex-1 justify-end min-w-[240px]">
+          <div className="flex items-center gap-2 flex-wrap flex-1 justify-end min-w-[240px]">
             <select
               className="py-2.5 pl-3 pr-8 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 cursor-pointer"
-              value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
-              <option value="all">All Types</option>
-              <option value="super_center">Super Center</option>
-              <option value="center">Center</option>
+              value={superFilter} onChange={e => { setSuperFilter(e.target.value); setCenterFilter('all') }}>
+              <option value="all">All Super Centers</option>
+              {superCenters.map(sc => <option key={sc.id} value={sc.id}>{sc.center_name}</option>)}
             </select>
-            <div className="relative max-w-xs flex-1 min-w-[180px]">
+            <select
+              className="py-2.5 pl-3 pr-8 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 cursor-pointer"
+              value={centerFilter} onChange={e => setCenterFilter(e.target.value)}>
+              <option value="all">All Centers</option>
+              {centersForDropdown.map(c => <option key={c.id} value={c.id}>{c.center_name}</option>)}
+            </select>
+            <div className="relative max-w-xs flex-1 min-w-[160px]">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10"
