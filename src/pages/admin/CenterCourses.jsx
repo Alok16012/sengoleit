@@ -32,6 +32,7 @@ export default function CenterCourses() {
   // List view state
   const [listTab, setListTab]       = useState('pending') // 'pending' | 'approved'
   const [centerSearch, setCenterSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')     // 'all' | 'super_center' | 'center'
 
   // Detail view state
   const [centerId, setCenterId]     = useState('')
@@ -56,7 +57,7 @@ export default function CenterCourses() {
     setCentersLoading(true)
     supabase.from('centers')
       .select('id, center_name, center_code, center_type, email, approval_status, super_center_id')
-      .eq('center_type', 'center')
+      .in('center_type', ['super_center', 'center'])
       .order('center_name')
       .then(({ data }) => { setCenters(data || []); setCentersLoading(false) })
     supabase.from('fee_structures')
@@ -108,8 +109,12 @@ export default function CenterCourses() {
   const pendingCenters  = centers.filter(c => !isApproved(c))
   const approvedCenters = centers.filter(c => isApproved(c))
   const cq = centerSearch.toLowerCase()
+  // Super centers rank before regular centers, then alphabetical by name.
+  const typeRank = c => (c.center_type === 'super_center' ? 0 : 1)
   const listCenters = (listTab === 'approved' ? approvedCenters : pendingCenters)
+    .filter(c => typeFilter === 'all' || c.center_type === typeFilter)
     .filter(c => !cq || (c.center_name || '').toLowerCase().includes(cq) || (c.center_code || '').toLowerCase().includes(cq))
+    .sort((a, b) => typeRank(a) - typeRank(b) || (a.center_name || '').localeCompare(b.center_name || ''))
 
   // ── Catalog (Add Course) ──
   // A course+session that is already allotted to this center (pending OR
@@ -256,12 +261,21 @@ export default function CenterCourses() {
               </button>
             ))}
           </div>
-          <div className="relative max-w-xs flex-1 min-w-[200px]">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10"
-              placeholder="Search center..."
-              value={centerSearch} onChange={e => setCenterSearch(e.target.value)} />
+          <div className="flex items-center gap-2 flex-1 justify-end min-w-[240px]">
+            <select
+              className="py-2.5 pl-3 pr-8 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 cursor-pointer"
+              value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
+              <option value="all">All Types</option>
+              <option value="super_center">Super Center</option>
+              <option value="center">Center</option>
+            </select>
+            <div className="relative max-w-xs flex-1 min-w-[180px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10"
+                placeholder="Search center..."
+                value={centerSearch} onChange={e => setCenterSearch(e.target.value)} />
+            </div>
           </div>
         </div>
 
@@ -277,6 +291,7 @@ export default function CenterCourses() {
               <tr className="bg-[#933d18]">
                 <th className="text-left text-white font-semibold px-4 py-3">#</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Center</th>
+                <th className="text-left text-white font-semibold px-4 py-3">Type</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Code</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Email</th>
                 <th className="text-center text-white font-semibold px-4 py-3">Pending</th>
@@ -286,15 +301,20 @@ export default function CenterCourses() {
             </thead>
             <tbody>
               {centersLoading ? (
-                <tr><td colSpan={7} className="text-center text-gray-400 py-12">Loading...</td></tr>
+                <tr><td colSpan={8} className="text-center text-gray-400 py-12">Loading...</td></tr>
               ) : listCenters.length === 0 ? (
-                <tr><td colSpan={7} className="text-center text-gray-400 py-12">No {listTab} centers</td></tr>
+                <tr><td colSpan={8} className="text-center text-gray-400 py-12">No {listTab} centers</td></tr>
               ) : listCenters.map((c, i) => {
                 const cnt = counts[c.id] || { pending: 0, approved: 0 }
                 return (
                   <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                     <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">{c.center_name}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${c.center_type === 'super_center' ? 'bg-[#933d18]/10 text-[#933d18]' : 'bg-gray-100 text-gray-600'}`}>
+                        {c.center_type === 'super_center' ? 'Super Center' : 'Center'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-gray-500 font-mono text-xs">{c.center_code || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{c.email || '—'}</td>
                     <td className="px-4 py-3 text-center">
