@@ -652,13 +652,16 @@ export default function StudentForm() {
         // center_id is resolved async (from the logged-in center's email); until
         // it's known, don't filter (null) rather than showing an empty list.
         if (!form.center_id) { if (!cancelled) setFeeProgramIds(null); return }
+        // Embed the program_id through the fee_structures FK in ONE query. (Doing
+        // it as a second .in('id', [...]) blew past the URL length limit once a
+        // center had hundreds of allotted courses, so nothing came back.)
         const { data: cc } = await supabase.from('center_courses')
-          .select('fee_structure_id')
+          .select('fee_structures(program_id)')
           .eq('center_id', form.center_id)
-        const fsIds = (cc || []).map(r => r.fee_structure_id).filter(Boolean)
-        if (fsIds.length === 0) { if (!cancelled) setFeeProgramIds(new Set()); return }
-        const { data: fs } = await supabase.from('fee_structures').select('program_id').in('id', fsIds)
-        if (!cancelled) setFeeProgramIds(new Set((fs || []).map(r => r.program_id).filter(Boolean)))
+        if (!cancelled) {
+          const ids = (cc || []).map(r => r.fee_structures?.program_id).filter(Boolean)
+          setFeeProgramIds(new Set(ids))
+        }
         return
       }
       const { data } = await supabase.from('fee_structures').select('program_id')
