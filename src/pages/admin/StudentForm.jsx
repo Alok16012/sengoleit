@@ -949,20 +949,27 @@ export default function StudentForm() {
       case 2:
         if (!form.student_name.trim()) return 'Student Name is required'
         if (!form.date_of_birth) return 'Date of Birth is required'
+        if (!form.profession) return 'Please select Profession'
         if (!form.gender) return 'Please select Gender'
+        if (!form.email.trim()) return 'Email is required'
         if (!form.mobile_no.trim()) return 'Mobile Number is required'
         if (form.mobile_no.length !== 10) return 'Mobile Number must be 10 digits'
-        if (form.whatsapp_no && form.whatsapp_no.length !== 10) return 'WhatsApp Number must be 10 digits'
-        if (!form.email.trim()) return 'Email is required'
+        if (!form.whatsapp_no.trim()) return 'WhatsApp Number is required'
+        if (form.whatsapp_no.length !== 10) return 'WhatsApp Number must be 10 digits'
+        if (!String(form.nationality || '').trim()) return 'Please select Nationality'
         if (!form.caste) return 'Please select Caste'
         if (!form.religion.trim()) return 'Religion is required'
-        if (form.aadhar_link_mobile && form.aadhar_link_mobile.length !== 10) return 'Aadhar Link Mobile must be 10 digits'
+        if (!form.mother_tongue.trim()) return 'Mother Tongue is required'
+        if (!form.aadhar_link_mobile.trim()) return 'Aadhar Link Mobile is required'
+        if (form.aadhar_link_mobile.length !== 10) return 'Aadhar Link Mobile must be 10 digits'
         if (!form.aadhar_no.trim()) return 'Aadhar Number is required'
         if (form.aadhar_no.length !== 12) return 'Aadhar Number must be 12 digits'
         return null
       case 3:
         if (!form.fathers_name.trim()) return "Father's Name is required"
+        if (!form.fathers_occupation.trim()) return "Father's Occupation is required"
         if (!form.mothers_name.trim()) return "Mother's Name is required"
+        if (!form.mothers_occupation.trim()) return "Mother's Occupation is required"
         if (!form.guardian_email.trim()) return 'Guardian Email Id is required'
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.guardian_email.trim())) return 'Guardian Email Id must be a valid email (e.g. name@example.com)'
         if (form.guardian_mobile && form.guardian_mobile.length !== 10) return 'Guardian Mobile No must be 10 digits'
