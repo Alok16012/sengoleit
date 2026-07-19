@@ -639,9 +639,10 @@ export default function StudentForm() {
   }, [form.center_id])
 
   // Resolve which programs can be admitted into.
-  //  • center  → only courses APPROVED-allotted to this center in
-  //    Fee Management → Center Courses (so a center can't admit into a course
-  //    it was never given). Needs the resolved center_id.
+  //  • center  → any course ALLOTTED to this center in Fee Management → Center
+  //    Courses (Pending OR Approved), so a center can't admit into a course it
+  //    was never given, but doesn't have to wait for admin approval either.
+  //    Needs the resolved center_id.
   //  • admin / super-center → any program that has a fee structure in Fee
   //    Management (the full "courses added in the fee section").
   useEffect(() => {
@@ -654,7 +655,6 @@ export default function StudentForm() {
         const { data: cc } = await supabase.from('center_courses')
           .select('fee_structure_id')
           .eq('center_id', form.center_id)
-          .eq('status', 'approved')
         const fsIds = (cc || []).map(r => r.fee_structure_id).filter(Boolean)
         if (fsIds.length === 0) { if (!cancelled) setFeeProgramIds(new Set()); return }
         const { data: fs } = await supabase.from('fee_structures').select('program_id').in('id', fsIds)
