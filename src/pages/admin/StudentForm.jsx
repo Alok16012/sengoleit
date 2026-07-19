@@ -632,18 +632,35 @@ export default function StudentForm() {
       })
   }, [form.center_id])
 
-  // Resolve which programs can be admitted into: any program that has a fee
-  // structure in Fee Management (same for admin and center/super-center). This
-  // mirrors the "courses added in the fee section".
+  // Resolve which programs can be admitted into.
+  //  • center  → only courses APPROVED-allotted to this center in
+  //    Fee Management → Center Courses (so a center can't admit into a course
+  //    it was never given). Needs the resolved center_id.
+  //  • admin / super-center → any program that has a fee structure in Fee
+  //    Management (the full "courses added in the fee section").
   useEffect(() => {
     let cancelled = false
     async function loadFeePrograms() {
+      if (role === 'center') {
+        // center_id is resolved async (from the logged-in center's email); until
+        // it's known, don't filter (null) rather than showing an empty list.
+        if (!form.center_id) { if (!cancelled) setFeeProgramIds(null); return }
+        const { data: cc } = await supabase.from('center_courses')
+          .select('fee_structure_id')
+          .eq('center_id', form.center_id)
+          .eq('status', 'approved')
+        const fsIds = (cc || []).map(r => r.fee_structure_id).filter(Boolean)
+        if (fsIds.length === 0) { if (!cancelled) setFeeProgramIds(new Set()); return }
+        const { data: fs } = await supabase.from('fee_structures').select('program_id').in('id', fsIds)
+        if (!cancelled) setFeeProgramIds(new Set((fs || []).map(r => r.program_id).filter(Boolean)))
+        return
+      }
       const { data } = await supabase.from('fee_structures').select('program_id')
       if (!cancelled) setFeeProgramIds(new Set((data || []).map(r => r.program_id).filter(Boolean)))
     }
     loadFeePrograms()
     return () => { cancelled = true }
-  }, [])
+  }, [role, form.center_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
   // Numeric-only input, capped at `max` digits (strips everything else)
