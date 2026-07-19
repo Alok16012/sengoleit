@@ -291,7 +291,7 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
             ) : (
               <Input label="Board / University" placeholder="Type board / university name" value={form[`${prefix}_board_university`]} onChange={onChange(`${prefix}_board_university`)} readOnly={ro('board_university')} />
             )}
-            <Input label="Passing Year" type="number" placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={onChange(`${prefix}_passing_year`)} readOnly={ro('passing_year')} />
+            <Input label="Passing Year" type="text" inputMode="numeric" maxLength={4} placeholder="2023" value={form[`${prefix}_passing_year`]} onChange={e => onChange(`${prefix}_passing_year`)({ target: { value: e.target.value.replace(/\D/g, '').slice(0, 4) } })} readOnly={ro('passing_year')} />
           </div>
           <div className="grid grid-cols-4 gap-4">
             <Input label="Obtained Marks" type="number" min="0"
@@ -1006,6 +1006,15 @@ export default function StudentForm() {
         for (const lv of requiredEduLevels) {
           if (!isEduComplete(lv)) {
             return `Please complete ${EDU_LEVEL_LABEL[lv]} education details (Institute, Board, Passing Year, Obtained & Total Marks) before continuing.`
+          }
+        }
+        // Passing Year: wherever entered, must be a 4-digit year not later than now.
+        const thisYear = new Date().getFullYear()
+        for (const pfx of ['tenth', 'twelfth', 'ug', 'pg', 'diploma', 'mphil', 'others']) {
+          const yr = String(form[`${pfx}_passing_year`] || '').trim()
+          if (!yr) continue
+          if (!/^\d{4}$/.test(yr) || Number(yr) > thisYear) {
+            return `Passing Year must be a valid 4-digit year not later than ${thisYear}`
           }
         }
         return null
