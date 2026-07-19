@@ -161,6 +161,19 @@ export default function CenterCourses() {
   const someCatalogChecked = catalog.some(s => allot[s.id])
 
   const allottedRows = structs.filter(s => allot[s.id] && allot[s.id].status === subTab)
+  // One row per course: bundle all of a program's allotted sessions together so
+  // the same course isn't repeated once per session. Sessions are shown
+  // comma-separated on a single line.
+  const groupedRows = Object.values(
+    allottedRows.reduce((acc, s) => {
+      const key = s.program_id || s.id
+      if (!acc[key]) acc[key] = { key, program_id: s.program_id, program_name: s.programs?.program_name || '—', items: [] }
+      acc[key].items.push(s)
+      return acc
+    }, {})
+  )
+    .map(g => ({ ...g, items: g.items.slice().sort((a, b) => (a.academic_sessions?.session_name || '').localeCompare(b.academic_sessions?.session_name || '')) }))
+    .sort((a, b) => a.program_name.localeCompare(b.program_name))
   const pendingCount  = Object.values(allot).filter(a => a.status === 'pending').length
   const approvedCount = Object.values(allot).filter(a => a.status === 'approved').length
 
@@ -239,6 +252,34 @@ export default function CenterCourses() {
     setBusy(struct.id)
     await supabase.from('center_courses').delete().eq('id', existing.id)
     setAllot(prev => { const next = { ...prev }; delete next[struct.id]; return next })
+    setBusy(null); loadCounts()
+  }
+
+  // ── Group actions: a grouped row bundles every session of one course, so the
+  // action applies to all of that course's allotments at once. ──
+  async function approveGroup(items) {
+    if (busy) return
+    setBusy('grp-' + (items[0]?.program_id || ''))
+    const ids = items.map(s => allot[s.id]?.id).filter(Boolean)
+    if (ids.length) await supabase.from('center_courses').update({ status: 'approved', approved_at: new Date().toISOString() }).in('id', ids)
+    setAllot(prev => { const next = { ...prev }; items.forEach(s => { if (next[s.id]) next[s.id] = { ...next[s.id], status: 'approved' } }); return next })
+    setBusy(null); loadCounts()
+  }
+  async function unapproveGroup(items) {
+    if (busy) return
+    setBusy('grp-' + (items[0]?.program_id || ''))
+    const ids = items.map(s => allot[s.id]?.id).filter(Boolean)
+    if (ids.length) await supabase.from('center_courses').update({ status: 'pending', approved_at: null }).in('id', ids)
+    setAllot(prev => { const next = { ...prev }; items.forEach(s => { if (next[s.id]) next[s.id] = { ...next[s.id], status: 'pending' } }); return next })
+    setBusy(null); loadCounts()
+  }
+  async function removeGroup(items) {
+    if (busy) return
+    if (!confirm(`Remove all ${items.length} session(s) of this course from the center?`)) return
+    setBusy('grp-' + (items[0]?.program_id || ''))
+    const ids = items.map(s => allot[s.id]?.id).filter(Boolean)
+    if (ids.length) await supabase.from('center_courses').delete().in('id', ids)
+    setAllot(prev => { const next = { ...prev }; items.forEach(s => delete next[s.id]); return next })
     setBusy(null); loadCounts()
   }
 
@@ -557,40 +598,49 @@ export default function CenterCourses() {
             <tbody>
               {loadingAllot ? (
                 <tr><td colSpan={6} className="text-center text-gray-400 py-12">Loading...</td></tr>
-              ) : allottedRows.length === 0 ? (
+              ) : groupedRows.length === 0 ? (
                 <tr><td colSpan={6} className="text-center text-gray-400 py-12">
                   No {subTab} courses. Click “Add Course” to allot.
                 </td></tr>
-              ) : allottedRows.map((s, i) => (
-                <tr key={s.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
-                  <td className="px-4 py-3 font-semibold text-gray-900">{s.programs?.program_name || '—'}</td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{s.academic_sessions?.session_name || 'All Sessions'}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{s.total_semesters} Sem</span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-black text-gray-900">₹{fmt(grandTotal(s.fee_items, s.total_semesters))}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-1.5">
-                      {subTab === 'pending' ? (
-                        <button onClick={() => approve(s)} disabled={busy === s.id}
-                          className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                          <Check size={12} /> Approve
+              ) : groupedRows.map((g, i) => {
+                const grpBusy = busy === 'grp-' + (g.program_id || '')
+                const sessions = [...new Set(g.items.map(s => s.academic_sessions?.session_name || 'All Sessions'))].join(', ')
+                const semSet = [...new Set(g.items.map(s => s.total_semesters).filter(v => v != null))]
+                const totalSet = [...new Set(g.items.map(s => fmt(grandTotal(s.fee_items, s.total_semesters))))]
+                return (
+                  <tr key={g.key} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
+                    <td className="px-4 py-3 text-gray-400 text-xs align-top">{i + 1}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-900 align-top">
+                      {g.program_name}
+                      <span className="ml-2 text-[10px] font-bold text-gray-400">({g.items.length})</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs align-top">{sessions}</td>
+                    <td className="px-4 py-3 text-center align-top">
+                      <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{semSet.length ? `${semSet.join(', ')} Sem` : '—'}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-black text-gray-900 align-top">{totalSet.map(t => `₹${t}`).join(', ')}</td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {subTab === 'pending' ? (
+                          <button onClick={() => approveGroup(g.items)} disabled={grpBusy}
+                            className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                            <Check size={12} /> Approve
+                          </button>
+                        ) : (
+                          <button onClick={() => unapproveGroup(g.items)} disabled={grpBusy}
+                            className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                            <Clock size={12} /> Move to Pending
+                          </button>
+                        )}
+                        <button onClick={() => removeGroup(g.items)} disabled={grpBusy}
+                          className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                          <Trash2 size={12} />
                         </button>
-                      ) : (
-                        <button onClick={() => unapprove(s)} disabled={busy === s.id}
-                          className="flex items-center gap-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                          <Clock size={12} /> Move to Pending
-                        </button>
-                      )}
-                      <button onClick={() => remove(s)} disabled={busy === s.id}
-                        className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
