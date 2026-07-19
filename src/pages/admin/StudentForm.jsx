@@ -972,6 +972,9 @@ export default function StudentForm() {
         if (!form.fathers_occupation.trim()) return "Father's Occupation is required"
         if (!form.mothers_name.trim()) return "Mother's Name is required"
         if (!form.mothers_occupation.trim()) return "Mother's Occupation is required"
+        if (!form.guardian_name.trim()) return "Guardian's Name is required"
+        if (!form.guardian_occupation.trim()) return "Guardian's Occupation is required"
+        if (!form.guardian_relation.trim()) return 'Relation is required'
         if (!form.guardian_email.trim()) return 'Guardian Email Id is required'
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.guardian_email.trim())) return 'Guardian Email Id must be a valid email (e.g. name@example.com)'
         if (form.guardian_mobile && form.guardian_mobile.length !== 10) return 'Guardian Mobile No must be 10 digits'
@@ -1587,9 +1590,9 @@ export default function StudentForm() {
               <Input label="Mother's Occupation *" value={form.mothers_occupation} onChange={set('mothers_occupation')} required readOnly={isReadOnly || isLocked('mothers_occupation')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Input label="Guardian's Name" value={form.guardian_name} onChange={set('guardian_name')} readOnly={isReadOnly || isLocked('guardian_name')} />
-              <Input label="Guardian's Occupation" value={form.guardian_occupation} onChange={set('guardian_occupation')} readOnly={isReadOnly || isLocked('guardian_occupation')} />
-              <Input label="Relation" placeholder="E.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} readOnly={isReadOnly || isLocked('guardian_relation')} />
+              <Input label="Guardian's Name *" value={form.guardian_name} onChange={set('guardian_name')} required readOnly={isReadOnly || isLocked('guardian_name')} />
+              <Input label="Guardian's Occupation *" value={form.guardian_occupation} onChange={set('guardian_occupation')} required readOnly={isReadOnly || isLocked('guardian_occupation')} />
+              <Input label="Relation *" placeholder="E.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} required readOnly={isReadOnly || isLocked('guardian_relation')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input label="Guardian Email Id *" type="email" value={form.guardian_email} onChange={set('guardian_email')} readOnly={isReadOnly || isLocked('guardian_email')} />
