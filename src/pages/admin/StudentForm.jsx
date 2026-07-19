@@ -529,6 +529,7 @@ export default function StudentForm() {
 
   const [universities, setUniversities] = useState([])
   const [programs, setPrograms] = useState([])
+  const [programmeTypes, setProgrammeTypes] = useState([])
   const [departments, setDepartments] = useState([])
   const [centers, setCenters] = useState([])
   const [sessions, setSessions] = useState([])
@@ -567,7 +568,7 @@ export default function StudentForm() {
   useEffect(() => {
     Promise.all([
       supabase.from('universities').select('id, university_name').order('university_name'),
-      supabase.from('programs').select('id, program_name, course_code, department_id, semester_year, duration, complete_duration').order('program_name'),
+      supabase.from('programs').select('id, program_name, course_code, department_id, programme_type_id, semester_year, duration, complete_duration').order('program_name'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
       supabase.from('academic_sessions').select('id, session_name, start_date, end_date, academic_year').order('session_name'),
@@ -580,6 +581,10 @@ export default function StudentForm() {
       setUniversities(unis.data || [])
       setPrograms(progs.data || [])
       setDepartments(depts.data || [])
+      // Programme types drive the minimum required prior education when a program
+      // has no explicit required_education_level set. Loaded resiliently.
+      supabase.from('programme_types').select('id, programme_type_name')
+        .then(({ data }) => setProgrammeTypes(data || []))
       // Merge in required_education_level separately so a missing column (migration
       // not yet run) never breaks the program list. Silently skipped on error.
       supabase.from('programs').select('id, required_education_level').then(({ data, error }) => {
@@ -761,13 +766,24 @@ export default function StudentForm() {
   const selectedProgram = programs.find(p => p.id === form.programme_id)
   const progSemYear = selectedProgram?.semester_year
 
-  // Which prior education levels MUST be filled, driven by the program's
-  // required_education_level (set per-program on the Programs page):
-  //   1 = 10th, 2 = +12th, 3 = +UG, 4 = +PG, 5 = +MPhil. null/0 = no requirement.
+  // Which prior education levels MUST be filled:
+  //   1 = 10th, 2 = +12th, 3 = +UG, 4 = +PG, 5 = +MPhil. 0 = no requirement.
   // It is the MINIMUM ladder — the student may fill extra levels too.
+  // Prefer the program's explicit required_education_level; when it isn't set
+  // (the column is empty for almost every program), infer it from the programme
+  // type so e.g. a Master's (MBA) still requires a UG / graduation.
   const EDU_LADDER = ['tenth', 'twelfth', 'ug', 'pg', 'mphil']
+  const eduLevelFromType = (() => {
+    const typeName = programmeTypes.find(t => t.id === selectedProgram?.programme_type_id)?.programme_type_name || ''
+    const t = typeName.toLowerCase()
+    if (t.includes('doctorate')) return 4                 // needs up to PG
+    if (t.includes("master") || t.includes('pg diploma')) return 3  // needs up to UG
+    if (t.includes("bachelor") || t.includes('integrated')) return 2 // needs up to 12th
+    return 0                                              // Certificate/Diploma/etc: no fixed minimum
+  })()
   const requiredEduLevels = (() => {
-    const lvl = parseInt(selectedProgram?.required_education_level, 10) || 0
+    const explicit = parseInt(selectedProgram?.required_education_level, 10) || 0
+    const lvl = explicit > 0 ? explicit : eduLevelFromType
     return lvl > 0 ? EDU_LADDER.slice(0, lvl) : []
   })()
   const EDU_LEVEL_LABEL = { tenth: '10th', twelfth: '12th', ug: 'UG (Graduation)', pg: 'PG (Post Graduation)', mphil: 'MPhil' }
