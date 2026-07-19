@@ -639,10 +639,11 @@ export default function StudentForm() {
   }, [form.center_id])
 
   // Resolve which programs can be admitted into.
-  //  • center  → courses ALLOTTED to this center in Fee Management → Center
-  //    Courses (Pending OR Approved), for the SELECTED session. Allotment is
-  //    per program+session, so a course allotted for June 2026 must not appear
-  //    when admitting into Jan 2027. Needs the resolved center_id.
+  //  • center  → courses APPROVED-allotted to this center in Fee Management →
+  //    Center Courses, for the SELECTED session. Allotment is per program+session
+  //    and admin-approval-gated, so a course approved only for June 2025 must not
+  //    appear when admitting into June 2026 (where it may still be pending) or
+  //    Jan 2027. Needs the resolved center_id.
   //  • admin / super-center → any program that has a fee structure in Fee
   //    Management (the full "courses added in the fee section").
   useEffect(() => {
@@ -658,9 +659,10 @@ export default function StudentForm() {
         const { data: cc } = await supabase.from('center_courses')
           .select('fee_structures(program_id, session_id)')
           .eq('center_id', form.center_id)
+          .eq('status', 'approved')
         if (!cancelled) {
           let rows = (cc || []).map(r => r.fee_structures).filter(Boolean)
-          // Once a session is chosen, only that session's allotted courses apply.
+          // Once a session is chosen, only that session's approved courses apply.
           if (form.session_id) rows = rows.filter(r => r.session_id === form.session_id)
           setFeeProgramIds(new Set(rows.map(r => r.program_id).filter(Boolean)))
         }
