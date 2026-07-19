@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input, { Select } from '../../components/ui/Input'
-import { Plus, Edit, Trash2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Search } from 'lucide-react'
 
 const TABS = [
   { key: 'programme_types', label: 'Programme Types', table: 'programme_types', nameField: 'programme_type_name', addLabel: 'Add Programme Type' },
@@ -24,6 +24,7 @@ export default function Departments() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ name: '', status: 'Active', university_id: '' })
   const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
 
   const currentTab = TABS.find(t => t.key === tab)
 
@@ -79,31 +80,44 @@ export default function Departments() {
     fetchAll()
   }
 
-  const rows = data[tab] || []
+  const allRows = data[tab] || []
+  const q = search.trim().toLowerCase()
+  const rows = allRows.filter(row => !q || `${row[currentTab.nameField] || ''} ${row.universities?.university_name || ''} ${row.status || ''}`.toLowerCase().includes(q))
 
   return (
     <div className="p-6">
       <PageHeader
         title="Departments & Configuration"
-        subtitle={`${rows.length} ${currentTab?.label?.toLowerCase()}`}
+        subtitle={`${allRows.length} ${currentTab?.label?.toLowerCase()}`}
         action={{ label: <><Plus size={16} /> {currentTab?.addLabel}</>, onClick: openAdd }}
       />
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              tab === t.key
-                ? 'bg-white text-[#933d18] shadow-sm border border-gray-200'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Tabs + Search */}
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => { setTab(t.key); setSearch('') }}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                tab === t.key
+                  ? 'bg-white text-[#933d18] shadow-sm border border-gray-200'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative w-64">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
+            placeholder={`Search ${currentTab?.label?.toLowerCase()}...`}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       {loading ? (

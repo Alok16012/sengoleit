@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Edit, Trash2, Plus, Check, X } from 'lucide-react'
+import { Edit, Trash2, Plus, Check, X, Search } from 'lucide-react'
 
 const BOARD_TYPES = ['All', '10th', '12th', 'UG', 'PG', 'Diploma']
 
@@ -15,6 +15,7 @@ export default function Boards() {
   const [adding, setAdding] = useState(false)
   const [editId, setEditId] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [search, setSearch] = useState('')
 
   useEffect(() => { fetchBoards() }, [])
 
@@ -64,6 +65,9 @@ export default function Boards() {
     </select>
   )
 
+  const q = search.trim().toLowerCase()
+  const filteredBoards = boards.filter(b => !q || `${b.name || ''} ${b.type === 'All' ? 'All Levels' : b.type || ''}`.toLowerCase().includes(q))
+
   const SaveCancel = ({ onCancel }) => (
     <div className="flex gap-1">
       <Button size="sm" onClick={handleSave}><Check size={14} /></Button>
@@ -81,6 +85,16 @@ export default function Boards() {
           onClick: () => { setAdding(true); setForm(emptyForm); setEditId(null) }
         }}
       />
+
+      <div className="mb-4 relative w-72">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
+          placeholder="Search boards..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
@@ -112,9 +126,9 @@ export default function Boards() {
                 <Td><SaveCancel onCancel={() => setAdding(false)} /></Td>
               </Tr>
             )}
-            {boards.length === 0 && !adding ? (
-              <Tr><Td colSpan={4} className="text-center text-gray-400 py-12">No boards added yet</Td></Tr>
-            ) : boards.map((b, i) => (
+            {filteredBoards.length === 0 && !adding ? (
+              <Tr><Td colSpan={4} className="text-center text-gray-400 py-12">{search ? 'No boards match your search' : 'No boards added yet'}</Td></Tr>
+            ) : filteredBoards.map((b, i) => (
               <Tr key={b.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
