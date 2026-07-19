@@ -952,6 +952,8 @@ export default function StudentForm() {
       case 3:
         if (!form.fathers_name.trim()) return "Father's Name is required"
         if (!form.mothers_name.trim()) return "Mother's Name is required"
+        if (!form.guardian_email.trim()) return 'Guardian Email Id is required'
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.guardian_email.trim())) return 'Guardian Email Id must be a valid email (e.g. name@example.com)'
         if (form.guardian_mobile && form.guardian_mobile.length !== 10) return 'Guardian Mobile No must be 10 digits'
         return null
       case 4:
@@ -1557,7 +1559,7 @@ export default function StudentForm() {
               <Input label="Relation" placeholder="E.g. Uncle, Elder Brother" value={form.guardian_relation} onChange={set('guardian_relation')} readOnly={isReadOnly || isLocked('guardian_relation')} />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input label="Guardian Email Id" type="email" value={form.guardian_email} onChange={set('guardian_email')} readOnly={isReadOnly || isLocked('guardian_email')} />
+              <Input label="Guardian Email Id *" type="email" value={form.guardian_email} onChange={set('guardian_email')} readOnly={isReadOnly || isLocked('guardian_email')} />
               <Input label="Guardian Mobile No" type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit mobile" value={form.guardian_mobile} onChange={setDigits('guardian_mobile', 10)} readOnly={isReadOnly || isLocked('guardian_mobile')} />
             </div>
           </FormSection>
