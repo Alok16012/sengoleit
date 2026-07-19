@@ -57,6 +57,8 @@ export default function Location() {
   }
 
   async function handleSave() {
+    // A state must belong to a country — don't allow a state with no country.
+    if (tab === 'states' && !form.country_id) { alert('Please select a Country for this state.'); return }
     setSaving(true)
     const table = tab === 'states' ? 'states' : tab === 'districts' ? 'districts' : 'countries'
     const payload = { ...form }
@@ -201,7 +203,7 @@ export default function Location() {
           {tab === 'states' && <>
             <Input label="State Name *" value={form.state_name || ''} onChange={e => setForm(f => ({ ...f, state_name: e.target.value }))} required />
             <Input label="State Code" placeholder="UP" value={form.state_code || ''} onChange={e => setForm(f => ({ ...f, state_code: e.target.value }))} />
-            <Select label="Country" value={form.country_id || ''} onChange={e => setForm(f => ({ ...f, country_id: e.target.value }))}>
+            <Select label="Country *" value={form.country_id || ''} onChange={e => setForm(f => ({ ...f, country_id: e.target.value }))} required>
               <option value="">Select Country</option>
               {countries.map(c => <option key={c.id} value={c.id}>{c.country_name}</option>)}
             </Select>
@@ -218,7 +220,7 @@ export default function Location() {
             <option value="Inactive">Inactive</option>
           </Select>
           <div className="flex gap-3 pt-2">
-            <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : editId ? 'Update' : 'Add'}</Button>
+            <Button onClick={handleSave} disabled={saving || (tab === 'states' && !form.country_id)}>{saving ? 'Saving...' : editId ? 'Update' : 'Add'}</Button>
             <Button variant="outline" onClick={() => setModal(false)}>Cancel</Button>
           </div>
         </div>

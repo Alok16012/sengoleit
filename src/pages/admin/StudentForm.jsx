@@ -173,10 +173,16 @@ function SearchSelect({ label, options, value, onChange, placeholder = 'Select',
   )
 }
 
-function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, countries = [], states, districts, sameAsOptions, readOnly, isLocked = () => false }) {
+function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, countries = [], states, districts, sameAsOptions, readOnly, isLocked = () => false, requireAll = false }) {
   const ro = (suffix) => readOnly || isLocked(`${prefix}_${suffix}`)
+  // When requireAll is set (Student Permanent Address), every field is mandatory,
+  // so the fields that are otherwise optional get a * too.
+  const req = requireAll ? ' *' : ''
   const selectedCountry = countries.find(c => c.country_name === form[`${prefix}_country`])
-  const countryStates = selectedCountry ? states.filter(s => s.country_id === selectedCountry.id) : states
+  // Show states linked to the chosen country PLUS any state with no country
+  // assigned (many states have a null country_id), so picking a country never
+  // hides unassigned states from the dropdown.
+  const countryStates = selectedCountry ? states.filter(s => s.country_id === selectedCountry.id || !s.country_id) : states
   const uniqueStates = countryStates.filter((s, i, arr) => arr.findIndex(x => x.state_name === s.state_name) === i)
   const selectedStateIds = countryStates.filter(s => s.state_name === form[`${prefix}_state`]).map(s => s.id)
   const filteredDistricts = selectedStateIds.length > 0
@@ -197,11 +203,11 @@ function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, 
         ))}
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Village / Town / Locality" value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} readOnly={ro('village_town')} />
-        <Input label="Landmark" value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} readOnly={ro('landmark')} />
+        <Input label={`Village / Town / Locality${req}`} value={form[`${prefix}_village_town`]} onChange={onChange(`${prefix}_village_town`)} readOnly={ro('village_town')} />
+        <Input label={`Landmark${req}`} value={form[`${prefix}_landmark`]} onChange={onChange(`${prefix}_landmark`)} readOnly={ro('landmark')} />
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <Input label="Post Office" value={form[`${prefix}_post_office`]} onChange={onChange(`${prefix}_post_office`)} readOnly={ro('post_office')} />
+        <Input label={`Post Office${req}`} value={form[`${prefix}_post_office`]} onChange={onChange(`${prefix}_post_office`)} readOnly={ro('post_office')} />
         <Input label="City *" value={form[`${prefix}_city`]} onChange={onChange(`${prefix}_city`)} readOnly={ro('city')} />
         <Input label="PIN Code *" type="tel" inputMode="numeric" maxLength={6} placeholder="6-digit PIN" value={form[`${prefix}_pin_code`]} onChange={onChangeDigits(`${prefix}_pin_code`, 6)} readOnly={ro('pin_code')} />
       </div>
@@ -229,12 +235,12 @@ function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, 
       </div>
       <div className="grid grid-cols-2 gap-4">
         {filteredDistricts.length > 0 ? (
-          <Select label="District" value={form[`${prefix}_district`] || ''} onChange={onChange(`${prefix}_district`)} disabled={ro('district')}>
+          <Select label={`District${req}`} value={form[`${prefix}_district`] || ''} onChange={onChange(`${prefix}_district`)} disabled={ro('district')}>
             <option value="">Select District</option>
             {filteredDistricts.map(d => <option key={d.id} value={d.district_name}>{d.district_name}</option>)}
           </Select>
         ) : (
-          <Input label="District" value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} readOnly={ro('district')} />
+          <Input label={`District${req}`} value={form[`${prefix}_district`]} onChange={onChange(`${prefix}_district`)} readOnly={ro('district')} />
         )}
       </div>
     </div>
@@ -666,7 +672,7 @@ export default function StudentForm() {
   // Numeric-only input, capped at `max` digits (strips everything else)
   const setDigits = (key, max) => (e) => setForm(f => ({ ...f, [key]: e.target.value.replace(/\D/g, '').slice(0, max) }))
 
-  const ADDR_KEYS = ['village_town', 'landmark', 'post_office', 'city', 'pin_code', 'state', 'district']
+  const ADDR_KEYS = ['village_town', 'landmark', 'post_office', 'city', 'pin_code', 'country', 'state', 'district']
   const copyAddress = (from, to) => setForm(f => {
     const next = { ...f }
     ADDR_KEYS.forEach(k => { next[`${to}_${k}`] = f[`${from}_${k}`] || '' })
@@ -956,14 +962,27 @@ export default function StudentForm() {
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.guardian_email.trim())) return 'Guardian Email Id must be a valid email (e.g. name@example.com)'
         if (form.guardian_mobile && form.guardian_mobile.length !== 10) return 'Guardian Mobile No must be 10 digits'
         return null
-      case 4:
-        if (!form.student_perm_city.trim() || !form.student_perm_state || !form.student_perm_pin_code.trim())
-          return 'Please fill Student Permanent Address (City, State and PIN Code are required)'
+      case 4: {
+        // Student Permanent Address: every field is mandatory.
+        const permReq = [
+          ['village_town', 'Village / Town / Locality'],
+          ['landmark', 'Landmark'],
+          ['post_office', 'Post Office'],
+          ['city', 'City'],
+          ['pin_code', 'PIN Code'],
+          ['country', 'Country'],
+          ['state', 'State'],
+          ['district', 'District'],
+        ]
+        for (const [suf, lbl] of permReq) {
+          if (!String(form[`student_perm_${suf}`] || '').trim()) return `Student Permanent Address: ${lbl} is required`
+        }
         for (const p of ['student_perm', 'student_pres', 'guardian_pres', 'guardian_perm']) {
           const pin = form[`${p}_pin_code`]
           if (pin && pin.length !== 6) return 'PIN Code must be 6 digits'
         }
         return null
+      }
       // case 5 = Bank Details — all fields optional, no validation needed.
       case 6: {
         // Education: require prior levels based on the program level.
@@ -1569,7 +1588,7 @@ export default function StudentForm() {
         {step === 4 && (
           <FormSection title="Contact Information" icon={<MapPin size={16} />}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <AddressBlock prefix="student_perm" label="Student Permanent Address"
+              <AddressBlock prefix="student_perm" label="Student Permanent Address" requireAll
                 form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly} isLocked={isLocked} />
               <AddressBlock prefix="student_pres" label="Student Present Address"
                 form={form} onChange={set} onChangeDigits={setDigits} setForm={setForm} countries={countries} states={states} districts={districts} readOnly={isReadOnly} isLocked={isLocked}
