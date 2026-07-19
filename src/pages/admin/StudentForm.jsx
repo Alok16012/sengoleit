@@ -639,10 +639,10 @@ export default function StudentForm() {
   }, [form.center_id])
 
   // Resolve which programs can be admitted into.
-  //  • center  → any course ALLOTTED to this center in Fee Management → Center
-  //    Courses (Pending OR Approved), so a center can't admit into a course it
-  //    was never given, but doesn't have to wait for admin approval either.
-  //    Needs the resolved center_id.
+  //  • center  → courses ALLOTTED to this center in Fee Management → Center
+  //    Courses (Pending OR Approved), for the SELECTED session. Allotment is
+  //    per program+session, so a course allotted for June 2026 must not appear
+  //    when admitting into Jan 2027. Needs the resolved center_id.
   //  • admin / super-center → any program that has a fee structure in Fee
   //    Management (the full "courses added in the fee section").
   useEffect(() => {
@@ -652,15 +652,17 @@ export default function StudentForm() {
         // center_id is resolved async (from the logged-in center's email); until
         // it's known, don't filter (null) rather than showing an empty list.
         if (!form.center_id) { if (!cancelled) setFeeProgramIds(null); return }
-        // Embed the program_id through the fee_structures FK in ONE query. (Doing
-        // it as a second .in('id', [...]) blew past the URL length limit once a
+        // Embed program_id + session_id through the fee_structures FK in ONE
+        // query. (A second .in('id', [...]) blew past the URL length limit once a
         // center had hundreds of allotted courses, so nothing came back.)
         const { data: cc } = await supabase.from('center_courses')
-          .select('fee_structures(program_id)')
+          .select('fee_structures(program_id, session_id)')
           .eq('center_id', form.center_id)
         if (!cancelled) {
-          const ids = (cc || []).map(r => r.fee_structures?.program_id).filter(Boolean)
-          setFeeProgramIds(new Set(ids))
+          let rows = (cc || []).map(r => r.fee_structures).filter(Boolean)
+          // Once a session is chosen, only that session's allotted courses apply.
+          if (form.session_id) rows = rows.filter(r => r.session_id === form.session_id)
+          setFeeProgramIds(new Set(rows.map(r => r.program_id).filter(Boolean)))
         }
         return
       }
@@ -669,7 +671,7 @@ export default function StudentForm() {
     }
     loadFeePrograms()
     return () => { cancelled = true }
-  }, [role, form.center_id])
+  }, [role, form.center_id, form.session_id])
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
   // Numeric-only input, capped at `max` digits (strips everything else)
