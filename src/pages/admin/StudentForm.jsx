@@ -571,7 +571,7 @@ export default function StudentForm() {
       supabase.from('programs').select('id, program_name, course_code, department_id, programme_type_id, semester_year, duration, complete_duration').order('program_name'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('centers').select('id, center_name, center_code').order('center_name'),
-      supabase.from('academic_sessions').select('id, session_name, start_date, end_date, academic_year').order('session_name'),
+      supabase.from('academic_sessions').select('id, session_name, start_date, end_date, academic_year, status').order('session_name'),
       supabase.from('study_modes').select('id, mode_name').order('mode_name'),
       supabase.from('boards').select('id, name, type').order('name'),
       supabase.from('countries').select('id, country_name').order('country_name'),
@@ -1272,7 +1272,11 @@ export default function StudentForm() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Select label="Session *" value={form.session_id} onChange={handleSessionChange} disabled={isReadOnly || isLocked('session_id')} required>
                 <option value="">Select Session</option>
-                {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
+                {sessions
+                  // Inactive sessions are hidden for new entries, but keep the one
+                  // already saved on this student so an edited record still shows it.
+                  .filter(s => (s.status || 'Active').toLowerCase() !== 'inactive' || s.id === form.session_id)
+                  .map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
               </Select>
               <Select label="Mode *" value={form.mode_id} onChange={set('mode_id')} disabled={isReadOnly || isLocked('mode_id')} required>
                 <option value="">Select Mode</option>
