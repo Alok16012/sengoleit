@@ -145,26 +145,10 @@ export default function CenterCourses() {
     return true
   })
   const catalog = catalogFiltered
-  // Programs that have NO fee structure yet — show them too so every course is
-  // visible/searchable (e.g. B.Com). They can't be allotted until a fee exists.
-  const structProgramIds = new Set(structs.map(s => s.program_id))
-  const programOnlyCatalog = programs
-    .filter(p => !structProgramIds.has(p.id))
-    .filter(p => {
-      if (fDept !== 'all' && p.department_id !== fDept) return false
-      if (fType !== 'all' && p.programme_type_id !== fType) return false
-      const q = search.toLowerCase()
-      if (q && !(p.program_name || '').toLowerCase().includes(q)) return false
-      return true
-    })
-    .map(p => ({
-      __programOnly: true,
-      id: `prog_${p.id}`,
-      program_id: p.id,
-      total_semesters: p.duration ? (p.semester_year === 'Year' ? p.duration * 2 : p.duration) : null,
-      programs: { program_name: p.program_name },
-    }))
-  const catalogDisplay = [...catalog, ...programOnlyCatalog]
+  // Only courses that HAVE a fee structure can be allotted, so the Add Course
+  // panel shows exactly those (programs without a fee yet are intentionally
+  // hidden — set their fee in Fee Master first).
+  const catalogDisplay = catalog
   const catalogFilterActive = !!search || fDept !== 'all' || fType !== 'all' || fSessions.length > 0
   const clearCatalogFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSessions([]) }
 
@@ -606,25 +590,6 @@ export default function CenterCourses() {
                     )
                   })()
                 ) : catalogDisplay.map((s, i) => {
-                  if (s.__programOnly) {
-                    return (
-                      <tr key={s.id} className={`border-b border-gray-50 ${i % 2 ? 'bg-gray-50/50' : ''}`}>
-                        <td className="px-4 py-3 text-center">
-                          <span className="w-5 h-5 rounded border-2 border-gray-200 bg-gray-100 flex items-center justify-center mx-auto" title="Add a fee structure first" />
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-gray-900">
-                          {s.programs?.program_name || '—'}
-                          <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">No fee</span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 text-xs">{deptMap[progMap[s.program_id]?.department_id] || '—'}</td>
-                        <td className="px-4 py-3 text-gray-400 text-xs">All Sessions</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{s.total_semesters ? `${s.total_semesters} Sem` : '—'}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-300 text-xs" colSpan={2}>Set fee in Fee Master to allot</td>
-                      </tr>
-                    )
-                  }
                   const a = allot[s.id]
                   const checked = !!a
                   return (
