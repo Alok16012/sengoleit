@@ -51,6 +51,14 @@ export default function Centers() {
     fetchData()
   }
 
+  // Mark/unmark a center as a Staging (draft) center: students added there are
+  // held as drafts and can be transferred to a real center from the Pending list.
+  async function toggleStaging(center) {
+    const { error } = await supabase.from('centers').update({ is_staging: !center.is_staging }).eq('id', center.id)
+    if (error) { alert('Could not update — run the is_staging migration first.\n\n' + error.message); return }
+    fetchData()
+  }
+
   async function savePassword(centerId) {
     const newPass = editingPassword[centerId]?.trim()
     if (!newPass) return
@@ -336,7 +344,19 @@ export default function Centers() {
                   )}
                 </Td>
                 <Td>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 items-center">
+                    {c.center_type === 'center' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => toggleStaging(c)}
+                        title={c.is_staging ? 'Staging center — click to unset' : 'Mark as Staging (draft) center'}
+                      >
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${c.is_staging ? 'bg-[#933d18] text-white' : 'bg-gray-100 text-gray-500'}`}>
+                          {c.is_staging ? 'Staging ✓' : 'Staging'}
+                        </span>
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/centers/edit/${c.id}`)}>
                       <Edit size={14} />
                     </Button>

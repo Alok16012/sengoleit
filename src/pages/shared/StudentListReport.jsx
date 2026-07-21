@@ -32,9 +32,13 @@ export default function StudentListReport({ status }) {
   const [search, setSearch] = useState('')
   const [downloading, setDownloading] = useState(null)
   const [myCenterId, setMyCenterId] = useState(null)
-  const [forwardModal, setForwardModal] = useState(null) // { student, courseFee, discount, net, balance, loading }
+  const [forwardModal, setForwardModal] = useState(null) // { student, courseFee, discount, net, balance, loading, staging, targetId }
   const [forwarding, setForwarding] = useState(false)
   const [resultStudent, setResultStudent] = useState(null)
+  // Target centers for a Staging-center transfer (super center → center cascade).
+  const [allCenters, setAllCenters] = useState([])
+  const [superCentersList, setSuperCentersList] = useState([])
+  const [targetSuper, setTargetSuper] = useState('all')
 
   const meta = STATUS_META[status] || { color: 'gray', label: status + ' Students', desc: '' }
 
@@ -47,6 +51,19 @@ export default function StudentListReport({ status }) {
         fetchStudents(cd.id)
       })
   }, [user, status])
+
+  // Real (non-staging) centers a Staging center can transfer students into.
+  useEffect(() => {
+    supabase.from('centers')
+      .select('id, center_name, center_code, center_type, super_center_id, virtual_balance')
+      .in('center_type', ['center', 'super_center'])
+      .order('center_name')
+      .then(({ data }) => {
+        const rows = (data || []).filter(c => !c.is_staging)
+        setAllCenters(rows.filter(c => c.center_type === 'center'))
+        setSuperCentersList(rows.filter(c => c.center_type === 'super_center'))
+      })
+  }, [])
 
   async function fetchStudents(centerId) {
     setLoading(true)
@@ -63,7 +80,7 @@ export default function StudentListReport({ status }) {
 
     let q = supabase
       .from('students')
-      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
+      .select('id, student_name, enrollment_no, registration_no, admission_number, semester_year, mobile_no, gender, status, remarks, submitted_by, created_at, doc_verified_at, forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, fee_held, coupon_discount, programme_id, session_id, programs(program_name, semester_year, duration), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance, is_staging)')
       .in('center_id', centerIds)
       .not('is_hidden', 'is', true)   // students hidden by admin must not show to centers
 
@@ -182,37 +199,58 @@ export default function StudentListReport({ status }) {
   }
 
   // Open the forward confirmation modal and load the fee that will be held.
+  // For a Staging center the wallet balance is the TARGET center's (picked in the
+  // modal); for a normal center it's the student's own center.
   async function openForward(student) {
-    setForwardModal({ student, loading: true, courseFee: 0, discount: 0, net: 0, balance: 0 })
+    const staging = !!student.centers?.is_staging
+    setTargetSuper('all')
+    setForwardModal({ student, loading: true, courseFee: 0, discount: 0, net: 0, balance: 0, staging, targetId: '' })
     const f = await computeNetFee(student)
-    setForwardModal({ student, loading: false, ...f })
+    setForwardModal({ student, loading: false, staging, targetId: '', ...f, balance: staging ? 0 : f.balance })
+  }
+
+  // Staging transfer: pick the destination center; its wallet balance drives the
+  // sufficiency check.
+  function pickTarget(centerId) {
+    const target = allCenters.find(c => c.id === centerId)
+    setForwardModal(m => m && { ...m, targetId: centerId, balance: Number(target?.virtual_balance || 0) })
   }
 
   // Move the student to the Document Dept and HOLD the full net fee: deduct it
   // from the center wallet and record it in students.fee_held.
   async function confirmForward() {
     if (!forwardModal || forwardModal.loading) return
-    const { student, net, balance } = forwardModal
+    const { student, net, balance, staging, targetId } = forwardModal
+    // Staging transfer must have a destination center.
+    if (staging && !targetId) { alert('Please select the center to transfer this student to.'); return }
     if (net > 0 && balance < net) {
       alert(
         `Insufficient wallet balance.\n\n` +
         `Fee to hold: ₹${net.toLocaleString('en-IN')}\n` +
         `Available balance: ₹${Number(balance).toLocaleString('en-IN')}\n\n` +
-        `Please recharge the wallet before forwarding this student.`
+        `Please recharge the ${staging ? 'destination center' : ''} wallet before forwarding this student.`
       )
       return
     }
+    // The wallet the fee is held against: the destination center for a staging
+    // transfer, otherwise the student's own center.
+    const walletCenterId = staging ? targetId : student.centers?.id
     setForwarding(true)
     try {
-      await supabase.from('students').update({
+      const update = {
         fee_held: net,
         forwarded_at: new Date().toISOString(),
-      }).eq('id', student.id)
+      }
+      // Reassign the student to the destination center on transfer. The super
+      // center relationship follows automatically (it's derived from the center's
+      // super_center_id — students have no super_center_id column of their own).
+      if (staging) update.center_id = targetId
+      await supabase.from('students').update(update).eq('id', student.id)
 
-      if (net > 0 && student.centers?.id) {
+      if (net > 0 && walletCenterId) {
         await supabase.from('centers')
           .update({ virtual_balance: balance - net })
-          .eq('id', student.centers.id)
+          .eq('id', walletCenterId)
       }
       setForwardModal(null)
       fetchStudents(myCenterId)
@@ -366,10 +404,10 @@ export default function StudentListReport({ status }) {
                         size="sm"
                         variant="ghost"
                         onClick={() => openForward(s)}
-                        title="Forward to Document Dept. (holds the full fee)"
+                        title={s.centers?.is_staging ? 'Transfer to a center & forward (holds the fee from that center)' : 'Forward to Document Dept. (holds the full fee)'}
                       >
                         <Send size={14} className="text-blue-600" />
-                        <span className="text-xs ml-1 text-blue-600">Forward</span>
+                        <span className="text-xs ml-1 text-blue-600">{s.centers?.is_staging ? 'Transfer' : 'Forward'}</span>
                       </Button>
                     )}
                     {s.status === 'Hold' && !s.doc_verified_at && role !== 'admin' && (
@@ -454,7 +492,7 @@ export default function StudentListReport({ status }) {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <h3 className="font-bold text-gray-900 flex items-center gap-2">
-                <Send size={16} className="text-blue-600" /> Forward to Document Dept.
+                <Send size={16} className="text-blue-600" /> {forwardModal.staging ? 'Transfer & Forward' : 'Forward to Document Dept.'}
               </h3>
               <button onClick={() => !forwarding && setForwardModal(null)} className="text-gray-400 hover:text-gray-600">
                 <X size={18} />
@@ -462,10 +500,43 @@ export default function StudentListReport({ status }) {
             </div>
             <div className="p-5">
               <p className="text-sm text-gray-600 mb-4">
-                Forwarding <span className="font-semibold text-gray-900">{forwardModal.student.student_name}</span> will
-                send the application to the Document Department and <span className="font-semibold text-blue-700">hold the
-                full fee</span> from the center wallet. The hold is released if the application is rejected.
+                {forwardModal.staging ? (
+                  <>Transfer <span className="font-semibold text-gray-900">{forwardModal.student.student_name}</span> to a
+                  center — the form data moves as-is, the <span className="font-semibold text-blue-700">full fee is held
+                  from that center's wallet</span>, and the application goes to the Document Department.</>
+                ) : (
+                  <>Forwarding <span className="font-semibold text-gray-900">{forwardModal.student.student_name}</span> will
+                  send the application to the Document Department and <span className="font-semibold text-blue-700">hold the
+                  full fee</span> from the center wallet. The hold is released if the application is rejected.</>
+                )}
               </p>
+
+              {forwardModal.staging && (
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Super Center</label>
+                    <select
+                      className="w-full py-2 px-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-[#933d18]"
+                      value={targetSuper}
+                      onChange={e => { setTargetSuper(e.target.value); setForwardModal(m => m && { ...m, targetId: '', balance: 0 }) }}>
+                      <option value="all">All Super Centers</option>
+                      {superCentersList.map(sc => <option key={sc.id} value={sc.id}>{sc.center_name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase tracking-wide block mb-1">Center *</label>
+                    <select
+                      className="w-full py-2 px-2.5 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:border-[#933d18]"
+                      value={forwardModal.targetId}
+                      onChange={e => pickTarget(e.target.value)}>
+                      <option value="">Select Center</option>
+                      {allCenters
+                        .filter(c => targetSuper === 'all' || c.super_center_id === targetSuper)
+                        .map(c => <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {forwardModal.loading ? (
                 <div className="py-6 text-center text-sm text-gray-400">Calculating fee…</div>
@@ -503,9 +574,9 @@ export default function StudentListReport({ status }) {
               <Button variant="ghost" onClick={() => setForwardModal(null)} disabled={forwarding}>Cancel</Button>
               <Button
                 onClick={confirmForward}
-                disabled={forwarding || forwardModal.loading || forwardModal.balance < forwardModal.net}
+                disabled={forwarding || forwardModal.loading || forwardModal.balance < forwardModal.net || (forwardModal.staging && !forwardModal.targetId)}
               >
-                {forwarding ? 'Forwarding…' : 'Confirm & Forward'}
+                {forwarding ? (forwardModal.staging ? 'Transferring…' : 'Forwarding…') : (forwardModal.staging ? 'Transfer & Forward' : 'Confirm & Forward')}
               </Button>
             </div>
           </div>
