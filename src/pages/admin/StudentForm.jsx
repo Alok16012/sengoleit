@@ -17,6 +17,26 @@ import {
 // Center-style auto password, e.g. Sg@A1B2C3
 const genStudentPassword = () => `Sg@${Math.random().toString(36).slice(-6).toUpperCase()}`
 
+// How many semesters' fee is due, driven by the Examination Calendar.
+// Rule: a student pays for Sem 1 up to Sem 1's exam end date; once that end date
+// is 5+ days past, Sem 2 is added; 5+ days past Sem 2's end date adds Sem 3; and
+// so on, capped at the program's total semesters (BA=6, B.Tech=8, …). If a
+// semester has no end date set in the calendar, we stop there (don't advance).
+// calMap: { [semesterNumber]: 'YYYY-MM-DD' end_date }.  submissionStr: 'YYYY-MM-DD'.
+function dueSemesterFromCalendar(calMap, totalSems, submissionStr) {
+  const sub = submissionStr ? new Date(submissionStr) : new Date()
+  let due = 1
+  for (let k = 1; k <= totalSems - 1; k++) {
+    const end = calMap[k]
+    if (!end) break                 // no end date for this semester → stop advancing
+    const threshold = new Date(end)
+    threshold.setDate(threshold.getDate() + 5)   // 5-day grace after the exam end date
+    if (sub > threshold) due = k + 1
+    else break
+  }
+  return Math.min(due, totalSems)
+}
+
 // Searchable dropdown for picking one of the center's available coupons.
 function CouponSearchSelect({ coupons, value, onSelect }) {
   const [open, setOpen] = useState(false)
@@ -546,7 +566,10 @@ export default function StudentForm() {
   const activeStepRef = useRef(null)
   const [showPassword, setShowPassword] = useState(false)
   const [stepError, setStepError] = useState('')
-  const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
+  const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false, dueSem: 1, calendarActive: false })
+  // When the Examination Calendar drives the fee, the Semester/Year field is
+  // auto-set to the due semester and locked so the center can't undercharge.
+  const [semesterLocked, setSemesterLocked] = useState(false)
   const [coupon, setCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
   const [availableCoupons, setAvailableCoupons] = useState([])
   // Program IDs that have a fee structure (admin) OR are allotted+approved to
@@ -648,7 +671,7 @@ export default function StudentForm() {
     if (step === 1 && form.programme_id && form.center_id && !isAdmin && !isEdit) {
       runWalletCheck()
     }
-  }, [step, form.programme_id, form.semester_year, form.center_id])
+  }, [step, form.programme_id, form.session_id, form.date_of_submission, form.semester_year, form.center_id])
 
   // Load this center's unused coupons so they can be picked from a dropdown
   useEffect(() => {
@@ -890,28 +913,59 @@ export default function StudentForm() {
       const fs = (structures || []).find(s => s.session_id === form.session_id)
         || (structures || [])[0]
 
-      let courseFee = 0
+      // Total semesters the program runs for (the cap). The program decides this
+      // (e.g. B.Com = 6, B.Tech = 8). semester_year 'Year' means duration is in
+      // years, so ×2 for semesters.
+      const totalSems = (progSemYear === 'Year' ? (progDuration || 1) * 2 : (progDuration || 1)) || 1
+
+      // Fee amounts by category for this program's fee structure.
+      let entryT = 0, divideT = 0, mulT = 0, mul2T = 0
       if (fs) {
         const { data: items } = await supabase
           .from('fee_items')
           .select('amount, category')
           .eq('fee_structure_id', fs.id)
-
-        // Charge only the fee for the semester/year being admitted into.
-        const totalSems = fs.total_semesters
-          || (progSemYear === 'Year' ? (progDuration || 1) * 2 : (progDuration || 1))
-          || 1
-        const semIndex = Math.max((parseInt(form.semester_year, 10) || 1) - 1, 0)
-        let fee = 0
         ;(items || []).forEach(it => {
           const a = Number(it.amount) || 0
-          if (it.category === 'entry'     && semIndex === 0) fee += a
-          if (it.category === 'divide')                      fee += totalSems > 0 ? a / totalSems : 0
-          if (it.category === 'multiply')                    fee += a
-          if (it.category === 'multiply2' && semIndex > 0)   fee += a
+          if (it.category === 'entry')     entryT += a
+          else if (it.category === 'divide')    divideT += a
+          else if (it.category === 'multiply')  mulT += a
+          else if (it.category === 'multiply2') mul2T += a
         })
-        courseFee = Math.round(fee)
       }
+
+      // Examination Calendar → how many semesters are due for this session as of
+      // the submission date. If the calendar (or its table) isn't set up, fall
+      // back to the manually-selected semester and don't lock the field.
+      let calMap = {}
+      try {
+        const { data: cal, error } = await supabase
+          .from('exam_calendar')
+          .select('semester, end_date')
+          .eq('session_id', form.session_id)
+        if (!error) (cal || []).forEach(r => { if (r.end_date) calMap[r.semester] = r.end_date })
+      } catch { /* exam_calendar table not created yet */ }
+      const calendarActive = Object.keys(calMap).length > 0
+
+      const dueSem = calendarActive
+        ? dueSemesterFromCalendar(calMap, totalSems, form.date_of_submission)
+        : Math.min(Math.max(parseInt(form.semester_year, 10) || 1, 1), totalSems)
+
+      // Cumulative fee for Sem 1..dueSem. Matches the existing per-semester model
+      // (entry once, divide split across all semesters, multiply every semester,
+      // multiply2 from the 2nd semester on) summed over the due semesters.
+      const cumulative = entryT
+        + (totalSems > 0 ? divideT / totalSems : 0) * dueSem
+        + mulT * dueSem
+        + mul2T * Math.max(dueSem - 1, 0)
+      const courseFee = fs ? Math.round(cumulative) : 0
+
+      // When the calendar drives it, auto-set + lock the Semester/Year field.
+      if (calendarActive) {
+        const label = progSemYear === 'Year' ? `${ordinal(Math.ceil(dueSem / 2))} Year` : `${ordinal(dueSem)} Semester`
+        if (form.semester_year !== label) setForm(f => ({ ...f, semester_year: label }))
+      }
+      setSemesterLocked(calendarActive)
 
       const { data: ctr } = await supabase
         .from('centers')
@@ -924,7 +978,7 @@ export default function StudentForm() {
       const half = Math.ceil(courseFee * 0.5)
       const minRequired = Math.max(half - (coupon.discount || 0), 0)
       const ok = courseFee === 0 || balance >= minRequired
-      setWalletInfo({ checking: false, balance, courseFee, ok, checked: true })
+      setWalletInfo({ checking: false, balance, courseFee, ok, checked: true, dueSem, calendarActive })
       return ok
     } catch {
       setWalletInfo(w => ({ ...w, checking: false, checked: true, ok: true }))
@@ -1402,7 +1456,7 @@ export default function StudentForm() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Input label="Course Code" value={form.course_code} onChange={set('course_code')} readOnly={isReadOnly || isLocked('course_code')} />
-                <Select label="Semester / Year *" value={form.semester_year} onChange={set('semester_year')} disabled={isReadOnly || isLocked('semester_year')} required>
+                <Select label={semesterLocked ? 'Semester / Year * (set by exam calendar)' : 'Semester / Year *'} value={form.semester_year} onChange={set('semester_year')} disabled={isReadOnly || isLocked('semester_year') || semesterLocked} required>
                   <option value="">Select</option>
                   {semesterOptions
                     ? semesterOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)
@@ -1478,7 +1532,14 @@ export default function StudentForm() {
                     <div className="flex items-center gap-3">
                       <Wallet size={16} className={walletInfo.ok ? 'text-emerald-600' : 'text-red-600'} />
                       <div>
-                        <p className="text-sm font-bold text-gray-800">Wallet Balance Check</p>
+                        <p className="text-sm font-bold text-gray-800">
+                          Wallet Balance Check
+                          {walletInfo.calendarActive && walletInfo.dueSem > 0 && (
+                            <span className="ml-2 text-[11px] font-semibold text-[#933d18]">
+                              · Fee for Sem 1–{walletInfo.dueSem} (per exam calendar)
+                            </span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
                           &nbsp;·&nbsp;50%: ₹{Math.ceil(walletInfo.courseFee * 0.5).toLocaleString('en-IN')}
