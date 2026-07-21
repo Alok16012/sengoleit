@@ -8,6 +8,7 @@ import DateInput from '../../components/ui/DateInput'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { formatDate } from '../../utils/formatDate'
+import { computeCumulativeCourseFee } from '../../utils/courseFee'
 import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, EyeOff,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft,
@@ -16,27 +17,6 @@ import {
 
 // Center-style auto password, e.g. Sg@A1B2C3
 const genStudentPassword = () => `Sg@${Math.random().toString(36).slice(-6).toUpperCase()}`
-
-// How many semesters' fee is due, driven by the Examination Calendar.
-// Rule: a student pays for Sem 1 up to Sem 1's exam end date; once that end date
-// is 5+ days past (as of TODAY — the actual moment the form is being submitted),
-// Sem 2 is added; 5+ days past Sem 2's end date adds Sem 3; and so on, capped at
-// the program's total semesters (BA=6, B.Tech=8, …). If a semester has no end
-// date set in the calendar, we stop there (don't advance).
-// calMap: { [semesterNumber]: 'YYYY-MM-DD' end_date }.
-function dueSemesterFromCalendar(calMap, totalSems) {
-  const now = new Date()
-  let due = 1
-  for (let k = 1; k <= totalSems - 1; k++) {
-    const end = calMap[k]
-    if (!end) break                 // no end date for this semester → stop advancing
-    const threshold = new Date(end)
-    threshold.setDate(threshold.getDate() + 5)   // 5-day grace after the exam end date
-    if (now > threshold) due = k + 1
-    else break
-  }
-  return Math.min(due, totalSems)
-}
 
 // Searchable dropdown for picking one of the center's available coupons.
 function CouponSearchSelect({ coupons, value, onSelect }) {
@@ -916,62 +896,15 @@ export default function StudentForm() {
   async function runWalletCheck() {
     setWalletInfo(w => ({ ...w, checking: true }))
     try {
-      // A program can have multiple fee structures (one per session), so
-      // maybeSingle() fails. Fetch all and prefer the one for this session.
-      const { data: structures } = await supabase
-        .from('fee_structures')
-        .select('id, session_id, total_semesters')
-        .eq('program_id', form.programme_id)
-
-      const fs = (structures || []).find(s => s.session_id === form.session_id)
-        || (structures || [])[0]
-
-      // Total semesters the program runs for (the cap). The program decides this
-      // (e.g. B.Com = 6, B.Tech = 8). semester_year 'Year' means duration is in
-      // years, so ×2 for semesters.
-      const totalSems = (progSemYear === 'Year' ? (progDuration || 1) * 2 : (progDuration || 1)) || 1
-
-      // Fee amounts by category for this program's fee structure.
-      let entryT = 0, divideT = 0, mulT = 0, mul2T = 0
-      if (fs) {
-        const { data: items } = await supabase
-          .from('fee_items')
-          .select('amount, category')
-          .eq('fee_structure_id', fs.id)
-        ;(items || []).forEach(it => {
-          const a = Number(it.amount) || 0
-          if (it.category === 'entry')     entryT += a
-          else if (it.category === 'divide')    divideT += a
-          else if (it.category === 'multiply')  mulT += a
-          else if (it.category === 'multiply2') mul2T += a
-        })
-      }
-
-      // Examination Calendar → how many semesters are due for this session as of
-      // the submission date. If the calendar (or its table) isn't set up, fall
-      // back to the manually-selected semester and don't lock the field.
-      let calMap = {}
-      try {
-        const { data: cal, error } = await supabase
-          .from('exam_calendar')
-          .select('semester, end_date')
-          .eq('session_id', form.session_id)
-        if (!error) (cal || []).forEach(r => { if (r.end_date) calMap[r.semester] = r.end_date })
-      } catch { /* exam_calendar table not created yet */ }
-      const calendarActive = Object.keys(calMap).length > 0
-
-      const dueSem = calendarActive
-        ? dueSemesterFromCalendar(calMap, totalSems)
-        : Math.min(Math.max(parseInt(form.semester_year, 10) || 1, 1), totalSems)
-
-      // Cumulative fee for Sem 1..dueSem. Matches the existing per-semester model
-      // (entry once, divide split across all semesters, multiply every semester,
-      // multiply2 from the 2nd semester on) summed over the due semesters.
-      const cumulative = entryT
-        + (totalSems > 0 ? divideT / totalSems : 0) * dueSem
-        + mulT * dueSem
-        + mul2T * Math.max(dueSem - 1, 0)
-      const courseFee = fs ? Math.round(cumulative) : 0
+      // Shared source of truth so the entry fee here exactly matches the fee held
+      // at forward (StudentListReport) and collected at Account Dept.
+      const { courseFee, dueSem, calendarActive } = await computeCumulativeCourseFee({
+        programme_id: form.programme_id,
+        session_id: form.session_id,
+        semester_year: form.semester_year,
+        semYear: progSemYear,
+        duration: progDuration,
+      })
 
       const { data: ctr } = await supabase
         .from('centers')

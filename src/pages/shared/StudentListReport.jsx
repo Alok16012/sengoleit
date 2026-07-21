@@ -13,6 +13,7 @@ import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamSettingsMeta } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
+import { computeCumulativeCourseFee } from '../../utils/courseFee'
 
 const STATUS_META = {
   Pending:    { color: 'amber',   label: 'Pending Students',    desc: 'Forms submitted — not yet forwarded to the Document Dept.' },
@@ -145,34 +146,14 @@ export default function StudentListReport({ status }) {
   // into, minus any reserved coupon, plus the center's live wallet balance.
   // Mirrors the calculation in StudentForm / AccountDepartment.
   async function computeNetFee(student) {
-    const { data: structures } = await supabase
-      .from('fee_structures')
-      .select('id, session_id, total_semesters')
-      .eq('program_id', student.programme_id)
-
-    const fs = (structures || []).find(s => s.session_id === student.session_id)
-      || (structures || [])[0]
-
-    let courseFee = 0
-    if (fs) {
-      const { data: items } = await supabase
-        .from('fee_items')
-        .select('amount, category')
-        .eq('fee_structure_id', fs.id)
-
-      const dur = Number(student.programs?.duration) || 1
-      const totalSems = fs.total_semesters || dur || 1
-      const semIndex = Math.max((parseInt(student.semester_year, 10) || 1) - 1, 0)
-      let fee = 0
-      ;(items || []).forEach(it => {
-        const a = Number(it.amount) || 0
-        if (it.category === 'entry'     && semIndex === 0) fee += a
-        if (it.category === 'divide')                      fee += totalSems > 0 ? a / totalSems : 0
-        if (it.category === 'multiply')                    fee += a
-        if (it.category === 'multiply2' && semIndex > 0)   fee += a
-      })
-      courseFee = Math.round(fee)
-    }
+    // Same cumulative course fee the center saw on the entry form (shared util).
+    const { courseFee } = await computeCumulativeCourseFee({
+      programme_id: student.programme_id,
+      session_id: student.session_id,
+      semester_year: student.semester_year,
+      semYear: student.programs?.semester_year,
+      duration: student.programs?.duration,
+    })
 
     // Coupon discount applied at submission. Prefer the value stored on the
     // student row; fall back to the coupons-table linkage for older records.
@@ -194,7 +175,9 @@ export default function StudentListReport({ status }) {
       if (ctr) balance = Number(ctr.virtual_balance || 0)
     }
 
-    const net = Math.max(courseFee - discount, 0)
+    // Hold 50% of the course fee at forward, minus any coupon — matches the
+    // "50% Required" the center saw in the entry wallet check.
+    const net = Math.max(Math.ceil(courseFee * 0.5) - discount, 0)
     return { courseFee, discount, net, balance }
   }
 
@@ -502,12 +485,12 @@ export default function StudentListReport({ status }) {
               <p className="text-sm text-gray-600 mb-4">
                 {forwardModal.staging ? (
                   <>Transfer <span className="font-semibold text-gray-900">{forwardModal.student.student_name}</span> to a
-                  center — the form data moves as-is, the <span className="font-semibold text-blue-700">full fee is held
+                  center — the form data moves as-is, <span className="font-semibold text-blue-700">50% of the fee is held
                   from that center's wallet</span>, and the application goes to the Document Department.</>
                 ) : (
                   <>Forwarding <span className="font-semibold text-gray-900">{forwardModal.student.student_name}</span> will
-                  send the application to the Document Department and <span className="font-semibold text-blue-700">hold the
-                  full fee</span> from the center wallet. The hold is released if the application is rejected.</>
+                  send the application to the Document Department and <span className="font-semibold text-blue-700">hold 50%
+                  of the fee</span> from the center wallet. The hold is released if the application is rejected.</>
                 )}
               </p>
 

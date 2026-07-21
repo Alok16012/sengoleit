@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, supabaseAdmin } from '../../lib/supabase'
+import { computeCumulativeCourseFee } from '../../utils/courseFee'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
@@ -658,35 +659,14 @@ export default function AccountDepartment() {
   // into, the reserved coupon discount (if any), and the center's live wallet
   // balance. Mirrors the calculation the center saw on the application form.
   async function computeStudentFee(student) {
-    const { data: structures } = await supabase
-      .from('fee_structures')
-      .select('id, session_id, total_semesters')
-      .eq('program_id', student.programme_id)
-
-    const fs = (structures || []).find(s => s.session_id === student.session_id)
-      || (structures || [])[0]
-
-    let courseFee = 0
-    if (fs) {
-      const { data: items } = await supabase
-        .from('fee_items')
-        .select('amount, category')
-        .eq('fee_structure_id', fs.id)
-
-      const dur = Number(student.programs?.duration) || 1
-      const isYear = student.programs?.semester_year === 'Year'
-      const totalSems = fs.total_semesters || (isYear ? dur : dur) || 1
-      const semIndex = Math.max((parseInt(student.semester_year, 10) || 1) - 1, 0)
-      let fee = 0
-      ;(items || []).forEach(it => {
-        const a = Number(it.amount) || 0
-        if (it.category === 'entry'     && semIndex === 0) fee += a
-        if (it.category === 'divide')                      fee += totalSems > 0 ? a / totalSems : 0
-        if (it.category === 'multiply')                    fee += a
-        if (it.category === 'multiply2' && semIndex > 0)   fee += a
-      })
-      courseFee = Math.round(fee)
-    }
+    // Shared source of truth — the same cumulative fee shown at entry / held at forward.
+    const { courseFee } = await computeCumulativeCourseFee({
+      programme_id: student.programme_id,
+      session_id: student.session_id,
+      semester_year: student.semester_year,
+      semYear: student.programs?.semester_year,
+      duration: student.programs?.duration,
+    })
 
     // Coupon discount applied at submission. Prefer the value stored directly on
     // the student row (reliable, written by the center). Fall back to the
