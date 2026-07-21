@@ -92,7 +92,7 @@ export default function FeeManagement() {
     setMasterLoading(true)
     const { data } = await supabase
       .from('fee_structures')
-      .select('id, total_semesters, program_id, session_id, programs(program_name), academic_sessions(session_name), fee_items(label, category, amount)')
+      .select('id, total_semesters, program_id, session_id, programs(program_name), academic_sessions(session_name), fee_items(label, category, amount, sort_order)')
       .order('created_at', { ascending: false })
     setMasterList(data || [])
     setMasterLoading(false)
@@ -110,6 +110,28 @@ export default function FeeManagement() {
     if (!confirm(`Delete fee for this course${extra}? This cannot be undone.`)) return
     await supabase.from('fee_structures').delete().eq('program_id', programId)
     fetchMaster()
+  }
+
+  // Quick-add a fee structure for another session of the same program by
+  // copying the representative structure's fee items — no full edit needed.
+  const [addingSessFor, setAddingSessFor] = useState(null) // program_id while inserting
+  async function addSessionFee(struct, sessionId) {
+    setAddingSessFor(struct.program_id)
+    const { data: fs, error } = await supabase.from('fee_structures')
+      .insert({ program_id: struct.program_id, session_id: sessionId, total_semesters: struct.total_semesters })
+      .select('id').single()
+    if (error || !fs) {
+      alert('Could not add session: ' + (error?.message || 'unknown error'))
+      setAddingSessFor(null)
+      return
+    }
+    const items = (struct.fee_items || []).map((i, idx) => ({
+      fee_structure_id: fs.id, label: i.label, category: i.category,
+      amount: i.amount, sort_order: i.sort_order ?? idx,
+    }))
+    if (items.length) await supabase.from('fee_items').insert(items)
+    await fetchMaster()
+    setAddingSessFor(null)
   }
 
   function openEditor(struct = null) {
@@ -460,12 +482,18 @@ export default function FeeManagement() {
                           {deptMap[progMap[struct.program_id]?.department_id] || <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">
-                          <div className="flex flex-wrap gap-1 max-w-[180px]">
+                          <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
                             {(struct.__sessions || [struct]).map(s => (
                               <span key={s.id} className="bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
                                 {s.academic_sessions?.session_name || 'All Sessions'}
                               </span>
                             ))}
+                            <AddSessionBtn
+                              sessions={sessions}
+                              existingIds={new Set((struct.__sessions || [struct]).map(s => s.session_id).filter(Boolean))}
+                              busy={addingSessFor === struct.program_id}
+                              onPick={sid => addSessionFee(struct, sid)}
+                            />
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -746,6 +774,51 @@ export default function FeeManagement() {
 
       {/* ══════════════ CENTER COURSES (ALLOTMENT) TAB ══════════════ */}
       {tab === 'allot' && <CenterCourses />}
+    </div>
+  )
+}
+
+// Small "+" next to the session chips in Fee Master — pick a session that has
+// no fee structure yet and it is created instantly with the same fee items.
+function AddSessionBtn({ sessions, existingIds, busy, onPick }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function onOut(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onOut)
+    return () => document.removeEventListener('mousedown', onOut)
+  }, [])
+
+  const avail = sessions.filter(s => !existingIds.has(s.id))
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button type="button" title="Add fee for another session (copies current fees)"
+        disabled={busy}
+        onClick={() => setOpen(o => !o)}
+        className={`w-5 h-5 inline-flex items-center justify-center rounded-full transition-colors
+          ${busy ? 'bg-gray-100 text-gray-300 cursor-wait' : 'bg-[#933d18]/10 text-[#933d18] hover:bg-[#933d18]/25'}`}>
+        <Plus size={11} />
+      </button>
+      {open && (
+        <div className="absolute z-30 top-full mt-1 left-0 w-48 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 bg-gray-50">
+            Add session — same fees
+          </p>
+          <div className="max-h-44 overflow-y-auto">
+            {avail.length === 0 ? (
+              <p className="px-3 py-3 text-xs text-gray-400 text-center">All sessions already added</p>
+            ) : avail.map(s => (
+              <button type="button" key={s.id} disabled={busy}
+                onClick={() => { setOpen(false); onPick(s.id) }}
+                className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-[#933d18]/5 hover:text-[#933d18] border-b border-gray-50 last:border-0 transition-colors">
+                {s.session_name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
