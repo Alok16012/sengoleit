@@ -539,11 +539,49 @@ export default function CenterCourses() {
               </thead>
               <tbody>
                 {catalogDisplay.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center text-gray-400 py-12">
-                    {catalogFilterActive
-                      ? 'No new courses match these filters — they may already be allotted (see the Pending / Approved tabs), or try clearing filters.'
-                      : 'No new courses to add — all available courses are already allotted to this center.'}
-                  </td></tr>
+                  (() => {
+                    // If the search matches courses that are ALREADY allotted,
+                    // say so explicitly (with their status) instead of the
+                    // generic empty message — avoids "course dikh nahi raha"
+                    // confusion when it's simply sitting in Pending/Approved.
+                    const q = search.toLowerCase()
+                    const already = q ? structs.filter(s =>
+                      allot[s.id] && (
+                        (s.programs?.program_name || '').toLowerCase().includes(q) ||
+                        (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
+                      )
+                    ) : []
+                    if (already.length > 0) {
+                      return (
+                        <tr><td colSpan={6} className="text-center py-12">
+                          <p className="text-sm font-semibold text-gray-600 mb-3">
+                            Already allotted to this center — manage from the tabs above:
+                          </p>
+                          <div className="flex flex-col items-center gap-1.5">
+                            {already.slice(0, 6).map(s => (
+                              <span key={s.id} className="text-xs text-gray-500">
+                                <strong className="text-gray-700">{s.programs?.program_name}</strong>
+                                {' — '}{s.academic_sessions?.session_name || 'All Sessions'}
+                                <span className={`ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${allot[s.id].status === 'approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                  {allot[s.id].status === 'approved' ? 'Approved' : 'Pending'}
+                                </span>
+                              </span>
+                            ))}
+                            {already.length > 6 && (
+                              <span className="text-[11px] text-gray-400">+ {already.length - 6} more</span>
+                            )}
+                          </div>
+                        </td></tr>
+                      )
+                    }
+                    return (
+                      <tr><td colSpan={6} className="text-center text-gray-400 py-12">
+                        {catalogFilterActive
+                          ? 'No new courses match these filters — they may already be allotted (see the Pending / Approved tabs), or try clearing filters.'
+                          : 'No new courses to add — all available courses are already allotted to this center.'}
+                      </td></tr>
+                    )
+                  })()
                 ) : catalogDisplay.map((s, i) => {
                   if (s.__programOnly) {
                     return (
