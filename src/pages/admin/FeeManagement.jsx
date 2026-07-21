@@ -123,6 +123,28 @@ export default function FeeManagement() {
     fetchMaster()
   }
 
+  // Auto-allot a newly created fee structure to every center that already
+  // offers this program (for any of its other sessions), added as Pending — so
+  // a session added in Fee Master shows up in those centers' Center Courses
+  // lists automatically, without re-adding it per center by hand.
+  async function autoAllotToProgramCenters(programId, newStructureId) {
+    const { data: progStructs } = await supabase.from('fee_structures')
+      .select('id').eq('program_id', programId)
+    const otherIds = (progStructs || []).map(r => r.id).filter(id => id !== newStructureId)
+    if (!otherIds.length) return
+    const { data: existingCC } = await supabase.from('center_courses')
+      .select('center_id').in('fee_structure_id', otherIds)
+    const centerIds = [...new Set((existingCC || []).map(r => r.center_id))]
+    if (!centerIds.length) return
+    // Don't double-insert if the new structure is somehow already allotted.
+    const { data: onNew } = await supabase.from('center_courses')
+      .select('center_id').eq('fee_structure_id', newStructureId)
+    const have = new Set((onNew || []).map(r => r.center_id))
+    const rows = centerIds.filter(cid => !have.has(cid))
+      .map(cid => ({ center_id: cid, fee_structure_id: newStructureId, status: 'pending' }))
+    if (rows.length) await supabase.from('center_courses').insert(rows)
+  }
+
   // Quick-add a fee structure for another session of the same program by
   // copying the representative structure's fee items — no full edit needed.
   const [addingSessFor, setAddingSessFor] = useState(null) // program_id while inserting
@@ -141,6 +163,7 @@ export default function FeeManagement() {
       amount: i.amount, sort_order: i.sort_order ?? idx,
     }))
     if (items.length) await supabase.from('fee_items').insert(items)
+    await autoAllotToProgramCenters(struct.program_id, fs.id)
     await fetchMaster()
     setAddingSessFor(null)
   }
@@ -231,6 +254,7 @@ export default function FeeManagement() {
         const { data: existing } = await q.maybeSingle()
 
         let fid = existing?.id
+        const isNew = !fid
         if (fid) {
           await supabase.from('fee_structures').update({ total_semesters: totalSems }).eq('id', fid)
         } else {
@@ -250,6 +274,9 @@ export default function FeeManagement() {
             }))
           )
         }
+        // A brand-new structure → auto-allot to centers that already offer this
+        // program (Pending), matching the quick-add behaviour.
+        if (isNew) await autoAllotToProgramCenters(pid, fid)
       }
     }
 
