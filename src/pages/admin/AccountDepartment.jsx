@@ -1592,9 +1592,11 @@ export default function AccountDepartment() {
                   { label: 'Declaration Form', url: viewStudent.declaration_url },
                   { label: '10th Marksheet', url: viewStudent.tenth_marksheet_url },
                   { label: '12th Marksheet', url: viewStudent.twelfth_marksheet_url },
-                  { label: 'UG Marksheet', url: viewStudent.ug_marksheet_url },
-                  { label: 'PG Marksheet', url: viewStudent.pg_marksheet_url },
-                  { label: 'Diploma Marksheet', url: viewStudent.diploma_marksheet_url },
+                  // Only show higher-education marksheets the student actually has
+                  // (level filled or marksheet uploaded) — e.g. a B.Com has none.
+                  ...(viewStudent.ug_institute_name || viewStudent.ug_marksheet_url ? [{ label: 'UG Marksheet', url: viewStudent.ug_marksheet_url }] : []),
+                  ...(viewStudent.pg_institute_name || viewStudent.pg_marksheet_url ? [{ label: 'PG Marksheet', url: viewStudent.pg_marksheet_url }] : []),
+                  ...(viewStudent.diploma_institute_name || viewStudent.diploma_marksheet_url ? [{ label: 'Diploma Marksheet', url: viewStudent.diploma_marksheet_url }] : []),
                 ].map(doc => (
                   <div key={doc.label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${doc.url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="flex items-center gap-2">

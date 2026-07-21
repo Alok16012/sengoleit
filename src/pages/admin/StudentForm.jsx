@@ -691,6 +691,16 @@ export default function StudentForm() {
     return next
   })
 
+  // Quick-fill the guardian's name/occupation/relation from the father or the
+  // mother. Locked fields (correction mode) are left untouched.
+  const fillGuardianFrom = (who) => setForm(f => {
+    const next = { ...f }
+    if (!isLocked('guardian_name'))       next.guardian_name = who === 'father' ? f.fathers_name : f.mothers_name
+    if (!isLocked('guardian_occupation')) next.guardian_occupation = who === 'father' ? f.fathers_occupation : f.mothers_occupation
+    if (!isLocked('guardian_relation'))   next.guardian_relation = who === 'father' ? 'Father' : 'Mother'
+    return next
+  })
+
   const [pressSameAsPerm, setPressSameAsPerm] = useState(false)
   const [guardianPresSameAsStudent, setGuardianPresSameAsStudent] = useState(false)
   const [guardianPermSameAsPres, setGuardianPermSameAsPres] = useState(false)
@@ -1625,6 +1635,19 @@ export default function StudentForm() {
               <Input label="Mother's Name *" value={form.mothers_name} onChange={set('mothers_name')} required readOnly={isReadOnly || isLocked('mothers_name')} />
               <Input label="Mother's Occupation *" value={form.mothers_occupation} onChange={set('mothers_occupation')} required readOnly={isReadOnly || isLocked('mothers_occupation')} />
             </div>
+            {!isReadOnly && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-gray-400">Quick-fill guardian:</span>
+                <button type="button" onClick={() => fillGuardianFrom('father')}
+                  className="text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors">
+                  Same as Father
+                </button>
+                <button type="button" onClick={() => fillGuardianFrom('mother')}
+                  className="text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors">
+                  Same as Mother
+                </button>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Input label="Guardian's Name *" value={form.guardian_name} onChange={set('guardian_name')} required readOnly={isReadOnly || isLocked('guardian_name')} />
               <Input label="Guardian's Occupation *" value={form.guardian_occupation} onChange={set('guardian_occupation')} required readOnly={isReadOnly || isLocked('guardian_occupation')} />

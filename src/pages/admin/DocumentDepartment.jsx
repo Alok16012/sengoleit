@@ -1551,9 +1551,11 @@ export default function DocumentDepartment() {
                   { label: 'Declaration Form', url: viewStudent.declaration_url },
                   { label: '10th Marksheet', url: viewStudent.tenth_marksheet_url },
                   { label: '12th Marksheet', url: viewStudent.twelfth_marksheet_url },
-                  { label: 'UG Marksheet', url: viewStudent.ug_marksheet_url },
-                  { label: 'PG Marksheet', url: viewStudent.pg_marksheet_url },
-                  { label: 'Diploma Marksheet', url: viewStudent.diploma_marksheet_url },
+                  // Only higher-education marksheets the student actually has
+                  // (level filled or marksheet uploaded) — e.g. a B.Com has none.
+                  ...(viewStudent.ug_institute_name || viewStudent.ug_marksheet_url ? [{ label: 'UG Marksheet', url: viewStudent.ug_marksheet_url }] : []),
+                  ...(viewStudent.pg_institute_name || viewStudent.pg_marksheet_url ? [{ label: 'PG Marksheet', url: viewStudent.pg_marksheet_url }] : []),
+                  ...(viewStudent.diploma_institute_name || viewStudent.diploma_marksheet_url ? [{ label: 'Diploma Marksheet', url: viewStudent.diploma_marksheet_url }] : []),
                 ].map(doc => (
                   <div key={doc.label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${doc.url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="flex items-center gap-2">
@@ -1718,9 +1720,13 @@ export default function DocumentDepartment() {
             { key: 'doc_declaration', label: 'Declaration Form', url: s.declaration_url },
             { key: 'doc_10th',        label: '10th Marksheet',   url: s.tenth_marksheet_url },
             { key: 'doc_12th',        label: '12th Marksheet',   url: s.twelfth_marksheet_url },
-            { key: 'doc_ug',          label: 'UG Marksheet',     url: s.ug_marksheet_url },
-            { key: 'doc_pg',          label: 'PG Marksheet',     url: s.pg_marksheet_url },
-            { key: 'doc_diploma',     label: 'Diploma Marksheet', url: s.diploma_marksheet_url },
+            // Higher-education marksheets only apply when the student actually
+            // has that level — details filled OR a marksheet uploaded. A B.Com
+            // needs only 10th + 12th, so UG/PG/Diploma slots don't show up in
+            // the checklist (and don't get auto-marked by Verify All).
+            ...(s.ug_institute_name || s.ug_marksheet_url ? [{ key: 'doc_ug', label: 'UG Marksheet', url: s.ug_marksheet_url }] : []),
+            ...(s.pg_institute_name || s.pg_marksheet_url ? [{ key: 'doc_pg', label: 'PG Marksheet', url: s.pg_marksheet_url }] : []),
+            ...(s.diploma_institute_name || s.diploma_marksheet_url ? [{ key: 'doc_diploma', label: 'Diploma Marksheet', url: s.diploma_marksheet_url }] : []),
           ]
 
           const visibleSections = sections.map(sec => ({ ...sec, visible: sec.fields.filter(f => f.val) })).filter(sec => sec.visible.length)
