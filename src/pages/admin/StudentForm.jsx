@@ -620,6 +620,29 @@ export default function StudentForm() {
     }
   }, [id])
 
+  // Country is NOT a column on `students` (only state/district are stored), so
+  // on edit the Country dropdown comes back empty ("Select Country") even
+  // though it was picked at entry. Derive it from each address's saved state
+  // (states carry a country_id) so the field shows what was chosen and keeps
+  // the state list filtered correctly. Only fills an empty country — never
+  // overrides a value the user picks in the dropdown.
+  useEffect(() => {
+    if (!isEdit || !states.length || !countries.length) return
+    const countryById = Object.fromEntries(countries.map(c => [c.id, c.country_name]))
+    const prefixes = ['student_perm', 'student_pres', 'guardian_pres', 'guardian_perm']
+    setForm(f => {
+      let changed = false
+      const next = { ...f }
+      for (const p of prefixes) {
+        if (next[`${p}_country`]) continue
+        const st = states.find(s => s.state_name === f[`${p}_state`])
+        const cName = st?.country_id ? countryById[st.country_id] : ''
+        if (cName) { next[`${p}_country`] = cName; changed = true }
+      }
+      return changed ? next : f
+    })
+  }, [isEdit, states, countries, form.student_perm_state, form.student_pres_state, form.guardian_pres_state, form.guardian_perm_state])
+
   // Auto wallet check when on step 1 and program/semester/center changes
   useEffect(() => {
     if (step === 1 && form.programme_id && form.center_id && !isAdmin && !isEdit) {

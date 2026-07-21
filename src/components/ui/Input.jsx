@@ -27,6 +27,7 @@ export default function Input({ label, error, hint, className = '', type, onChan
         className={`w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 placeholder-gray-400
           focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] transition-all
           disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed
+          read-only:bg-gray-50 read-only:text-gray-400 read-only:cursor-not-allowed read-only:focus:ring-0 read-only:focus:border-gray-200
           ${error ? 'border-red-400 focus:border-red-500 focus:ring-red-100 bg-red-50/30' : ''}
           ${className}`}
         {...props}
@@ -88,6 +89,7 @@ export function Textarea({ label, error, hint, className = '', onChange, capital
         className={`w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 placeholder-gray-400
           focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] transition-all resize-none
           disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed
+          read-only:bg-gray-50 read-only:text-gray-400 read-only:cursor-not-allowed read-only:focus:ring-0 read-only:focus:border-gray-200
           ${error ? 'border-red-400' : ''}
           ${className}`}
         {...props}
