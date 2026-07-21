@@ -568,9 +568,6 @@ export default function StudentForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [stepError, setStepError] = useState('')
   const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false, dueSem: 1, calendarActive: false })
-  // When the Examination Calendar drives the fee, the Semester/Year field is
-  // auto-set to the due semester and locked so the center can't undercharge.
-  const [semesterLocked, setSemesterLocked] = useState(false)
   const [coupon, setCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
   const [availableCoupons, setAvailableCoupons] = useState([])
   // Program IDs that have a fee structure (admin) OR are allotted+approved to
@@ -761,7 +758,9 @@ export default function StudentForm() {
 
   const handleProgramChange = (e) => {
     const prog = programs.find(p => p.id === e.target.value)
-    setForm(f => ({ ...f, programme_id: e.target.value, course_code: prog?.course_code || '', semester_year: '' }))
+    // Default the Semester/Year to the program's entry point (Sem 1, or Sem 3 for
+    // a lateral program) — this is what appears on the admission form.
+    setForm(f => ({ ...f, programme_id: e.target.value, course_code: prog?.course_code || '', semester_year: prog ? entrySemLabel(prog) : '' }))
   }
 
   const handleSessionChange = (e) => {
@@ -875,6 +874,19 @@ export default function StudentForm() {
       : Array.from({ length: progSemYear === 'Semester' ? progDuration : progDuration * 2 }, (_, i) => `${ordinal(i + 1)} Semester`)
     : null
 
+  // The admission ENTRY semester (what shows on the form / download): a regular
+  // program starts at Sem 1; a lateral-entry program starts at Sem 3.
+  const isLateralProgram = (prog) => {
+    const typeName = programmeTypes.find(t => t.id === prog?.programme_type_id)?.programme_type_name || ''
+    return /lateral/i.test(typeName) || /lateral/i.test(prog?.program_name || '')
+  }
+  const entrySemLabel = (prog) => {
+    const n = isLateralProgram(prog) ? 3 : 1
+    return prog?.semester_year === 'Year' ? `${ordinal(Math.ceil(n / 2))} Year` : `${ordinal(n)} Semester`
+  }
+  // Entry semester is fixed by the program, so lock the field for center entries.
+  const semesterLocked = !isAdmin && !isEdit && !!form.programme_id
+
   async function handleFileUpload(fieldKey, file) {
     setUploading(u => ({ ...u, [fieldKey]: true }))
     try {
@@ -960,13 +972,6 @@ export default function StudentForm() {
         + mulT * dueSem
         + mul2T * Math.max(dueSem - 1, 0)
       const courseFee = fs ? Math.round(cumulative) : 0
-
-      // When the calendar drives it, auto-set + lock the Semester/Year field.
-      if (calendarActive) {
-        const label = progSemYear === 'Year' ? `${ordinal(Math.ceil(dueSem / 2))} Year` : `${ordinal(dueSem)} Semester`
-        if (form.semester_year !== label) setForm(f => ({ ...f, semester_year: label }))
-      }
-      setSemesterLocked(calendarActive)
 
       const { data: ctr } = await supabase
         .from('centers')
@@ -1457,7 +1462,7 @@ export default function StudentForm() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Input label="Course Code" value={form.course_code} onChange={set('course_code')} readOnly={isReadOnly || isLocked('course_code')} />
-                <Select label={semesterLocked ? 'Semester / Year * (set by exam calendar)' : 'Semester / Year *'} value={form.semester_year} onChange={set('semester_year')} disabled={isReadOnly || isLocked('semester_year') || semesterLocked} required>
+                <Select label={semesterLocked ? 'Semester / Year * (entry semester)' : 'Semester / Year *'} value={form.semester_year} onChange={set('semester_year')} disabled={isReadOnly || isLocked('semester_year') || semesterLocked} required>
                   <option value="">Select</option>
                   {semesterOptions
                     ? semesterOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)
