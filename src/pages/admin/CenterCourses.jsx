@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import Button from '../../components/ui/Button'
 import { Plus, Search, X, Check, Trash2, Building2, GraduationCap, CheckCircle2, Clock, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
@@ -35,8 +36,15 @@ export default function CenterCourses() {
   const [superFilter, setSuperFilter] = useState('all')   // super_center id or 'all'
   const [centerFilter, setCenterFilter] = useState('all') // center id or 'all'
 
-  // Detail view state
-  const [centerId, setCenterId]     = useState('')
+  // Detail view state — the opened center lives in the URL (?center=…) so the
+  // browser Back button returns to the center list instead of leaving the page.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const centerId = searchParams.get('center') || ''
+  const setCenterId = (id) => setSearchParams(prev => {
+    const next = new URLSearchParams(prev)
+    if (id) next.set('center', id); else next.delete('center')
+    return next
+  })
   const [allot, setAllot]           = useState({})   // fee_structure_id -> { id, status }
   const [loadingAllot, setLoadingAllot] = useState(false)
   const [subTab, setSubTab]         = useState('pending') // course status in detail

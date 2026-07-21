@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
@@ -50,7 +51,17 @@ function calcTotals(feeItems, totalSems) {
    MAIN COMPONENT
 ═══════════════════════════════════════ */
 export default function FeeManagement() {
-  const [tab, setTab]           = useState('master')   // 'master' | 'editor'
+  // Active tab lives in the URL (?tab=…) so the browser Back button navigates
+  // within Fee Management (tab → tab, center detail → list) instead of jumping
+  // out to the previous page. 'master' is the default and stays param-free.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') || 'master'
+  const setTab = (t) => setSearchParams(prev => {
+    const next = new URLSearchParams(prev)
+    if (t && t !== 'master') next.set('tab', t); else next.delete('tab')
+    next.delete('center')   // a top-level tab switch always returns to the list
+    return next
+  })
   const [masterList, setMasterList] = useState([])
   const [masterLoading, setMasterLoading] = useState(true)
   const [masterSearch, setMasterSearch] = useState('')
