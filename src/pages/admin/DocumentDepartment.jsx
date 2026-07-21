@@ -190,6 +190,7 @@ function initialChecksForCenter(c) {
 // so on resubmit the center may only edit exactly those fields/documents.
 const STUDENT_CHECK_TO_FORM_FIELDS = {
   // Program information
+  f_program: ['programme_id'],
   f_session: ['session_id'], f_mode: ['mode_id'], f_department: ['department_id'],
   f_course_code: ['course_code'], f_semester: ['semester_year'],
   f_academic_year: ['academic_year'], f_entry_type: ['entry_type'],
@@ -1057,7 +1058,10 @@ export default function DocumentDepartment() {
               const allDocKeys = docFields.map(d => d.key)
               const allKeys = [...allFieldKeys, ...allDocKeys]
               const totalItems = allKeys.length
-              const verifiedCount = Object.values(fieldChecks).filter(v => v.ok).length
+              // Count only VISIBLE items — pre-verified checks may include keys
+              // that aren't shown, which would otherwise push the count past the
+              // total.
+              const verifiedCount = allKeys.filter(k => fieldChecks[k]?.ok).length
               const pct = totalItems ? Math.round((verifiedCount / totalItems) * 100) : 0
 
               const labelMap = {}
@@ -1757,7 +1761,10 @@ export default function DocumentDepartment() {
           const allDocKeys = docFields.map(d => d.key)
           const allKeys = [...allFieldKeys, ...allDocKeys]
           const totalItems = allKeys.length
-          const verifiedCount = Object.values(fieldChecks).filter(v => v.ok).length
+          // Count only VISIBLE items — pre-verified checks may include keys that
+          // aren't shown (e.g. UG/PG/Diploma for a B.Com), which would otherwise
+          // push the count past the total (109%, "-5 fields left").
+          const verifiedCount = allKeys.filter(k => fieldChecks[k]?.ok).length
           const pct = totalItems ? Math.round((verifiedCount / totalItems) * 100) : 0
 
           const labelMap = {}
