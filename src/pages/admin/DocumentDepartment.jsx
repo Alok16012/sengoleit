@@ -243,6 +243,24 @@ function studentFlaggedFields(fieldChecks) {
   return [...out]
 }
 
+// When a held student is reopened, only the fields it was sent back to fix need
+// re-verification — everything else was already verified before the hold.
+// Pre-mark those boxes verified AND locked (mirrors the center flow), so the
+// admin re-checks ONLY the flagged field(s) instead of the whole form again.
+// Returns {} for a never-held student (no correction_fields) → normal fresh
+// verification where everything starts unverified.
+function studentPreVerifiedChecks(correctionFields) {
+  const fields = Array.isArray(correctionFields) ? correctionFields : []
+  if (fields.length === 0) return {}
+  const flagged = new Set(fields)
+  const checks = {}
+  Object.entries(STUDENT_CHECK_TO_FORM_FIELDS).forEach(([key, formFields]) => {
+    const wasFlagged = formFields.some(f => flagged.has(f))
+    if (!wasFlagged) checks[key] = { ok: true, remark: '', locked: true }
+  })
+  return checks
+}
+
 
 export default function DocumentDepartment() {
   const [mainTab, setMainTab] = useState('students')
@@ -384,7 +402,11 @@ export default function DocumentDepartment() {
     const resolved = await resolveStudentDocUrls(data)
     // Center is a fixed selection (not editable/correctable by the Document
     // Dept), so pre-lock it as verified — no Verify/Remark buttons for it.
-    setFieldChecks({ f_center: { ok: true, locked: true, remark: '' } })
+    // For a student that was previously held for correction, pre-verify (and
+    // lock) everything except the flagged field(s), so the admin only re-checks
+    // what was sent back — not the entire form again.
+    const preChecks = studentPreVerifiedChecks(data?.correction_fields)
+    setFieldChecks({ ...preChecks, f_center: { ok: true, locked: true, remark: '' } })
     setRemarks('')
     setVerifyModal(resolved)
     setVerifyLoading(false)
@@ -453,6 +475,7 @@ export default function DocumentDepartment() {
       admission_number: admNo,
       remarks: remarks || null,
       doc_verified_at: new Date().toISOString(),
+      correction_fields: null,   // forwarded → no pending corrections remain
     }).eq('id', verifyModal.id)
     setSaving(false)
     setVerifyModal(null)
