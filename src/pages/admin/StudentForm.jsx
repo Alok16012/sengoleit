@@ -19,19 +19,20 @@ const genStudentPassword = () => `Sg@${Math.random().toString(36).slice(-6).toUp
 
 // How many semesters' fee is due, driven by the Examination Calendar.
 // Rule: a student pays for Sem 1 up to Sem 1's exam end date; once that end date
-// is 5+ days past, Sem 2 is added; 5+ days past Sem 2's end date adds Sem 3; and
-// so on, capped at the program's total semesters (BA=6, B.Tech=8, …). If a
-// semester has no end date set in the calendar, we stop there (don't advance).
-// calMap: { [semesterNumber]: 'YYYY-MM-DD' end_date }.  submissionStr: 'YYYY-MM-DD'.
-function dueSemesterFromCalendar(calMap, totalSems, submissionStr) {
-  const sub = submissionStr ? new Date(submissionStr) : new Date()
+// is 5+ days past (as of TODAY — the actual moment the form is being submitted),
+// Sem 2 is added; 5+ days past Sem 2's end date adds Sem 3; and so on, capped at
+// the program's total semesters (BA=6, B.Tech=8, …). If a semester has no end
+// date set in the calendar, we stop there (don't advance).
+// calMap: { [semesterNumber]: 'YYYY-MM-DD' end_date }.
+function dueSemesterFromCalendar(calMap, totalSems) {
+  const now = new Date()
   let due = 1
   for (let k = 1; k <= totalSems - 1; k++) {
     const end = calMap[k]
     if (!end) break                 // no end date for this semester → stop advancing
     const threshold = new Date(end)
     threshold.setDate(threshold.getDate() + 5)   // 5-day grace after the exam end date
-    if (sub > threshold) due = k + 1
+    if (now > threshold) due = k + 1
     else break
   }
   return Math.min(due, totalSems)
@@ -948,7 +949,7 @@ export default function StudentForm() {
       const calendarActive = Object.keys(calMap).length > 0
 
       const dueSem = calendarActive
-        ? dueSemesterFromCalendar(calMap, totalSems, form.date_of_submission)
+        ? dueSemesterFromCalendar(calMap, totalSems)
         : Math.min(Math.max(parseInt(form.semester_year, 10) || 1, 1), totalSems)
 
       // Cumulative fee for Sem 1..dueSem. Matches the existing per-semester model
