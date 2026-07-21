@@ -171,7 +171,23 @@ export default function CenterCourses() {
   const allCatalogChecked  = catalog.length > 0 && catalog.every(s => allot[s.id])
   const someCatalogChecked = catalog.some(s => allot[s.id])
 
-  const allottedRows = structs.filter(s => allot[s.id] && allot[s.id].status === subTab)
+  const deptMap = Object.fromEntries(departments.map(d => [d.id, d.name]))
+
+  // The same search / department / type / session filters apply to the
+  // Pending & Approved lists too, not just the Add Course catalog.
+  const allottedRows = structs.filter(s => {
+    if (!(allot[s.id] && allot[s.id].status === subTab)) return false
+    const prog = progMap[s.program_id]
+    if (fDept !== 'all' && prog?.department_id !== fDept) return false
+    if (fType !== 'all' && prog?.programme_type_id !== fType) return false
+    if (fSessions.length && !fSessions.includes(s.session_id)) return false
+    const q = search.toLowerCase()
+    if (q && !(
+      (s.programs?.program_name || '').toLowerCase().includes(q) ||
+      (s.academic_sessions?.session_name || '').toLowerCase().includes(q)
+    )) return false
+    return true
+  })
   // One row per course: bundle all of a program's allotted sessions together so
   // the same course isn't repeated once per session. Sessions are shown
   // comma-separated on a single line.
@@ -397,6 +413,78 @@ export default function CenterCourses() {
   }
 
   // ═══════════════ CENTER DETAIL VIEW ═══════════════
+  // Shared search + filter bar — used by the Add Course catalog AND the
+  // Pending / Approved lists.
+  const filterBar = (
+    <div className="flex flex-wrap items-end gap-3 mb-4">
+      <div className="relative flex-1 max-w-sm min-w-[200px]">
+        <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
+        <Search size={14} className="absolute left-3 top-[34px] -translate-y-1/2 text-gray-400" />
+        <input
+          className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10"
+          placeholder="Search by program or session..."
+          value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+      <div>
+        <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Department</label>
+        <select value={fDept} onChange={e => setFDept(e.target.value)}
+          className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+          <option value="all">All Departments</option>
+          {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+      </div>
+      <div>
+        <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Program Type</label>
+        <select value={fType} onChange={e => setFType(e.target.value)}
+          className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[150px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+          <option value="all">All Types</option>
+          {progTypes.map(t => <option key={t.id} value={t.id}>{t.programme_type_name}</option>)}
+        </select>
+      </div>
+      <div className="relative">
+        <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Session</label>
+        <button type="button" onClick={() => setSessOpen(o => !o)}
+          className="flex items-center justify-between gap-2 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
+          <span className="truncate">
+            {fSessions.length === 0 ? 'All Sessions'
+              : fSessions.length === 1 ? (sessions.find(s => s.id === fSessions[0])?.session_name || '1 selected')
+              : `${fSessions.length} selected`}
+          </span>
+          <ChevronDown size={14} className={`text-gray-400 transition-transform ${sessOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {sessOpen && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setSessOpen(false)} />
+            <div className="absolute z-20 mt-1 w-56 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-1">
+              <button type="button" onClick={() => setFSessions([])}
+                className="w-full text-left px-3 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-50 rounded-lg">
+                All Sessions
+              </button>
+              {sessions.map(s => {
+                const on = fSessions.includes(s.id)
+                return (
+                  <button key={s.id} type="button" onClick={() => toggleSession(s.id)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center ${on ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300'}`}>
+                      {on && <Check size={11} className="text-white" />}
+                    </span>
+                    {s.session_name}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+      {catalogFilterActive && (
+        <button onClick={clearCatalogFilters}
+          className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
+          <X size={14} /> Clear
+        </button>
+      )}
+    </div>
+  )
+
   return (
     <div>
       <button onClick={backToList}
@@ -445,73 +533,7 @@ export default function CenterCourses() {
       {/* ── ADD COURSE PANEL ── */}
       {adding ? (
         <>
-          <div className="flex flex-wrap items-end gap-3 mb-4">
-            <div className="relative flex-1 max-w-sm min-w-[200px]">
-              <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
-              <Search size={14} className="absolute left-3 top-[34px] -translate-y-1/2 text-gray-400" />
-              <input
-                className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10"
-                placeholder="Search by program or session..."
-                value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Department</label>
-              <select value={fDept} onChange={e => setFDept(e.target.value)}
-                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
-                <option value="all">All Departments</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Program Type</label>
-              <select value={fType} onChange={e => setFType(e.target.value)}
-                className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[150px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
-                <option value="all">All Types</option>
-                {progTypes.map(t => <option key={t.id} value={t.id}>{t.programme_type_name}</option>)}
-              </select>
-            </div>
-            <div className="relative">
-              <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Session</label>
-              <button type="button" onClick={() => setSessOpen(o => !o)}
-                className="flex items-center justify-between gap-2 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 bg-white min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#933d18]/20">
-                <span className="truncate">
-                  {fSessions.length === 0 ? 'All Sessions'
-                    : fSessions.length === 1 ? (sessions.find(s => s.id === fSessions[0])?.session_name || '1 selected')
-                    : `${fSessions.length} selected`}
-                </span>
-                <ChevronDown size={14} className={`text-gray-400 transition-transform ${sessOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {sessOpen && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setSessOpen(false)} />
-                  <div className="absolute z-20 mt-1 w-56 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-1">
-                    <button type="button" onClick={() => setFSessions([])}
-                      className="w-full text-left px-3 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-50 rounded-lg">
-                      All Sessions
-                    </button>
-                    {sessions.map(s => {
-                      const on = fSessions.includes(s.id)
-                      return (
-                        <button key={s.id} type="button" onClick={() => toggleSession(s.id)}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
-                          <span className={`w-4 h-4 rounded border flex items-center justify-center ${on ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300'}`}>
-                            {on && <Check size={11} className="text-white" />}
-                          </span>
-                          {s.session_name}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-            {catalogFilterActive && (
-              <button onClick={clearCatalogFilters}
-                className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
-                <X size={14} /> Clear
-              </button>
-            )}
-          </div>
+          {filterBar}
 
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <table className="w-full text-sm">
@@ -531,6 +553,7 @@ export default function CenterCourses() {
                     </button>
                   </th>
                   <th className="text-left text-white font-semibold px-4 py-3">Program</th>
+                  <th className="text-left text-white font-semibold px-4 py-3">Department</th>
                   <th className="text-left text-white font-semibold px-4 py-3">Session</th>
                   <th className="text-center text-white font-semibold px-4 py-3">Semesters</th>
                   <th className="text-right text-white font-semibold px-4 py-3">Grand Total</th>
@@ -553,7 +576,7 @@ export default function CenterCourses() {
                     ) : []
                     if (already.length > 0) {
                       return (
-                        <tr><td colSpan={6} className="text-center py-12">
+                        <tr><td colSpan={7} className="text-center py-12">
                           <p className="text-sm font-semibold text-gray-600 mb-3">
                             Already allotted to this center — manage from the tabs above:
                           </p>
@@ -575,7 +598,7 @@ export default function CenterCourses() {
                       )
                     }
                     return (
-                      <tr><td colSpan={6} className="text-center text-gray-400 py-12">
+                      <tr><td colSpan={7} className="text-center text-gray-400 py-12">
                         {catalogFilterActive
                           ? 'No new courses match these filters — they may already be allotted (see the Pending / Approved tabs), or try clearing filters.'
                           : 'No new courses to add — all available courses are already allotted to this center.'}
@@ -593,6 +616,7 @@ export default function CenterCourses() {
                           {s.programs?.program_name || '—'}
                           <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">No fee</span>
                         </td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{deptMap[progMap[s.program_id]?.department_id] || '—'}</td>
                         <td className="px-4 py-3 text-gray-400 text-xs">All Sessions</td>
                         <td className="px-4 py-3 text-center">
                           <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{s.total_semesters ? `${s.total_semesters} Sem` : '—'}</span>
@@ -614,6 +638,7 @@ export default function CenterCourses() {
                         </button>
                       </td>
                       <td className="px-4 py-3 font-semibold text-gray-900">{s.programs?.program_name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{deptMap[progMap[s.program_id]?.department_id] || '—'}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{s.academic_sessions?.session_name || 'All Sessions'}</td>
                       <td className="px-4 py-3 text-center">
                         <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{s.total_semesters} Sem</span>
@@ -637,12 +662,15 @@ export default function CenterCourses() {
         </>
       ) : (
         /* ── PENDING / APPROVED COURSE LISTS ── */
+        <>
+        {filterBar}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#933d18]">
                 <th className="text-left text-white font-semibold px-4 py-3">#</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Program</th>
+                <th className="text-left text-white font-semibold px-4 py-3">Department</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Session</th>
                 <th className="text-center text-white font-semibold px-4 py-3">Semesters</th>
                 <th className="text-right text-white font-semibold px-4 py-3">Grand Total</th>
@@ -651,10 +679,12 @@ export default function CenterCourses() {
             </thead>
             <tbody>
               {loadingAllot ? (
-                <tr><td colSpan={6} className="text-center text-gray-400 py-12">Loading...</td></tr>
+                <tr><td colSpan={7} className="text-center text-gray-400 py-12">Loading...</td></tr>
               ) : groupedRows.length === 0 ? (
-                <tr><td colSpan={6} className="text-center text-gray-400 py-12">
-                  No {subTab} courses. Click “Add Course” to allot.
+                <tr><td colSpan={7} className="text-center text-gray-400 py-12">
+                  {catalogFilterActive
+                    ? `No ${subTab} courses match these filters — try clearing them.`
+                    : <>No {subTab} courses. Click “Add Course” to allot.</>}
                 </td></tr>
               ) : groupedRows.map((g, i) => {
                 const grpBusy = busy === 'grp-' + (g.program_id || '')
@@ -668,6 +698,7 @@ export default function CenterCourses() {
                       {g.program_name}
                       <span className="ml-2 text-[10px] font-bold text-gray-400">({g.items.length})</span>
                     </td>
+                    <td className="px-4 py-3 text-gray-600 text-xs align-top">{deptMap[progMap[g.program_id]?.department_id] || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs align-top">{sessions}</td>
                     <td className="px-4 py-3 text-center align-top">
                       <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">{semSet.length ? `${semSet.join(', ')} Sem` : '—'}</span>
@@ -698,6 +729,7 @@ export default function CenterCourses() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   )
