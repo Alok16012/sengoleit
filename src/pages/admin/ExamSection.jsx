@@ -3,8 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2 } from 'lucide-react'
+import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange } from 'lucide-react'
 import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
+import ExaminationCalendar from './ExaminationCalendar'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
@@ -151,6 +152,7 @@ function fmtDT(val) {
 }
 
 export default function ExamSection() {
+  const [view, setView] = useState('list')   // 'list' | 'calendar'
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -353,27 +355,46 @@ export default function ExamSection() {
     <div className="p-6">
       <PageHeader
         title="Exam Section"
-        subtitle={`${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`}
+        subtitle={view === 'calendar' ? 'Set examination start & end dates per session and semester' : `${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`}
         actions={
-          <div className="flex items-center gap-2">
+          view === 'list' ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setView('calendar')}
+                title="Set examination start & end dates per session"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-sm transition-colors"
+              >
+                <CalendarRange size={16} /> Examination Calendar
+              </button>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                title="Set per-course Exam Schedule"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm transition-colors"
+              >
+                <CalendarClock size={16} /> Exam Schedule
+              </button>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                title="Set per-course Admit Card Time"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#933d18]/30 bg-[#933d18]/10 hover:bg-[#933d18]/20 text-[#933d18] font-bold text-sm transition-colors"
+              >
+                <Clock size={16} /> Admit Card Time
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={() => setSettingsOpen(true)}
-              title="Set per-course Exam Schedule"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm transition-colors"
+              onClick={() => setView('list')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 font-bold text-sm transition-colors"
             >
-              <CalendarClock size={16} /> Exam Schedule
+              <X size={16} /> Back to Exam List
             </button>
-            <button
-              onClick={() => setSettingsOpen(true)}
-              title="Set per-course Admit Card Time"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#933d18]/30 bg-[#933d18]/10 hover:bg-[#933d18]/20 text-[#933d18] font-bold text-sm transition-colors"
-            >
-              <Clock size={16} /> Admit Card Time
-            </button>
-          </div>
+          )
         }
       />
 
+      {view === 'calendar' && <ExaminationCalendar />}
+
+      {view === 'list' && (<>
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div className="relative max-w-sm flex-1 min-w-[220px]">
           <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
@@ -493,7 +514,8 @@ export default function ExamSection() {
           </Tbody>
         </Table>
       )}
-      
+      </>)}
+
       <ResultModal
         isOpen={!!resultModalStudent}
         onClose={() => setResultModalStudent(null)}
