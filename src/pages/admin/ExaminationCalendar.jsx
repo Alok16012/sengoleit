@@ -21,7 +21,7 @@ export default function ExaminationCalendar() {
   const [missingTable, setMissingTable] = useState(false)
 
   useEffect(() => {
-    supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false })
+    supabase.from('academic_sessions').select('id, session_name').or('status.eq.Active,status.is.null').order('session_name', { ascending: false })
       .then(({ data }) => setSessions(data || []))
   }, [])
 

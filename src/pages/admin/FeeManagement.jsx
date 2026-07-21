@@ -95,7 +95,7 @@ export default function FeeManagement() {
       .then(({ data }) => setProgrammeTypes(data || []))
     supabase.from('programs').select('id, program_name, department_id, programme_type_id, duration, semester_year').order('program_name')
       .then(({ data }) => setPrograms(data || []))
-    supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false })
+    supabase.from('academic_sessions').select('id, session_name').or('status.eq.Active,status.is.null').order('session_name', { ascending: false })
       .then(({ data }) => setSessions(data || []))
   }, [])
 

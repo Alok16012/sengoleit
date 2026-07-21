@@ -178,7 +178,7 @@ export default function ExamSection() {
     const [dp, pt, se] = await Promise.all([
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('programme_types').select('id, programme_type_name').order('programme_type_name'),
-      supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false }),
+      supabase.from('academic_sessions').select('id, session_name').or('status.eq.Active,status.is.null').order('session_name', { ascending: false }),
     ])
     setDepartments(dp.data || [])
     setProgTypes(pt.data || [])

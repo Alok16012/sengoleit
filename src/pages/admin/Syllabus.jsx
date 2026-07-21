@@ -181,7 +181,7 @@ export default function Syllabus() {
       supabase.from('programs').select('id, program_name, department_id, programme_type_id, duration, semester_year'),
       supabase.from('departments').select('id, name').order('name'),
       supabase.from('programme_types').select('id, programme_type_name').order('programme_type_name'),
-      supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false }),
+      supabase.from('academic_sessions').select('id, session_name').or('status.eq.Active,status.is.null').order('session_name', { ascending: false }),
       supabase.from('center_courses').select('fee_structure_id, status').eq('status', 'approved'),
       supabase.from('syllabus_subjects').select('program_id, session_id'),
     ])
