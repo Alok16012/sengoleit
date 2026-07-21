@@ -1131,16 +1131,23 @@ export default function StudentForm() {
       // coupon can never be applied to two students.
       let couponReserveFailed = false
       if (!isEdit && coupon.applied?.id) {
-        // Mark the coupon used + link it to this application. The center role can't
-        // UPDATE the coupons table under RLS, so use the service-role admin client.
-        // The `is_used=false` guard makes it atomic: only the first student to claim
-        // a still-unused coupon flips it — a second claim updates 0 rows and fails,
-        // so a coupon can never be applied to two students.
+        // Mark the coupon used. The center role can't UPDATE coupons under
+        // RLS, so use the service-role admin client. The `is_used=false`
+        // guard makes it atomic: only the first student to claim a
+        // still-unused coupon flips it — a second claim updates 0 rows and
+        // fails, so a coupon can never be applied to two students.
+        // NOTE: application_id is intentionally NOT written here —
+        // coupons.application_id has a FK to center_applications (not
+        // students), so writing a students.id into it fails with 23503 and
+        // made every reservation error out (the false "coupon already used"
+        // alert). The student linkage lives on the student row itself
+        // (coupon_code / coupon_discount below), which is what the Account
+        // Dept reads at fee collection.
         const db = supabaseAdmin || supabase
-        const { data: reserved, error: rpcErr } = await db.from('coupons')
-          .update({ is_used: true, used_at: new Date().toISOString(), application_id: saved?.id || null })
+        const { data: reserved, error: reserveErr } = await db.from('coupons')
+          .update({ is_used: true, used_at: new Date().toISOString() })
           .eq('id', coupon.applied.id).eq('is_used', false).select('id')
-        couponReserveFailed = !!rpcErr || !reserved || reserved.length === 0
+        couponReserveFailed = !!reserveErr || !reserved || reserved.length === 0
       }
       // Persist (or clear) the discount on the student row itself. The center
       // always has write access to its own student records, so this survives
