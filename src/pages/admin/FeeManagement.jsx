@@ -57,6 +57,7 @@ export default function FeeManagement() {
   const [masterDept, setMasterDept] = useState('all')
   const [masterType, setMasterType] = useState('all')
   const [masterSession, setMasterSession] = useState('all')
+  const [masterStatus, setMasterStatus] = useState('all')   // 'all' | 'done' | 'pending'
   const [viewStruct, setViewStruct] = useState(null)
 
   // editor state
@@ -369,10 +370,30 @@ export default function FeeManagement() {
                   total_semesters: p.duration ? (p.semester_year === 'Year' ? p.duration * 2 : p.duration) : null,
                   programs: { program_name: p.program_name },
                 }))
-              const allRows = [...feeRows, ...programRows]
+              const allRows = masterStatus === 'done' ? feeRows
+                : masterStatus === 'pending' ? programRows
+                : [...feeRows, ...programRows]
+              const deptMap = Object.fromEntries(departments.map(d => [d.id, d.name]))
               return (
+            <>
+            {/* Status sub-tabs: Done = fee created, Pending = no fee yet */}
+            <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-xl w-fit">
+              {[
+                { key: 'all', label: 'All', count: feeRows.length + programRows.length },
+                { key: 'done', label: 'Done', count: feeRows.length },
+                { key: 'pending', label: 'Pending', count: programRows.length },
+              ].map(t => (
+                <button key={t.key} onClick={() => setMasterStatus(t.key)}
+                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${masterStatus === t.key ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  {t.label}
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${masterStatus === t.key ? 'bg-[#933d18] text-white' : 'bg-gray-200 text-gray-500'}`}>
+                    {t.count}
+                  </span>
+                </button>
+              ))}
+            </div>
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-              {allRows.length === 0 && (masterSearch || masterDept !== 'all' || masterType !== 'all' || masterSession !== 'all') && (
+              {allRows.length === 0 && (masterSearch || masterDept !== 'all' || masterType !== 'all' || masterSession !== 'all' || masterStatus !== 'all') && (
                 <div className="flex flex-col items-center justify-center py-14 text-gray-300">
                   <Search size={36} className="mb-2" />
                   <p className="text-sm font-semibold text-gray-400">No courses match the selected filters</p>
@@ -384,6 +405,7 @@ export default function FeeManagement() {
                   <tr className="bg-[#933d18]">
                     <th className="text-left text-white font-semibold px-4 py-3">#</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Program</th>
+                    <th className="text-left text-white font-semibold px-4 py-3">Department</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Session</th>
                     <th className="text-center text-white font-semibold px-4 py-3">Semesters</th>
                     <th className="text-right text-white font-semibold px-4 py-3">Entry Fees</th>
@@ -404,6 +426,9 @@ export default function FeeManagement() {
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">No fee yet</span>
                             </div>
                             <p className="text-xs text-gray-400 mt-0.5">Fee structure not created</p>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 text-xs">
+                            {deptMap[progMap[struct.program_id]?.department_id] || <span className="text-gray-300">—</span>}
                           </td>
                           <td className="px-4 py-3 text-gray-500 text-xs"><span className="text-gray-300">All Sessions</span></td>
                           <td className="px-4 py-3 text-center">
@@ -431,10 +456,17 @@ export default function FeeManagement() {
                           <p className="font-semibold text-gray-900">{struct.programs?.program_name || '—'}</p>
                           <p className="text-xs text-gray-400 mt-0.5">{struct.fee_items?.length || 0} fee components</p>
                         </td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">
+                          {deptMap[progMap[struct.program_id]?.department_id] || <span className="text-gray-300">—</span>}
+                        </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">
-                          {struct.__sessionCount > 1
-                            ? <span className="bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">{struct.__sessionCount} sessions</span>
-                            : (struct.academic_sessions?.session_name || <span className="text-gray-300">All Sessions</span>)}
+                          <div className="flex flex-wrap gap-1 max-w-[180px]">
+                            {(struct.__sessions || [struct]).map(s => (
+                              <span key={s.id} className="bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
+                                {s.academic_sessions?.session_name || 'All Sessions'}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className="bg-gray-100 text-gray-700 font-bold text-xs px-2.5 py-1 rounded-full">
@@ -476,7 +508,7 @@ export default function FeeManagement() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-200">
-                    <td colSpan={4} className="px-4 py-3 font-bold text-gray-700 text-sm">
+                    <td colSpan={5} className="px-4 py-3 font-bold text-gray-700 text-sm">
                       {`${allRows.length} courses (${feeRows.length} with fee, ${programRows.length} without)`}
                     </td>
                     <td className="px-4 py-3 text-right font-black text-amber-700">
@@ -492,6 +524,7 @@ export default function FeeManagement() {
               </table>
               )}
             </div>
+            </>
               )
             })()}
           </>
