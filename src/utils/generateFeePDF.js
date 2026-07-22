@@ -1,6 +1,8 @@
 import { formatDate } from './formatDate'
 
-const LOGO_URL = 'https://sengolinternationaluniversity.edu.in/images/logo.png'
+// Use the app's own bundled logo (resolved to an absolute URL so it works
+// inside window.open popups whose base URL is about:blank).
+const LOGO_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/logo.png'
 const UNI_NAME    = 'Sengol International University'
 const UNI_TAGLINE = 'Educate, Empower, Excel'
 const UNI_ADDRESS = 'Lower Pepthang, PO - Lingmoo, District - Namchi, Sikkim - 737134'
