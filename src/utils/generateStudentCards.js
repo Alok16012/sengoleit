@@ -8,6 +8,7 @@ const UNI_PHONE = '+91-9205299887'
 const UNI_EMAIL = 'info@sengolinternationaluniversity.edu.in'
 const UNI_WEB = 'www.sengolinternationaluniversity.edu.in'
 const UNI_ACT = 'Established under Act No. 14 of 2025, Sikkim State Legislative Assembly'
+const UNI_UGC = 'Estb. by the Act of State Govt. & Under Section 2(f) of UGC Act 1956. Govt. of India'
 const BRAND = '#933d18'
 const GOLD = '#d9a441'
 
@@ -127,24 +128,29 @@ export function generateIDCard(s) {
     </div>
 
     <!-- Header: logo | name+SIKKIM | photo, over a gold→brown diagonal -->
-    <div style="position:relative;background:linear-gradient(115deg, ${GOLD} 0%, ${GOLD} 60%, ${BRAND} 60%, ${BRAND} 100%);padding:10px 12px;">
+    <div style="position:relative;background:linear-gradient(115deg, ${GOLD} 0%, ${GOLD} 67%, ${BRAND} 67%, ${BRAND} 100%);padding:10px 12px;">
       <table style="width:100%;">
         <tr>
-          <td style="width:50px;vertical-align:middle;">
-            <img src="${LOGO_URL}" width="46" height="46" style="border-radius:50%;background:#fff;padding:2px;object-fit:contain;box-shadow:0 1px 4px rgba(0,0,0,0.25);" onerror="this.style.display='none'"/>
+          <td style="width:44px;vertical-align:middle;">
+            <img src="${LOGO_URL}" width="40" height="40" style="border-radius:50%;background:#fff;padding:2px;object-fit:contain;box-shadow:0 1px 4px rgba(0,0,0,0.25);" onerror="this.style.display='none'"/>
           </td>
-          <td style="vertical-align:middle;padding:0 4px;max-width:150px;">
-            <div style="color:${BRAND};font-size:11px;font-weight:900;line-height:1.08;letter-spacing:0;">${UNI_NAME.toUpperCase()}</div>
-            <div style="color:${BRAND};opacity:0.8;font-size:8px;letter-spacing:0.28em;margin-top:2px;">SIKKIM</div>
+          <td style="vertical-align:middle;padding:0 3px;">
+            <div style="color:${BRAND};font-size:8.3px;font-weight:900;line-height:1.1;letter-spacing:-0.2px;white-space:nowrap;">${UNI_NAME.toUpperCase()}</div>
+            <div style="color:${BRAND};opacity:0.8;font-size:7.5px;letter-spacing:0.28em;margin-top:1px;">SIKKIM</div>
           </td>
-          <td style="width:72px;vertical-align:middle;text-align:right;">
+          <td style="width:64px;vertical-align:middle;text-align:right;">
             ${s.photo_url
-              ? `<img src="${s.photo_url}" alt="Photo" style="width:66px;height:80px;object-fit:cover;border:2px solid #fff;border-radius:3px;display:inline-block;box-shadow:0 1px 5px rgba(0,0,0,0.3);"/>`
-              : `<div style="width:66px;height:80px;border:2px solid #fff;border-radius:3px;display:inline-block;background:#fafafa;"></div>`
+              ? `<img src="${s.photo_url}" alt="Photo" style="width:60px;height:74px;object-fit:cover;border:2px solid #fff;border-radius:3px;display:inline-block;box-shadow:0 1px 5px rgba(0,0,0,0.3);"/>`
+              : `<div style="width:60px;height:74px;border:2px solid #fff;border-radius:3px;display:inline-block;background:#fafafa;"></div>`
             }
           </td>
         </tr>
       </table>
+    </div>
+
+    <!-- UGC recognition line -->
+    <div style="background:#fdf6ec;text-align:center;padding:3px 8px;border-top:1px solid ${GOLD};">
+      <span style="color:${BRAND};font-size:6.5px;font-weight:600;line-height:1.2;">${UNI_UGC}</span>
     </div>
 
     <!-- IDENTITY CARD bar -->
