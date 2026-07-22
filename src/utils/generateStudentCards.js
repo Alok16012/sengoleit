@@ -9,6 +9,7 @@ const UNI_EMAIL = 'info@sengolinternationaluniversity.edu.in'
 const UNI_WEB = 'www.sengolinternationaluniversity.edu.in'
 const UNI_ACT = 'Established under Act No. 14 of 2025, Sikkim State Legislative Assembly'
 const BRAND = '#933d18'
+const GOLD = '#d9a441'
 
 function v(val) {
   return val && String(val).trim() ? String(val).trim() : '—'
@@ -83,127 +84,97 @@ const baseStyle = `
 ─────────────────────────────────────────────────── */
 export function generateIDCard(s) {
   const prog = s.programs?.program_name || s.program_name || '—'
-  const validUpto = s.valid_upto
-    ? formatDate(s.valid_upto)
-    : '—'
+  const regId = s.registration_no || s.enrollment_no || s.admission_number
+  const validity = s.valid_upto ? formatDate(s.valid_upto) : (s.academic_year || s.academic_sessions?.session_name || '—')
+  const marquee = (`${UNI_NAME.toUpperCase()} &nbsp; ★ &nbsp; `).repeat(8)
+
+  const row = (label, value, strong) => `<tr>
+    <td style="font-size:9px;font-weight:700;color:#333;white-space:nowrap;padding:2px 4px 2px 0;vertical-align:top;">${label}</td>
+    <td style="font-size:9px;color:#111;padding:2px 0;vertical-align:top;word-break:break-word;${strong ? `font-weight:900;color:${BRAND};` : ''}">: ${v(value)}</td>
+  </tr>`
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>ID Card — ${v(s.student_name)}</title>${baseStyle}</head>
 <body>
-<div style="max-width:380px;margin:24px auto;">
+<div style="max-width:360px;margin:24px auto;">
   ${printBtn()}
 
   <!-- CARD -->
-  <div style="border:2.5px solid ${BRAND};border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
+  <div style="width:340px;margin:0 auto;border:2px solid ${BRAND};border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.16);position:relative;">
 
-    <!-- Top header -->
-    <div style="background:${BRAND};padding:12px 14px;">
-      <table style="width:100%;">
-        <tr>
-          <td style="width:52px;vertical-align:middle;">
-            <img src="${LOGO_URL}" width="46" height="46"
-              style="border-radius:50%;background:#fff;padding:2px;object-fit:contain;"
-              onerror="this.style.display='none'" />
-          </td>
-          <td style="text-align:center;vertical-align:middle;padding:0 8px;">
-            <div style="color:#fff;font-size:14px;font-weight:900;letter-spacing:0.05em;">${UNI_NAME.toUpperCase()}</div>
-            <div style="color:rgba(255,255,255,0.75);font-size:7.5px;margin-top:2px;">${UNI_ADDRESS}</div>
-            <div style="color:rgba(255,255,255,0.6);font-size:7px;margin-top:1px;font-style:italic;">${UNI_ACT}</div>
-          </td>
-        </tr>
-      </table>
+    <!-- Top marquee strip -->
+    <div style="background:${BRAND};overflow:hidden;white-space:nowrap;padding:2px 0;">
+      <span style="color:${GOLD};font-size:6px;font-weight:700;letter-spacing:1px;">${marquee}</span>
     </div>
 
-    <!-- STUDENT IDENTITY CARD label -->
-    <div style="background:#222;text-align:center;padding:5px;">
-      <span style="color:#fff;font-size:13px;font-weight:900;letter-spacing:0.12em;">STUDENT &nbsp; IDENTITY &nbsp; CARD</span>
-    </div>
-
-    <!-- Body -->
-    <div style="padding:14px;background:#fff;">
+    <!-- Header: logo | name+SIKKIM | photo, over a brown→gold diagonal -->
+    <div style="position:relative;background:linear-gradient(120deg, ${BRAND} 0%, ${BRAND} 52%, ${GOLD} 52%, ${GOLD} 100%);padding:10px 12px;">
       <table style="width:100%;">
         <tr>
-          <!-- Left info -->
-          <td style="vertical-align:top;padding-right:12px;">
-            <table>
-              <tr>
-                <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;padding-bottom:5px;">ENROLLMENT NO</td>
-                <td style="font-size:8.5px;font-weight:900;color:${BRAND};padding-bottom:5px;">: ${v(s.enrollment_no)}</td>
-              </tr>
-              <tr>
-                <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;padding-bottom:5px;">Valid Upto</td>
-                <td style="font-size:8.5px;color:#111;padding-bottom:5px;">: ${validUpto}</td>
-              </tr>
-              <tr>
-                <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;padding-bottom:5px;">Blood Group</td>
-                <td style="font-size:8.5px;color:#111;padding-bottom:5px;">: ${v(s.blood_group)}</td>
-              </tr>
-              <tr>
-                <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;padding-bottom:5px;">Height</td>
-                <td style="font-size:8.5px;color:#111;padding-bottom:5px;">: ${v(s.height)}</td>
-              </tr>
-              <tr>
-                <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;vertical-align:top;">ID Marks</td>
-                <td style="font-size:8.5px;color:#111;max-width:140px;word-break:break-word;vertical-align:top;">: ${v(s.identification_marks)}</td>
-              </tr>
-            </table>
+          <td style="width:50px;vertical-align:middle;">
+            <img src="${LOGO_URL}" width="46" height="46" style="border-radius:50%;background:#fff;padding:2px;object-fit:contain;box-shadow:0 1px 4px rgba(0,0,0,0.25);" onerror="this.style.display='none'"/>
           </td>
-          <!-- Right: photo -->
-          <td style="width:82px;vertical-align:top;text-align:center;">
+          <td style="vertical-align:middle;padding:0 6px;">
+            <div style="color:#fff;font-size:13px;font-weight:900;line-height:1.1;letter-spacing:0.02em;">${UNI_NAME.toUpperCase()}</div>
+            <div style="color:rgba(255,255,255,0.85);font-size:8px;letter-spacing:0.28em;margin-top:2px;">SIKKIM</div>
+          </td>
+          <td style="width:74px;vertical-align:middle;text-align:right;">
             ${s.photo_url
-              ? `<img src="${s.photo_url}" alt="Photo" style="width:76px;height:94px;object-fit:cover;border:2px solid #e5e7eb;border-radius:4px;display:block;"/>`
-              : `<div style="width:76px;height:94px;border:1.5px dashed #ccc;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fafafa;"><span style="font-size:8px;color:#bbb;text-align:center;line-height:1.4;">Photo<br/>Here</span></div>`
+              ? `<img src="${s.photo_url}" alt="Photo" style="width:66px;height:80px;object-fit:cover;border:2px solid #fff;border-radius:3px;display:inline-block;box-shadow:0 1px 5px rgba(0,0,0,0.3);"/>`
+              : `<div style="width:66px;height:80px;border:2px solid #fff;border-radius:3px;display:inline-block;background:#fafafa;"></div>`
             }
           </td>
         </tr>
       </table>
+    </div>
 
-      <!-- Name band -->
-      <div style="background:${BRAND};color:#fff;text-align:center;padding:6px 10px;margin-top:10px;border-radius:3px;">
-        <span style="font-size:14px;font-weight:900;letter-spacing:0.05em;text-transform:uppercase;">${v(s.student_name)}</span>
+    <!-- IDENTITY CARD bar -->
+    <div style="background:#222;text-align:center;padding:5px;">
+      <span style="color:#fff;font-size:13px;font-weight:900;letter-spacing:0.2em;">IDENTITY CARD</span>
+    </div>
+
+    <!-- Body with watermark -->
+    <div style="position:relative;padding:14px 16px 10px;background:#fff;min-height:210px;">
+      <!-- watermark -->
+      <img src="${LOGO_URL}" style="position:absolute;top:50%;left:50%;width:180px;height:180px;object-fit:contain;transform:translate(-50%,-50%);opacity:0.06;pointer-events:none;" onerror="this.style.display='none'"/>
+
+      <table style="width:100%;position:relative;">
+        ${row('Student Reg. Id', regId, true)}
+        ${row('Student Name', s.student_name)}
+        ${row("Father's Name", s.fathers_name)}
+        ${row("Mother's Name", s.mothers_name)}
+        ${row('D.O.B.', fmtDate(s.date_of_birth))}
+        ${row('Discipline', prog)}
+        ${row('Address', addr(s))}
+      </table>
+
+      <div style="margin-top:10px;position:relative;">
+        <span style="font-size:10px;font-weight:900;color:${BRAND};">Validity : ${validity}</span>
+        <span style="font-size:7.5px;color:#777;font-style:italic;margin-left:4px;">(unless withdrawn earlier)</span>
       </div>
 
-      <!-- Programme / Father / Address -->
-      <table style="margin-top:8px;width:100%;">
+      <!-- Auth signatory + stamp -->
+      <table style="width:100%;margin-top:14px;position:relative;">
         <tr>
-          <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;padding-bottom:4px;vertical-align:top;">Programme</td>
-          <td style="font-size:8.5px;color:#111;padding-bottom:4px;font-style:italic;">: ${prog}</td>
-        </tr>
-        <tr>
-          <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;padding-bottom:4px;vertical-align:top;">Father Name</td>
-          <td style="font-size:8.5px;color:#111;padding-bottom:4px;font-style:italic;">: ${v(s.fathers_name)}</td>
-        </tr>
-        <tr>
-          <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;padding-bottom:4px;vertical-align:top;">Address</td>
-          <td style="font-size:8.5px;color:#111;padding-bottom:4px;font-style:italic;max-width:220px;word-break:break-word;">: ${addr(s)}</td>
-        </tr>
-        <tr>
-          <td style="font-size:8.5px;font-weight:700;color:#555;white-space:nowrap;padding-right:5px;">Contact No</td>
-          <td style="font-size:8.5px;color:#111;font-style:italic;">: ${v(s.mobile_no)}</td>
-        </tr>
-      </table>
-
-      <!-- Signature row -->
-      <table style="width:100%;margin-top:12px;">
-        <tr>
-          <td style="width:50%;text-align:center;">
+          <td style="vertical-align:bottom;">
             ${s.signature_url
-              ? `<img src="${s.signature_url}" style="height:34px;max-width:120px;object-fit:contain;border-bottom:1px solid #aaa;display:block;margin:0 auto;"/>`
-              : `<div style="height:34px;border-bottom:1px solid #aaa;width:120px;margin:0 auto;"></div>`
+              ? `<img src="${s.signature_url}" style="height:26px;max-width:110px;object-fit:contain;display:block;"/>`
+              : ''
             }
-            <p style="font-size:7.5px;color:#666;margin-top:3px;">(Student Signature)</p>
+            <div style="font-size:7.5px;color:#666;margin-top:2px;">Student Signature</div>
           </td>
-          <td style="width:50%;text-align:center;">
-            <div style="height:34px;width:90px;margin:0 auto;border:1px dashed #ccc;border-radius:4px;"></div>
-            <p style="font-size:7.5px;color:#666;margin-top:3px;">Controller of Examinations</p>
+          <td style="text-align:right;vertical-align:bottom;position:relative;">
+            <img src="${LOGO_URL}" style="width:44px;height:44px;object-fit:contain;opacity:0.35;position:absolute;right:26px;bottom:14px;" onerror="this.style.display='none'"/>
+            <div style="height:22px;"></div>
+            <div style="font-size:8px;font-weight:700;color:${BRAND};">Auth. Signatory</div>
           </td>
         </tr>
       </table>
     </div>
 
-    <!-- Footer band -->
-    <div style="background:${BRAND};color:#fff;text-align:center;padding:5px 10px;">
-      <span style="font-size:7.5px;font-weight:600;letter-spacing:0.04em;">This card is not transferable and it's the property of the university.</span>
+    <!-- Bottom marquee strip -->
+    <div style="background:${BRAND};overflow:hidden;white-space:nowrap;padding:2px 0;">
+      <span style="color:${GOLD};font-size:6px;font-weight:700;letter-spacing:1px;">${marquee}</span>
     </div>
   </div>
 </div>
