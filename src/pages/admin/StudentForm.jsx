@@ -397,7 +397,7 @@ const emptyForm = {
   diploma_institute_name: '', diploma_board_university: '', diploma_passing_year: '', diploma_obtained_marks: '', diploma_total_marks: '',
   mphil_institute_name: '', mphil_board_university: '', mphil_passing_year: '', mphil_obtained_marks: '', mphil_total_marks: '',
   others_institute_name: '', others_board_university: '', others_passing_year: '', others_obtained_marks: '', others_total_marks: '',
-  photo_url: '', aadhar_url: '', signature_url: '', declaration_url: '',
+  photo_url: '', aadhar_url: '', aadhar_back_url: '', signature_url: '', declaration_url: '',
   tenth_marksheet_url: '', twelfth_marksheet_url: '', ug_marksheet_url: '', pg_marksheet_url: '', diploma_marksheet_url: '', mphil_marksheet_url: '', others_marksheet_url: '',
   tc_url: '', migration_url: '',
 }
@@ -458,6 +458,7 @@ const STUDENT_LABEL_TO_FORM_FIELDS = {
   'Pin Code': ['student_perm_pin_code', 'student_pres_pin_code'],
   // Documents
   'Student Photo': ['photo_url'], 'Signature': ['signature_url'], 'Aadhar Card': ['aadhar_url'],
+  'Aadhar Front': ['aadhar_url'], 'Aadhar Back': ['aadhar_back_url'],
   'Declaration Form': ['declaration_url'], '10th Marksheet': ['tenth_marksheet_url'],
   '12th Marksheet': ['twelfth_marksheet_url'], 'UG Marksheet': ['ug_marksheet_url'],
   'PG Marksheet': ['pg_marksheet_url'], 'Diploma Marksheet': ['diploma_marksheet_url'],
@@ -1071,7 +1072,8 @@ export default function StudentForm() {
       case 7:
         if (!form.photo_url) return 'Student Photo is required'
         if (!form.signature_url) return 'Signature is required'
-        if (!form.aadhar_url) return 'Aadhar Card is required'
+        if (!form.aadhar_url) return 'Aadhar Front is required'
+        if (!form.aadhar_back_url) return 'Aadhar Back is required'
         if (!form.declaration_url) return 'Declaration Form is required'
         return null
       default:
@@ -1145,9 +1147,16 @@ export default function StudentForm() {
     const fkFields = ['university_id', 'session_id', 'programme_id', 'department_id', 'mode_id', 'center_id']
     fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
 
-    const { data: saved, error } = isEdit
-      ? await supabase.from('students').update(payload).eq('id', id).select('id').single()
-      : await supabase.from('students').insert(payload).select('id').single()
+    const saveStudent = (p) => isEdit
+      ? supabase.from('students').update(p).eq('id', id).select('id').single()
+      : supabase.from('students').insert(p).select('id').single()
+    let { data: saved, error } = await saveStudent(payload)
+    // Resilient: if the aadhar_back_url column hasn't been migrated yet, drop it
+    // and retry so saving still works (the back image just isn't persisted).
+    if (error && /aadhar_back_url/.test(error.message || '')) {
+      const { aadhar_back_url, ...rest } = payload
+      ;({ data: saved, error } = await saveStudent(rest))
+    }
 
     if (!error) {
       // NOTE: The wallet is NOT charged on submission any more. The center
@@ -1795,8 +1804,12 @@ export default function StudentForm() {
                 <FileField label="Signature *" fieldKey="signature_url" accept="image/*" isImage value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} readOnly={isReadOnly || isLocked('signature_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
-                <p className="text-xs font-semibold text-gray-500">Aadhar Card *</p>
+                <p className="text-xs font-semibold text-gray-500">Aadhar Front *</p>
                 <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} readOnly={isReadOnly || isLocked('aadhar_url')} />
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
+                <p className="text-xs font-semibold text-gray-500">Aadhar Back *</p>
+                <FileField label="" fieldKey="aadhar_back_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_back_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_back_url} readOnly={isReadOnly || isLocked('aadhar_back_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Declaration Form *</p>
