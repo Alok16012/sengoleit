@@ -85,11 +85,30 @@ const baseStyle = `
 export function generateIDCard(s) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const regId = s.registration_no || s.enrollment_no || s.admission_number
-  const validity = s.valid_upto ? formatDate(s.valid_upto) : (s.academic_year || s.academic_sessions?.session_name || '—')
   const marquee = (`${UNI_NAME.toUpperCase()} &nbsp; ★ &nbsp; `).repeat(8)
 
+  // Validity spans the course length: start year → start year + course years.
+  // e.g. a 2-year B.Ed starting 2025 → "2025-2027".
+  const courseYears = () => {
+    const cd = String(s.programs?.complete_duration || '')
+    const m = cd.match(/(\d+)\s*year/i)
+    if (m) return parseInt(m[1], 10)
+    const dur = Number(s.programs?.duration) || 0
+    if (!dur) return 0
+    return s.programs?.semester_year === 'Year' ? dur : Math.round(dur / 2)
+  }
+  const startYear = () => {
+    const ay = String(s.academic_year || '').match(/(20\d{2})/)
+    if (ay) return parseInt(ay[1], 10)
+    const d = s.academic_sessions?.start_date || s.date_of_admission || s.date_of_submission
+    const y = d ? new Date(d).getFullYear() : NaN
+    return Number.isFinite(y) ? y : null
+  }
+  const sy = startYear(), yrs = courseYears()
+  const validity = sy && yrs ? `${sy}-${sy + yrs}` : (s.academic_year || s.academic_sessions?.session_name || '—')
+
   const row = (label, value, strong) => `<tr>
-    <td style="font-size:9px;font-weight:700;color:#333;white-space:nowrap;padding:2px 4px 2px 0;vertical-align:top;">${label}</td>
+    <td style="font-size:9px;font-weight:700;color:${BRAND};white-space:nowrap;padding:2px 4px 2px 0;vertical-align:top;">${label}</td>
     <td style="font-size:9px;color:#111;padding:2px 0;vertical-align:top;word-break:break-word;${strong ? `font-weight:900;color:${BRAND};` : ''}">: ${v(value)}</td>
   </tr>`
 
@@ -107,18 +126,18 @@ export function generateIDCard(s) {
       <span style="color:${GOLD};font-size:6px;font-weight:700;letter-spacing:1px;">${marquee}</span>
     </div>
 
-    <!-- Header: logo | name+SIKKIM | photo, over a brown→gold diagonal -->
-    <div style="position:relative;background:linear-gradient(120deg, ${BRAND} 0%, ${BRAND} 52%, ${GOLD} 52%, ${GOLD} 100%);padding:10px 12px;">
+    <!-- Header: logo | name+SIKKIM | photo, over a gold→brown diagonal -->
+    <div style="position:relative;background:linear-gradient(115deg, ${GOLD} 0%, ${GOLD} 60%, ${BRAND} 60%, ${BRAND} 100%);padding:10px 12px;">
       <table style="width:100%;">
         <tr>
           <td style="width:50px;vertical-align:middle;">
             <img src="${LOGO_URL}" width="46" height="46" style="border-radius:50%;background:#fff;padding:2px;object-fit:contain;box-shadow:0 1px 4px rgba(0,0,0,0.25);" onerror="this.style.display='none'"/>
           </td>
-          <td style="vertical-align:middle;padding:0 6px;">
-            <div style="color:#fff;font-size:13px;font-weight:900;line-height:1.1;letter-spacing:0.02em;">${UNI_NAME.toUpperCase()}</div>
-            <div style="color:rgba(255,255,255,0.85);font-size:8px;letter-spacing:0.28em;margin-top:2px;">SIKKIM</div>
+          <td style="vertical-align:middle;padding:0 4px;max-width:150px;">
+            <div style="color:${BRAND};font-size:11px;font-weight:900;line-height:1.08;letter-spacing:0;">${UNI_NAME.toUpperCase()}</div>
+            <div style="color:${BRAND};opacity:0.8;font-size:8px;letter-spacing:0.28em;margin-top:2px;">SIKKIM</div>
           </td>
-          <td style="width:74px;vertical-align:middle;text-align:right;">
+          <td style="width:72px;vertical-align:middle;text-align:right;">
             ${s.photo_url
               ? `<img src="${s.photo_url}" alt="Photo" style="width:66px;height:80px;object-fit:cover;border:2px solid #fff;border-radius:3px;display:inline-block;box-shadow:0 1px 5px rgba(0,0,0,0.3);"/>`
               : `<div style="width:66px;height:80px;border:2px solid #fff;border-radius:3px;display:inline-block;background:#fafafa;"></div>`
@@ -129,17 +148,20 @@ export function generateIDCard(s) {
     </div>
 
     <!-- IDENTITY CARD bar -->
-    <div style="background:#222;text-align:center;padding:5px;">
-      <span style="color:#fff;font-size:13px;font-weight:900;letter-spacing:0.2em;">IDENTITY CARD</span>
+    <div style="background:#fff;text-align:center;padding:5px;border-top:2px solid ${BRAND};border-bottom:2px solid ${BRAND};">
+      <span style="color:${BRAND};font-size:13px;font-weight:900;letter-spacing:0.2em;">IDENTITY CARD</span>
     </div>
 
-    <!-- Body with watermark -->
-    <div style="position:relative;padding:14px 16px 10px;background:#fff;min-height:210px;">
+    <!-- Body with watermark + bottom gold diagonal -->
+    <div style="position:relative;padding:14px 16px 10px;background:#fff;min-height:220px;overflow:hidden;">
+      <!-- bottom gold diagonal accent -->
+      <div style="position:absolute;left:0;right:0;bottom:0;height:120px;background:${GOLD};opacity:0.32;clip-path:polygon(0 100%, 100% 32%, 100% 100%);z-index:0;"></div>
       <!-- watermark -->
-      <img src="${LOGO_URL}" style="position:absolute;top:50%;left:50%;width:180px;height:180px;object-fit:contain;transform:translate(-50%,-50%);opacity:0.06;pointer-events:none;" onerror="this.style.display='none'"/>
+      <img src="${LOGO_URL}" style="position:absolute;top:52%;left:50%;width:170px;height:170px;object-fit:contain;transform:translate(-50%,-50%);opacity:0.07;pointer-events:none;z-index:0;" onerror="this.style.display='none'"/>
 
-      <table style="width:100%;position:relative;">
+      <table style="width:100%;position:relative;z-index:1;">
         ${row('Student Reg. Id', regId, true)}
+        ${row('Enrollment No', s.enrollment_no, true)}
         ${row('Student Name', s.student_name)}
         ${row("Father's Name", s.fathers_name)}
         ${row("Mother's Name", s.mothers_name)}
@@ -148,13 +170,13 @@ export function generateIDCard(s) {
         ${row('Address', addr(s))}
       </table>
 
-      <div style="margin-top:10px;position:relative;">
+      <div style="margin-top:10px;position:relative;z-index:1;">
         <span style="font-size:10px;font-weight:900;color:${BRAND};">Validity : ${validity}</span>
-        <span style="font-size:7.5px;color:#777;font-style:italic;margin-left:4px;">(unless withdrawn earlier)</span>
+        <span style="font-size:7.5px;color:#555;font-style:italic;margin-left:4px;">(unless withdrawn earlier)</span>
       </div>
 
       <!-- Auth signatory + stamp -->
-      <table style="width:100%;margin-top:14px;position:relative;">
+      <table style="width:100%;margin-top:14px;position:relative;z-index:1;">
         <tr>
           <td style="vertical-align:bottom;">
             ${s.signature_url
@@ -164,8 +186,8 @@ export function generateIDCard(s) {
             <div style="font-size:7.5px;color:#666;margin-top:2px;">Student Signature</div>
           </td>
           <td style="text-align:right;vertical-align:bottom;position:relative;">
-            <img src="${LOGO_URL}" style="width:44px;height:44px;object-fit:contain;opacity:0.35;position:absolute;right:26px;bottom:14px;" onerror="this.style.display='none'"/>
-            <div style="height:22px;"></div>
+            <img src="${LOGO_URL}" style="width:46px;height:46px;object-fit:contain;opacity:0.4;position:absolute;right:22px;bottom:12px;" onerror="this.style.display='none'"/>
+            <div style="height:24px;"></div>
             <div style="font-size:8px;font-weight:700;color:${BRAND};">Auth. Signatory</div>
           </td>
         </tr>

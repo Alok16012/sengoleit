@@ -126,7 +126,7 @@ export default function StudentListReport({ status }) {
     setDownloading(`${studentId}-${type}`)
     const { data: s } = await supabase
       .from('students')
-      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
+      .select('*, programs(program_name, duration, complete_duration, semester_year), academic_sessions(session_name, start_date), centers(center_name, center_code), departments(name), study_modes(mode_name)')
       .eq('id', studentId)
       .single()
     if (s) {
