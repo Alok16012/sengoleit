@@ -8,6 +8,7 @@ const UNI_PHONE = '+91-9205299887'
 const UNI_EMAIL = 'info@sengolinternationaluniversity.edu.in'
 const UNI_WEB = 'www.sengolinternationaluniversity.edu.in'
 const UNI_ACT = 'Established under Act No. 14 of 2025, Sikkim State Legislative Assembly'
+const UNI_UGC = 'Estb. by the Act of State Govt. & Under Section 2(f) of UGC Act 1956, Govt. of India'
 
 function v(val) {
   return val && String(val).trim() ? String(val).trim() : '—'
@@ -19,8 +20,8 @@ function fmtDate(d) {
 
 // Compact 2-cell row for info tables
 function r(label, value, fullWidth) {
-  const lStyle = 'padding:3px 6px 3px 0;font-size:9.5px;color:#666;font-weight:700;white-space:nowrap;vertical-align:top;'
-  const vStyle = `padding:3px 0;font-size:9.5px;color:#111;vertical-align:top;${fullWidth ? '' : 'max-width:180px;word-break:break-word;'}`
+  const lStyle = 'width:1%;padding:3px 6px 3px 0;font-size:9.5px;color:#666;font-weight:700;white-space:nowrap;vertical-align:top;'
+  const vStyle = `padding:3px 0;font-size:9.5px;color:#111;vertical-align:top;word-break:break-word;`
   return `<tr>
     <td style="${lStyle}">${label}</td>
     <td style="${vStyle}">: ${v(value)}</td>
@@ -33,15 +34,19 @@ function sectionTitle(n, title) {
 }
 
 function addrText(s, prefix) {
-  return [
+  const parts = [
     s[`${prefix}_village_town`],
     s[`${prefix}_landmark`],
     s[`${prefix}_post_office`] ? 'PO: ' + s[`${prefix}_post_office`] : null,
     s[`${prefix}_city`],
-    s[`${prefix}_district`],
-    s[`${prefix}_state`],
-    s[`${prefix}_pin_code`] ? 'PIN: ' + s[`${prefix}_pin_code`] : null,
-  ].filter(Boolean).join(', ') || '—'
+    s[`${prefix}_district`] ? 'Dist: ' + s[`${prefix}_district`] : null,
+    s[`${prefix}_state`] ? 'State: ' + s[`${prefix}_state`] : null,
+  ].filter(Boolean)
+  // Country isn't stored on students; default to India (the app's states are all
+  // Indian) when there is any address, so it's always shown as requested.
+  if (parts.length) parts.push('Country: ' + (s[`${prefix}_country`] || 'India'))
+  if (s[`${prefix}_pin_code`]) parts.push('PIN: ' + s[`${prefix}_pin_code`])
+  return parts.join(', ') || '—'
 }
 
 function eduRows(s) {
@@ -87,8 +92,6 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
   const sessName = sessionName || s.academic_sessions?.session_name || ''
   const ctrName = centerName || s.centers?.center_name || ''
 
-  const statusColor = { Approved: '#059669', Rejected: '#dc2626', Hold: '#4f46e5' }[s.status] || '#d97706'
-
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -124,6 +127,7 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
           </td>
           <td style="text-align:center;vertical-align:middle;padding:0 10px;">
             <div style="color:#fff;font-size:20px;font-weight:900;letter-spacing:0.03em;">${UNI_NAME.toUpperCase()}</div>
+            <div style="color:rgba(255,255,255,0.85);font-size:8.5px;margin-top:2px;">${UNI_UGC}</div>
             <div style="color:rgba(255,255,255,0.88);font-size:11px;margin-top:2px;font-style:italic;">${UNI_TAGLINE}</div>
             <div style="color:rgba(255,255,255,0.65);font-size:8.5px;margin-top:3px;">${UNI_ACT}</div>
           </td>
@@ -149,15 +153,18 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
   <div style="border:1px solid #e5e7eb;border-radius:4px;padding:8px 12px;margin-bottom:12px;background:#f9fafb;">
     <table>
       <tr>
-        <td style="font-size:9.5px;color:#555;width:50%;">Status: <strong style="color:${statusColor};">${v(s.status)}</strong></td>
-        <td style="font-size:9.5px;color:#555;width:50%;text-align:right;">Submitted: <strong>${fmtDate(s.date_of_submission)}</strong></td>
+        <td style="font-size:9.5px;color:#555;text-align:right;">Submitted: <strong>${fmtDate(s.date_of_submission)}</strong></td>
       </tr>
-      ${s.admission_number ? `<tr><td colspan="3" style="font-size:9.5px;padding-top:4px;">
-        Admission No: <strong style="color:#933d18;font-size:11px;">${s.admission_number}</strong>
-        ${s.enrollment_no ? `&nbsp;&nbsp;&nbsp; Enrollment No: <strong style="color:#059669;font-size:11px;">${s.enrollment_no}</strong>` : ''}
-        ${s.registration_no && s.enrollment_no ? `&nbsp;&nbsp;&nbsp; Reg No: <strong>${s.registration_no}</strong>` : ''}
+      ${s.admission_number ? `<tr><td style="padding-top:6px;">
+        <table style="width:100%;table-layout:fixed;">
+          <tr>
+            <td style="font-size:9.5px;color:#555;">Admission No:<br/><strong style="color:#933d18;font-size:11px;">${s.admission_number}</strong></td>
+            ${s.enrollment_no ? `<td style="font-size:9.5px;color:#555;">Enrollment No:<br/><strong style="color:#059669;font-size:11px;">${s.enrollment_no}</strong></td>` : ''}
+            ${s.registration_no && s.enrollment_no ? `<td style="font-size:9.5px;color:#555;">Reg No:<br/><strong style="font-size:11px;">${s.registration_no}</strong></td>` : ''}
+          </tr>
+        </table>
       </td></tr>` : ''}
-      ${s.remarks ? `<tr><td colspan="3" style="font-size:9.5px;padding-top:4px;color:${s.status === 'Rejected' ? '#dc2626' : '#555'};">Remarks: <strong>${s.remarks}</strong></td></tr>` : ''}
+      ${s.remarks ? `<tr><td style="font-size:9.5px;padding-top:4px;color:${s.status === 'Rejected' ? '#dc2626' : '#555'};">Remarks: <strong>${s.remarks}</strong></td></tr>` : ''}
     </table>
   </div>
 
@@ -170,7 +177,6 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
             r('University', 'Sengol International University'),
             r('Department', deptName),
             r('Program Name', progName),
-            r('Course Code', s.course_code),
           ].join('')}</table>
         </td>
         <td style="width:50%;vertical-align:top;">
@@ -189,22 +195,8 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
     </table>
   </div>
 
-  <!-- 2. CENTER INFO -->
-  ${sectionTitle(2, 'Center Information')}
-    <table>
-      <tr>
-        <td style="width:50%;vertical-align:top;padding-right:12px;">
-          <table>${r('Center Name', ctrName)}</table>
-        </td>
-        <td style="width:50%;vertical-align:top;">
-          <table>${r('Center Code', s.centers?.center_code)}</table>
-        </td>
-      </tr>
-    </table>
-  </div>
-
-  <!-- 3. PERSONAL INFORMATION -->
-  ${sectionTitle(3, 'Personal Information')}
+  <!-- 2. PERSONAL INFORMATION -->
+  ${sectionTitle(2, 'Personal Information')}
     <table style="width:100%;">
       <tr>
         <!-- LEFT: 2-column info grid -->
@@ -239,28 +231,28 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
           </table>
           <!-- Identification Marks — full width below grid -->
           ${s.identification_marks ? `<table style="width:100%;margin-top:2px;"><tr>
-            <td style="font-size:9.5px;font-weight:700;color:#666;white-space:nowrap;padding-right:6px;vertical-align:top;">Identification Marks</td>
+            <td style="width:1%;font-size:9.5px;font-weight:700;color:#666;white-space:nowrap;padding-right:6px;vertical-align:top;">Identification Marks</td>
             <td style="font-size:9.5px;color:#111;">: ${v(s.identification_marks)}</td>
           </tr></table>` : ''}
         </td>
         <!-- RIGHT: Photo box -->
-        <td style="width:92px;vertical-align:top;text-align:center;padding-left:6px;">
+        <td style="width:74px;vertical-align:top;text-align:center;padding-left:6px;">
           ${s.photo_url
-            ? `<img src="${s.photo_url}" alt="Photo" style="width:84px;height:104px;object-fit:cover;border:2px solid #e5e7eb;border-radius:4px;display:block;"/>`
-            : `<div style="width:84px;height:104px;border:1.5px dashed #d1d5db;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#f9fafb;"><span style="font-size:8px;color:#aaa;text-align:center;line-height:1.4;">Paste<br/>Photo<br/>Here</span></div>`
+            ? `<img src="${s.photo_url}" alt="Photo" style="width:66px;height:82px;object-fit:cover;border:2px solid #e5e7eb;border-radius:4px;display:block;"/>`
+            : `<div style="width:66px;height:82px;border:1.5px dashed #d1d5db;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#f9fafb;"><span style="font-size:7.5px;color:#aaa;text-align:center;line-height:1.4;">Paste<br/>Photo<br/>Here</span></div>`
           }
           <p style="font-size:8px;color:#666;margin-top:3px;font-weight:600;">Student Photo</p>
           ${s.signature_url
-            ? `<img src="${s.signature_url}" alt="Sig" style="width:84px;height:36px;object-fit:contain;border:1px solid #e5e7eb;border-radius:3px;margin-top:4px;display:block;background:#fff;"/><p style="font-size:8px;color:#666;margin-top:2px;font-weight:600;">Signature</p>`
-            : `<div style="width:84px;height:36px;border:1px dashed #d1d5db;border-radius:3px;margin-top:4px;background:#f9fafb;"></div><p style="font-size:8px;color:#666;margin-top:2px;font-weight:600;">Signature</p>`
+            ? `<img src="${s.signature_url}" alt="Sig" style="width:66px;height:30px;object-fit:contain;border:1px solid #e5e7eb;border-radius:3px;margin-top:4px;display:block;background:#fff;"/><p style="font-size:8px;color:#666;margin-top:2px;font-weight:600;">Signature</p>`
+            : `<div style="width:66px;height:30px;border:1px dashed #d1d5db;border-radius:3px;margin-top:4px;background:#f9fafb;"></div><p style="font-size:8px;color:#666;margin-top:2px;font-weight:600;">Signature</p>`
           }
         </td>
       </tr>
     </table>
   </div>
 
-  <!-- 4. FAMILY INFORMATION -->
-  ${sectionTitle(4, 'Family Information')}
+  <!-- 3. FAMILY INFORMATION -->
+  ${sectionTitle(3, 'Family Information')}
     <table>
       <tr>
         <td style="width:50%;vertical-align:top;padding-right:12px;">
@@ -283,8 +275,8 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
     </table>
   </div>
 
-  <!-- 5. ADDRESS -->
-  ${sectionTitle(5, 'Address Details')}
+  <!-- 4. ADDRESS -->
+  ${sectionTitle(4, 'Address Details')}
     <table>
       <tr>
         <td style="width:50%;vertical-align:top;padding-right:12px;"><table>
@@ -298,8 +290,8 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
     </table>
   </div>
 
-  <!-- 6. EDUCATION -->
-  ${sectionTitle(6, 'Academic / Education Qualification')}
+  <!-- 5. EDUCATION -->
+  ${sectionTitle(5, 'Academic / Education Qualification')}
     <table style="width:100%;">
       <thead>
         <tr style="background:#fef9f6;">
@@ -315,14 +307,20 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
     </table>
   </div>
 
-  <!-- 7. DOCUMENTS CHECKLIST -->
-  ${sectionTitle(7, 'Documents Submitted')}
+  <!-- 6. DOCUMENTS CHECKLIST -->
+  ${sectionTitle(6, 'Documents Submitted')}
     <table>
       <tr>
         ${docCheck('Student Photo', s.photo_url)}
         ${docCheck('Signature', s.signature_url)}
-        ${docCheck('Aadhar Card', s.aadhar_url)}
+        ${docCheck('Aadhar Front', s.aadhar_url)}
+        ${docCheck('Aadhar Back', s.aadhar_back_url)}
+      </tr>
+      <tr>
         ${docCheck('Declaration Form', s.declaration_url)}
+        ${docCheck('Transfer Certificate', s.tc_url)}
+        ${docCheck('Migration Certificate', s.migration_url)}
+        <td></td>
       </tr>
       <tr>
         ${docCheck('10th Marksheet', s.tenth_marksheet_url)}
@@ -343,20 +341,15 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
   <!-- SIGNATURES -->
   <table style="width:100%;margin-top:14px;">
     <tr>
-      <td style="width:33%;text-align:center;padding:0 8px;">
+      <td style="width:50%;text-align:center;padding:0 8px;">
         <div style="height:40px;border-bottom:1px solid #aaa;margin-bottom:3px;"></div>
         <p style="font-size:9px;color:#555;">Signature of Applicant</p>
         <p style="font-size:9px;color:#111;font-weight:700;margin-top:1px;">${v(s.student_name)}</p>
       </td>
-      <td style="width:33%;text-align:center;padding:0 8px;">
+      <td style="width:50%;text-align:center;padding:0 8px;">
         <div style="height:40px;border-bottom:1px solid #aaa;margin-bottom:3px;"></div>
         <p style="font-size:9px;color:#555;">Signature of Guardian</p>
         <p style="font-size:9px;color:#111;font-weight:700;margin-top:1px;">${v(s.guardian_name)}</p>
-      </td>
-      <td style="width:34%;text-align:center;padding:0 8px;">
-        <div style="height:40px;border-bottom:1px solid #aaa;margin-bottom:3px;"></div>
-        <p style="font-size:9px;color:#555;">Authorized Signatory / Center Stamp</p>
-        <p style="font-size:9px;color:#111;font-weight:700;margin-top:1px;">${ctrName}</p>
       </td>
     </tr>
   </table>
@@ -370,9 +363,13 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
         <td style="padding:3px 8px;font-size:9.5px;color:#555;width:33%;">Enrollment No: <strong style="color:#059669;">${v(s.enrollment_no)}</strong></td>
         <td style="padding:3px 8px;font-size:9.5px;color:#555;width:34%;">Reg No: <strong>${v(s.enrollment_no ? s.registration_no : '')}</strong></td>
       </tr>
+    </table>
+    <table style="width:100%;margin-top:10px;">
       <tr>
-        <td colspan="3" style="padding:3px 8px;font-size:9.5px;color:#555;">
-          Status: <strong style="color:${statusColor};">${v(s.status)}</strong>
+        <td style="width:60%;"></td>
+        <td style="width:40%;text-align:center;padding:0 8px;">
+          <div style="height:44px;border-bottom:1px solid #aaa;margin-bottom:3px;"></div>
+          <p style="font-size:9px;color:#555;">Authorized Signatory / University Stamp</p>
         </td>
       </tr>
     </table>
@@ -382,7 +379,7 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
   <div style="border-top:2px solid #933d18;margin-top:12px;padding-top:6px;text-align:center;">
     <p style="font-size:8.5px;color:#555;">${UNI_NAME} &nbsp;•&nbsp; ${UNI_ADDRESS}</p>
     <p style="font-size:8.5px;color:#933d18;margin-top:1px;font-weight:600;">${UNI_PHONE} &nbsp;|&nbsp; ${UNI_EMAIL} &nbsp;|&nbsp; ${UNI_WEB}</p>
-    <p style="font-size:7.5px;color:#bbb;margin-top:2px;">${UNI_ACT} &nbsp;•&nbsp; Generated: ${formatDate(new Date())}</p>
+    <p style="font-size:7.5px;color:#bbb;margin-top:2px;">${UNI_ACT}</p>
   </div>
 
 </div>
