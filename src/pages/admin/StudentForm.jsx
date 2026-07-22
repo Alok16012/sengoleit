@@ -548,6 +548,9 @@ export default function StudentForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [stepError, setStepError] = useState('')
   const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false, dueSem: 1, calendarActive: false })
+  // A Staging (draft) center collects no fee at entry — the fee is charged from
+  // the destination center only when the student is transferred/forwarded.
+  const [isStagingCenter, setIsStagingCenter] = useState(false)
   const [coupon, setCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
   const [availableCoupons, setAvailableCoupons] = useState([])
   // Program IDs that have a fee structure (admin) OR are allotted+approved to
@@ -609,9 +612,12 @@ export default function StudentForm() {
         setForm(f => (f.login_password ? f : { ...f, login_password: genStudentPassword() }))
       }
       if (!isAdmin && user?.email && !isEdit) {
-        supabase.from('centers').select('id, center_name').eq('email', user.email).single()
+        supabase.from('centers').select('id, center_name, is_staging').eq('email', user.email).single()
           .then(({ data: cd }) => {
-            if (cd) setForm(f => ({ ...f, center_id: cd.id, center_name: cd.center_name }))
+            if (cd) {
+              setForm(f => ({ ...f, center_id: cd.id, center_name: cd.center_name }))
+              setIsStagingCenter(!!cd.is_staging)
+            }
           })
       }
     })
@@ -644,12 +650,13 @@ export default function StudentForm() {
     })
   }, [isEdit, states, countries, form.student_perm_state, form.student_pres_state, form.guardian_pres_state, form.guardian_perm_state])
 
-  // Auto wallet check when on step 1 and program/semester/center changes
+  // Auto wallet check when on step 1 and program/semester/center changes.
+  // Skipped for a Staging center — no fee is collected there (charged on transfer).
   useEffect(() => {
-    if (step === 1 && form.programme_id && form.center_id && !isAdmin && !isEdit) {
+    if (step === 1 && form.programme_id && form.center_id && !isAdmin && !isEdit && !isStagingCenter) {
       runWalletCheck()
     }
-  }, [step, form.programme_id, form.session_id, form.date_of_submission, form.semester_year, form.center_id])
+  }, [step, form.programme_id, form.session_id, form.date_of_submission, form.semester_year, form.center_id, isStagingCenter])
 
   // Load this center's unused coupons so they can be picked from a dropdown
   useEffect(() => {
@@ -1077,7 +1084,8 @@ export default function StudentForm() {
     if (err) { setStepError(err); return }
     setStepError('')
 
-    if (step === 1 && !isAdmin && !isEdit) {
+    // Staging center collects no fee at entry, so skip the wallet gate entirely.
+    if (step === 1 && !isAdmin && !isEdit && !isStagingCenter) {
       const ok = walletInfo.checked ? walletInfo.ok : await runWalletCheck()
       if (!ok) {
         setStepError('Insufficient wallet balance. Please recharge your wallet before proceeding.')
@@ -1457,8 +1465,16 @@ export default function StudentForm() {
               )}
             </FormSection>
 
+            {/* Staging center: no fee at entry — charged on transfer. */}
+            {!isAdmin && !isEdit && isStagingCenter && (
+              <div className="mt-2 flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
+                <Wallet size={16} className="text-blue-500" />
+                <span>Staging center — no fee is charged here. The fee is held from the destination center when this student is transferred &amp; forwarded.</span>
+              </div>
+            )}
+
             {/* Wallet check panel */}
-            {!isAdmin && !isEdit && (
+            {!isAdmin && !isEdit && !isStagingCenter && (
               <div className="mt-2">
                 {walletInfo.checking ? (
                   <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-600">
