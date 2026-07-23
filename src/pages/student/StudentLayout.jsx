@@ -1,12 +1,12 @@
+import { useState, useRef, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { LayoutDashboard, User, IndianRupee, FileText, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck } from 'lucide-react'
+import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings } from 'lucide-react'
 
 const navItems = [
   { to: '/student/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/student/profile',          icon: User,            label: 'My Profile' },
   { to: '/student/fees',             icon: IndianRupee,     label: 'Fee Details' },
-  { to: '/student/documents',        icon: FileText,        label: 'My Documents' },
   { to: '/student/admission-form',   icon: ClipboardList,   label: 'Admission Form' },
   { to: '/student/registration-slip',icon: Receipt,         label: 'Registration Slip' },
   { to: '/student/id-card',          icon: CreditCard,      label: 'I Card' },
@@ -20,6 +20,14 @@ const navItems = [
 export default function StudentLayout() {
   const { student, loading, studentLogout } = useStudentAuth()
   const navigate = useNavigate()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    const onClick = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false) }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -101,8 +109,36 @@ export default function StudentLayout() {
             <button className="p-2.5 bg-white border border-gray-100 rounded-xl text-gray-500 hover:text-[#933d18] hover:border-[#933d18]/20 transition-all shadow-sm">
               <Bell size={18} />
             </button>
-            <div className="h-9 w-9 bg-[#933d18] rounded-xl flex items-center justify-center shadow-sm">
-              <span className="text-white font-bold text-sm">{student.student_name[0]?.toUpperCase()}</span>
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen(o => !o)}
+                className="h-9 w-9 bg-[#933d18] rounded-xl flex items-center justify-center shadow-sm hover:opacity-90 transition-opacity"
+              >
+                <span className="text-white font-bold text-sm">{student.student_name[0]?.toUpperCase()}</span>
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl border border-gray-100 shadow-lg py-1.5 z-50">
+                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-50">
+                    <User size={15} className="text-gray-400 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-gray-900 truncate">{student.student_name}</p>
+                      <p className="text-[10px] font-medium text-gray-400 font-mono">{student.enrollment_no}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => { setMenuOpen(false); navigate('/student/settings') }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    <Settings size={15} className="text-gray-400" /> Settings
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); handleLogout() }}
+                    className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <LogOut size={15} className="text-red-400" /> Sign Out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

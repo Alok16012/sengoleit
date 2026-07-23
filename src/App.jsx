@@ -68,8 +68,9 @@ import StudentLayout from './pages/student/StudentLayout'
 import StudentDashboard from './pages/student/StudentDashboard'
 import StudentProfile from './pages/student/StudentProfile'
 import StudentFees from './pages/student/StudentFees'
-import StudentDocuments from './pages/student/StudentDocuments'
 import StudentResults from './pages/student/StudentResults'
+import StudentAdmissionForm from './pages/student/StudentAdmissionForm'
+import StudentSettings from './pages/student/StudentSettings'
 import StudentIDCard from './pages/student/StudentIDCard'
 import StudentAdmitCard from './pages/student/StudentAdmitCard'
 import StudentRegistrationSlip from './pages/student/StudentRegistrationSlip'
@@ -104,10 +105,10 @@ export default function App() {
           <Route element={<StudentLayout />}>
             <Route path="/student/dashboard" element={<StudentDashboard />} />
             <Route path="/student/profile" element={<StudentProfile />} />
+            <Route path="/student/settings" element={<StudentSettings />} />
             <Route path="/student/fees" element={<StudentFees />} />
-            <Route path="/student/documents" element={<StudentDocuments />} />
             <Route path="/student/results" element={<StudentResults />} />
-            <Route path="/student/admission-form" element={<ComingSoon title="Admission Form" description="Download your admission form" />} />
+            <Route path="/student/admission-form" element={<StudentAdmissionForm />} />
             <Route path="/student/registration-slip" element={<StudentRegistrationSlip />} />
             <Route path="/student/id-card" element={<StudentIDCard />} />
             <Route path="/student/admit-card" element={<StudentAdmitCard />} />

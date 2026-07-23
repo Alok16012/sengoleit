@@ -66,7 +66,8 @@ export default function StudentAdmitCard() {
         </div>
       )}
 
-      {/* Preview */}
+      {/* Preview — only visible once the Exam Section has released the admit card */}
+      {isApproved && (<>
       <div className="bg-white border-2 border-gray-300 rounded-2xl overflow-hidden shadow-sm">
         {/* Header band */}
         <div className="bg-gray-900 text-white text-center py-2.5">
@@ -125,6 +126,7 @@ export default function StudentAdmitCard() {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-xs text-blue-700">
         This admit card is required for all university examinations. Present it along with your valid photo ID at the exam hall.
       </div>
+      </>)}
     </div>
   )
 }
