@@ -9,6 +9,7 @@ import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee } from '../../utils/courseFee'
+import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, EyeOff,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft,
@@ -624,7 +625,13 @@ export default function StudentForm() {
     })
     if (isEdit) {
       supabase.from('students').select('*').eq('id', id).single()
-        .then(({ data }) => { if (data) setForm(prev => ({ ...prev, ...data })) })
+        .then(async ({ data }) => {
+          if (!data) return
+          // Docs live in a private bucket; the stored URLs 404 unless converted
+          // to short-lived signed URLs — otherwise the View links / previews break.
+          const resolved = await resolveStudentDocUrls(data)
+          setForm(prev => ({ ...prev, ...resolved }))
+        })
     }
   }, [id])
 
