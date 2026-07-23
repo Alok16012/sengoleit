@@ -75,9 +75,10 @@ const baseStyle = `
   <style>
     * { box-sizing:border-box; margin:0; padding:0; }
     body { font-family:Arial,Helvetica,sans-serif; background:#f5f5f5; }
-    @page { margin:10mm; }
+    /* margin:0 so the browser omits its own header/footer (page title + URL) */
+    @page { margin:0; }
     @media print {
-      body { background:#fff; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      body { background:#fff; padding:8mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
       .no-print { display:none !important; }
     }
     table { border-collapse:collapse; }

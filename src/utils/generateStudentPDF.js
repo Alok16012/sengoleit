@@ -102,9 +102,11 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: "Times New Roman", Times, Georgia, serif; background: #fff; color: #111; font-size: 10px; }
-    @page { size: A4; margin: 12mm 10mm 12mm 10mm; }
+    /* margin:0 so the browser omits its own header/footer (page title + URL);
+       the page margins are preserved as body padding instead. */
+    @page { size: A4; margin: 0; }
     @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { padding: 12mm 10mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .no-print { display: none !important; }
     }
     .page { max-width: 780px; margin: 0 auto; }
