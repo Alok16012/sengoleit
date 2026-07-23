@@ -56,21 +56,6 @@ export default function StudentProfile() {
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-black text-gray-900">My Profile</h1>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-wrap items-start gap-10">
-        <div className="text-center">
-          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Student Photo</p>
-          {data.photo_url
-            ? <img src={data.photo_url} alt="Student" className="w-28 h-32 object-cover rounded-lg border-2 border-gray-200 shadow-sm" />
-            : <div className="w-28 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Photo</div>}
-        </div>
-        <div className="text-center">
-          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Signature</p>
-          {data.signature_url
-            ? <img src={data.signature_url} alt="Signature" className="w-44 h-32 object-contain rounded-lg border-2 border-gray-200 bg-white p-2 shadow-sm" />
-            : <div className="w-44 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Signature</div>}
-        </div>
-      </div>
-
       <Section title="Personal Information">
         <Field label="Full Name" value={data.student_name} />
         <Field label="Date of Birth" value={data.date_of_birth} />
@@ -127,6 +112,21 @@ export default function StudentProfile() {
         <Field label="District" value={data.guardian_perm_district} />
         <Field label="PIN Code" value={data.guardian_perm_pin_code} />
       </Section>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-wrap items-start gap-10">
+        <div className="text-center">
+          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Student Photo</p>
+          {data.photo_url
+            ? <img src={data.photo_url} alt="Student" className="w-28 h-32 object-cover rounded-lg border-2 border-gray-200 shadow-sm" />
+            : <div className="w-28 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Photo</div>}
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Signature</p>
+          {data.signature_url
+            ? <img src={data.signature_url} alt="Signature" className="w-44 h-32 object-contain rounded-lg border-2 border-gray-200 bg-white p-2 shadow-sm" />
+            : <div className="w-44 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Signature</div>}
+        </div>
+      </div>
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { generateIDCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
-import { CreditCard, Download, User, Droplets, Ruler, Fingerprint, Calendar, Hash } from 'lucide-react'
+import { CreditCard, Download } from 'lucide-react'
 
 export default function StudentIDCard() {
   const { student } = useStudentAuth()
@@ -38,12 +38,21 @@ export default function StudentIDCard() {
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
   if (!data) return <div className="p-8 text-center text-gray-400">No data found.</div>
 
-  const fields = [
-    { icon: Hash, label: 'Enrollment No', value: data.enrollment_no, mono: true, highlight: true },
-    { icon: Calendar, label: 'Valid Upto', value: data.valid_upto || '—' },
-    { icon: Droplets, label: 'Blood Group', value: data.blood_group },
-    { icon: Ruler, label: 'Height', value: data.height },
-    { icon: Fingerprint, label: 'Identification Marks', value: data.identification_marks },
+  const regNo = data.registration_no || data.enrollment_no || data.admission_number
+  const contact = data.mobile_no || data.whatsapp_no
+  const address = [
+    data.student_perm_village_town, data.student_perm_landmark, data.student_perm_city,
+    data.student_perm_district, data.student_perm_state,
+    data.student_perm_pin_code ? '- ' + data.student_perm_pin_code : null,
+  ].filter(Boolean).join(', ') || '—'
+
+  const rows = [
+    ['Registration No.', regNo, true],
+    ['Name', data.student_name],
+    ['F./H. Name', data.fathers_name],
+    ['Course', data.programs?.program_name],
+    ['Contact', contact],
+    ['Address', address],
   ]
 
   return (
@@ -62,47 +71,50 @@ export default function StudentIDCard() {
         </button>
       </div>
 
-      {/* Preview card */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        {/* Card header */}
-        <div className="bg-[#933d18] px-5 py-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-            <span className="text-white font-black text-lg">{data.student_name?.[0]?.toUpperCase()}</span>
-          </div>
-          <div>
-            <p className="text-white font-black text-base">{data.student_name}</p>
-            <p className="text-white/70 text-xs font-mono mt-0.5">{data.enrollment_no}</p>
-          </div>
-          {data.photo_url && (
-            <img src={data.photo_url} alt="Photo"
-              className="w-14 h-16 object-cover rounded-lg border-2 border-white/30 ml-auto shrink-0" />
-          )}
-        </div>
-
-        {/* Fields grid */}
-        <div className="p-5 grid grid-cols-2 gap-3">
-          {fields.map(({ icon: Icon, label, value, mono, highlight }) => (
-            <div key={label} className={`rounded-xl p-3 border ${highlight ? 'bg-[#933d18]/5 border-[#933d18]/20' : 'bg-gray-50 border-gray-100'}`}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <Icon size={11} className={highlight ? 'text-[#933d18]' : 'text-gray-400'} />
-                <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">{label}</p>
-              </div>
-              <p className={`text-sm font-semibold ${mono ? 'font-mono text-[#933d18]' : 'text-gray-900'}`}>{value || '—'}</p>
+      {/* Preview — matches the downloaded landscape ID card */}
+      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm max-w-xl">
+        {/* Top maroon band with white logo box */}
+        <div className="relative h-24">
+          <div className="absolute left-0 right-0 top-7 h-11 bg-[#933d18] border-b-2 border-[#d9a441]" />
+          <div className="absolute top-3 left-5 bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-md flex items-center gap-3">
+            <img src="/assets/logo.png" alt="Logo" className="w-12 h-12 object-contain" />
+            <div className="leading-none">
+              <div className="text-[#933d18] font-black text-base">SENGOL</div>
+              <div className="text-[#933d18] font-extrabold text-xs mt-0.5">INTERNATIONAL</div>
+              <div className="text-[#933d18] font-extrabold text-xs mt-0.5">UNIVERSITY</div>
             </div>
-          ))}
-          <div className="rounded-xl p-3 border bg-gray-50 border-gray-100">
-            <div className="flex items-center gap-1.5 mb-1">
-              <User size={11} className="text-gray-400" />
-              <p className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Programme</p>
-            </div>
-            <p className="text-sm font-semibold text-gray-900">{data.programs?.program_name || '—'}</p>
           </div>
         </div>
 
-        <div className="px-5 pb-4">
-          <div className="bg-gray-900 text-white text-center text-xs font-bold py-2 rounded-lg tracking-widest">
-            SENGOL INTERNATIONAL UNIVERSITY — STUDENT IDENTITY CARD
+        {/* UGC line */}
+        <p className="text-center text-[9px] font-bold text-gray-600 px-2 pb-1.5">
+          Estb. by the Act of State Govt. &amp; Under Section 2(f) of UGC Act 1956. Govt. of India
+        </p>
+
+        {/* Body: photo + seal | details */}
+        <div className="flex gap-4 px-5 pb-4">
+          <div className="w-28 shrink-0 relative">
+            {data.photo_url
+              ? <img src={data.photo_url} alt="Photo" className="w-28 h-32 object-cover rounded-lg border border-gray-300" />
+              : <div className="w-28 h-32 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">Photo</div>}
+            <img src="/assets/logo.png" alt="" className="absolute left-8 -bottom-1 w-16 h-16 object-contain opacity-30 rounded-full" />
           </div>
+          <table className="flex-1">
+            <tbody>
+              {rows.map(([label, value, hi]) => (
+                <tr key={label}>
+                  <td className={`align-top py-0.5 pr-1 whitespace-nowrap w-28 text-[13px] font-semibold ${hi ? 'text-[#933d18]' : 'text-gray-700'}`}>{label}</td>
+                  <td className={`align-top py-0.5 text-[13px] ${hi ? 'text-[#933d18] font-bold' : 'text-gray-800'}`}>: {value || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Bottom band: address + website */}
+        <div className="bg-[#933d18] border-t-2 border-[#d9a441] flex items-stretch justify-between">
+          <span className="text-white text-[11px] font-bold px-4 py-1.5 self-center">Address: Lower Pepthang, PO - Lingmoo, District - Namchi, Sikkim - 737134</span>
+          <span className="bg-[#d9a441] text-[#3a2000] text-[11px] font-extrabold px-4 flex items-center">www.sengolinternationaluniversity.edu.in</span>
         </div>
       </div>
 

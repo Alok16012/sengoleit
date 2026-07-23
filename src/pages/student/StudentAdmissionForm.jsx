@@ -17,7 +17,7 @@ export default function StudentAdmissionForm() {
     async function load() {
       const { data: raw } = await supabase
         .from('students')
-        .select('*, programs(program_name, short_name), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
+        .select('*, programs(program_name, short_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
         .eq('id', student.id)
         .single()
       if (raw) {

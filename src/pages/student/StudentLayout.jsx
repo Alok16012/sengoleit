@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings } from 'lucide-react'
+import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings, Menu } from 'lucide-react'
 
 const navItems = [
   { to: '/student/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
@@ -21,6 +21,7 @@ export default function StudentLayout() {
   const { student, loading, studentLogout } = useStudentAuth()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export default function StudentLayout() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
-      <div className="flex flex-col h-full bg-white border-r border-gray-100 w-64 shrink-0">
+      <div className={`flex flex-col h-full bg-white border-r border-gray-100 shrink-0 overflow-hidden transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-0 border-r-0'}`}>
         <div className="p-5 flex items-center space-x-3 border-b border-gray-50">
           <div className="h-10 w-10 bg-[#933d18] rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
             <img src="/assets/logo.png" alt="Logo" className="w-7 h-7 object-contain"
@@ -101,9 +102,18 @@ export default function StudentLayout() {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="h-16 flex items-center justify-between px-8 border-b border-gray-100 bg-white shrink-0">
-          <div>
-            <p className="text-sm font-bold text-gray-900">{student.student_name}</p>
-            <p className="text-xs text-gray-400 font-mono">{student.enrollment_no}</p>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSidebarOpen(o => !o)}
+              title={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+              className="p-2 -ml-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-[#933d18] transition-all"
+            >
+              <Menu size={20} />
+            </button>
+            <div>
+              <p className="text-sm font-bold text-gray-900">{student.student_name}</p>
+              <p className="text-xs text-gray-400 font-mono">{student.enrollment_no}</p>
+            </div>
           </div>
           <div className="flex items-center space-x-4">
             <button className="p-2.5 bg-white border border-gray-100 rounded-xl text-gray-500 hover:text-[#933d18] hover:border-[#933d18]/20 transition-all shadow-sm">

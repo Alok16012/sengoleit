@@ -392,28 +392,22 @@ export function generateRegistrationCertificate(s) {
               <td class="info-val">: &nbsp;${v(s.perm_pin_code || s.student_perm_pin_code)}</td>
             </tr>
           </table>
-
-          <!-- Student signature line -->
-          <div style="margin-top:24px;text-align:left;">
-            ${s.signature_url
-              ? `<img src="${s.signature_url}" style="height:38px;max-width:140px;object-fit:contain;display:block;border-bottom:1px solid #888;padding-bottom:2px;"/>`
-              : `<div style="height:38px;width:140px;border-bottom:1px solid #888;"></div>`
-            }
-            <p style="font-size:8.5px;color:#555;margin-top:3px;font-style:italic;">Student Signature</p>
-          </div>
         </td>
 
-        <!-- Right: photo -->
+        <!-- Right: photo + student signature box (no registrar) -->
         <td style="width:140px;vertical-align:top;text-align:center;padding:16px 12px;">
           ${s.photo_url
             ? `<img src="${s.photo_url}" alt="Photo" style="width:108px;height:132px;object-fit:cover;border:2px solid #ccc;display:block;margin:0 auto;"/>`
             : `<div style="width:108px;height:132px;border:1.5px solid #ccc;display:flex;align-items:center;justify-content:center;background:#fafafa;margin:0 auto;"><span style="font-size:8px;color:#bbb;text-align:center;">Photo<br/>Here</span></div>`
           }
-          <p style="font-size:8px;color:#555;margin-top:4px;">(Affixed by student)</p>
 
-          <div style="margin-top:32px;">
-            <div style="height:40px;width:108px;border-bottom:1px solid #888;margin:0 auto;"></div>
-            <p style="font-size:8px;color:#555;margin-top:4px;">Registrar / Controller</p>
+          <!-- Student Signature box below the photo -->
+          <div style="margin:14px auto 0;width:108px;height:58px;border:1.5px solid #999;position:relative;background:#fff;">
+            ${s.signature_url
+              ? `<img src="${s.signature_url}" style="max-width:100px;max-height:36px;object-fit:contain;position:absolute;top:5px;left:50%;transform:translateX(-50%);"/>`
+              : ''
+            }
+            <span style="position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:8px;color:#555;">Student Signature</span>
           </div>
         </td>
       </tr>

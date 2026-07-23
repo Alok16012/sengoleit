@@ -285,10 +285,9 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
       <tr>
         <td style="width:50%;vertical-align:top;padding-right:12px;"><table>
           ${r('Permanent Address', addrText(s, 'student_perm'))}
-          ${r('Present Address', addrText(s, 'student_pres'))}
         </table></td>
         <td style="width:50%;vertical-align:top;"><table>
-          ${r("Guardian's Address", addrText(s, 'guardian_pres'))}
+          ${r('Present Address', addrText(s, 'student_pres'))}
         </table></td>
       </tr>
     </table>
