@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { ChevronDown } from 'lucide-react'
 
 function Field({ label, value }) {
   return (
@@ -11,11 +13,22 @@ function Field({ label, value }) {
   )
 }
 
-function Section({ title, children }) {
+function Section({ title, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-4">{title}</p>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">{children}</div>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`w-full flex items-center justify-between group ${open ? 'mb-4' : ''}`}
+      >
+        <span className="text-[10px] font-black text-[#933d18] uppercase tracking-widest">{title}</span>
+        <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 group-hover:text-[#933d18] transition-colors">
+          {open ? 'Hide' : 'Show'}
+          <ChevronDown size={14} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
+        </span>
+      </button>
+      {open && <div className="grid grid-cols-2 md:grid-cols-3 gap-4">{children}</div>}
     </div>
   )
 }
@@ -28,7 +41,12 @@ export default function StudentProfile() {
   useEffect(() => {
     if (!student?.id) return
     supabase.from('students').select('*').eq('id', student.id).single()
-      .then(({ data }) => { setData(data); setLoading(false) })
+      .then(async ({ data }) => {
+        // Photo/signature live in a private bucket — resolve to signed URLs so
+        // they actually load (raw stored URLs 404).
+        setData(data ? await resolveStudentDocUrls(data) : data)
+        setLoading(false)
+      })
   }, [student?.id])
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
@@ -37,6 +55,21 @@ export default function StudentProfile() {
   return (
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-black text-gray-900">My Profile</h1>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-wrap items-start gap-10">
+        <div className="text-center">
+          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Student Photo</p>
+          {data.photo_url
+            ? <img src={data.photo_url} alt="Student" className="w-28 h-32 object-cover rounded-lg border-2 border-gray-200 shadow-sm" />
+            : <div className="w-28 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Photo</div>}
+        </div>
+        <div className="text-center">
+          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Signature</p>
+          {data.signature_url
+            ? <img src={data.signature_url} alt="Signature" className="w-44 h-32 object-contain rounded-lg border-2 border-gray-200 bg-white p-2 shadow-sm" />
+            : <div className="w-44 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Signature</div>}
+        </div>
+      </div>
 
       <Section title="Personal Information">
         <Field label="Full Name" value={data.student_name} />
@@ -66,23 +99,23 @@ export default function StudentProfile() {
       </Section>
 
       <Section title="Permanent Address">
-        <Field label="Village / Town" value={data.perm_village_town} />
-        <Field label="Landmark" value={data.perm_landmark} />
-        <Field label="Post Office" value={data.perm_post_office} />
-        <Field label="City" value={data.perm_city} />
-        <Field label="State" value={data.perm_state} />
-        <Field label="District" value={data.perm_district} />
-        <Field label="PIN Code" value={data.perm_pin_code} />
+        <Field label="Village / Town" value={data.student_perm_village_town} />
+        <Field label="Landmark" value={data.student_perm_landmark} />
+        <Field label="Post Office" value={data.student_perm_post_office} />
+        <Field label="City" value={data.student_perm_city} />
+        <Field label="State" value={data.student_perm_state} />
+        <Field label="District" value={data.student_perm_district} />
+        <Field label="PIN Code" value={data.student_perm_pin_code} />
       </Section>
 
       <Section title="Present Address">
-        <Field label="Village / Town" value={data.pres_village_town} />
-        <Field label="Landmark" value={data.pres_landmark} />
-        <Field label="Post Office" value={data.pres_post_office} />
-        <Field label="City" value={data.pres_city} />
-        <Field label="State" value={data.pres_state} />
-        <Field label="District" value={data.pres_district} />
-        <Field label="PIN Code" value={data.pres_pin_code} />
+        <Field label="Village / Town" value={data.student_pres_village_town} />
+        <Field label="Landmark" value={data.student_pres_landmark} />
+        <Field label="Post Office" value={data.student_pres_post_office} />
+        <Field label="City" value={data.student_pres_city} />
+        <Field label="State" value={data.student_pres_state} />
+        <Field label="District" value={data.student_pres_district} />
+        <Field label="PIN Code" value={data.student_pres_pin_code} />
       </Section>
 
       <Section title="Guardian Permanent Address">
