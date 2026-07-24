@@ -27,6 +27,7 @@ import SessionForm from './pages/admin/SessionForm'
 import Location from './pages/admin/Location'
 import AccountDepartment from './pages/admin/AccountDepartment'
 import DocumentDepartment from './pages/admin/DocumentDepartment'
+import ResearchDepartment from './pages/admin/ResearchDepartment'
 import FeeManagement from './pages/admin/FeeManagement'
 import Boards from './pages/admin/Boards'
 import WalletSummary from './pages/admin/WalletSummary'
@@ -159,6 +160,7 @@ export default function App() {
             <Route path="/admin/location" element={<Location />} />
             <Route path="/admin/account-department" element={<AccountDepartment />} />
             <Route path="/admin/document-department" element={<DocumentDepartment />} />
+            <Route path="/admin/research-department" element={<ResearchDepartment />} />
             <Route path="/admin/fee-management" element={<FeeManagement />} />
             <Route path="/admin/boards" element={<Boards />} />
             <Route path="/admin/wallet-summary" element={<WalletSummary />} />

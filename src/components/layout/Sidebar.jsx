@@ -9,7 +9,7 @@ import {
   UserPlus, FileText, Truck, FileCheck, UserCheck,
   Clock, CheckCircle, XCircle, ClipboardList, CreditCard, Send,
   GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag,
-  ChevronDown, ChevronRight, ShieldCheck, IndianRupee
+  ChevronDown, ChevronRight, ShieldCheck, IndianRupee, FlaskConical
 } from 'lucide-react'
 
 const adminLinks = [
@@ -26,6 +26,7 @@ const adminLinks = [
   { to: '/admin/students', icon: Users, label: 'Students' },
   { to: '/admin/document-department', icon: ShieldCheck, label: 'Document Dept.' },
   { to: '/admin/account-department', icon: Wallet, label: 'Account Dept.' },
+  { to: '/admin/research-department', icon: FlaskConical, label: 'Research Dept.' },
   { to: '/admin/wallet-summary', icon: TrendingUp, label: 'Wallet Summary' },
   { to: '/admin/coupons', icon: Ticket, label: 'Coupon Management' },
   { to: '/admin/fee-management', icon: IndianRupee, label: 'Fee Management' },
