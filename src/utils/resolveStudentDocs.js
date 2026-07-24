@@ -19,11 +19,17 @@ export async function resolveStudentDocUrls(student, bucket = 'student-docs') {
   const resolved = { ...student }
   await Promise.all(
     DOC_FIELDS.map(async field => {
-      const path = extractPath(student[field], bucket)
-      if (path) {
+      const raw = student[field]
+      if (!raw) return
+      // A field may hold one URL or several comma-joined (multi-file marksheets).
+      const parts = String(raw).split(',').map(p => p.trim()).filter(Boolean)
+      const out = await Promise.all(parts.map(async url => {
+        const path = extractPath(url, bucket)
+        if (!path) return url
         const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 7200)
-        if (data?.signedUrl) resolved[field] = data.signedUrl
-      }
+        return data?.signedUrl || url
+      }))
+      resolved[field] = out.join(',')
     })
   )
   return resolved

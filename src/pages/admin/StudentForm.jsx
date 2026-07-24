@@ -314,10 +314,11 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
               className="bg-[#933d18]/5 text-[#933d18] font-bold cursor-not-allowed"
             />
             <FileField
-              label="Marksheet"
+              label="Marksheet (multiple allowed)"
               fieldKey={marksheetKey}
               accept="image/*,application/pdf"
               isImage={false}
+              multiple
               value={form[marksheetKey]}
               onUpload={onUpload}
               isUploading={!!uploading[marksheetKey]}
@@ -330,7 +331,8 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
   )
 }
 
-function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUploading, readOnly }) {
+function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUploading, readOnly, multiple }) {
+  const urls = value ? String(value).split(',').filter(Boolean) : []
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-semibold text-gray-600 ml-0.5">{label}</label>
@@ -339,21 +341,26 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUpload
           <label className={`cursor-pointer flex items-center gap-2 px-3 py-2 border rounded-xl text-xs font-semibold transition-all
             ${isUploading ? 'border-gray-200 text-gray-400 cursor-not-allowed bg-gray-50' : 'border-[#933d18]/30 text-[#933d18] hover:bg-[#933d18]/5 bg-white'}`}>
             <Upload size={12} />
-            {isUploading ? 'Uploading...' : value ? 'Change' : 'Upload'}
-            <input type="file" accept={accept} className="hidden" disabled={isUploading}
-              onChange={e => e.target.files[0] && onUpload(fieldKey, e.target.files[0])} />
+            {isUploading ? 'Uploading...' : (urls.length ? (multiple ? 'Add More' : 'Change') : (multiple ? 'Upload Files' : 'Upload'))}
+            <input type="file" accept={accept} multiple={multiple} className="hidden" disabled={isUploading}
+              onChange={e => {
+                if (!e.target.files.length) return
+                if (multiple) onUpload(fieldKey, Array.from(e.target.files), true)
+                else onUpload(fieldKey, e.target.files[0])
+                e.target.value = ''
+              }} />
           </label>
         )}
-        {value && isImage && (
-          <img src={value} alt={label} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
+        {urls[0] && isImage && (
+          <img src={urls[0]} alt={label} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
         )}
-        {value && (
-          <a href={value} target="_blank" rel="noreferrer"
+        {urls.map((u, i) => (
+          <a key={i} href={u} target="_blank" rel="noreferrer"
             className="flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
-            <Eye size={12} /> View
+            <Eye size={12} /> View{urls.length > 1 ? ` ${i + 1}` : ''}
           </a>
-        )}
-        {!value && <span className="text-xs text-gray-400 italic">{readOnly ? '—' : 'No file'}</span>}
+        ))}
+        {!urls.length && <span className="text-xs text-gray-400 italic">{readOnly ? '—' : 'No file'}</span>}
       </div>
     </div>
   )
@@ -882,15 +889,26 @@ export default function StudentForm() {
   // Entry semester is fixed by the program, so lock the field for center entries.
   const semesterLocked = !isAdmin && !isEdit && !!form.programme_id
 
-  async function handleFileUpload(fieldKey, file) {
+  // `append` (used by multi-file fields like marksheets) keeps existing uploads
+  // and stores all URLs comma-joined in the same column; otherwise it replaces.
+  async function handleFileUpload(fieldKey, fileOrFiles, append = false) {
+    const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles]
+    if (!files.length) return
     setUploading(u => ({ ...u, [fieldKey]: true }))
     try {
-      const ext = file.name.split('.').pop()
-      const path = `${Date.now()}_${fieldKey}.${ext}`
-      const { error } = await supabase.storage.from('student-docs').upload(path, file, { upsert: true })
-      if (error) throw error
-      const { data: { publicUrl } } = supabase.storage.from('student-docs').getPublicUrl(path)
-      setForm(f => ({ ...f, [fieldKey]: publicUrl }))
+      const urls = []
+      for (const file of files) {
+        const ext = file.name.split('.').pop()
+        const path = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${fieldKey}.${ext}`
+        const { error } = await supabase.storage.from('student-docs').upload(path, file, { upsert: true })
+        if (error) throw error
+        const { data: { publicUrl } } = supabase.storage.from('student-docs').getPublicUrl(path)
+        urls.push(publicUrl)
+      }
+      setForm(f => {
+        const prev = append && f[fieldKey] ? String(f[fieldKey]).split(',').filter(Boolean) : []
+        return { ...f, [fieldKey]: [...prev, ...urls].join(',') }
+      })
     } catch (err) {
       alert('Upload failed: ' + err.message)
     }
