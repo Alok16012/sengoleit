@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save } from 'lucide-react'
+import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus } from 'lucide-react'
 import { generateOfferLetter, generateEntranceClearance, isPhdProgram } from '../../utils/generateStudentCards'
 import { formatDate } from '../../utils/formatDate'
 
@@ -20,36 +20,60 @@ export default function ResearchDepartment() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
-  // Master panel — the reference series + date used when generating documents.
-  const [cfg, setCfg] = useState({ prefix: 'SIU/PhD/2025/', nextNum: 1, date: new Date().toISOString().slice(0, 10) })
-  const [assigned, setAssigned] = useState({}) // { studentId: refNumber } — same ref for both docs of a student
+  // Master panel — each letter type has its own reference series + date.
+  const today = new Date().toISOString().slice(0, 10)
+  const DEFAULT_LETTERS = [
+    { name: 'Offer Letter', prefix: 'SIU/PhD/OL/2025/', nextNum: 1, date: today },
+    { name: 'Entrance Certificate', prefix: 'SIU/PhD/EC/2025/', nextNum: 1, date: today },
+  ]
+  const [letters, setLetters] = useState(DEFAULT_LETTERS)
+  const [selIdx, setSelIdx] = useState(0)
+  const [newName, setNewName] = useState('')
+  const [assigned, setAssigned] = useState({}) // { [letterName]: { [studentId]: num } }
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null')
-      if (s?.cfg) setCfg(s.cfg)
+      if (Array.isArray(s?.letters) && s.letters.length) setLetters(s.letters)
       if (s?.assigned) setAssigned(s.assigned)
     } catch { /* ignore */ }
   }, [])
 
-  function persist(nextCfg, nextAssigned) {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ cfg: nextCfg, assigned: nextAssigned }))
+  const sel = letters[selIdx] || letters[0]
+  function persist(nextLetters, nextAssigned) {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters: nextLetters, assigned: nextAssigned }))
   }
-  function saveCfg() { persist(cfg, assigned); setSaved(true); setTimeout(() => setSaved(false), 1500) }
+  function updateSel(patch) { setLetters(ls => ls.map((l, i) => i === selIdx ? { ...l, ...patch } : l)) }
+  function saveCfg() { persist(letters, assigned); setSaved(true); setTimeout(() => setSaved(false), 1500) }
 
-  // Reuse a student's assigned reference; assign the next one on first use.
-  function refFor(student) {
-    let num = assigned[student.id]
-    if (num == null) {
-      num = Number(cfg.nextNum) || 1
-      const nextAssigned = { ...assigned, [student.id]: num }
-      const nextCfg = { ...cfg, nextNum: num + 1 }
-      setAssigned(nextAssigned); setCfg(nextCfg); persist(nextCfg, nextAssigned)
-    }
-    return `${cfg.prefix}${num}`
+  function addLetter() {
+    const name = newName.trim()
+    if (!name) return
+    const exists = letters.findIndex(l => l.name.toLowerCase() === name.toLowerCase())
+    if (exists >= 0) { setSelIdx(exists); setNewName(''); return }
+    const next = [...letters, { name, prefix: '', nextNum: 1, date: today }]
+    setLetters(next); setSelIdx(next.length - 1); setNewName(''); persist(next, assigned)
   }
-  const docOpts = (student) => ({ refNo: refFor(student), date: cfg.date ? formatDate(cfg.date) : undefined })
+
+  // Assign / reuse a student's reference for a specific letter type.
+  function refFor(student, letterName) {
+    const li = letters.findIndex(l => l.name === letterName)
+    const letter = li >= 0 ? letters[li] : sel
+    const map = assigned[letterName] || {}
+    let num = map[student.id]
+    if (num == null) {
+      num = Number(letter.nextNum) || 1
+      const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
+      const nextLetters = li >= 0 ? letters.map((l, i) => i === li ? { ...l, nextNum: num + 1 } : l) : letters
+      setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
+    }
+    return `${letter.prefix}${num}`
+  }
+  function docOptsFor(student, letterName) {
+    const letter = letters.find(l => l.name === letterName) || sel
+    return { refNo: refFor(student, letterName), date: letter.date ? formatDate(letter.date) : undefined }
+  }
 
   useEffect(() => { load() }, [])
 
@@ -77,30 +101,49 @@ export default function ResearchDepartment() {
     <div className="p-6 space-y-5">
       <PageHeader title="Research Department" subtitle="Ph.D candidates (account-verified) — generate offer letter & entrance clearance" />
 
-      {/* Master panel — set once; used on every document generated below */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-4">
+      {/* Master panel — per-letter reference series + date */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <div className="flex items-center gap-2">
           <Settings2 size={16} className="text-[#933d18]" />
-          <p className="text-sm font-bold text-gray-900">Master Panel — Reference Series & Date</p>
+          <p className="text-sm font-bold text-gray-900">Master Panel — Letters, Reference Series & Date</p>
         </div>
-        <div className="flex items-end gap-4 flex-wrap">
+
+        {/* Add a new letter name */}
+        <div className="flex items-end gap-2 flex-wrap">
           <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Reference Prefix</label>
-            <input value={cfg.prefix} onChange={e => setCfg(c => ({ ...c, prefix: e.target.value }))}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48" placeholder="SIU/PhD/2025/" />
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Add Letter Name</label>
+            <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLetter()}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-56" placeholder="e.g. Provisional Letter" />
+          </div>
+          <Button variant="secondary" size="md" onClick={addLetter}><Plus size={14} /> Add</Button>
+        </div>
+
+        {/* Select a letter, then set its reference + date */}
+        <div className="flex items-end gap-4 flex-wrap border-t border-gray-100 pt-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Letter</label>
+            <select value={selIdx} onChange={e => setSelIdx(Number(e.target.value))}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-56">
+              {letters.map((l, i) => <option key={i} value={i}>{l.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Reference No. (prefix)</label>
+            <input value={sel?.prefix || ''} onChange={e => updateSel({ prefix: e.target.value })}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48" placeholder="SIU/PhD/OL/2025/" />
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Next No.</label>
-            <input type="number" min="1" value={cfg.nextNum} onChange={e => setCfg(c => ({ ...c, nextNum: e.target.value }))}
+            <input type="number" min="1" value={sel?.nextNum ?? 1} onChange={e => updateSel({ nextNum: e.target.value })}
               className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-24" />
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Date</label>
-            <input type="date" value={cfg.date} onChange={e => setCfg(c => ({ ...c, date: e.target.value }))}
+            <input type="date" value={sel?.date || ''} onChange={e => updateSel({ date: e.target.value })}
               className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
           </div>
           <Button variant="primary" size="md" onClick={saveCfg}><Save size={14} /> {saved ? 'Saved ✓' : 'Save'}</Button>
-          <p className="text-[11px] text-gray-400">Next document → <span className="font-mono font-bold text-[#933d18]">{cfg.prefix}{cfg.nextNum}</span></p>
+          <p className="text-[11px] text-gray-400">Next → <span className="font-mono font-bold text-[#933d18]">{sel?.prefix}{sel?.nextNum}</span></p>
         </div>
       </div>
 
@@ -140,9 +183,9 @@ export default function ResearchDepartment() {
               </Td>
               <Td className="font-mono text-xs font-bold text-[#933d18]">
                 {s.registration_no || s.admission_number || '—'}
-                {assigned[s.id] != null && (
-                  <div className="text-[10px] text-gray-400 font-normal mt-0.5">Doc Ref: {cfg.prefix}{assigned[s.id]}</div>
-                )}
+                {letters.map(l => assigned[l.name]?.[s.id] != null && (
+                  <div key={l.name} className="text-[10px] text-gray-400 font-normal mt-0.5">{l.name}: {l.prefix}{assigned[l.name][s.id]}</div>
+                ))}
               </Td>
               <Td className="text-sm">{s.programs?.program_name || '—'}</Td>
               <Td className="text-sm">{s.specialization || '—'}</Td>
@@ -150,10 +193,10 @@ export default function ResearchDepartment() {
               <Td className="text-sm">{s.centers?.center_name || '—'}</Td>
               <Td>
                 <div className="flex gap-2 flex-wrap">
-                  <Button size="sm" variant="secondary" onClick={() => generateOfferLetter(s, docOpts(s))}>
+                  <Button size="sm" variant="secondary" onClick={() => generateOfferLetter(s, docOptsFor(s, 'Offer Letter'))}>
                     <FileCheck2 size={13} /> Offer Letter
                   </Button>
-                  <Button size="sm" variant="primary" onClick={() => generateEntranceClearance(s, docOpts(s))}>
+                  <Button size="sm" variant="primary" onClick={() => generateEntranceClearance(s, docOptsFor(s, 'Entrance Certificate'))}>
                     <ShieldCheck size={13} /> Entrance Certificate
                   </Button>
                 </div>
