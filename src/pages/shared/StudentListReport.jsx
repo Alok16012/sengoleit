@@ -103,7 +103,12 @@ export default function StudentListReport({ status }) {
 
     const { data: students } = await q.order('created_at', { ascending: false })
 
-    setData(students || [])
+    // Staging-center students are admin-managed drafts (entered for Transfer &
+    // Forward) — they must not appear in the CENTER portal's own lists.
+    const rows = role === 'center'
+      ? (students || []).filter(s => !s.centers?.is_staging)
+      : (students || [])
+    setData(rows)
     setLoading(false)
   }
 
