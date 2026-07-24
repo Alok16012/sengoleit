@@ -23,11 +23,13 @@ export default function ResearchDepartment() {
   async function load() {
     setLoading(true)
     // Account-verified students land here (status Approved). We keep only Ph.D.
-    const { data } = await supabase
-      .from('students')
-      .select('id, student_name, registration_no, enrollment_no, admission_number, specialization, fathers_name, mobile_no, date_of_birth, academic_year, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, programme_types(programme_type_name)), academic_sessions(session_name), departments(name), centers(center_name, center_code)')
-      .eq('status', 'Approved')
-      .order('created_at', { ascending: false })
+    const base = 'id, student_name, registration_no, enrollment_no, admission_number, fathers_name, mobile_no, date_of_birth, academic_year, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, programme_types(programme_type_name)), academic_sessions(session_name), departments(name), centers(center_name, center_code)'
+    const run = (cols) => supabase.from('students').select(cols).eq('status', 'Approved').order('created_at', { ascending: false })
+    // `specialization` may not be migrated yet — fall back to a query without it.
+    let { data, error } = await run('specialization, ' + base)
+    if (error && /specialization/.test(error.message || '')) {
+      ({ data } = await run(base))
+    }
     setRows((data || []).filter(isResearchStudent))
     setLoading(false)
   }
