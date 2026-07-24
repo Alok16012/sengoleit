@@ -71,6 +71,8 @@ import StudentFees from './pages/student/StudentFees'
 import StudentResults from './pages/student/StudentResults'
 import StudentAdmissionForm from './pages/student/StudentAdmissionForm'
 import StudentSettings from './pages/student/StudentSettings'
+import StudentOfferLetter from './pages/student/StudentOfferLetter'
+import StudentEntranceClearance from './pages/student/StudentEntranceClearance'
 import StudentIDCard from './pages/student/StudentIDCard'
 import StudentAdmitCard from './pages/student/StudentAdmitCard'
 import StudentRegistrationSlip from './pages/student/StudentRegistrationSlip'
@@ -110,6 +112,8 @@ export default function App() {
             <Route path="/student/results" element={<StudentResults />} />
             <Route path="/student/admission-form" element={<StudentAdmissionForm />} />
             <Route path="/student/registration-slip" element={<StudentRegistrationSlip />} />
+            <Route path="/student/offer-letter" element={<StudentOfferLetter />} />
+            <Route path="/student/entrance-clearance" element={<StudentEntranceClearance />} />
             <Route path="/student/id-card" element={<StudentIDCard />} />
             <Route path="/student/admit-card" element={<StudentAdmitCard />} />
             <Route path="/student/online-exam" element={<ComingSoon title="Online Exam" description="Appear for your scheduled online exams" />} />

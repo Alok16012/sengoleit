@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings, Menu } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { isPhdProgram } from '../../utils/generateStudentCards'
+import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings, Menu, FileCheck2, ShieldCheck } from 'lucide-react'
 
-const navItems = [
+const baseNavItems = [
   { to: '/student/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/student/profile',          icon: User,            label: 'My Profile' },
   { to: '/student/fees',             icon: IndianRupee,     label: 'Fee Details' },
@@ -17,11 +19,18 @@ const navItems = [
   { to: '/student/ebook',            icon: BookOpenCheck,   label: 'E-Book' },
 ]
 
+// Ph.D-only documents, inserted after the I Card entry.
+const phdNavItems = [
+  { to: '/student/offer-letter',        icon: FileCheck2,  label: 'Offer Letter' },
+  { to: '/student/entrance-clearance',  icon: ShieldCheck, label: 'Entrance Clearance' },
+]
+
 export default function StudentLayout() {
   const { student, loading, studentLogout } = useStudentAuth()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isPhd, setIsPhd] = useState(false)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -29,6 +38,17 @@ export default function StudentLayout() {
     document.addEventListener('mousedown', onClick)
     return () => document.removeEventListener('mousedown', onClick)
   }, [])
+
+  // Ph.D students get extra document menu items (Offer Letter, Entrance Clearance).
+  useEffect(() => {
+    if (!student?.id) return
+    supabase.from('students').select('programs(program_name)').eq('id', student.id).single()
+      .then(({ data }) => setIsPhd(isPhdProgram(data?.programs?.program_name)))
+  }, [student?.id])
+
+  const navItems = isPhd
+    ? [...baseNavItems.slice(0, 6), ...phdNavItems, ...baseNavItems.slice(6)]
+    : baseNavItems
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

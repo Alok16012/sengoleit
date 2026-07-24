@@ -19,6 +19,11 @@ function v(val) {
   return val && String(val).trim() ? String(val).trim() : '—'
 }
 
+// A PhD / doctoral entry — detected from the program name.
+export function isPhdProgram(name) {
+  return /ph\.?\s*d|doctor of philosophy|doctoral/i.test(String(name || ''))
+}
+
 function fmtDate(d) {
   return formatDate(d)
 }
@@ -91,6 +96,9 @@ export function generateIDCard(s) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const regNo = s.registration_no || s.enrollment_no || s.admission_number
   const contact = s.mobile_no || s.whatsapp_no
+  const validity = s.academic_year || s.academic_sessions?.session_name || '—'
+  // PhD entries carry a Reference No in place of the Registration No.
+  const regLabel = isPhdProgram(prog) ? 'Reference No.' : 'Registration No.'
 
   // Full single-block address, comma-joined (matches the reference layout).
   const address = [
@@ -138,28 +146,37 @@ export function generateIDCard(s) {
     <!-- Body: photo/seal/signature | details -->
     <div style="display:flex;gap:16px;padding:4px 22px 14px;">
       <!-- Left column -->
-      <div style="width:132px;flex-shrink:0;position:relative;">
-        ${s.photo_url
-          ? `<img src="${s.photo_url}" alt="Photo" style="width:118px;height:138px;object-fit:cover;border:1px solid #bbb;border-radius:8px;display:block;"/>`
-          : `<div style="width:118px;height:138px;border:1px solid #bbb;border-radius:8px;background:#fafafa;display:flex;align-items:center;justify-content:center;font-size:10px;color:#bbb;">Photo</div>`
-        }
-        <!-- circular seal overlapping the photo -->
-        <img src="${LOGO_URL}" style="position:absolute;left:36px;bottom:-6px;width:74px;height:74px;object-fit:contain;opacity:0.32;border-radius:50%;" onerror="this.style.display='none'"/>
-        <!-- signature -->
-        ${s.signature_url
-          ? `<img src="${s.signature_url}" style="position:absolute;left:8px;bottom:2px;height:34px;max-width:120px;object-fit:contain;"/>`
-          : ''
-        }
+      <div style="width:118px;flex-shrink:0;">
+        <!-- photo with a faint seal overlapping its lower area -->
+        <div style="position:relative;width:118px;">
+          ${s.photo_url
+            ? `<img src="${s.photo_url}" alt="Photo" style="width:118px;height:138px;object-fit:cover;border:1px solid #bbb;border-radius:8px;display:block;"/>`
+            : `<div style="width:118px;height:138px;border:1px solid #bbb;border-radius:8px;background:#fafafa;display:flex;align-items:center;justify-content:center;font-size:10px;color:#bbb;">Photo</div>`
+          }
+          <img src="${LOGO_URL}" style="position:absolute;right:6px;bottom:6px;width:56px;height:56px;object-fit:contain;opacity:0.28;" onerror="this.style.display='none'"/>
+        </div>
+        <!-- signature below the photo -->
+        <div style="text-align:center;margin-top:8px;height:34px;">
+          ${s.signature_url
+            ? `<img src="${s.signature_url}" style="height:30px;max-width:112px;object-fit:contain;display:inline-block;"/>`
+            : ''
+          }
+        </div>
+        <div style="border-top:1px solid #999;margin-top:2px;"></div>
+        <div style="text-align:center;font-size:8px;color:#555;margin-top:2px;">Student Signature</div>
       </div>
 
       <!-- Right column: details -->
       <div style="flex:1;padding-top:2px;">
         <table style="width:100%;">
-          ${row('Registration No.', regNo, true)}
+          ${row(regLabel, regNo, true)}
+          ${row('Enrollment No', s.enrollment_no)}
           ${row('Name', s.student_name)}
           ${row('F./H. Name', s.fathers_name)}
+          ${row('D.O.B.', fmtDate(s.date_of_birth))}
           ${row('Course', prog)}
           ${row('Contact', contact)}
+          ${row('Validity', validity)}
           ${row('Address', address)}
         </table>
       </div>
@@ -312,6 +329,7 @@ export function generateRegistrationCertificate(s) {
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const centerCode = s.centers?.center_code || s.center_code || '—'
   const regYear = s.academic_year || sess || '—'
+  const regLabel = isPhdProgram(prog) ? 'Reference No.' : 'Registration No.'
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>Registration Certificate — ${v(s.student_name)}</title>${baseStyle}
@@ -342,7 +360,7 @@ export function generateRegistrationCertificate(s) {
     <!-- 3-col reference header -->
     <table style="width:100%;border-collapse:collapse;border-bottom:2px solid #333;">
       <tr>
-        <td class="hd-cell" style="width:33%;border-right:2px solid #333;">Registration No.</td>
+        <td class="hd-cell" style="width:33%;border-right:2px solid #333;">${regLabel}</td>
         <td class="hd-cell" style="width:33%;border-right:2px solid #333;">Registration Year</td>
         <td class="hd-cell" style="width:34%;">Branch / Center Code</td>
       </tr>
@@ -421,4 +439,169 @@ export function generateRegistrationCertificate(s) {
 </div>
 </body></html>`
   openWindow(html, 'Registration Certificate')
+}
+
+/* ───────────────────────────────────────────────────
+   4. PhD OFFER LETTER
+─────────────────────────────────────────────────── */
+export function generateOfferLetter(s) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  const sess = s.academic_sessions?.session_name || s.session_name || s.academic_year || '—'
+  const dept = s.departments?.name || '—'
+  const refNo = s.registration_no || s.enrollment_no || s.admission_number
+  const today = fmtDate(new Date())
+
+  const detail = (label, value) => `<tr>
+    <td style="width:150px;font-size:11px;color:#333;font-weight:700;padding:3px 0;vertical-align:top;">${label}</td>
+    <td style="font-size:11px;color:#111;padding:3px 0;vertical-align:top;">: &nbsp;${v(value)}</td>
+  </tr>`
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+  <title>Offer Letter — ${v(s.student_name)}</title>${baseStyle}</head>
+<body>
+<div style="max-width:720px;margin:24px auto;">
+  ${printBtn()}
+  <div style="border:2px solid ${BRAND};background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:0;">
+    <div style="padding:16px 26px 10px;border-bottom:2px solid ${BRAND};">${uniHeader()}</div>
+
+    <div style="text-align:center;padding:10px;background:#fdf6ec;border-bottom:1px solid ${GOLD};">
+      <span style="font-size:17px;font-weight:900;color:${BRAND};letter-spacing:0.08em;">OFFER OF ADMISSION — Ph.D</span>
+    </div>
+
+    <div style="padding:20px 30px;">
+      <table style="width:100%;margin-bottom:14px;">
+        <tr>
+          <td style="font-size:11px;color:#333;">Ref No: <strong>${v(refNo)}</strong></td>
+          <td style="font-size:11px;color:#333;text-align:right;">Date: <strong>${today}</strong></td>
+        </tr>
+      </table>
+
+      <p style="font-size:12px;color:#111;margin-bottom:4px;">To,</p>
+      <p style="font-size:12px;color:#111;font-weight:700;margin-bottom:2px;">${v(s.student_name)}</p>
+      <p style="font-size:11px;color:#444;margin-bottom:16px;">${addr(s)}</p>
+
+      <p style="font-size:12px;color:#111;font-weight:700;margin-bottom:10px;">Subject: Offer of Provisional Admission to the Doctor of Philosophy (Ph.D) Programme</p>
+
+      <p style="font-size:12px;color:#222;line-height:1.6;margin-bottom:12px;">
+        Dear ${v(s.student_name)},<br/><br/>
+        With reference to your application and successful completion of the entrance / eligibility process, we are pleased to
+        offer you <strong>provisional admission</strong> to the <strong>Doctor of Philosophy (Ph.D) programme in ${prog}</strong>
+        under the ${dept} for the academic session <strong>${sess}</strong> at ${UNI_NAME}.
+      </p>
+
+      <table style="width:100%;margin:6px 0 14px;">
+        ${detail('Reference No', refNo)}
+        ${detail('Candidate Name', s.student_name)}
+        ${detail("Father's / Husband's Name", s.fathers_name)}
+        ${detail('Programme', prog)}
+        ${detail('Department', dept)}
+        ${detail('Session', sess)}
+      </table>
+
+      <p style="font-size:12px;color:#222;line-height:1.6;margin-bottom:12px;">
+        This offer is provisional and subject to verification of your original documents, payment of the prescribed fees, and
+        compliance with the rules and regulations of the University. You are requested to complete the admission formalities
+        within the stipulated time, failing which this offer may stand withdrawn.
+      </p>
+      <p style="font-size:12px;color:#222;line-height:1.6;margin-bottom:24px;">
+        We congratulate you and wish you a successful research journey at ${UNI_NAME}.
+      </p>
+
+      <table style="width:100%;margin-top:30px;">
+        <tr>
+          <td style="font-size:11px;color:#444;vertical-align:bottom;">Place: Sikkim<br/>Date: ${today}</td>
+          <td style="text-align:right;vertical-align:bottom;">
+            <div style="height:34px;"></div>
+            <div style="font-size:11px;font-weight:800;color:${BRAND};">Director (Research) / Registrar</div>
+            <div style="font-size:10px;color:#666;">${UNI_NAME}</div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background:${BRAND};color:#fff;text-align:center;padding:6px 10px;border-top:2px solid ${GOLD};">
+      <span style="font-size:8px;font-weight:600;">${UNI_NAME} &nbsp;·&nbsp; ${UNI_ADDRESS} &nbsp;|&nbsp; ${UNI_WEB}</span>
+    </div>
+  </div>
+</div>
+</body></html>`
+  openWindow(html, 'Offer Letter')
+}
+
+/* ───────────────────────────────────────────────────
+   5. PhD ENTRANCE CLEARANCE CERTIFICATE
+─────────────────────────────────────────────────── */
+export function generateEntranceClearance(s) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  const sess = s.academic_sessions?.session_name || s.session_name || s.academic_year || '—'
+  const dept = s.departments?.name || '—'
+  const refNo = s.registration_no || s.enrollment_no || s.admission_number
+  const today = fmtDate(new Date())
+
+  const detail = (label, value) => `<tr>
+    <td style="width:150px;font-size:11px;color:#333;font-weight:700;padding:3px 0;vertical-align:top;">${label}</td>
+    <td style="font-size:11px;color:#111;padding:3px 0;vertical-align:top;">: &nbsp;${v(value)}</td>
+  </tr>`
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+  <title>Entrance Clearance Certificate — ${v(s.student_name)}</title>${baseStyle}</head>
+<body>
+<div style="max-width:720px;margin:24px auto;">
+  ${printBtn()}
+  <div style="border:2px solid ${BRAND};background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.12);padding:0;">
+    <div style="padding:16px 26px 10px;border-bottom:2px solid ${BRAND};">${uniHeader()}</div>
+
+    <div style="text-align:center;padding:10px;background:#fdf6ec;border-bottom:1px solid ${GOLD};">
+      <span style="font-size:17px;font-weight:900;color:${BRAND};letter-spacing:0.06em;">ENTRANCE CLEARANCE CERTIFICATE</span>
+      <div style="font-size:10px;color:#666;margin-top:2px;">Doctor of Philosophy (Ph.D) Programme</div>
+    </div>
+
+    <div style="padding:22px 30px;">
+      <table style="width:100%;margin-bottom:16px;">
+        <tr>
+          <td style="font-size:11px;color:#333;">Ref No: <strong>${v(refNo)}</strong></td>
+          <td style="font-size:11px;color:#333;text-align:right;">Date: <strong>${today}</strong></td>
+        </tr>
+      </table>
+
+      <p style="font-size:12.5px;color:#222;line-height:1.8;margin-bottom:16px;text-align:justify;">
+        This is to certify that <strong>${v(s.student_name)}</strong>, son / daughter of
+        <strong>${v(s.fathers_name)}</strong>, bearing Reference No <strong>${v(refNo)}</strong>, has appeared in and
+        <strong>successfully cleared</strong> the Ph.D Entrance Test / Eligibility requirements for admission to the
+        <strong>Doctor of Philosophy (Ph.D) programme in ${prog}</strong> under the ${dept} for the academic session
+        <strong>${sess}</strong>.
+      </p>
+      <p style="font-size:12.5px;color:#222;line-height:1.8;margin-bottom:20px;text-align:justify;">
+        The candidate is hereby <strong>cleared to proceed</strong> with the admission and registration process as per the
+        rules and regulations of ${UNI_NAME}.
+      </p>
+
+      <table style="width:100%;margin:6px 0 18px;">
+        ${detail('Reference No', refNo)}
+        ${detail('Candidate Name', s.student_name)}
+        ${detail("Father's / Husband's Name", s.fathers_name)}
+        ${detail('Programme', prog)}
+        ${detail('Department', dept)}
+        ${detail('Session', sess)}
+      </table>
+
+      <table style="width:100%;margin-top:36px;">
+        <tr>
+          <td style="font-size:11px;color:#444;vertical-align:bottom;">Place: Sikkim<br/>Date: ${today}</td>
+          <td style="text-align:right;vertical-align:bottom;">
+            <div style="height:34px;"></div>
+            <div style="font-size:11px;font-weight:800;color:${BRAND};">Controller of Examinations / Director (Research)</div>
+            <div style="font-size:10px;color:#666;">${UNI_NAME}</div>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="background:${BRAND};color:#fff;text-align:center;padding:6px 10px;border-top:2px solid ${GOLD};">
+      <span style="font-size:8px;font-weight:600;">${UNI_NAME} &nbsp;·&nbsp; ${UNI_ADDRESS} &nbsp;|&nbsp; ${UNI_WEB}</span>
+    </div>
+  </div>
+</div>
+</body></html>`
+  openWindow(html, 'Entrance Clearance Certificate')
 }

@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { generateIDCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { formatDate } from '../../utils/formatDate'
 import { CreditCard, Download } from 'lucide-react'
 
 export default function StudentIDCard() {
@@ -46,12 +47,17 @@ export default function StudentIDCard() {
     data.student_perm_pin_code ? '- ' + data.student_perm_pin_code : null,
   ].filter(Boolean).join(', ') || '—'
 
+  const validity = data.academic_year || data.academic_sessions?.session_name || '—'
+  const dob = data.date_of_birth ? formatDate(data.date_of_birth) : '—'
   const rows = [
     ['Registration No.', regNo, true],
+    ['Enrollment No', data.enrollment_no],
     ['Name', data.student_name],
     ['F./H. Name', data.fathers_name],
+    ['D.O.B.', dob],
     ['Course', data.programs?.program_name],
     ['Contact', contact],
+    ['Validity', validity],
     ['Address', address],
   ]
 
@@ -93,11 +99,18 @@ export default function StudentIDCard() {
 
         {/* Body: photo + seal | details */}
         <div className="flex gap-4 px-5 pb-4">
-          <div className="w-28 shrink-0 relative">
-            {data.photo_url
-              ? <img src={data.photo_url} alt="Photo" className="w-28 h-32 object-cover rounded-lg border border-gray-300" />
-              : <div className="w-28 h-32 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">Photo</div>}
-            <img src="/assets/logo.png" alt="" className="absolute left-8 -bottom-1 w-16 h-16 object-contain opacity-30 rounded-full" />
+          <div className="w-28 shrink-0">
+            <div className="relative w-28">
+              {data.photo_url
+                ? <img src={data.photo_url} alt="Photo" className="w-28 h-32 object-cover rounded-lg border border-gray-300" />
+                : <div className="w-28 h-32 rounded-lg border border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">Photo</div>}
+              <img src="/assets/logo.png" alt="" className="absolute right-1.5 bottom-1.5 w-14 h-14 object-contain opacity-25" />
+            </div>
+            <div className="h-8 mt-2 flex items-center justify-center">
+              {data.signature_url && <img src={data.signature_url} alt="Signature" className="max-h-7 max-w-full object-contain" />}
+            </div>
+            <div className="border-t border-gray-400 mt-0.5" />
+            <p className="text-center text-[8px] text-gray-500 mt-0.5">Student Signature</p>
           </div>
           <table className="flex-1">
             <tbody>
