@@ -13,7 +13,7 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, EyeOff,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft,
-  KeyRound, RefreshCw, CreditCard
+  KeyRound, RefreshCw, CreditCard, X
 } from 'lucide-react'
 
 // Center-style auto password, e.g. Sg@A1B2C3
@@ -249,7 +249,7 @@ function AddressBlock({ prefix, label, form, onChange, onChangeDigits, setForm, 
   )
 }
 
-function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, uploading, isOpen, onToggle, readOnly, isLocked = () => false }) {
+function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, onRemove, uploading, isOpen, onToggle, readOnly, isLocked = () => false }) {
   const ro = (suffix) => readOnly || isLocked(`${prefix}_${suffix}`)
   // UG / PG / Diploma / MPhil / Others: Board / University is free text (no dropdown).
   const freeBoard = ['UG', 'PG', 'Diploma', 'MPhil', 'Others'].includes(boardType)
@@ -321,6 +321,7 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
               multiple
               value={form[marksheetKey]}
               onUpload={onUpload}
+              onRemove={onRemove}
               isUploading={!!uploading[marksheetKey]}
               readOnly={ro('marksheet_url')}
             />
@@ -331,7 +332,7 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, up
   )
 }
 
-function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUploading, readOnly, multiple }) {
+function FileField({ label, fieldKey, accept, isImage, value, onUpload, onRemove, isUploading, readOnly, multiple }) {
   const urls = value ? String(value).split(',').filter(Boolean) : []
   return (
     <div className="flex flex-col gap-1.5">
@@ -355,10 +356,18 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, isUpload
           <img src={urls[0]} alt={label} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
         )}
         {urls.map((u, i) => (
-          <a key={i} href={u} target="_blank" rel="noreferrer"
-            className="flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
-            <Eye size={12} /> View{urls.length > 1 ? ` ${i + 1}` : ''}
-          </a>
+          <span key={i} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-[#933d18]/5 border border-[#933d18]/15 rounded-lg">
+            <a href={u} target="_blank" rel="noreferrer"
+              className="flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
+              <Eye size={12} /> View{urls.length > 1 ? ` ${i + 1}` : ''}
+            </a>
+            {!readOnly && onRemove && (
+              <button type="button" onClick={() => onRemove(fieldKey, i)} title="Remove"
+                className="flex items-center justify-center w-4 h-4 rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50">
+                <X size={12} />
+              </button>
+            )}
+          </span>
         ))}
         {!urls.length && <span className="text-xs text-gray-400 italic">{readOnly ? '—' : 'No file'}</span>}
       </div>
@@ -917,6 +926,15 @@ export default function StudentForm() {
       alert('Upload failed: ' + err.message)
     }
     setUploading(u => ({ ...u, [fieldKey]: false }))
+  }
+
+  // Remove one uploaded file (by index) from a field's comma-joined URL list.
+  function removeFileUrl(fieldKey, index) {
+    setForm(f => {
+      const urls = String(f[fieldKey] || '').split(',').filter(Boolean)
+      urls.splice(index, 1)
+      return { ...f, [fieldKey]: urls.join(',') }
+    })
   }
 
   async function generateAdmissionNumber() {
@@ -1810,13 +1828,13 @@ export default function StudentForm() {
           <FormSection title="Education Qualification" icon={<FileText size={16} />}
             subtitle="Click on each level to expand and fill details">
             <div className="space-y-2">
-              <EduRow prefix="tenth" label="10th / SSC / Matric" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.tenth} onToggle={() => toggleEdu('tenth')} readOnly={isReadOnly} isLocked={isLocked} />
-              <EduRow prefix="twelfth" label="12th / HSC / Intermediate" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.twelfth} onToggle={() => toggleEdu('twelfth')} readOnly={isReadOnly} isLocked={isLocked} />
-              <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.ug} onToggle={() => toggleEdu('ug')} readOnly={isReadOnly} isLocked={isLocked} />
-              <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.pg} onToggle={() => toggleEdu('pg')} readOnly={isReadOnly} isLocked={isLocked} />
-              <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.diploma} onToggle={() => toggleEdu('diploma')} readOnly={isReadOnly} isLocked={isLocked} />
-              <EduRow prefix="mphil" label="MPhil" boardType="MPhil" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.mphil} onToggle={() => toggleEdu('mphil')} readOnly={isReadOnly} isLocked={isLocked} />
-              <EduRow prefix="others" label="Others" boardType="Others" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} uploading={uploading} isOpen={openEdu.others} onToggle={() => toggleEdu('others')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="tenth" label="10th / SSC / Matric" boardType="10th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} onRemove={removeFileUrl} uploading={uploading} isOpen={openEdu.tenth} onToggle={() => toggleEdu('tenth')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="twelfth" label="12th / HSC / Intermediate" boardType="12th" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} onRemove={removeFileUrl} uploading={uploading} isOpen={openEdu.twelfth} onToggle={() => toggleEdu('twelfth')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="ug" label="UG (Graduation)" boardType="UG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} onRemove={removeFileUrl} uploading={uploading} isOpen={openEdu.ug} onToggle={() => toggleEdu('ug')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="pg" label="PG (Post Graduation)" boardType="PG" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} onRemove={removeFileUrl} uploading={uploading} isOpen={openEdu.pg} onToggle={() => toggleEdu('pg')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="diploma" label="Diploma / Polytechnic" boardType="Diploma" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} onRemove={removeFileUrl} uploading={uploading} isOpen={openEdu.diploma} onToggle={() => toggleEdu('diploma')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="mphil" label="MPhil" boardType="MPhil" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} onRemove={removeFileUrl} uploading={uploading} isOpen={openEdu.mphil} onToggle={() => toggleEdu('mphil')} readOnly={isReadOnly} isLocked={isLocked} />
+              <EduRow prefix="others" label="Others" boardType="Others" boards={boards} form={form} onChange={set} onUpload={handleFileUpload} onRemove={removeFileUrl} uploading={uploading} isOpen={openEdu.others} onToggle={() => toggleEdu('others')} readOnly={isReadOnly} isLocked={isLocked} />
             </div>
           </FormSection>
         )}
@@ -1833,7 +1851,7 @@ export default function StudentForm() {
                       <User size={28} className="text-gray-300" />
                     </div>
                 }
-                <FileField label="Student Photo *" fieldKey="photo_url" accept="image/*" isImage value={form.photo_url} onUpload={handleFileUpload} isUploading={!!uploading.photo_url} readOnly={isReadOnly || isLocked('photo_url')} />
+                <FileField label="Student Photo *" fieldKey="photo_url" accept="image/*" isImage value={form.photo_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.photo_url} readOnly={isReadOnly || isLocked('photo_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3 items-center">
                 {form.signature_url
@@ -1842,27 +1860,27 @@ export default function StudentForm() {
                       <FileText size={28} className="text-gray-300" />
                     </div>
                 }
-                <FileField label="Signature *" fieldKey="signature_url" accept="image/*" isImage value={form.signature_url} onUpload={handleFileUpload} isUploading={!!uploading.signature_url} readOnly={isReadOnly || isLocked('signature_url')} />
+                <FileField label="Signature *" fieldKey="signature_url" accept="image/*" isImage value={form.signature_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.signature_url} readOnly={isReadOnly || isLocked('signature_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Aadhar Front *</p>
-                <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_url} readOnly={isReadOnly || isLocked('aadhar_url')} />
+                <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.aadhar_url} readOnly={isReadOnly || isLocked('aadhar_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Aadhar Back *</p>
-                <FileField label="" fieldKey="aadhar_back_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_back_url} onUpload={handleFileUpload} isUploading={!!uploading.aadhar_back_url} readOnly={isReadOnly || isLocked('aadhar_back_url')} />
+                <FileField label="" fieldKey="aadhar_back_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_back_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.aadhar_back_url} readOnly={isReadOnly || isLocked('aadhar_back_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Declaration Form *</p>
-                <FileField label="" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false} value={form.declaration_url} onUpload={handleFileUpload} isUploading={!!uploading.declaration_url} readOnly={isReadOnly || isLocked('declaration_url')} />
+                <FileField label="" fieldKey="declaration_url" accept="image/*,application/pdf" isImage={false} value={form.declaration_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.declaration_url} readOnly={isReadOnly || isLocked('declaration_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Transfer Certificate (TC)</p>
-                <FileField label="" fieldKey="tc_url" accept="image/*,application/pdf" isImage={false} value={form.tc_url} onUpload={handleFileUpload} isUploading={!!uploading.tc_url} readOnly={isReadOnly || isLocked('tc_url')} />
+                <FileField label="" fieldKey="tc_url" accept="image/*,application/pdf" isImage={false} value={form.tc_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.tc_url} readOnly={isReadOnly || isLocked('tc_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
                 <p className="text-xs font-semibold text-gray-500">Migration Certificate</p>
-                <FileField label="" fieldKey="migration_url" accept="image/*,application/pdf" isImage={false} value={form.migration_url} onUpload={handleFileUpload} isUploading={!!uploading.migration_url} readOnly={isReadOnly || isLocked('migration_url')} />
+                <FileField label="" fieldKey="migration_url" accept="image/*,application/pdf" isImage={false} value={form.migration_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.migration_url} readOnly={isReadOnly || isLocked('migration_url')} />
               </div>
             </div>
           </FormSection>
