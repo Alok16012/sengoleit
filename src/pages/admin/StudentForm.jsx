@@ -372,7 +372,7 @@ const emptyForm = {
   session_id: '', mode_id: '', university_id: '',
   center_id: '', center_name: '',
   department_id: '', programme_id: '', course_code: '',
-  semester_year: '', academic_year: '',
+  semester_year: '', academic_year: '', specialization: '',
   enrollment_no: '', admission_number: '', registration_no: '',
   login_password: '',
   bank_account_holder: '', bank_account_number: '', ifsc_code: '', bank_branch: '',
@@ -823,6 +823,10 @@ export default function StudentForm() {
 
   const selectedProgram = programs.find(p => p.id === form.programme_id)
   const progSemYear = selectedProgram?.semester_year
+  // PhD (Doctorate) programmes get an extra "Specialization" field on the
+  // admission form; nothing else uses it.
+  const isPhd = (programmeTypes.find(t => t.id === selectedProgram?.programme_type_id)?.programme_type_name || '')
+    .toLowerCase().includes('doctorate')
 
   // Which prior education levels MUST be filled:
   //   1 = 10th, 2 = +12th, 3 = +UG, 4 = +PG, 5 = +MPhil. 0 = no requirement.
@@ -1022,6 +1026,7 @@ export default function StudentForm() {
         if (!form.department_id) return 'Please select a Department'
         if (!form.programme_id) return 'Please select a Program'
         if (!form.semester_year) return 'Please select Semester / Year'
+        if (isPhd && !form.specialization.trim()) return 'Specialization is required for Ph.D'
         return null
       case 2:
         if (!form.student_name.trim()) return 'Student Name is required'
@@ -1176,11 +1181,14 @@ export default function StudentForm() {
       ? supabase.from('students').update(p).eq('id', id).select('id').single()
       : supabase.from('students').insert(p).select('id').single()
     let { data: saved, error } = await saveStudent(payload)
-    // Resilient: if the aadhar_back_url column hasn't been migrated yet, drop it
-    // and retry so saving still works (the back image just isn't persisted).
-    if (error && /aadhar_back_url/.test(error.message || '')) {
-      const { aadhar_back_url, ...rest } = payload
-      ;({ data: saved, error } = await saveStudent(rest))
+    // Resilient: if a not-yet-migrated column shows up in the error, drop it and
+    // retry so saving still works (that field just isn't persisted). Covers
+    // aadhar_back_url and specialization (add_student_specialization.sql).
+    if (error && /aadhar_back_url|specialization/.test(error.message || '')) {
+      const clean = { ...payload }
+      if (/aadhar_back_url/.test(error.message || '')) delete clean.aadhar_back_url
+      if (/specialization/.test(error.message || '')) delete clean.specialization
+      ;({ data: saved, error } = await saveStudent(clean))
     }
 
     if (!error) {
@@ -1453,6 +1461,14 @@ export default function StudentForm() {
                 </Select>
                 <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} readOnly className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed" />
               </div>
+              {/* Specialization — PhD (Doctorate) programmes only. */}
+              {isPhd && (
+                <div className="grid grid-cols-1 gap-4">
+                  <Input label="Specialization (Ph.D) *" placeholder="e.g. Organic Chemistry, Machine Learning"
+                    value={form.specialization} onChange={set('specialization')}
+                    readOnly={isReadOnly || isLocked('specialization')} />
+                </div>
+              )}
               {/* Only the Admission Number is issued at the admission step.
                   Enrollment No (and Registration No) are assigned later by the
                   Account Dept after account verification, so they are not shown
