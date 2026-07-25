@@ -1165,7 +1165,6 @@ export default function StudentForm() {
         if (!form.photo_url) return 'Student Photo is required'
         if (!form.signature_url) return 'Signature is required'
         if (!form.aadhar_url) return 'Aadhar Front is required'
-        if (!form.aadhar_back_url) return 'Aadhar Back is required'
         if (!form.declaration_url) return 'Declaration Form is required'
         return null
       default:
@@ -1911,7 +1910,7 @@ export default function StudentForm() {
                 <FileField label="" fieldKey="aadhar_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.aadhar_url} readOnly={isReadOnly || isLocked('aadhar_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
-                <p className="text-xs font-semibold text-gray-500">Aadhar Back *</p>
+                <p className="text-xs font-semibold text-gray-500">Aadhar Back</p>
                 <FileField label="" fieldKey="aadhar_back_url" accept="image/*,application/pdf" isImage={false} value={form.aadhar_back_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.aadhar_back_url} readOnly={isReadOnly || isLocked('aadhar_back_url')} />
               </div>
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
