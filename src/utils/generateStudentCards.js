@@ -97,7 +97,24 @@ export function generateIDCard(s) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const regNo = s.registration_no || s.enrollment_no || s.admission_number
   const contact = s.mobile_no || s.whatsapp_no
-  const validity = s.academic_year || s.academic_sessions?.session_name || '—'
+  // Validity spans the whole course: start year → start year + course years.
+  // e.g. a 2-year B.Ed starting 2025 → "2025-2027".
+  const courseYears = () => {
+    const m = String(s.programs?.complete_duration || '').match(/(\d+)\s*year/i)
+    if (m) return parseInt(m[1], 10)
+    const dur = Number(s.programs?.duration) || 0
+    if (!dur) return 0
+    return s.programs?.semester_year === 'Year' ? dur : Math.round(dur / 2)
+  }
+  const startYear = () => {
+    const ay = String(s.academic_year || '').match(/(20\d{2})/)
+    if (ay) return parseInt(ay[1], 10)
+    const d = s.academic_sessions?.start_date || s.date_of_admission || s.date_of_submission
+    const y = d ? new Date(d).getFullYear() : NaN
+    return Number.isFinite(y) ? y : null
+  }
+  const vStart = startYear(), vYears = courseYears()
+  const validity = vStart && vYears ? `${vStart}-${vStart + vYears}` : (s.academic_year || s.academic_sessions?.session_name || '—')
   // PhD entries carry a Reference No in place of the Registration No.
   const regLabel = isPhdProgram(prog) ? 'Reference No.' : 'Registration No.'
 
