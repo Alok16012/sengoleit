@@ -332,8 +332,35 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, on
   )
 }
 
+// Docs live in the PRIVATE `student-docs` bucket, so the stored public URLs 404
+// ("Bucket not found"). Convert a stored URL to a short-lived signed URL on the fly.
+async function signDocUrl(u) {
+  try {
+    const m = String(u).match(/student-docs\/([^?]+)/)
+    const path = m ? decodeURIComponent(m[1]) : null
+    if (!path) return u
+    const { data } = await supabase.storage.from('student-docs').createSignedUrl(path, 3600)
+    return data?.signedUrl || u
+  } catch { return u }
+}
+
 function FileField({ label, fieldKey, accept, isImage, value, onUpload, onRemove, isUploading, readOnly, multiple }) {
   const urls = value ? String(value).split(',').filter(Boolean) : []
+  const [thumb, setThumb] = useState('')
+
+  // Resolve a signed URL for the image thumbnail preview.
+  useEffect(() => {
+    let cancelled = false
+    if (isImage && urls[0]) signDocUrl(urls[0]).then(su => { if (!cancelled) setThumb(su) })
+    else setThumb('')
+    return () => { cancelled = true }
+  }, [value])
+
+  async function openDoc(u) {
+    const su = await signDocUrl(u)
+    window.open(su, '_blank', 'noopener')
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-semibold text-gray-600 ml-0.5">{label}</label>
@@ -352,15 +379,15 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, onRemove
               }} />
           </label>
         )}
-        {urls[0] && isImage && (
-          <img src={urls[0]} alt={label} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
+        {urls[0] && isImage && thumb && (
+          <img src={thumb} alt={label} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
         )}
         {urls.map((u, i) => (
           <span key={i} className="flex items-center gap-1 pl-2 pr-1 py-1 bg-[#933d18]/5 border border-[#933d18]/15 rounded-lg">
-            <a href={u} target="_blank" rel="noreferrer"
+            <button type="button" onClick={() => openDoc(u)}
               className="flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
               <Eye size={12} /> View{urls.length > 1 ? ` ${i + 1}` : ''}
-            </a>
+            </button>
             {!readOnly && onRemove && (
               <button type="button" onClick={() => onRemove(fieldKey, i)} title="Remove"
                 className="flex items-center justify-center w-4 h-4 rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50">
