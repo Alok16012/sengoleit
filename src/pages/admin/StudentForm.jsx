@@ -762,7 +762,24 @@ export default function StudentForm() {
     return () => { cancelled = true }
   }, [role, form.center_id, form.session_id])
 
-  const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
+  // Name / free-text fields that should auto-convert to Title Case (each word
+  // capitalised) as the user types or pastes — so CAPS-LOCK / pasted ALL-CAPS
+  // text comes out proper-cased. Excludes email, phone, Aadhar, PAN, IFSC,
+  // codes and dropdown (state/district/country/board) values.
+  const TITLE_CASE_FIELDS = new Set([
+    'student_name', 'fathers_name', 'fathers_occupation', 'mothers_name', 'mothers_occupation',
+    'guardian_name', 'guardian_occupation', 'guardian_relation', 'religion', 'mother_tongue',
+    'identification_marks', 'bank_account_holder', 'bank_branch',
+    ...['student_perm', 'student_pres', 'guardian_pres', 'guardian_perm']
+      .flatMap(p => ['village_town', 'landmark', 'post_office', 'city'].map(f => `${p}_${f}`)),
+    ...['tenth', 'twelfth', 'ug', 'pg', 'diploma', 'mphil', 'others'].map(p => `${p}_institute_name`),
+  ])
+  const toTitleCase = (str) => String(str).toLowerCase().replace(/(^|[\s\-'./])([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
+
+  const set = (key) => (e) => {
+    const val = TITLE_CASE_FIELDS.has(key) ? toTitleCase(e.target.value) : e.target.value
+    setForm(f => ({ ...f, [key]: val }))
+  }
   // Numeric-only input, capped at `max` digits (strips everything else)
   const setDigits = (key, max) => (e) => setForm(f => ({ ...f, [key]: e.target.value.replace(/\D/g, '').slice(0, max) }))
 
