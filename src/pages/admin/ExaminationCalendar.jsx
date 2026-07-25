@@ -3,14 +3,19 @@ import { supabase } from '../../lib/supabase'
 import Button from '../../components/ui/Button'
 import DateInput, { isoToDisplay } from '../../components/ui/DateInput'
 import { SearchableSelect } from '../../components/ui/SearchSelect'
-import { Save, CalendarRange, CalendarDays } from 'lucide-react'
+import { Save, CalendarRange, CalendarDays, GraduationCap, FlaskConical } from 'lucide-react'
 
-const SEMESTERS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+// Regular programmes use semesters 1–10. Ph.D uses year-based periods stored at
+// a 100+ offset (101–106) in the SAME exam_calendar table, so the two calendars
+// stay independent without a schema change. courseFee only reads semesters
+// 1..totalSems, so the 101+ Ph.D rows never interfere with regular fee logic.
+const REGULAR = Array.from({ length: 10 }, (_, i) => ({ n: i + 1, label: `Sem ${i + 1}` }))
+const PHD = Array.from({ length: 6 }, (_, i) => ({ n: 101 + i, label: `Year ${i + 1}` }))
 
 // Examination Calendar — pick a session, then set the exam start & end date for
-// each semester (1–10). One row per (session, semester) in `exam_calendar`.
-// Mirrors the Syllabus editor's session → semester-tabs → Save layout.
+// each semester / Ph.D year. One row per (session, semester) in `exam_calendar`.
 export default function ExaminationCalendar() {
+  const [mode, setMode] = useState('regular')          // 'regular' | 'phd'
   const [sessions, setSessions] = useState([])
   const [sessionId, setSessionId] = useState('')       // '' = none picked
   const [activeSem, setActiveSem] = useState(1)
@@ -20,12 +25,19 @@ export default function ExaminationCalendar() {
   const [saved, setSaved] = useState(false)
   const [missingTable, setMissingTable] = useState(false)
 
+  const periods = mode === 'phd' ? PHD : REGULAR
+  const nums = periods.map(p => p.n)
+  const labelFor = n => periods.find(p => p.n === n)?.label || `Sem ${n}`
+
   useEffect(() => {
     supabase.from('academic_sessions').select('id, session_name').or('status.eq.Active,status.is.null').order('session_name', { ascending: false })
       .then(({ data }) => setSessions(data || []))
   }, [])
 
-  // Load the chosen session's saved calendar.
+  // Keep the active period valid when the mode switches.
+  useEffect(() => { setActiveSem(periods[0].n); setSaved(false) }, [mode])
+
+  // Load the chosen session's saved calendar (all rows — regular + Ph.D coexist).
   useEffect(() => {
     if (!sessionId) { setCal({}); return }
     setLoading(true); setSaved(false); setMissingTable(false)
@@ -51,17 +63,16 @@ export default function ExaminationCalendar() {
 
   async function save() {
     if (!sessionId || saving) return
-    // Validate every semester that has both dates.
-    for (const n of SEMESTERS) {
+    for (const n of nums) {
       const c = cal[n]
       if (c?.start_date && c?.end_date && c.end_date < c.start_date) {
-        alert(`Semester ${n}: End date can't be before start date.`)
+        alert(`${labelFor(n)}: End date can't be before start date.`)
         setActiveSem(n)
         return
       }
     }
     setSaving(true); setSaved(false)
-    const rows = SEMESTERS
+    const rows = nums
       .filter(n => semHasDates(n))
       .map(n => ({
         session_id: sessionId,
@@ -69,8 +80,8 @@ export default function ExaminationCalendar() {
         start_date: cal[n].start_date || null,
         end_date: cal[n].end_date || null,
       }))
-    // Replace this session's rows wholesale (matches the Syllabus save flow).
-    const del = await supabase.from('exam_calendar').delete().eq('session_id', sessionId)
+    // Replace only THIS mode's rows for the session (scoped by its period range).
+    const del = await supabase.from('exam_calendar').delete().eq('session_id', sessionId).in('semester', nums)
     if (del.error) { setMissingTable(true); setSaving(false); return }
     if (rows.length) {
       const ins = await supabase.from('exam_calendar').insert(rows)
@@ -80,9 +91,22 @@ export default function ExaminationCalendar() {
   }
 
   const sessionName = sessions.find(s => s.id === sessionId)?.session_name || ''
+  const isPhd = mode === 'phd'
 
   return (
     <div>
+      {/* Mode toggle: Regular vs Ph.D */}
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setMode('regular')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${!isPhd ? 'bg-[#933d18] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#933d18]'}`}>
+          <GraduationCap size={15} /> Regular
+        </button>
+        <button onClick={() => setMode('phd')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${isPhd ? 'bg-[#933d18] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#933d18]'}`}>
+          <FlaskConical size={15} /> Ph.D
+        </button>
+      </div>
+
       {/* Session picker */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-5 shadow-sm">
         <div className="flex flex-wrap items-end gap-4">
@@ -91,13 +115,13 @@ export default function ExaminationCalendar() {
             allLabel="Select a session"
             minWidth={240}
             value={sessionId || 'all'}
-            onChange={v => { setSessionId(v === 'all' ? '' : v); setSaved(false); setActiveSem(1) }}
+            onChange={v => { setSessionId(v === 'all' ? '' : v); setSaved(false); setActiveSem(periods[0].n) }}
             options={sessions.map(s => ({ id: s.id, label: s.session_name }))}
           />
           {sessionId && (
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <CalendarRange size={16} className="text-[#933d18]" />
-              Set the examination start &amp; end date for each semester of
+              Set the {isPhd ? 'Ph.D' : ''} examination start &amp; end date for each {isPhd ? 'year' : 'semester'} of
               <strong className="text-gray-700">{sessionName}</strong>.
             </div>
           )}
@@ -117,30 +141,30 @@ export default function ExaminationCalendar() {
       {!sessionId ? (
         <div className="flex flex-col items-center justify-center py-24 text-gray-300">
           <CalendarRange size={52} className="mb-3" />
-          <p className="text-base font-semibold text-gray-400">Select a session to set its examination calendar</p>
+          <p className="text-base font-semibold text-gray-400">Select a session to set its {isPhd ? 'Ph.D ' : ''}examination calendar</p>
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
         <>
-          {/* Semester selector */}
+          {/* Period selector */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Select Semester</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Select {isPhd ? 'Year' : 'Semester'}</p>
             <div className="flex flex-wrap gap-2">
-              {SEMESTERS.map(n => (
+              {periods.map(({ n, label }) => (
                 <button key={n} onClick={() => setActiveSem(n)}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${activeSem === n ? 'bg-[#933d18] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#933d18]'}`}>
-                  Sem {n}
+                  {label}
                   {semHasDates(n) && <span className={`w-1.5 h-1.5 rounded-full ${activeSem === n ? 'bg-white' : 'bg-emerald-500'}`} />}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Active semester's dates */}
+          {/* Active period's dates */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <h3 className="font-bold text-gray-800">Semester {activeSem} — Examination Dates</h3>
+              <h3 className="font-bold text-gray-800">{labelFor(activeSem)} — Examination Dates</h3>
               <Button onClick={save} disabled={saving}>
                 <Save size={14} /> {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Calendar'}
               </Button>
@@ -159,22 +183,22 @@ export default function ExaminationCalendar() {
               </div>
             </div>
 
-            {/* Quick overview of all semesters for this session */}
+            {/* Quick overview of all periods for this session/mode */}
             <div className="px-5 pb-5">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">This Session — All Semesters</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">This Session — All {isPhd ? 'Years' : 'Semesters'}</p>
               <div className="border border-gray-100 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 text-gray-500">
-                      <th className="text-left font-semibold px-4 py-2">Semester</th>
+                      <th className="text-left font-semibold px-4 py-2">{isPhd ? 'Year' : 'Semester'}</th>
                       <th className="text-left font-semibold px-4 py-2">Start Date</th>
                       <th className="text-left font-semibold px-4 py-2">End Date</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {SEMESTERS.map(n => (
+                    {periods.map(({ n, label }) => (
                       <tr key={n} className={`border-t border-gray-50 ${activeSem === n ? 'bg-[#933d18]/5' : ''}`}>
-                        <td className="px-4 py-2 font-semibold text-gray-700">Sem {n}</td>
+                        <td className="px-4 py-2 font-semibold text-gray-700">{label}</td>
                         <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.start_date) || <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.end_date) || <span className="text-gray-300">—</span>}</td>
                       </tr>
