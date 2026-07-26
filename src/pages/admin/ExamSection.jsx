@@ -8,7 +8,7 @@ import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchS
 import ExaminationCalendar from './ExaminationCalendar'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
-import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
+import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
 import { fetchExamDates } from '../../utils/examSettings'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
 import { Lock } from 'lucide-react'
@@ -299,8 +299,23 @@ export default function ExamSection() {
     setAdmitModal({ student, loading: false, ...status })
   }
 
-  // Admit card is generated ONLY here — for a specific semester.
-  async function handleAdmitCard(student, sem) {
+  // Step 2: after picking a fee-cleared semester, load its papers so the admin
+  // can choose which ones appear on the admit card (all selected by default).
+  async function chooseSem(student, sem) {
+    setAdmitModal(m => m && { ...m, pick: { sem, loading: true, rows: [], selected: new Set() } })
+    const rows = await fetchSemesterSubjectRows(student, sem)
+    setAdmitModal(m => m && { ...m, pick: { sem, loading: false, rows, selected: new Set(rows.map(r => r.id)) } })
+  }
+  const toggleSubject = (id) => setAdmitModal(m => {
+    if (!m?.pick) return m
+    const selected = new Set(m.pick.selected)
+    selected.has(id) ? selected.delete(id) : selected.add(id)
+    return { ...m, pick: { ...m.pick, selected } }
+  })
+
+  // Admit card is generated ONLY here — for a specific semester, using the
+  // papers the admin selected.
+  async function handleAdmitCard(student, sem, rows, selected) {
     setBusy(`${student.id}-${sem}`)
     const { data: s } = await supabase
       .from('students')
@@ -309,7 +324,9 @@ export default function ExamSection() {
       .single()
     if (s) {
       const resolved = await resolveStudentDocUrls(s)
-      const subjects = await fetchAdmitCardSubjects(s, sem)
+      const subjects = (rows && selected)
+        ? rows.filter(r => selected.has(r.id)).map(formatSubjectRow).filter(Boolean)
+        : await fetchAdmitCardSubjects(s, sem)
       const cs = settingsOf(student)
       const dates = await fetchExamDates(resolved)
       generateAdmitCard(resolved, subjects, {
@@ -321,6 +338,7 @@ export default function ExamSection() {
       })
     }
     setBusy(null)
+    setAdmitModal(null)
   }
 
   async function handleReleaseAdmitCard(studentId) {
@@ -551,13 +569,45 @@ export default function ExamSection() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="font-black text-gray-900">Generate Admit Card</h3>
-                <p className="text-xs text-gray-400 mt-0.5">{admitModal.student.student_name} · pick a semester</p>
+                <p className="text-xs text-gray-400 mt-0.5">{admitModal.student.student_name} · {admitModal.pick ? `Semester ${admitModal.pick.sem} — select papers` : 'pick a semester'}</p>
               </div>
               <button onClick={() => setAdmitModal(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
             <div className="p-5 overflow-y-auto">
               {admitModal.loading ? (
                 <p className="text-center text-gray-400 py-8 text-sm">Loading…</p>
+              ) : admitModal.pick ? (
+                /* Step 2 — choose papers for the selected semester */
+                admitModal.pick.loading ? (
+                  <p className="text-center text-gray-400 py-8 text-sm">Loading papers…</p>
+                ) : (
+                  <>
+                    <button onClick={() => setAdmitModal(m => m && { ...m, pick: null })} className="text-xs font-semibold text-gray-500 hover:text-[#933d18] mb-3">← Back to semesters</button>
+                    {!admitModal.pick.rows.length ? (
+                      <p className="text-[12px] text-gray-500 mb-4">No papers found in the syllabus for Semester {admitModal.pick.sem}. The admit card will print “as per university curriculum”.</p>
+                    ) : (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
+                          <span>Select the papers to print</span>
+                          <span>{admitModal.pick.selected.size}/{admitModal.pick.rows.length} selected</span>
+                        </div>
+                        <div className="space-y-1.5 max-h-[45vh] overflow-y-auto">
+                          {admitModal.pick.rows.map(r => (
+                            <label key={r.id} className="flex items-start gap-2 rounded-lg border border-gray-100 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                              <input type="checkbox" checked={admitModal.pick.selected.has(r.id)} onChange={() => toggleSubject(r.id)} className="mt-0.5 accent-[#933d18]" />
+                              <span className="text-xs text-gray-800">{formatSubjectRow(r) || 'Untitled paper'}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <Button variant="primary" className="w-full justify-center"
+                      disabled={busy === `${admitModal.student.id}-${admitModal.pick.sem}` || (admitModal.pick.rows.length > 0 && admitModal.pick.selected.size === 0)}
+                      onClick={() => handleAdmitCard(admitModal.student, admitModal.pick.sem, admitModal.pick.rows, admitModal.pick.selected)}>
+                      <ClipboardList size={14} /> {busy === `${admitModal.student.id}-${admitModal.pick.sem}` ? '…' : 'Generate Admit Card'}
+                    </Button>
+                  </>
+                )
               ) : !admitModal.sems?.length ? (
                 <p className="text-center text-gray-400 py-8 text-sm">No fee structure found for this course.</p>
               ) : (
@@ -571,9 +621,8 @@ export default function ExamSection() {
                           <p className="text-[11px] text-gray-400">Fee upto: ₹{Number(cumFee).toLocaleString('en-IN')}</p>
                         </div>
                         {cleared ? (
-                          <Button size="sm" variant="primary" disabled={busy === `${admitModal.student.id}-${sem}`}
-                            onClick={() => handleAdmitCard(admitModal.student, sem)}>
-                            <ClipboardList size={13} /> {busy === `${admitModal.student.id}-${sem}` ? '…' : 'Generate'}
+                          <Button size="sm" variant="primary" onClick={() => chooseSem(admitModal.student, sem)}>
+                            <ClipboardList size={13} /> Select Papers
                           </Button>
                         ) : (
                           <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400"><Lock size={12} /> Fee pending</span>

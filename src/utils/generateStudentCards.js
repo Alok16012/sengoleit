@@ -240,8 +240,6 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
   const defaultSubjects = subjects.length ? subjects : []
   const examSchedule  = meta.examSchedule || ''
   const admitCardTime = meta.admitCardTime || ''
-  const examDates     = meta.examDates || ''
-  const examTerm      = meta.examTerm || ''
   const semester      = meta.semester || ''
   const acadYear      = s.academic_year || ''
 
@@ -315,10 +313,6 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
             ${semester ? `<tr>
               <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Semester</td>
               <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: Semester ${semester}</td>
-            </tr>` : ''}
-            ${examDates ? `<tr>
-              <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Examination Dates</td>
-              <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${examDates}${examTerm ? ` (${examTerm})` : ''}</td>
             </tr>` : ''}
             ${examSchedule ? `<tr>
               <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Exam Schedule</td>

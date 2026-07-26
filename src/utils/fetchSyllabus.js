@@ -1,9 +1,25 @@
 import { supabase } from '../lib/supabase'
 
-// Returns formatted "Papers to be appeared" strings for a student's course
-// (program + session), narrowed to the student's current semester when
-// semester-specific rows exist. Used by the Admit Card generator.
-export async function fetchAdmitCardSubjects(student, semOverride) {
+const fmtExamDate = (v) => {
+  if (!v) return ''
+  const d = new Date(v)
+  if (isNaN(d.getTime())) return v
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// One syllabus row → the "Papers to be appeared" line printed on the Admit Card.
+export function formatSubjectRow(r) {
+  const paper = r.paper_no ? `Paper ${r.paper_no}: ` : ''
+  const code  = r.subject_code ? `${r.subject_code} ` : ''
+  const name  = r.subject_name || ''
+  const date  = r.exam_date ? `  —  ${fmtExamDate(r.exam_date)}` : ''
+  return `${paper}${code}${name}${date}`.trim()
+}
+
+// Raw syllabus rows for a student's course (program + session), narrowed to a
+// semester when semester-specific rows exist. Used to let the admin pick which
+// papers appear on the Admit Card before generating it.
+export async function fetchSemesterSubjectRows(student, semOverride) {
   const pid = student?.programme_id || student?.program_id
   if (!pid) return []
   const sid = student.session_id || null
@@ -15,8 +31,8 @@ export async function fetchAdmitCardSubjects(student, semOverride) {
     return q.order('sort_order', { ascending: true })
   }
   // Include exam_date for the date sheet; fall back if the column is missing.
-  let { data, error } = await build('semester, paper_no, subject_code, subject_name, exam_date, sort_order')
-  if (error) ({ data, error } = await build('semester, paper_no, subject_code, subject_name, sort_order'))
+  let { data, error } = await build('id, semester, paper_no, subject_code, subject_name, exam_date, sort_order')
+  if (error) ({ data, error } = await build('id, semester, paper_no, subject_code, subject_name, sort_order'))
   if (error || !data) return []
 
   let rows = data
@@ -25,19 +41,11 @@ export async function fetchAdmitCardSubjects(student, semOverride) {
     const matched = data.filter(r => Number(r.semester) === sem)
     if (matched.length) rows = matched   // only narrow when sem-specific rows exist
   }
+  return rows
+}
 
-  const fmtDate = (v) => {
-    if (!v) return ''
-    const d = new Date(v)
-    if (isNaN(d.getTime())) return v
-    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-  }
-
-  return rows.map(r => {
-    const paper = r.paper_no ? `Paper ${r.paper_no}: ` : ''
-    const code  = r.subject_code ? `${r.subject_code} ` : ''
-    const name  = r.subject_name || ''
-    const date  = r.exam_date ? `  —  ${fmtDate(r.exam_date)}` : ''
-    return `${paper}${code}${name}${date}`.trim()
-  }).filter(Boolean)
+// Formatted "Papers to be appeared" strings for the Admit Card generator.
+export async function fetchAdmitCardSubjects(student, semOverride) {
+  const rows = await fetchSemesterSubjectRows(student, semOverride)
+  return rows.map(formatSubjectRow).filter(Boolean)
 }

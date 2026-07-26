@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Search, Download } from 'lucide-react'
+import { Plus, Search, Download, Send } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -185,7 +185,7 @@ export default function CenterStudents() {
                   )})()}
                 </Td>
                 <Td>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 items-center">
                     <Button
                       size="sm"
                       variant="ghost"
@@ -195,6 +195,12 @@ export default function CenterStudents() {
                     >
                       <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
                     </Button>
+                    {s.status === 'Pending' && !s.forwarded_at && (
+                      <Button size="sm" variant="ghost" onClick={() => navigate('/center/reports/pending')} title="Forward to Document Dept.">
+                        <Send size={13} className="text-[#933d18]" />
+                        <span className="text-xs ml-1 text-[#933d18]">Forward</span>
+                      </Button>
+                    )}
                   </div>
                 </Td>
               </Tr>
