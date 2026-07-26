@@ -205,6 +205,11 @@ export function generateIDCard(s) {
       </div>
     </div>
 
+    <!-- Computer-generated note -->
+    <div style="text-align:center;padding:0 22px 5px;">
+      <span style="font-size:7px;font-style:italic;color:#888;">This is a computer-generated ID Card and does not require any signature or seal.</span>
+    </div>
+
     <!-- Bottom: maroon band with address + website box -->
     <div style="background:${BRAND};border-top:2px solid ${GOLD};display:flex;align-items:stretch;justify-content:space-between;">
       <span style="color:#fff;font-size:11px;font-weight:700;padding:7px 16px;align-self:center;">Address: ${UNI_ADDRESS}</span>
@@ -334,6 +339,11 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
       </tr>
     </table>
 
+    <!-- Computer-generated note -->
+    <div style="text-align:center;padding:6px 10px 8px;">
+      <span style="font-size:8px;font-style:italic;color:#888;">This is a computer-generated Admit Card and does not require any signature or seal.</span>
+    </div>
+
     <!-- Footer -->
     <div style="background:${BRAND};color:#fff;text-align:center;padding:5px 10px;border-top:2px solid #333;">
       <span style="font-size:8px;font-weight:600;">${UNI_NAME} &nbsp;·&nbsp; ${UNI_PHONE} &nbsp;|&nbsp; ${UNI_EMAIL} &nbsp;|&nbsp; ${UNI_WEB}</span>
@@ -453,6 +463,11 @@ export function generateRegistrationCertificate(s) {
         </td>
       </tr>
     </table>
+
+    <!-- Computer-generated note -->
+    <div style="text-align:center;padding:6px 10px 8px;">
+      <span style="font-size:8px;font-style:italic;color:#888;">This is a computer-generated Registration Certificate and does not require any signature or seal.</span>
+    </div>
 
     <!-- Footer -->
     <div style="background:${BRAND};color:#fff;text-align:center;padding:5px 10px;border-top:2px solid #333;">
