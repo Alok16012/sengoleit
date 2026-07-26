@@ -443,7 +443,7 @@ const emptyForm = {
   others_institute_name: '', others_board_university: '', others_passing_year: '', others_obtained_marks: '', others_total_marks: '',
   photo_url: '', aadhar_url: '', aadhar_back_url: '', signature_url: '', declaration_url: '',
   tenth_marksheet_url: '', twelfth_marksheet_url: '', ug_marksheet_url: '', pg_marksheet_url: '', diploma_marksheet_url: '', mphil_marksheet_url: '', others_marksheet_url: '',
-  tc_url: '', migration_url: '',
+  tc_url: '', migration_url: '', noc_url: '',
 }
 
 const PROFESSION_OPTIONS = ['Student', 'Private Service', 'Govt. Service', 'Self Employed', 'Others']
@@ -1258,10 +1258,11 @@ export default function StudentForm() {
     // Resilient: if a not-yet-migrated column shows up in the error, drop it and
     // retry so saving still works (that field just isn't persisted). Covers
     // aadhar_back_url and specialization (add_student_specialization.sql).
-    if (error && /aadhar_back_url|specialization/.test(error.message || '')) {
+    if (error && /aadhar_back_url|specialization|noc_url/.test(error.message || '')) {
       const clean = { ...payload }
       if (/aadhar_back_url/.test(error.message || '')) delete clean.aadhar_back_url
       if (/specialization/.test(error.message || '')) delete clean.specialization
+      if (/noc_url/.test(error.message || '')) delete clean.noc_url
       ;({ data: saved, error } = await saveStudent(clean))
     }
 
@@ -1938,6 +1939,12 @@ export default function StudentForm() {
                 <p className="text-xs font-semibold text-gray-500">Migration Certificate</p>
                 <FileField label="" fieldKey="migration_url" accept="image/*,application/pdf" isImage={false} value={form.migration_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.migration_url} readOnly={isReadOnly || isLocked('migration_url')} />
               </div>
+              {isPhd && (
+                <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 flex flex-col gap-3">
+                  <p className="text-xs font-semibold text-gray-500">NOC Letter <span className="text-[#933d18]">(Ph.D)</span></p>
+                  <FileField label="" fieldKey="noc_url" accept="image/*,application/pdf" isImage={false} value={form.noc_url} onUpload={handleFileUpload} onRemove={removeFileUrl} isUploading={!!uploading.noc_url} readOnly={isReadOnly || isLocked('noc_url')} />
+                </div>
+              )}
             </div>
           </FormSection>
         )}

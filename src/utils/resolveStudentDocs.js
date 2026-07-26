@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 
 const DOC_FIELDS = [
   'photo_url', 'signature_url', 'aadhar_url', 'aadhar_back_url', 'declaration_url',
-  'tc_url', 'migration_url',
+  'tc_url', 'migration_url', 'noc_url',
   'tenth_marksheet_url', 'twelfth_marksheet_url', 'ug_marksheet_url',
   'pg_marksheet_url', 'diploma_marksheet_url',
 ]
