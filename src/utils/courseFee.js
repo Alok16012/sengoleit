@@ -79,3 +79,35 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
 
   return { courseFee: Math.round(cumulative), dueSem, totalSems, calendarActive }
 }
+
+// Per-semester cumulative course fee + which semesters are "cleared" — i.e. the
+// student's fee_collected covers that semester's cumulative fee. Drives the
+// per-semester admit-card gate in the Exam Section.
+// Returns { totalSems, collected, sems: [{ sem, cumFee, cleared }] }.
+export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected }) {
+  const totalSems = Number(duration) || 1
+  const { data: structures } = await supabase
+    .from('fee_structures').select('id, session_id').eq('program_id', programme_id)
+  const fs = (structures || []).find(s => s.session_id === session_id) || (structures || [])[0]
+
+  let entryT = 0, divideT = 0, mulT = 0, mul2T = 0
+  if (fs) {
+    const { data: items } = await supabase.from('fee_items').select('amount, category').eq('fee_structure_id', fs.id)
+    ;(items || []).forEach(it => {
+      const a = Number(it.amount) || 0
+      if (it.category === 'entry') entryT += a
+      else if (it.category === 'divide') divideT += a
+      else if (it.category === 'multiply') mulT += a
+      else if (it.category === 'multiply2') mul2T += a
+    })
+  }
+  const cumFee = n => entryT + (totalSems > 0 ? divideT / totalSems : 0) * n + mulT * n + mul2T * Math.max(n - 1, 0)
+  const collected = Number(fee_collected) || 0
+
+  const sems = []
+  for (let n = 1; n <= totalSems; n++) {
+    const fee = cumFee(n)
+    sems.push({ sem: n, cumFee: Math.round(fee), cleared: collected + 1 >= fee })   // +1 = rounding tolerance
+  }
+  return { totalSems, collected: Math.round(collected), sems }
+}

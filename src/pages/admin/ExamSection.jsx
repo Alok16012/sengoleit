@@ -10,6 +10,8 @@ import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamDates } from '../../utils/examSettings'
+import { computeSemesterFeeStatus } from '../../utils/courseFee'
+import { Lock } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 function ResultModal({ isOpen, onClose, student, onSaved }) {
@@ -158,6 +160,7 @@ export default function ExamSection() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState(null)
+  const [admitModal, setAdmitModal] = useState(null)   // { student, loading, totalSems, sems }
   // Per-course (program + session) exam settings, keyed `${program_id}__${session_id}`.
   const [courseSettings, setCourseSettings] = useState({})
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -255,11 +258,11 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, department_id, programme_type_id), academic_sessions(session_name), centers(center_name, center_code)'
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, fee_collected, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
     // Minimal fallback used when the exam-result / admit-card columns have not
     // been created yet (run_all_migrations.sql not applied). The forwarded
     // students still appear; only the result/release features stay inactive.
-    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id), academic_sessions(session_name), centers(center_name, center_code)'
+    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, fee_collected, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
 
     let { data, error } = await supabase
       .from('students')
@@ -283,9 +286,22 @@ export default function ExamSection() {
   const [releasing, setReleasing] = useState(null)
   const [resultModalStudent, setResultModalStudent] = useState(null)
 
-  // Admit card is generated ONLY here — the single point in the workflow.
-  async function handleAdmitCard(student) {
-    setBusy(student.id)
+  // Open the per-semester admit-card picker — computes which semesters' fee is
+  // cleared (fee_collected covers the cumulative fee up to that semester).
+  async function openAdmitModal(student) {
+    setAdmitModal({ student, loading: true, sems: [] })
+    const status = await computeSemesterFeeStatus({
+      programme_id: student.programme_id,
+      session_id: student.session_id,
+      duration: student.programs?.duration,
+      fee_collected: student.fee_collected,
+    })
+    setAdmitModal({ student, loading: false, ...status })
+  }
+
+  // Admit card is generated ONLY here — for a specific semester.
+  async function handleAdmitCard(student, sem) {
+    setBusy(`${student.id}-${sem}`)
     const { data: s } = await supabase
       .from('students')
       .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
@@ -293,13 +309,14 @@ export default function ExamSection() {
       .single()
     if (s) {
       const resolved = await resolveStudentDocUrls(s)
-      const subjects = await fetchAdmitCardSubjects(s)
+      const subjects = await fetchAdmitCardSubjects(s, sem)
       const cs = settingsOf(student)
       const dates = await fetchExamDates(resolved)
       generateAdmitCard(resolved, subjects, {
         examSchedule: fmtDT(cs.exam_schedule),
         admitCardTime: fmtDT(cs.admit_card_time),
         admitCardAt: cs.admit_card_time || '',   // raw value drives the date gate
+        semester: sem,
         ...dates,
       })
     }
@@ -483,13 +500,13 @@ export default function ExamSection() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleAdmitCard(s)}
-                          disabled={busy === s.id || locked}
-                          title={locked ? `Locked until ${fmtDT(admitCardTimeOf(s))}` : 'Generate PDF Admit Card'}
+                          onClick={() => openAdmitModal(s)}
+                          disabled={locked}
+                          title={locked ? `Locked until ${fmtDT(admitCardTimeOf(s))}` : 'Generate semester-wise Admit Card'}
                           className="w-fit"
                         >
-                          <ClipboardList size={14} className={busy === s.id ? 'animate-pulse text-amber-600' : locked ? 'text-gray-400' : 'text-amber-600'} />
-                          <span className={`text-xs ml-1 ${locked ? 'text-gray-400' : 'text-amber-600'}`}>{busy === s.id ? '...' : locked ? 'Locked' : 'Generate'}</span>
+                          <ClipboardList size={14} className={locked ? 'text-gray-400' : 'text-amber-600'} />
+                          <span className={`text-xs ml-1 ${locked ? 'text-gray-400' : 'text-amber-600'}`}>{locked ? 'Locked' : 'Generate'}</span>
                         </Button>
                       )
                     })()}
@@ -527,6 +544,49 @@ export default function ExamSection() {
           setData(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s))
         }}
       />
+
+      {admitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAdmitModal(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="font-black text-gray-900">Generate Admit Card</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{admitModal.student.student_name} · pick a semester</p>
+              </div>
+              <button onClick={() => setAdmitModal(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              {admitModal.loading ? (
+                <p className="text-center text-gray-400 py-8 text-sm">Loading…</p>
+              ) : !admitModal.sems?.length ? (
+                <p className="text-center text-gray-400 py-8 text-sm">No fee structure found for this course.</p>
+              ) : (
+                <>
+                  <p className="text-[11px] text-gray-400 mb-3">Fee collected: <span className="font-bold text-gray-700">₹{Number(admitModal.collected).toLocaleString('en-IN')}</span>. A semester unlocks once its cumulative fee is cleared.</p>
+                  <div className="space-y-2">
+                    {admitModal.sems.map(({ sem, cumFee, cleared }) => (
+                      <div key={sem} className={`flex items-center justify-between rounded-xl border px-4 py-2.5 ${cleared ? 'border-gray-200' : 'border-gray-100 bg-gray-50'}`}>
+                        <div>
+                          <p className={`text-sm font-bold ${cleared ? 'text-gray-900' : 'text-gray-400'}`}>Semester {sem}</p>
+                          <p className="text-[11px] text-gray-400">Fee upto: ₹{Number(cumFee).toLocaleString('en-IN')}</p>
+                        </div>
+                        {cleared ? (
+                          <Button size="sm" variant="primary" disabled={busy === `${admitModal.student.id}-${sem}`}
+                            onClick={() => handleAdmitCard(admitModal.student, sem)}>
+                            <ClipboardList size={13} /> {busy === `${admitModal.student.id}-${sem}` ? '…' : 'Generate'}
+                          </Button>
+                        ) : (
+                          <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400"><Lock size={12} /> Fee pending</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {settingsOpen && (
         <ExamSchedulesModal

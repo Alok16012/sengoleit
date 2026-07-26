@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 // Returns formatted "Papers to be appeared" strings for a student's course
 // (program + session), narrowed to the student's current semester when
 // semester-specific rows exist. Used by the Admit Card generator.
-export async function fetchAdmitCardSubjects(student) {
+export async function fetchAdmitCardSubjects(student, semOverride) {
   const pid = student?.programme_id || student?.program_id
   if (!pid) return []
   const sid = student.session_id || null
@@ -20,7 +20,7 @@ export async function fetchAdmitCardSubjects(student) {
   if (error || !data) return []
 
   let rows = data
-  const sem = parseInt(student.semester_year, 10)
+  const sem = semOverride != null ? Number(semOverride) : parseInt(student.semester_year, 10)
   if (sem) {
     const matched = data.filter(r => Number(r.semester) === sem)
     if (matched.length) rows = matched   // only narrow when sem-specific rows exist

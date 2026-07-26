@@ -265,7 +265,7 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
     <!-- ADMIT CARD title -->
     <div style="text-align:center;padding:8px;border-bottom:2px solid #333;background:#fafafa;">
       <span style="font-size:20px;font-weight:900;color:${BRAND};letter-spacing:0.12em;">ADMIT CARD</span>
-      <div style="font-size:9px;color:#666;margin-top:2px;">${prog} &nbsp;—&nbsp; Semester Examination &nbsp;·&nbsp; ${sess}</div>
+      <div style="font-size:9px;color:#666;margin-top:2px;">${prog} &nbsp;—&nbsp; ${meta.semester ? `Semester ${meta.semester} ` : ''}Examination &nbsp;·&nbsp; ${sess}</div>
       ${admitCardTime ? `<div style="font-size:8.5px;color:#888;margin-top:2px;">Issued: ${admitCardTime}</div>` : ''}
     </div>
 
