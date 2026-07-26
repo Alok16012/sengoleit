@@ -509,10 +509,15 @@ export function generateRegistrationCertificate(s) {
 function letterheadDoc(docTitle, studentName, refNo, dateStr, bodyHtml) {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>${docTitle} — ${v(studentName)}</title>${baseStyle}
-  <style>@media print { .sheet { box-shadow:none !important; } }</style></head>
+  <style>@media print {
+    /* The sheet IS the full A4 page, so drop the baseStyle body padding that
+       would otherwise push it onto a second (blank) page. */
+    body { padding:0 !important; background:#fff !important; }
+    .sheet { box-shadow:none !important; }
+  }</style></head>
 <body style="background:#e9e9e9;">
   ${printBtn()}
-  <div class="sheet" style="position:relative;width:794px;height:1123px;margin:0 auto;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.18);overflow:hidden;">
+  <div class="sheet" style="position:relative;width:794px;height:1120px;margin:0 auto;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.18);overflow:hidden;">
     <img src="${LETTERHEAD_URL}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:0;" onerror="this.style.display='none'"/>
     <div style="position:absolute;top:17.2%;left:13.8%;z-index:2;font-size:12px;font-weight:700;color:#111;">${v(refNo)}</div>
     <div style="position:absolute;top:17.2%;left:81.5%;z-index:2;font-size:12px;font-weight:700;color:#111;">${v(dateStr)}</div>
