@@ -20,6 +20,8 @@ export default function ResearchDepartment() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
+  const [sessions, setSessions] = useState([])
+  const [sessionFilter, setSessionFilter] = useState('all')
   // Master panel — each letter type has its own reference series + date.
   const today = new Date().toISOString().slice(0, 10)
   const DEFAULT_LETTERS = [
@@ -35,7 +37,18 @@ export default function ResearchDepartment() {
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null')
-      if (Array.isArray(s?.letters) && s.letters.length) setLetters(s.letters)
+      if (Array.isArray(s?.letters) && s.letters.length) {
+        // De-duplicate by name (case-insensitive) — earlier saves could double up.
+        const seen = new Set(), uniq = []
+        for (const l of s.letters) {
+          const k = (l.name || '').trim().toLowerCase()
+          if (k && !seen.has(k)) { seen.add(k); uniq.push(l) }
+        }
+        setLetters(uniq)
+        if (uniq.length !== s.letters.length) {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters: uniq, assigned: s.assigned || {} }))
+        }
+      }
       if (s?.assigned) setAssigned(s.assigned)
     } catch { /* ignore */ }
   }, [])
@@ -76,11 +89,15 @@ export default function ResearchDepartment() {
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false })
+      .then(({ data }) => setSessions(data || []))
+  }, [])
 
   async function load() {
     setLoading(true)
     // Account-verified students land here (status Approved). We keep only Ph.D.
-    const base = 'id, student_name, registration_no, enrollment_no, admission_number, fathers_name, mobile_no, date_of_birth, academic_year, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, programme_types(programme_type_name)), academic_sessions(session_name), departments(name), centers(center_name, center_code)'
+    const base = 'id, student_name, registration_no, enrollment_no, admission_number, session_id, fathers_name, mobile_no, date_of_birth, academic_year, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, programme_types(programme_type_name)), academic_sessions(session_name), departments(name), centers(center_name, center_code)'
     const run = (cols) => supabase.from('students').select(cols).eq('status', 'Approved').order('created_at', { ascending: false })
     // `specialization` may not be migrated yet — fall back to a query without it.
     let { data, error } = await run('specialization, ' + base)
@@ -92,6 +109,7 @@ export default function ResearchDepartment() {
   }
 
   const filtered = rows.filter(s => {
+    if (sessionFilter !== 'all' && s.session_id !== sessionFilter) return false
     if (!q.trim()) return true
     const hay = `${s.student_name} ${s.registration_no} ${s.programs?.program_name} ${s.specialization} ${s.centers?.center_name}`.toLowerCase()
     return hay.includes(q.toLowerCase())
@@ -120,6 +138,14 @@ export default function ResearchDepartment() {
 
         {/* Select a letter, then set its reference + date */}
         <div className="flex items-end gap-4 flex-wrap border-t border-gray-100 pt-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Session</label>
+            <select value={sessionFilter} onChange={e => setSessionFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-48">
+              <option value="all">All Sessions</option>
+              {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
+            </select>
+          </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Letter</label>
             <select value={selIdx} onChange={e => setSelIdx(Number(e.target.value))}

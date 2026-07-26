@@ -91,7 +91,7 @@ const centerNavGroups = [
     group: 'Entry',
     items: [
       { to: '/center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
-      { to: '/center/students', icon: Users, label: 'Registered Student List', end: true },
+      { to: '/center/students', icon: Users, label: 'Student Status List', end: true },
       { to: '/center/balance', icon: Wallet, label: 'Wallet Summary' },
       { to: '/center/courier', icon: Truck, label: 'Courier Entry' },
       { to: '/center/answersheet', icon: FileCheck, label: 'Student Answersheet' },
@@ -101,8 +101,14 @@ const centerNavGroups = [
   {
     group: 'Reports',
     // Wallet Summary lives in the Entry group for centers (renamed from Payment
-    // Deposit), so drop the duplicate that reportItems adds here.
-    items: reportItems('/center').filter(item => item.to !== '/center/balance'),
+    // Deposit); also hide the pending/hold/rejected/progress lists for centers.
+    items: reportItems('/center').filter(item => ![
+      '/center/balance',
+      '/center/reports/pending',
+      '/center/reports/hold',
+      '/center/reports/rejected',
+      '/center/reports/progress',
+    ].includes(item.to)),
   },
 ]
 
