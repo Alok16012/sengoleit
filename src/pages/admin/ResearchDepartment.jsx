@@ -93,8 +93,8 @@ export default function ResearchDepartment() {
 
   useEffect(() => { load() }, [])
   useEffect(() => {
-    supabase.from('academic_sessions').select('id, session_name').order('session_name', { ascending: false })
-      .then(({ data }) => setSessions(data || []))
+    supabase.from('academic_sessions').select('id, session_name, status').order('session_name', { ascending: false })
+      .then(({ data }) => setSessions((data || []).filter(s => (s.status || 'Active').toLowerCase() !== 'inactive')))
   }, [])
 
   async function load() {
