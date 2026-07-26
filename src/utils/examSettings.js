@@ -36,7 +36,7 @@ export async function fetchExamDates(student) {
     const fmt = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
     return {
       examDates: `${fmt(row.start_date)} to ${fmt(row.end_date)}`,
-      examTerm: isPhd ? `Semester ${row.semester - 100}` : `Semester ${row.semester}`,
+      examTerm: isPhd ? `Year ${row.semester - 100}` : `Semester ${row.semester}`,
     }
   } catch {
     return { examDates: '', examTerm: '' }
