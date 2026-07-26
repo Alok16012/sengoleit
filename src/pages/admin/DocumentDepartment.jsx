@@ -227,6 +227,7 @@ const STUDENT_CHECK_TO_FORM_FIELDS = {
   f_edu_diploma: ['diploma_institute_name', 'diploma_board_university', 'diploma_passing_year', 'diploma_obtained_marks', 'diploma_total_marks', 'diploma_marksheet_url'],
   // Documents
   doc_photo: ['photo_url'], doc_signature: ['signature_url'], doc_aadhar: ['aadhar_url'],
+  doc_aadhar_back: ['aadhar_back_url'],
   doc_declaration: ['declaration_url'], doc_10th: ['tenth_marksheet_url'],
   doc_12th: ['twelfth_marksheet_url'], doc_ug: ['ug_marksheet_url'],
   doc_pg: ['pg_marksheet_url'], doc_diploma: ['diploma_marksheet_url'],
@@ -1744,6 +1745,7 @@ export default function DocumentDepartment() {
             { key: 'doc_photo',       label: 'Student Photo',    url: s.photo_url },
             { key: 'doc_signature',   label: 'Signature',        url: s.signature_url },
             { key: 'doc_aadhar',      label: 'Aadhar Card',      url: s.aadhar_url },
+            { key: 'doc_aadhar_back', label: 'Aadhar Card (Back)', url: s.aadhar_back_url },
             { key: 'doc_declaration', label: 'Declaration Form', url: s.declaration_url },
             { key: 'doc_10th',        label: '10th Marksheet',   url: s.tenth_marksheet_url },
             { key: 'doc_12th',        label: '12th Marksheet',   url: s.twelfth_marksheet_url },
