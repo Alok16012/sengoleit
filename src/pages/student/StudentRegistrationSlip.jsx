@@ -107,21 +107,19 @@ export default function StudentRegistrationSlip() {
               </div>
             ))}
 
-            {/* Signature */}
-            <div className="pt-3 mt-2 border-t border-gray-100">
-              <div className="h-8 w-32 border-b border-gray-400" />
-              <p className="text-[10px] text-gray-400 mt-1">Student Signature</p>
-            </div>
           </div>
 
-          {/* Photo + registrar sig */}
+          {/* Photo + student signature box */}
           <div className="w-36 shrink-0 p-4 text-center border-l border-gray-100">
             {data.photo_url
               ? <img src={data.photo_url} alt="Photo" className="w-24 h-28 object-cover border-2 border-gray-200 rounded mx-auto" />
               : <div className="w-24 h-28 border-2 border-dashed border-gray-300 rounded flex items-center justify-center mx-auto bg-gray-50 text-xs text-gray-400 text-center">Photo<br/>Here</div>
             }
-            <div className="mt-10 h-8 w-24 mx-auto border-b border-gray-400" />
-            <p className="text-[9px] text-gray-400 mt-1">Registrar / Controller</p>
+            {/* Student Signature box — auto-filled from the uploaded signature */}
+            <div className="mt-4 w-24 h-14 mx-auto border border-gray-300 rounded bg-white flex items-center justify-center overflow-hidden">
+              {data.signature_url && <img src={data.signature_url} alt="Signature" className="max-h-12 max-w-full object-contain" />}
+            </div>
+            <p className="text-[9px] text-gray-400 mt-1">Student Signature</p>
           </div>
         </div>
       </div>

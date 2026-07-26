@@ -198,6 +198,7 @@ export function generateIDCard(s) {
           ${row('F./H. Name', s.fathers_name)}
           ${row('D.O.B.', fmtDate(s.date_of_birth))}
           ${row('Course', prog)}
+          ${row('Session', s.academic_sessions?.session_name || s.session_name || s.academic_year)}
           ${row('Contact', contact)}
           ${row('Validity', validity)}
           ${row('Address', address)}
@@ -241,6 +242,8 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
   const admitCardTime = meta.admitCardTime || ''
   const examDates     = meta.examDates || ''
   const examTerm      = meta.examTerm || ''
+  const semester      = meta.semester || ''
+  const acadYear      = s.academic_year || ''
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>Admit Card — ${v(s.student_name)}</title>${baseStyle}
@@ -302,9 +305,17 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
               <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${fmtDate(s.date_of_birth)}</td>
             </tr>
             <tr>
-              <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Center</td>
-              <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${v(s.centers?.center_name)}</td>
+              <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Session</td>
+              <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${sess}</td>
             </tr>
+            ${acadYear ? `<tr>
+              <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Academic Year</td>
+              <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${acadYear}</td>
+            </tr>` : ''}
+            ${semester ? `<tr>
+              <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Semester</td>
+              <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: Semester ${semester}</td>
+            </tr>` : ''}
             ${examDates ? `<tr>
               <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Examination Dates</td>
               <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${examDates}${examTerm ? ` (${examTerm})` : ''}</td>
@@ -337,9 +348,13 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
           }
           <p style="font-size:8px;color:#555;margin-top:4px;">(Student Photo)</p>
 
-          <div style="margin-top:20px;">
-            <div style="height:40px;width:100px;border-bottom:1px solid #888;margin:0 auto;"></div>
-            <p style="font-size:8px;color:#555;margin-top:4px;">Controller of Examination</p>
+          <!-- Student Signature box (auto-filled from the uploaded signature) -->
+          <div style="margin-top:18px;">
+            <div style="height:40px;width:100px;margin:0 auto;display:flex;align-items:flex-end;justify-content:center;">
+              ${s.signature_url ? `<img src="${s.signature_url}" style="max-height:38px;max-width:96px;object-fit:contain;"/>` : ''}
+            </div>
+            <div style="border-top:1px solid #888;width:100px;margin:0 auto;"></div>
+            <p style="font-size:8px;color:#555;margin-top:4px;">Student Signature</p>
           </div>
         </td>
       </tr>
@@ -350,9 +365,9 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
       <span style="font-size:8px;font-style:italic;color:#888;">This is a computer-generated Admit Card and does not require any signature or seal.</span>
     </div>
 
-    <!-- Footer -->
+    <!-- Footer: university address only -->
     <div style="background:${BRAND};color:#fff;text-align:center;padding:5px 10px;border-top:2px solid #333;">
-      <span style="font-size:8px;font-weight:600;">${UNI_NAME} &nbsp;·&nbsp; ${UNI_PHONE} &nbsp;|&nbsp; ${UNI_EMAIL} &nbsp;|&nbsp; ${UNI_WEB}</span>
+      <span style="font-size:8.5px;font-weight:600;">${UNI_ADDRESS}</span>
     </div>
   </div>
 </div>
@@ -514,52 +529,48 @@ const docDetailRow = (label, value) => `<tr>
 </tr>`
 
 export function generateOfferLetter(s, opts = {}) {
-  const prog = s.programs?.program_name || s.program_name || '—'
-  const sess = s.academic_sessions?.session_name || s.session_name || s.academic_year || '—'
-  const dept = s.departments?.name || '—'
   const refNo = opts.refNo || s.registration_no || s.enrollment_no || s.admission_number
   const dateStr = opts.date || fmtDate(new Date())
 
+  const P = 'font-size:10px;color:#222;line-height:1.45;margin:0 0 7px;text-align:justify;'
   const body = `
-    <div style="text-align:center;margin-bottom:16px;">
-      <span style="font-size:16px;font-weight:900;color:${BRAND};letter-spacing:0.04em;border-bottom:2px solid ${GOLD};padding-bottom:2px;">OFFER OF ADMISSION — Ph.D</span>
+    <div style="text-align:center;margin-bottom:9px;">
+      <span style="font-size:13px;font-weight:900;color:${BRAND};letter-spacing:0.03em;text-decoration:underline;">Ph.D. ADMISSION OFFER LETTER</span>
     </div>
-    <p style="font-size:12px;color:#111;margin-bottom:3px;">To,</p>
-    <p style="font-size:12px;color:#111;font-weight:700;margin-bottom:2px;">${v(s.student_name)}</p>
-    <p style="font-size:11px;color:#444;margin-bottom:14px;">${addr(s)}</p>
-    <p style="font-size:12px;color:#111;font-weight:700;margin-bottom:10px;">Subject: Offer of Provisional Admission to the Doctor of Philosophy (Ph.D) Programme</p>
-    <p style="font-size:12px;color:#222;line-height:1.6;margin-bottom:12px;text-align:justify;">
-      Dear ${v(s.student_name)},<br/><br/>
-      With reference to your application and successful completion of the entrance / eligibility process, we are pleased to
-      offer you <strong>provisional admission</strong> to the <strong>Doctor of Philosophy (Ph.D) programme in ${prog}</strong>
-      under the ${dept} for the academic session <strong>${sess}</strong> at ${UNI_NAME}.
+    <p style="font-size:10.5px;color:#111;margin:0 0 8px;">Name of the Candidate : <strong>${v(s.student_name)}</strong></p>
+    <p style="font-size:10px;color:#111;margin:0 0 1px;">Dear Applicant,</p>
+    <p style="font-size:10px;color:#111;font-weight:700;margin:0 0 7px;">Congratulations!</p>
+    <p style="${P}">
+      We are pleased to inform you that you have been provisionally selected for admission to the Ph.D. Programme at ${UNI_NAME} based on your performance in the Entrance Test and/or Interview. Your admission is offered subject to the following terms and conditions:
     </p>
-    <table style="width:100%;margin:6px 0 14px;">
-      ${docDetailRow('Reference No', refNo)}
-      ${docDetailRow('Candidate Name', s.student_name)}
-      ${docDetailRow("Father's / Husband's Name", s.fathers_name)}
-      ${docDetailRow('Programme', prog)}
-      ${docDetailRow('Department', dept)}
-      ${docDetailRow('Session', sess)}
-    </table>
-    <p style="font-size:12px;color:#222;line-height:1.6;margin-bottom:12px;text-align:justify;">
-      This offer is provisional and subject to verification of your original documents, payment of the prescribed fees, and
-      compliance with the rules and regulations of the University. You are requested to complete the admission formalities
-      within the stipulated time, failing which this offer may stand withdrawn.
+    <p style="${P}">
+      You are requested to confirm your acceptance of this Admission Offer by depositing the prescribed fee within the stipulated time. Payment of the fee may be made through Online Transfer / Demand Draft in favour of "${UNI_NAME}", payable at Namchi, Sikkim. Candidates paying through Demand Draft must mention their Name and Application/Enrollment Number on the reverse side of the Demand Draft.
     </p>
-    <p style="font-size:12px;color:#222;line-height:1.6;margin-bottom:20px;text-align:justify;">
-      We congratulate you and wish you a successful research journey at ${UNI_NAME}.
+    <p style="font-size:10px;color:#222;line-height:1.45;margin:0 0 3px;">At the time of registration, you are required to produce the following original documents:</p>
+    <ol style="font-size:10px;color:#222;line-height:1.4;margin:0 0 7px 16px;padding:0;">
+      <li style="margin-bottom:2px;">Admission Offer Letter.</li>
+      <li style="margin-bottom:2px;">Original and self-attested copies of 10th, 12th, Graduation and Master's Degree mark sheets and certificates (NET/JRF/SET/GATE/M.Phil./SLET Certificate, if applicable).</li>
+      <li style="margin-bottom:2px;">Transfer Certificate/Migration Certificate from the last institution attended.</li>
+      <li style="margin-bottom:2px;">Migration Certificate (if the qualifying degree is from another University).</li>
+      <li style="margin-bottom:2px;">No Objection Certificate (NOC) from the Employer/Department, if applicable.</li>
+    </ol>
+    <p style="${P}">
+      Please note that this admission is purely provisional and is subject to verification of all original documents and fulfilment of the University's eligibility criteria and Ph.D. Regulations.
     </p>
-    <table style="width:100%;margin-top:28px;">
-      <tr>
-        <td style="font-size:11px;color:#444;vertical-align:bottom;">Place: Sikkim</td>
-        <td style="text-align:right;vertical-align:bottom;">
-          <div style="height:30px;"></div>
-          <div style="font-size:11px;font-weight:800;color:${BRAND};">Director (Research) / Registrar</div>
-          <div style="font-size:10px;color:#666;">${UNI_NAME}</div>
-        </td>
-      </tr>
-    </table>`
+    <p style="${P}">
+      The University reserves the right to cancel the admission at any stage if any information or document submitted by the candidate is found to be false or misleading.
+    </p>
+    <p style="${P}">
+      Your acceptance of this offer shall be deemed as your agreement to abide by the Statutes, Ordinances, Rules, Regulations and decisions of ${UNI_NAME}. If you have any queries, please feel free to contact us.
+    </p>
+    <div style="font-size:10px;color:#111;margin-top:10px;">
+      <p style="margin:0 0 18px;">Yours faithfully,</p>
+      <p style="font-weight:700;margin:0;">Director (Research)</p>
+      <p style="margin:0;">${UNI_NAME}</p>
+    </div>
+    <p style="font-size:8.5px;color:#555;font-style:italic;margin-top:10px;line-height:1.35;">
+      Note: Candidates are advised to keep sufficient self-attested copies of all original certificates before submitting them for verification. Original documents will be returned after verification.
+    </p>`
   openWindow(letterheadDoc('Offer Letter', s.student_name, refNo, dateStr, body), 'Offer Letter')
 }
 

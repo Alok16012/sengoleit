@@ -17,7 +17,7 @@ export default function StudentIDCard() {
     async function load() {
       const { data: raw } = await supabase
         .from('students')
-        .select('*, programs(program_name, short_name), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
+        .select('*, programs(program_name, short_name, duration, complete_duration, semester_year), academic_sessions(session_name, start_date), centers(center_name, center_code), departments(name)')
         .eq('id', student.id)
         .single()
       if (raw) {
@@ -47,7 +47,22 @@ export default function StudentIDCard() {
     data.student_perm_pin_code ? '- ' + data.student_perm_pin_code : null,
   ].filter(Boolean).join(', ') || '—'
 
-  const validity = data.academic_year || data.academic_sessions?.session_name || '—'
+  // Validity spans the whole course: start year → start year + course years.
+  const courseYears = (() => {
+    const m = String(data.programs?.complete_duration || '').match(/(\d+)\s*year/i)
+    if (m) return parseInt(m[1], 10)
+    const dur = Number(data.programs?.duration) || 0
+    if (!dur) return 0
+    return data.programs?.semester_year === 'Year' ? dur : Math.round(dur / 2)
+  })()
+  const startYear = (() => {
+    const ay = String(data.academic_year || '').match(/(20\d{2})/)
+    if (ay) return parseInt(ay[1], 10)
+    const d = data.academic_sessions?.start_date || data.date_of_admission
+    const y = d ? new Date(d).getFullYear() : NaN
+    return Number.isFinite(y) ? y : null
+  })()
+  const validity = startYear && courseYears ? `${startYear}-${startYear + courseYears}` : (data.academic_year || data.academic_sessions?.session_name || '—')
   const dob = data.date_of_birth ? formatDate(data.date_of_birth) : '—'
   const rows = [
     ['Registration No.', regNo, true],
@@ -56,6 +71,7 @@ export default function StudentIDCard() {
     ['F./H. Name', data.fathers_name],
     ['D.O.B.', dob],
     ['Course', data.programs?.program_name],
+    ['Session', data.academic_sessions?.session_name || data.academic_year],
     ['Contact', contact],
     ['Validity', validity],
     ['Address', address],
