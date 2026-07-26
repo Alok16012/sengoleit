@@ -239,6 +239,8 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
   const defaultSubjects = subjects.length ? subjects : []
   const examSchedule  = meta.examSchedule || ''
   const admitCardTime = meta.admitCardTime || ''
+  const examDates     = meta.examDates || ''
+  const examTerm      = meta.examTerm || ''
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>Admit Card — ${v(s.student_name)}</title>${baseStyle}
@@ -303,6 +305,10 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
               <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Center</td>
               <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${v(s.centers?.center_name)}</td>
             </tr>
+            ${examDates ? `<tr>
+              <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Examination Dates</td>
+              <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${examDates}${examTerm ? ` (${examTerm})` : ''}</td>
+            </tr>` : ''}
             ${examSchedule ? `<tr>
               <td style="font-size:9.5px;font-weight:700;color:#333;padding-right:6px;padding-bottom:6px;white-space:nowrap;">Exam Schedule</td>
               <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;">: ${examSchedule}</td>

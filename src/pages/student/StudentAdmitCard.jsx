@@ -4,6 +4,7 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
+import { fetchExamDates } from '../../utils/examSettings'
 import { BadgeCheck, Download, BookOpen, Hash, MapPin } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
@@ -34,7 +35,8 @@ export default function StudentAdmitCard() {
     if (!data) return
     setGenerating(true)
     const subjects = await fetchAdmitCardSubjects(data)
-    generateAdmitCard(data, subjects)
+    const dates = await fetchExamDates(data)
+    generateAdmitCard(data, subjects, dates)
     setGenerating(false)
   }
 

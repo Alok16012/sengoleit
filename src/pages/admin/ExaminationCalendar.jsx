@@ -5,12 +5,12 @@ import DateInput, { isoToDisplay } from '../../components/ui/DateInput'
 import { SearchableSelect } from '../../components/ui/SearchSelect'
 import { Save, CalendarRange, CalendarDays, GraduationCap, FlaskConical } from 'lucide-react'
 
-// Regular programmes use semesters 1–10. Ph.D uses year-based periods stored at
-// a 100+ offset (101–106) in the SAME exam_calendar table, so the two calendars
-// stay independent without a schema change. courseFee only reads semesters
-// 1..totalSems, so the 101+ Ph.D rows never interfere with regular fee logic.
+// Both are semester-based (Regular = Sem 1–10, Ph.D = Sem 1–6). Ph.D rows are
+// stored at a 100+ offset (101–106) in the SAME exam_calendar table so the two
+// calendars stay independent; courseFee maps the offset back to 1-based terms
+// (offset 100 for Year-based programmes) when computing a Ph.D student's due fee.
 const REGULAR = Array.from({ length: 10 }, (_, i) => ({ n: i + 1, label: `Sem ${i + 1}` }))
-const PHD = Array.from({ length: 6 }, (_, i) => ({ n: 101 + i, label: `Year ${i + 1}` }))
+const PHD = Array.from({ length: 6 }, (_, i) => ({ n: 101 + i, label: `Sem ${i + 1}` }))
 
 // Examination Calendar — pick a session, then set the exam start & end date for
 // each semester / Ph.D year. One row per (session, semester) in `exam_calendar`.
@@ -127,7 +127,7 @@ export default function ExaminationCalendar() {
           {sessionId && (
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <CalendarRange size={16} className="text-[#933d18]" />
-              Set the {isPhd ? 'Ph.D' : ''} examination start &amp; end date for each {isPhd ? 'year' : 'semester'} of
+              Set the {isPhd ? 'Ph.D' : ''} examination start &amp; end date for each semester of
               <strong className="text-gray-700">{sessionName}</strong>.
             </div>
           )}
@@ -165,7 +165,7 @@ export default function ExaminationCalendar() {
         <>
           {/* Period selector */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Select {isPhd ? 'Year' : 'Semester'}</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Select Semester</p>
             <div className="flex flex-wrap gap-2">
               {periods.map(({ n, label }) => (
                 <button key={n} onClick={() => setActiveSem(n)}
@@ -201,12 +201,12 @@ export default function ExaminationCalendar() {
 
             {/* Quick overview of all periods for this session/mode */}
             <div className="px-5 pb-5">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">This Session — All {isPhd ? 'Years' : 'Semesters'}</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">This Session — All Semesters</p>
               <div className="border border-gray-100 rounded-xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-gray-50 text-gray-500">
-                      <th className="text-left font-semibold px-4 py-2">{isPhd ? 'Year' : 'Semester'}</th>
+                      <th className="text-left font-semibold px-4 py-2">Semester</th>
                       <th className="text-left font-semibold px-4 py-2">Start Date</th>
                       <th className="text-left font-semibold px-4 py-2">End Date</th>
                     </tr>

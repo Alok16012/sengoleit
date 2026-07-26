@@ -9,6 +9,7 @@ import ExaminationCalendar from './ExaminationCalendar'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
+import { fetchExamDates } from '../../utils/examSettings'
 import { formatDate } from '../../utils/formatDate'
 
 function ResultModal({ isOpen, onClose, student, onSaved }) {
@@ -294,10 +295,12 @@ export default function ExamSection() {
       const resolved = await resolveStudentDocUrls(s)
       const subjects = await fetchAdmitCardSubjects(s)
       const cs = settingsOf(student)
+      const dates = await fetchExamDates(resolved)
       generateAdmitCard(resolved, subjects, {
         examSchedule: fmtDT(cs.exam_schedule),
         admitCardTime: fmtDT(cs.admit_card_time),
         admitCardAt: cs.admit_card_time || '',   // raw value drives the date gate
+        ...dates,
       })
     }
     setBusy(null)

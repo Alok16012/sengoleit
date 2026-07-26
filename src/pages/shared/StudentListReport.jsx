@@ -10,7 +10,7 @@ import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Sen
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
-import { fetchExamSettingsMeta } from '../../utils/examSettings'
+import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee } from '../../utils/courseFee'
@@ -141,7 +141,8 @@ export default function StudentListReport({ status }) {
       else if (type === 'admit') {
         const subjects = await fetchAdmitCardSubjects(resolved)
         const meta = await fetchExamSettingsMeta(resolved)
-        generateAdmitCard(resolved, subjects, meta)
+        const dates = await fetchExamDates(resolved)
+        generateAdmitCard(resolved, subjects, { ...meta, ...dates })
       }
     }
     setDownloading(null)

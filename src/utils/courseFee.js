@@ -33,9 +33,10 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
     .eq('program_id', programme_id)
   const fs = (structures || []).find(s => s.session_id === session_id) || (structures || [])[0]
 
-  // Program decides the total semesters (B.Com = 6, B.Tech = 8). `duration` is
-  // already in semesters when semester_year !== 'Year'; ×2 when 'Year'.
-  const totalSems = (semYear === 'Year' ? (Number(duration) || 1) * 2 : (Number(duration) || 1)) || 1
+  // `duration` is stored in semesters for every programme (per the program form)
+  // — a 3-year (Year-based) Ph.D is duration 6 — so it IS the total semester
+  // count. No ×2.
+  const totalSems = (Number(duration) || 1)
 
   let entryT = 0, divideT = 0, mulT = 0, mul2T = 0
   if (fs) {
@@ -52,13 +53,19 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
     })
   }
 
+  // Year-based (Ph.D) programmes keep their calendar at a 100+ semester offset
+  // (101 = Sem 1, 102 = Sem 2 …) so it stays independent of regular semesters —
+  // map it back to 1-based terms here.
+  const offset = semYear === 'Year' ? 100 : 0
   let calMap = {}
   try {
     const { data: cal, error } = await supabase
       .from('exam_calendar')
       .select('semester, end_date')
       .eq('session_id', session_id)
-    if (!error) (cal || []).forEach(r => { if (r.end_date) calMap[r.semester] = r.end_date })
+    if (!error) (cal || []).forEach(r => {
+      if (r.end_date && r.semester > offset && r.semester <= offset + 12) calMap[r.semester - offset] = r.end_date
+    })
   } catch { /* exam_calendar table not created yet */ }
   const calendarActive = Object.keys(calMap).length > 0
 
