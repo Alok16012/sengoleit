@@ -157,8 +157,13 @@ export function generateIDCard(s) {
     </div>
 
     <!-- UGC recognition line -->
-    <div style="text-align:center;padding:2px 8px 6px;">
+    <div style="text-align:center;padding:2px 8px 4px;">
       <span style="font-size:8.5px;font-weight:700;color:#333;letter-spacing:0.02em;">${UNI_UGC}</span>
+    </div>
+
+    <!-- IDENTITY CARD title bar -->
+    <div style="background:${BRAND};text-align:center;padding:4px;margin:0 22px 8px;border-radius:5px;border-top:1.5px solid ${GOLD};border-bottom:1.5px solid ${GOLD};">
+      <span style="color:#fff;font-size:12px;font-weight:800;letter-spacing:0.18em;">IDENTITY CARD</span>
     </div>
 
     <!-- Body: photo/seal/signature | details -->

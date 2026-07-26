@@ -93,9 +93,14 @@ export default function StudentIDCard() {
         </div>
 
         {/* UGC line */}
-        <p className="text-center text-[9px] font-bold text-gray-600 px-2 pb-1.5">
+        <p className="text-center text-[9px] font-bold text-gray-600 px-2 pb-1">
           Estb. by the Act of State Govt. &amp; Under Section 2(f) of UGC Act 1956. Govt. of India
         </p>
+
+        {/* IDENTITY CARD title bar */}
+        <div className="bg-[#933d18] text-center py-1 mx-5 mb-2 rounded border-y border-[#d9a441]">
+          <span className="text-white text-xs font-extrabold tracking-[0.18em]">IDENTITY CARD</span>
+        </div>
 
         {/* Body: photo + seal | details */}
         <div className="flex gap-4 px-5 pb-4">
