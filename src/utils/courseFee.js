@@ -69,9 +69,15 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
   } catch { /* exam_calendar table not created yet */ }
   const calendarActive = Object.keys(calMap).length > 0
 
+  // The entry/enrollment fee is for the student's entry semester. The exam
+  // calendar can advance the due semester over time, but it must never push it
+  // BEYOND the entry semester — otherwise a fresh entry whose calendar dates are
+  // already in the past (e.g. a Ph.D entered after Sem 1's exam window) gets
+  // charged for semesters it hasn't reached. Cap the calendar due at the entry.
+  const entrySem = Math.min(Math.max(parseInt(semester_year, 10) || 1, 1), totalSems)
   const dueSem = calendarActive
-    ? dueSemesterFromCalendar(calMap, totalSems)
-    : Math.min(Math.max(parseInt(semester_year, 10) || 1, 1), totalSems)
+    ? Math.min(dueSemesterFromCalendar(calMap, totalSems), entrySem)
+    : entrySem
 
   const cumulative = fs
     ? entryT + (totalSems > 0 ? divideT / totalSems : 0) * dueSem + mulT * dueSem + mul2T * Math.max(dueSem - 1, 0)
