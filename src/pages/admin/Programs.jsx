@@ -9,8 +9,13 @@ import { Edit, Trash2, Plus, Search, X } from 'lucide-react'
 
 const calcSemesters = (p) => {
   if (!p.duration) return p.semester_year || '—'
-  if (p.semester_year === 'Year') return `${p.duration * 2} Semester`
-  if (p.semester_year === 'Semester') return `${p.duration} Semester`
+  // `duration` is stored in semesters. A Year-based program should read in years
+  // — prefer the human "Complete Duration" (e.g. "3 Years"), else derive it.
+  if (p.semester_year === 'Year') {
+    if (p.complete_duration) return p.complete_duration
+    const yrs = Number(p.duration) / 2
+    return `${yrs} Year${yrs === 1 ? '' : 's'}`
+  }
   return `${p.duration} Semester`
 }
 

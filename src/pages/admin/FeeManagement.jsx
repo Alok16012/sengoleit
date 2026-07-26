@@ -195,7 +195,10 @@ export default function FeeManagement() {
     setTypeId(prog?.programme_type_id || '')
     setSelectedProgIds(new Set([pid]))
     setSelectedSessIds(new Set())
-    setTotalSems(prog?.duration ? (prog.semester_year === 'Year' ? prog.duration * 2 : prog.duration) : 4)
+    // `duration` is already stored in semesters (per the program form), so use it
+    // directly — no ×2 (that double-counted Year-based programs, e.g. a 6-semester
+    // Ph.D showed 12).
+    setTotalSems(prog?.duration || 4)
     setIsEditMode(false)
     setItems(keyed(DEFAULTS))
     setSaved(false)
@@ -209,9 +212,7 @@ export default function FeeManagement() {
     const pid = [...selectedProgIds][0]
     const sid = selectedSessIds.size === 1 ? [...selectedSessIds][0] : null
     const prog = programs.find(p => p.id === pid)
-    const autoSems = prog?.duration
-      ? (prog.semester_year === 'Year' ? prog.duration * 2 : prog.duration)
-      : 4
+    const autoSems = prog?.duration || 4   // duration is in semesters; no ×2
     setTotalSems(autoSems)
     loadSingle(pid, sid, autoSems)
   }, [selectedProgIds, selectedSessIds])
