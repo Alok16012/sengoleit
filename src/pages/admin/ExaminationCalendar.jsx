@@ -24,6 +24,7 @@ export default function ExaminationCalendar() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [missingTable, setMissingTable] = useState(false)
+  const [needsPhdSql, setNeedsPhdSql] = useState(false)
 
   const periods = mode === 'phd' ? PHD : REGULAR
   const nums = periods.map(p => p.n)
@@ -85,7 +86,12 @@ export default function ExaminationCalendar() {
     if (del.error) { setMissingTable(true); setSaving(false); return }
     if (rows.length) {
       const ins = await supabase.from('exam_calendar').insert(rows)
-      if (ins.error) { alert('Could not save: ' + ins.error.message); setSaving(false); return }
+      if (ins.error) {
+        // Ph.D rows use a 100+ semester offset that the old CHECK (1-12) rejects.
+        if (/semester_check/.test(ins.error.message || '')) setNeedsPhdSql(true)
+        else alert('Could not save: ' + ins.error.message)
+        setSaving(false); return
+      }
     }
     setSaving(false); setSaved(true)
   }
@@ -134,6 +140,16 @@ export default function ExaminationCalendar() {
           <div>
             <p className="font-semibold">Examination Calendar table not found.</p>
             <p className="text-xs mt-0.5">Run <code className="font-mono">add_exam_calendar.sql</code> once in Supabase → SQL Editor to enable this feature.</p>
+          </div>
+        </div>
+      )}
+
+      {needsPhdSql && (
+        <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+          <CalendarDays size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">Ph.D calendar needs a one-time database update.</p>
+            <p className="text-xs mt-0.5">Run <code className="font-mono">add_exam_calendar_phd.sql</code> once in Supabase → SQL Editor, then save again.</p>
           </div>
         </div>
       )}
