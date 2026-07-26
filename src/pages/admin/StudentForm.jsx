@@ -777,8 +777,21 @@ export default function StudentForm() {
   const toTitleCase = (str) => String(str).toLowerCase().replace(/(^|[\s\-'./])([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
 
   const set = (key) => (e) => {
-    const val = TITLE_CASE_FIELDS.has(key) ? toTitleCase(e.target.value) : e.target.value
+    if (!TITLE_CASE_FIELDS.has(key)) {
+      const v = e.target.value
+      setForm(f => ({ ...f, [key]: v }))
+      return
+    }
+    // Title Case changes only letter case (never length/positions), so the caret
+    // index stays valid. Capture it and restore after React re-sets the value —
+    // otherwise the cursor jumps to the end on every keystroke, breaking mid-edits.
+    const input = e.target
+    const caret = input.selectionStart
+    const val = toTitleCase(input.value)
     setForm(f => ({ ...f, [key]: val }))
+    requestAnimationFrame(() => {
+      try { input.setSelectionRange(caret, caret) } catch { /* not a text input */ }
+    })
   }
   // Numeric-only input, capped at `max` digits (strips everything else)
   const setDigits = (key, max) => (e) => setForm(f => ({ ...f, [key]: e.target.value.replace(/\D/g, '').slice(0, max) }))
