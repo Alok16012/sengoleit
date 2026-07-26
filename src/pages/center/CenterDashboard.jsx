@@ -40,11 +40,12 @@ export default function CenterDashboard() {
         if (data) {
           Promise.all([
             supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id),
-            supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id).eq('status', 'Admitted'),
+            supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id).eq('status', 'Approved'),
             supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id).eq('status', 'Pending'),
             // Money currently locked in the wallet for forwarded students that
-            // haven't been approved/rejected yet (fee_held is cleared on both).
-            supabase.from('students').select('fee_held').eq('center_id', data.id).not('fee_held', 'is', null),
+            // haven't been approved/rejected yet. Exclude Approved/Rejected so a
+            // stale fee_held left on a decided student never inflates the total.
+            supabase.from('students').select('fee_held').eq('center_id', data.id).not('fee_held', 'is', null).not('status', 'in', '("Approved","Rejected")'),
           ]).then(([total, admitted, pending, held]) => {
             const holdAmount = (held.data || []).reduce((sum, r) => sum + Number(r.fee_held || 0), 0)
             setStats({ total: total.count, admitted: admitted.count, pending: pending.count, holdAmount })

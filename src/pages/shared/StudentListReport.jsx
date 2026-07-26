@@ -441,29 +441,32 @@ export default function StudentListReport({ status }) {
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                           <span className="text-xs ml-1 text-emerald-600">{downloading === `${s.id}-id` ? '...' : 'ID Card'}</span>
                         </Button>
-                        {s.admit_card_released_at && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleCard(s.id, 'admit')}
-                            disabled={downloading === `${s.id}-admit`}
-                            title="Download Admit Card"
-                          >
-                            <ClipboardList size={14} className={downloading === `${s.id}-admit` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
-                            <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-admit` ? '...' : 'Admit Card'}</span>
-                          </Button>
-                        )}
-                        {s.exam_result_status && s.exam_result_status !== 'Pending' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setResultStudent(s)}
-                            title="View Result"
-                          >
-                            <Award size={14} className={s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
-                            <span className={`text-xs ml-1 ${s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'}`}>Result</span>
-                          </Button>
-                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCard(s.id, 'admit')}
+                          disabled={!s.admit_card_released_at || downloading === `${s.id}-admit`}
+                          title={s.admit_card_released_at ? 'Download Admit Card' : 'Admit card not released by the Exam Section yet'}
+                        >
+                          <ClipboardList size={14} className={downloading === `${s.id}-admit` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
+                          <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-admit` ? '...' : 'Admit Card'}</span>
+                        </Button>
+                        {(() => {
+                          const hasResult = s.exam_result_status && s.exam_result_status !== 'Pending'
+                          const clr = !hasResult ? 'text-gray-400' : s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'
+                          return (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setResultStudent(s)}
+                              disabled={!hasResult}
+                              title={hasResult ? 'View Result' : 'Result not declared yet'}
+                            >
+                              <Award size={14} className={clr} />
+                              <span className={`text-xs ml-1 ${clr}`}>Result</span>
+                            </Button>
+                          )
+                        })()}
                       </>
                     )}
                   </div>

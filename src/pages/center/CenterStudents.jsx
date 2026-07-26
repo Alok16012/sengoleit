@@ -31,6 +31,24 @@ const STATUS_COLOR = {
   'Hold': 'bg-orange-50 text-orange-700',
 }
 
+// The DB status is only Pending / Hold / Approved / Rejected; the finer stage
+// (shown as the tabs & badge) is derived from status + the workflow flags.
+function stageOf(s) {
+  if (s.status === 'Rejected') return 'Rejected'
+  if (s.status === 'Approved') return 'Admitted'                 // Enrolled
+  if (s.status === 'Hold') return s.doc_verified_at ? 'Account Section' : 'Hold'
+  return s.forwarded_at ? 'Reviewing' : 'Pending'                // Pending status
+}
+
+// Match a student to the selected tab. 'Documents Verified' and 'Under Process
+// for Enrollment' are the same underlying state (doc-verified, at Account).
+function matchesFilter(s, filter) {
+  if (filter === 'All') return true
+  const st = stageOf(s)
+  if (filter === 'Document Verified' || filter === 'Account Section') return st === 'Account Section'
+  return st === filter
+}
+
 export default function CenterStudents() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -77,11 +95,7 @@ export default function CenterStudents() {
     // "Pending" must mean the same thing as the sidebar Pending Student List:
     // status Pending AND not yet forwarded to the Document Dept. A forwarded
     // pending student is "in process", so it drops out of this tab.
-    const matchStatus =
-      statusFilter === 'All' ? true :
-      statusFilter === 'Pending' ? (s.status === 'Pending' && !s.forwarded_at) :
-      s.status === statusFilter
-    return matchSearch && matchStatus
+    return matchSearch && matchesFilter(s, statusFilter)
   })
 
   return (
@@ -164,9 +178,11 @@ export default function CenterStudents() {
                   }
                 </Td>
                 <Td>
-                  <span className={`text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${STATUS_COLOR[s.status] || 'bg-gray-50 text-gray-600'}`}>
-                    {STATUS_DISPLAY[s.status] || s.status || 'Pending'}
-                  </span>
+                  {(() => { const st = stageOf(s); return (
+                    <span className={`text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${STATUS_COLOR[st] || 'bg-gray-50 text-gray-600'}`}>
+                      {STATUS_DISPLAY[st] || st}
+                    </span>
+                  )})()}
                 </Td>
                 <Td>
                   <div className="flex gap-1">
