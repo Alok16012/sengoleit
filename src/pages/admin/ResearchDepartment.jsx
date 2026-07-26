@@ -54,6 +54,9 @@ export default function ResearchDepartment() {
   }, [])
 
   const sel = letters[selIdx] || letters[0]
+  // Safety net: never show duplicate names in the dropdown (keep the first index).
+  const uniqueLetters = letters.filter((l, i) =>
+    letters.findIndex(x => (x.name || '').trim().toLowerCase() === (l.name || '').trim().toLowerCase()) === i)
   function persist(nextLetters, nextAssigned) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters: nextLetters, assigned: nextAssigned }))
   }
@@ -150,7 +153,7 @@ export default function ResearchDepartment() {
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Letter</label>
             <select value={selIdx} onChange={e => setSelIdx(Number(e.target.value))}
               className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-56">
-              {letters.map((l, i) => <option key={i} value={i}>{l.name}</option>)}
+              {uniqueLetters.map((l) => <option key={l.name} value={letters.indexOf(l)}>{l.name}</option>)}
             </select>
           </div>
           <div>

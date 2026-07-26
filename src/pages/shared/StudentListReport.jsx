@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X, Award } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
-import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
+import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, isPhdProgram } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -138,6 +138,8 @@ export default function StudentListReport({ status }) {
       const resolved = await resolveStudentDocUrls(s)
       if (type === 'reg') generateRegistrationCertificate(resolved)
       else if (type === 'id') generateIDCard(resolved)
+      else if (type === 'offer') generateOfferLetter(resolved)
+      else if (type === 'entrance') generateEntranceClearance(resolved)
       else if (type === 'admit') {
         const subjects = await fetchAdmitCardSubjects(resolved)
         const meta = await fetchExamSettingsMeta(resolved)
@@ -442,6 +444,18 @@ export default function StudentListReport({ status }) {
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                           <span className="text-xs ml-1 text-emerald-600">{downloading === `${s.id}-id` ? '...' : 'ID Card'}</span>
                         </Button>
+                        {isPhdProgram(s.programs?.program_name) && (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'offer')} disabled={downloading === `${s.id}-offer`} title="Download Ph.D Offer Letter">
+                              <FileText size={14} className={downloading === `${s.id}-offer` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
+                              <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-offer` ? '...' : 'Offer Letter'}</span>
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'entrance')} disabled={downloading === `${s.id}-entrance`} title="Download Ph.D Entrance Clearance Certificate">
+                              <FileText size={14} className={downloading === `${s.id}-entrance` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
+                              <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-entrance` ? '...' : 'Entrance Clr.'}</span>
+                            </Button>
+                          </>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
