@@ -9,7 +9,10 @@ const fmtExamDate = (v) => {
 
 // One syllabus row → the "Papers to be appeared" line printed on the Admit Card.
 export function formatSubjectRow(r) {
-  const paper = r.paper_no ? `Paper ${r.paper_no}: ` : ''
+  // paper_no may or may not already include the word "Paper" (e.g. "Paper 1" vs
+  // "1") — don't prepend it twice.
+  const pno = String(r.paper_no || '').trim()
+  const paper = pno ? (/^paper\b/i.test(pno) ? `${pno}: ` : `Paper ${pno}: `) : ''
   const code  = r.subject_code ? `${r.subject_code} ` : ''
   const name  = r.subject_name || ''
   const date  = r.exam_date ? `  —  ${fmtExamDate(r.exam_date)}` : ''

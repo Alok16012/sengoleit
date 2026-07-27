@@ -328,7 +328,7 @@ export default function ExamSection() {
         ? rows.filter(r => selected.has(r.id)).map(formatSubjectRow).filter(Boolean)
         : await fetchAdmitCardSubjects(s, sem)
       const cs = settingsOf(student)
-      const dates = await fetchExamDates(resolved)
+      const dates = await fetchExamDates(resolved, sem)
       generateAdmitCard(resolved, subjects, {
         examSchedule: fmtDT(cs.exam_schedule),
         admitCardTime: fmtDT(cs.admit_card_time),

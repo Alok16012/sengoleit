@@ -14,29 +14,35 @@ const BLANK = { examSchedule: '', admitCardTime: '', admitCardAt: '' }
 // raw admit_card_time (`admitCardAt`) used for the date gate. Never throws.
 // Examination start–end dates for the student's term, read from exam_calendar.
 // Regular programmes use semesters 1–10; Ph.D uses the 101–106 (Year 1–6) offset.
-// Picks the current/nearest-upcoming exam period for the student's session.
-export async function fetchExamDates(student) {
+// When `sem` (1-based term) is given, returns THAT term's dates (used by the
+// per-semester admit card); otherwise picks the current/nearest-upcoming period.
+export async function fetchExamDates(student, sem) {
   try {
     const sid = student?.session_id || null
     if (!sid) return { examDates: '', examTerm: '' }
     const progName = student?.programs?.program_name || student?.program_name || ''
     const typeName = student?.programs?.programme_types?.programme_type_name || ''
     const isPhd = /ph\.?\s*d|doctor of philosophy|doctoral/i.test(progName) || /doctorate|ph\.?\s*d|doctoral/i.test(typeName)
-    const lo = isPhd ? 101 : 1, hi = isPhd ? 106 : 12
+    const offset = isPhd ? 100 : 0
     const { data } = await supabase
       .from('exam_calendar')
       .select('semester, start_date, end_date')
-      .eq('session_id', sid).gte('semester', lo).lte('semester', hi)
+      .eq('session_id', sid).gt('semester', offset).lte('semester', offset + 12)
     const rows = (data || []).filter(r => r.start_date || r.end_date)
     if (!rows.length) return { examDates: '', examTerm: '' }
     const key = r => new Date(r.start_date || r.end_date).getTime()
     const today = Date.now()
-    const upcoming = rows.filter(r => r.end_date && new Date(r.end_date).getTime() >= today).sort((a, b) => key(a) - key(b))
-    const row = upcoming[0] || [...rows].sort((a, b) => key(b) - key(a))[0]
+    // Prefer the requested term; else the current/nearest-upcoming period.
+    let row = sem ? rows.find(r => r.semester === offset + Number(sem)) : null
+    if (!row) {
+      const upcoming = rows.filter(r => r.end_date && new Date(r.end_date).getTime() >= today).sort((a, b) => key(a) - key(b))
+      row = upcoming[0] || [...rows].sort((a, b) => key(b) - key(a))[0]
+    }
+    if (!row) return { examDates: '', examTerm: '' }
     const fmt = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
     return {
       examDates: `${fmt(row.start_date)} to ${fmt(row.end_date)}`,
-      examTerm: isPhd ? `Year ${row.semester - 100}` : `Semester ${row.semester}`,
+      examTerm: `${isPhd ? 'Year' : 'Semester'} ${row.semester - offset}`,
     }
   } catch {
     return { examDates: '', examTerm: '' }
