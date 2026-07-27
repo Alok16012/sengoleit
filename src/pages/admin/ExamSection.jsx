@@ -155,7 +155,7 @@ function fmtDT(val) {
 }
 
 export default function ExamSection() {
-  const [view, setView] = useState('list')   // 'list' | 'calendar'
+  const [view, setView] = useState('list')   // 'list' | 'calendar' | 'result'
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -393,7 +393,11 @@ export default function ExamSection() {
     <div className="p-6">
       <PageHeader
         title="Exam Section"
-        subtitle={view === 'calendar' ? 'Set examination start & end dates per session and semester' : `${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`}
+        subtitle={
+          view === 'calendar' ? 'Set examination start & end dates per session and semester' :
+          view === 'result' ? `${filtered.length} student${filtered.length === 1 ? '' : 's'} — declare or edit results` :
+          `${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`
+        }
         actions={
           view === 'list' ? (
             <div className="flex items-center gap-2">
@@ -417,6 +421,13 @@ export default function ExamSection() {
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#933d18]/30 bg-[#933d18]/10 hover:bg-[#933d18]/20 text-[#933d18] font-bold text-sm transition-colors"
               >
                 <Clock size={16} /> Admit Card Time
+              </button>
+              <button
+                onClick={() => setView('result')}
+                title="Declare / view student results"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-sm transition-colors"
+              >
+                <Award size={16} /> Result
               </button>
             </div>
           ) : (
@@ -530,6 +541,90 @@ export default function ExamSection() {
                     })()}
                   </div>
                 </Td>
+                <Td>
+                  {s.exam_result_status && s.exam_result_status !== 'Pending' ? (
+                    <div className="flex flex-col gap-2">
+                      <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit ${s.exam_result_status === 'Pass' ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
+                        <Award size={12} /> {s.exam_result_status} ({s.exam_result_obtained_marks}/{s.exam_result_total_marks})
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => setResultModalStudent(s)} className="w-fit">
+                        <FileEdit size={14} className="text-blue-600" />
+                        <span className="text-xs ml-1 text-blue-600">Edit</span>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => setResultModalStudent(s)}>
+                      Enter Result
+                    </Button>
+                  )}
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      )}
+      </>)}
+
+      {view === 'result' && (<>
+      <div className="flex flex-wrap gap-3 mb-4 items-end">
+        <div className="relative max-w-sm flex-1 min-w-[220px]">
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
+          <Search size={15} className="absolute left-3 top-[34px] -translate-y-1/2 text-gray-400" />
+          <input
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
+            placeholder="Search by name, enrollment, center..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <SearchableSelect label="Department" allLabel="All Departments" minWidth={180}
+          value={fDept} onChange={setFDept}
+          options={departments.map(d => ({ id: d.id, label: d.name }))} />
+        <SearchableSelect label="Program Type" allLabel="All Types" minWidth={150}
+          value={fType} onChange={setFType}
+          options={progTypes.map(t => ({ id: t.id, label: t.programme_type_name }))} />
+        <MultiSearchSelect label="Session" allLabel="All Sessions" minWidth={160}
+          values={fSession} onChange={setFSession}
+          options={sessions.map(se => ({ id: se.id, label: se.session_name }))} />
+        {filterActive && (
+          <button onClick={clearFilters}
+            className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
+            <X size={14} /> Clear
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
+      ) : (
+        <Table>
+          <Thead>
+            <tr>
+              <Th>#</Th>
+              <Th>Student Name</Th>
+              <Th>Program</Th>
+              <Th>Session</Th>
+              <Th>Enrollment No</Th>
+              <Th>Registration No</Th>
+              <Th>Result</Th>
+            </tr>
+          </Thead>
+          <Tbody>
+            {filtered.length === 0 ? (
+              <Tr><Td colSpan={7} className="text-center text-gray-400 py-12">
+                {search ? 'No students match your search.' : 'No students have been forwarded to the Exam Section yet.'}
+              </Td></Tr>
+            ) : filtered.map((s, i) => (
+              <Tr key={s.id}>
+                <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                <Td>
+                  <p className="font-semibold text-gray-900">{s.student_name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{s.gender} • {s.mobile_no || '—'}</p>
+                </Td>
+                <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
+                <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
+                <Td className="font-mono text-xs font-bold text-emerald-700">{s.enrollment_no || '—'}</Td>
+                <Td className="font-mono text-xs text-[#933d18] font-bold">{s.registration_no || '—'}</Td>
                 <Td>
                   {s.exam_result_status && s.exam_result_status !== 'Pending' ? (
                     <div className="flex flex-col gap-2">
