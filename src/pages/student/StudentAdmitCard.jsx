@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { generateAdmitCard, UNI_NAME, UNI_ADDRESS, UNI_ACT, BRAND } from '../../utils/generateStudentCards'
+import { generateAdmitCard, isPhdProgram, UNI_NAME, UNI_ADDRESS, UNI_ACT, BRAND } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamDates } from '../../utils/examSettings'
@@ -51,6 +51,8 @@ export default function StudentAdmitCard() {
   // The admit card is released only after the Exam Section releases it explicitly.
   const isApproved = !!data.admit_card_released_at
   const deptCode = data.centers?.center_code || (data.departments?.name ? data.departments.name.substring(0, 6).toUpperCase() : '—')
+  // Ph.D has no registration number; the application number takes that slot.
+  const isPhd = isPhdProgram(data.programs?.program_name)
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">
@@ -98,7 +100,9 @@ export default function StudentAdmitCard() {
         {/* 3-col reference */}
         <div className="grid grid-cols-3 border-b-2 divide-x-2 divide-[#933d18]/25" style={{ borderColor: BRAND }}>
           {[
-            { label: 'Registration No.', value: data.registration_no },
+            isPhd
+              ? { label: 'Application No.', value: data.admission_number }
+              : { label: 'Registration No.', value: data.registration_no },
             { label: 'Roll No (Enrollment)', value: data.enrollment_no },
             { label: 'University / Dept. Code', value: deptCode },
           ].map(({ label, value }) => (

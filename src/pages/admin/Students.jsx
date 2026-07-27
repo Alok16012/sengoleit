@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
-import { generateIDCard, generateAdmitCard, generateRegistrationCertificate } from '../../utils/generateStudentCards'
+import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamSettingsMeta } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -505,10 +505,12 @@ export default function Students() {
                     )}
                     {s.status === 'Approved' && (
                       <>
-                        <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'reg')} disabled={downloading === `${s.id}-reg`} title="Download Registration Certificate">
-                          <FileText size={14} className={downloading === `${s.id}-reg` ? 'animate-pulse text-[#933d18]' : 'text-indigo-600'} />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'id')} disabled={downloading === `${s.id}-id`} title="Download ID Card">
+                        {!isPhdProgram(s.programs?.program_name) && (
+                          <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'reg')} disabled={downloading === `${s.id}-reg`} title="Download Registration Certificate">
+                            <FileText size={14} className={downloading === `${s.id}-reg` ? 'animate-pulse text-[#933d18]' : 'text-indigo-600'} />
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'id')} disabled={!s.enrollment_no || downloading === `${s.id}-id`} title={s.enrollment_no ? 'Download ID Card' : 'ID card is issued after the Enrollment Number is generated'}>
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                         </Button>
                         {s.admit_card_released_at && (

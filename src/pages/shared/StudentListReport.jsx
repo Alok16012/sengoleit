@@ -324,7 +324,7 @@ export default function StudentListReport({ status }) {
               <Th>Student Name</Th>
               <Th>Application No</Th>
               {status === 'Approved' && <Th>Enrollment No</Th>}
-              {status === 'Approved' && <Th>Registration No</Th>}
+              {status === 'Approved' && <Th>Registration / Application No</Th>}
               <Th>Program</Th>
               <Th>Sem / Year</Th>
               <Th>Session</Th>
@@ -358,8 +358,8 @@ export default function StudentListReport({ status }) {
                 )}
                 {status === 'Approved' && (
                   <Td>
-                    {s.registration_no
-                      ? <span className="font-mono text-xs font-bold text-indigo-700">{s.registration_no}</span>
+                    {(s.registration_no || s.admission_number)
+                      ? <span className="font-mono text-xs font-bold text-indigo-700">{s.registration_no || s.admission_number}</span>
                       : <span className="text-xs text-gray-300">—</span>}
                   </Td>
                 )}

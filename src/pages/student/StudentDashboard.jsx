@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { BookOpen, Calendar, Award, Hash, User } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
+import { isPhdProgram } from '../../utils/generateStudentCards'
 
 export default function StudentDashboard() {
   const { student } = useStudentAuth()
@@ -19,6 +20,10 @@ export default function StudentDashboard() {
   }, [student?.id])
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
+
+  // Ph.D candidates have no registration number — the application number is
+  // their identifier until enrollment.
+  const isPhd = isPhdProgram(data?.programs?.program_name)
 
   const cards = [
     { icon: BookOpen, bg: 'bg-blue-100', text: 'text-blue-600', label: 'Program', value: data?.programs?.program_name || '—' },
@@ -67,7 +72,7 @@ export default function StudentDashboard() {
           <dl className="space-y-3 text-sm">
             {[
               ['Enrollment No', data?.enrollment_no],
-              ['Registration No', data?.registration_no],
+              [isPhd ? 'Application No' : 'Registration No', isPhd ? data?.admission_number : data?.registration_no],
               ['Date of Admission', data?.date_of_admission],
               ['Entry Type', data?.entry_type],
             ].map(([label, val]) => (

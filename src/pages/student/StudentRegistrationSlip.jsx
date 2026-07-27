@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { generateRegistrationCertificate } from '../../utils/generateStudentCards'
+import { generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { Receipt, Download, Hash, BookOpen, User, MapPin } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
@@ -38,6 +39,10 @@ export default function StudentRegistrationSlip() {
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
   if (!data) return <div className="p-8 text-center text-gray-400">No data found.</div>
+
+  // The registration certificate was dropped from the Ph.D pipeline. The menu
+  // entry is already hidden — this guards a direct visit to the URL.
+  if (isPhdProgram(data.programs?.program_name)) return <Navigate to="/student/dashboard" replace />
 
   const addr = [
     data.perm_village_town || data.student_perm_village_town,
