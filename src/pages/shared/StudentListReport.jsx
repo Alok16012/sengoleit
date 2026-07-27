@@ -105,9 +105,23 @@ export default function StudentListReport({ status }) {
 
     // Staging-center students are admin-managed drafts (entered for Transfer &
     // Forward) — they must not appear in the CENTER portal's own lists.
-    const rows = role === 'center'
+    let rows = role === 'center'
       ? (students || []).filter(s => !s.centers?.is_staging)
       : (students || [])
+
+    // Ph.D publication flags live behind add_phd_portal_flow.sql. They are read
+    // in a separate query so a database without that migration still lists
+    // students normally — the flags simply stay undefined.
+    if (rows.length) {
+      const { data: flags } = await supabase
+        .from('students')
+        .select('id, offer_letter_active, entrance_letter_active, result_released_at')
+        .in('id', rows.map(r => r.id))
+      if (flags) {
+        const byId = Object.fromEntries(flags.map(f => [f.id, f]))
+        rows = rows.map(r => ({ ...r, ...(byId[r.id] || {}) }))
+      }
+    }
     setData(rows)
     setLoading(false)
   }
@@ -308,7 +322,7 @@ export default function StudentListReport({ status }) {
             <tr>
               <Th>#</Th>
               <Th>Student Name</Th>
-              <Th>Admission No</Th>
+              <Th>Application No</Th>
               {status === 'Approved' && <Th>Enrollment No</Th>}
               {status === 'Approved' && <Th>Registration No</Th>}
               <Th>Program</Th>
@@ -424,33 +438,35 @@ export default function StudentListReport({ status }) {
                     </Button>
                     {s.status === 'Approved' && (
                       <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleCard(s.id, 'reg')}
-                          disabled={downloading === `${s.id}-reg`}
-                          title="Download Registration Certificate"
-                        >
-                          <FileText size={14} className={downloading === `${s.id}-reg` ? 'animate-pulse text-[#933d18]' : 'text-indigo-600'} />
-                          <span className="text-xs ml-1 text-indigo-600">{downloading === `${s.id}-reg` ? '...' : 'Reg Card'}</span>
-                        </Button>
+                        {!isPhdProgram(s.programs?.program_name) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCard(s.id, 'reg')}
+                            disabled={downloading === `${s.id}-reg`}
+                            title="Download Registration Certificate"
+                          >
+                            <FileText size={14} className={downloading === `${s.id}-reg` ? 'animate-pulse text-[#933d18]' : 'text-indigo-600'} />
+                            <span className="text-xs ml-1 text-indigo-600">{downloading === `${s.id}-reg` ? '...' : 'Reg Card'}</span>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
                           onClick={() => handleCard(s.id, 'id')}
-                          disabled={downloading === `${s.id}-id`}
-                          title="Download ID Card"
+                          disabled={!s.enrollment_no || downloading === `${s.id}-id`}
+                          title={s.enrollment_no ? 'Download ID Card' : 'ID card is issued after the Enrollment Number is generated'}
                         >
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                           <span className="text-xs ml-1 text-emerald-600">{downloading === `${s.id}-id` ? '...' : 'ID Card'}</span>
                         </Button>
                         {isPhdProgram(s.programs?.program_name) && (
                           <>
-                            <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'offer')} disabled={downloading === `${s.id}-offer`} title="Download Ph.D Offer Letter">
+                            <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'offer')} disabled={!s.offer_letter_active || downloading === `${s.id}-offer`} title={s.offer_letter_active ? 'Download Ph.D Offer Letter' : 'Offer letter not released by the Research Dept yet'}>
                               <FileText size={14} className={downloading === `${s.id}-offer` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
                               <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-offer` ? '...' : 'Offer Letter'}</span>
                             </Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'entrance')} disabled={downloading === `${s.id}-entrance`} title="Download Ph.D Entrance Clearance Certificate">
+                            <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'entrance')} disabled={!s.entrance_letter_active || downloading === `${s.id}-entrance`} title={s.entrance_letter_active ? 'Download Ph.D Entrance Clearance Certificate' : 'Entrance certificate not released by the Research Dept yet'}>
                               <FileText size={14} className={downloading === `${s.id}-entrance` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
                               <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-entrance` ? '...' : 'Entrance Clr.'}</span>
                             </Button>
@@ -467,7 +483,7 @@ export default function StudentListReport({ status }) {
                           <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-admit` ? '...' : 'Admit Card'}</span>
                         </Button>
                         {(() => {
-                          const hasResult = s.exam_result_status && s.exam_result_status !== 'Pending'
+                          const hasResult = s.exam_result_status && s.exam_result_status !== 'Pending' && !!s.result_released_at
                           const clr = !hasResult ? 'text-gray-400' : s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'
                           return (
                             <Button

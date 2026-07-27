@@ -55,7 +55,8 @@ export default function StudentResults() {
       ) : (
         <div className="space-y-4">
           
-          {data?.exam_result_status && data.exam_result_status !== 'Pending' && (
+          {/* Shown only after the Exam Section presses "Send Result". */}
+          {data?.exam_result_status && data.exam_result_status !== 'Pending' && data.result_released_at && (
             <div className="bg-white rounded-xl border-2 border-emerald-100 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">

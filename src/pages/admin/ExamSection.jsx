@@ -258,7 +258,11 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, fee_collected, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, semester_year, fee_collected, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
+    // Middle tier: everything except result_released_at, which needs
+    // add_phd_portal_flow.sql. Without this tier a missing release column would
+    // knock the whole result block down to MIN and hide declared results.
+    const NO_RELEASE = FULL.replace(', result_released_at', '')
     // Minimal fallback used when the exam-result / admit-card columns have not
     // been created yet (run_all_migrations.sql not applied). The forwarded
     // students still appear; only the result/release features stay inactive.
@@ -271,13 +275,21 @@ export default function ExamSection() {
       .order('exam_forwarded_at', { ascending: false })
 
     if (error) {
-      console.error('ExamSection fetch error (full select), retrying minimal:', error)
+      console.error('ExamSection fetch error (full select), retrying without result_released_at:', error)
       ;({ data, error } = await supabase
         .from('students')
-        .select(MIN)
+        .select(NO_RELEASE)
         .not('exam_forwarded_at', 'is', null)
         .order('exam_forwarded_at', { ascending: false }))
-      if (error) console.error('ExamSection fetch error (minimal select):', error)
+      if (error) {
+        console.error('ExamSection fetch error, retrying minimal:', error)
+        ;({ data, error } = await supabase
+          .from('students')
+          .select(MIN)
+          .not('exam_forwarded_at', 'is', null)
+          .order('exam_forwarded_at', { ascending: false }))
+        if (error) console.error('ExamSection fetch error (minimal select):', error)
+      }
     }
     setData(data || [])
     setLoading(false)
@@ -339,6 +351,22 @@ export default function ExamSection() {
     }
     setBusy(null)
     setAdmitModal(null)
+  }
+
+  // Send Result — publishes a declared result to the student portal. Until this
+  // is pressed the result stays internal, mirroring the admit-card release.
+  async function handleSendResult(student) {
+    if (!confirm(`Send ${student.student_name}'s result to the student portal?`)) return
+    setReleasing(student.id)
+    const now = new Date().toISOString()
+    const { error } = await supabase.from('students')
+      .update({ result_released_at: now }).eq('id', student.id)
+    if (error) {
+      alert('Could not send result: ' + error.message + '\n\nRun add_phd_portal_flow.sql in Supabase first.')
+    } else {
+      setData(prev => prev.map(s => s.id === student.id ? { ...s, result_released_at: now } : s))
+    }
+    setReleasing(null)
   }
 
   async function handleReleaseAdmitCard(studentId) {
@@ -547,6 +575,16 @@ export default function ExamSection() {
                       <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit ${s.exam_result_status === 'Pass' ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
                         <Award size={12} /> {s.exam_result_status} ({s.exam_result_obtained_marks}/{s.exam_result_total_marks})
                       </div>
+                      {s.result_released_at ? (
+                        <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
+                          <BadgeCheck size={12} /> Result Sent
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => handleSendResult(s)} disabled={releasing === s.id} title="Send result to Student Portal" className="w-fit text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10">
+                          <Send size={14} className={releasing === s.id ? 'animate-pulse' : ''} />
+                          <span className="text-xs ml-1">Send Result</span>
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => setResultModalStudent(s)} className="w-fit">
                         <FileEdit size={14} className="text-blue-600" />
                         <span className="text-xs ml-1 text-blue-600">Edit</span>
@@ -631,6 +669,16 @@ export default function ExamSection() {
                       <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit ${s.exam_result_status === 'Pass' ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
                         <Award size={12} /> {s.exam_result_status} ({s.exam_result_obtained_marks}/{s.exam_result_total_marks})
                       </div>
+                      {s.result_released_at ? (
+                        <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
+                          <BadgeCheck size={12} /> Result Sent
+                        </div>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => handleSendResult(s)} disabled={releasing === s.id} title="Send result to Student Portal" className="w-fit text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10">
+                          <Send size={14} className={releasing === s.id ? 'animate-pulse' : ''} />
+                          <span className="text-xs ml-1">Send Result</span>
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => setResultModalStudent(s)} className="w-fit">
                         <FileEdit size={14} className="text-blue-600" />
                         <span className="text-xs ml-1 text-blue-600">Edit</span>

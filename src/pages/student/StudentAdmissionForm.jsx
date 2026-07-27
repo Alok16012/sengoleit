@@ -75,7 +75,7 @@ export default function StudentAdmissionForm() {
 
         <div className="grid grid-cols-3 border-b-2 border-gray-300 divide-x-2 divide-gray-300">
           {[
-            { label: 'Admission No.', value: data.admission_number },
+            { label: 'Application No.', value: data.admission_number },
             { label: 'Enrollment No.', value: data.enrollment_no },
             { label: 'Center Code', value: data.centers?.center_code },
           ].map(({ label, value }) => (

@@ -408,7 +408,7 @@ const emptyForm = {
   session_id: '', mode_id: '', university_id: '',
   center_id: '', center_name: '',
   department_id: '', programme_id: '', course_code: '',
-  semester_year: '', academic_year: '', specialization: '',
+  semester_year: '', academic_year: '', specialization: '', stream: '',
   enrollment_no: '', admission_number: '', registration_no: '',
   login_password: '',
   bank_account_holder: '', bank_account_number: '', ifsc_code: '', bank_branch: '',
@@ -1101,6 +1101,7 @@ export default function StudentForm() {
         if (!form.department_id) return 'Please select a Department'
         if (!form.programme_id) return 'Please select a Program'
         if (!form.semester_year) return 'Please select Semester / Year'
+        if (isPhd && !form.stream.trim()) return 'Stream is required for Ph.D'
         if (isPhd && !form.specialization.trim()) return 'Specialization is required for Ph.D'
         return null
       case 2:
@@ -1258,11 +1259,12 @@ export default function StudentForm() {
     // Resilient: if a not-yet-migrated column shows up in the error, drop it and
     // retry so saving still works (that field just isn't persisted). Covers
     // aadhar_back_url and specialization (add_student_specialization.sql).
-    if (error && /aadhar_back_url|specialization|noc_url/.test(error.message || '')) {
+    if (error && /aadhar_back_url|specialization|noc_url|stream/.test(error.message || '')) {
       const clean = { ...payload }
       if (/aadhar_back_url/.test(error.message || '')) delete clean.aadhar_back_url
       if (/specialization/.test(error.message || '')) delete clean.specialization
       if (/noc_url/.test(error.message || '')) delete clean.noc_url
+      if (/stream/.test(error.message || '')) delete clean.stream
       ;({ data: saved, error } = await saveStudent(clean))
     }
 
@@ -1538,19 +1540,22 @@ export default function StudentForm() {
               </div>
               {/* Specialization — PhD (Doctorate) programmes only. */}
               {isPhd && (
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Input label="Stream (Ph.D) *" placeholder="e.g. Science, Commerce, Arts"
+                    value={form.stream} onChange={set('stream')}
+                    readOnly={isReadOnly || isLocked('stream')} />
                   <Input label="Specialization (Ph.D) *" placeholder="e.g. Organic Chemistry, Machine Learning"
                     value={form.specialization} onChange={set('specialization')}
                     readOnly={isReadOnly || isLocked('specialization')} />
                 </div>
               )}
-              {/* Only the Admission Number is issued at the admission step.
+              {/* Only the Application Number is issued at the admission step.
                   Enrollment No (and Registration No) are assigned later by the
                   Account Dept after account verification, so they are not shown
                   on the admission form. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input
-                  label="Admission Number"
+                  label="Application Number"
                   placeholder={isAdmin ? '' : '—'}
                   value={form.admission_number}
                   onChange={set('admission_number')}

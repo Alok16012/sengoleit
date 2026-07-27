@@ -95,7 +95,9 @@ const baseStyle = `
 ─────────────────────────────────────────────────── */
 export function generateIDCard(s) {
   const prog = s.programs?.program_name || s.program_name || '—'
-  const regNo = s.registration_no || s.enrollment_no || s.admission_number
+  const regNo = isPhdProgram(prog)
+    ? (s.admission_number || s.enrollment_no)
+    : (s.registration_no || s.enrollment_no || s.admission_number)
   const contact = s.mobile_no || s.whatsapp_no
   // Validity spans the whole course: start year → start year + course years.
   // e.g. a 2-year B.Ed starting 2025 → "2025-2027".
@@ -115,8 +117,9 @@ export function generateIDCard(s) {
   }
   const vStart = startYear(), vYears = courseYears()
   const validity = vStart && vYears ? `${vStart}-${vStart + vYears}` : (s.academic_year || s.academic_sessions?.session_name || '—')
-  // PhD entries carry a Reference No in place of the Registration No.
-  const regLabel = isPhdProgram(prog) ? 'Reference No.' : 'Registration No.'
+  // The Ph.D pipeline has no registration number — it identifies a candidate by
+  // the application number until the enrollment number is issued.
+  const regLabel = isPhdProgram(prog) ? 'Application No.' : 'Registration No.'
 
   // Full single-block address, comma-joined (matches the reference layout).
   const address = [
@@ -237,6 +240,10 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const deptCode = s.centers?.center_code || s.center_code || (s.departments?.name ? s.departments.name.substring(0,6).toUpperCase() : '—')
+  // Ph.D candidates have no registration number; the application number takes
+  // its place in the reference strip.
+  const admitRegLabel = isPhdProgram(prog) ? 'Application No.' : 'Registration No.'
+  const admitRegNo = isPhdProgram(prog) ? s.admission_number : s.registration_no
   const defaultSubjects = subjects.length ? subjects : []
   const examSchedule  = meta.examSchedule || ''
   const admitCardTime = meta.admitCardTime || ''
@@ -273,12 +280,12 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
     <!-- 3-col reference header -->
     <table style="width:100%;border-collapse:collapse;border-bottom:2px solid #333;">
       <tr>
-        <td class="cell-hd" style="width:33%;border-right:2px solid #333;">Registration No.</td>
+        <td class="cell-hd" style="width:33%;border-right:2px solid #333;">${admitRegLabel}</td>
         <td class="cell-hd" style="width:33%;border-right:2px solid #333;">Roll No (Enrollment)</td>
         <td class="cell-hd" style="width:34%;">University / Dept. Code</td>
       </tr>
       <tr>
-        <td class="cell-val" style="border-right:2px solid #333;">${v(s.registration_no)}</td>
+        <td class="cell-val" style="border-right:2px solid #333;">${v(admitRegNo)}</td>
         <td class="cell-val" style="border-right:2px solid #333;">${v(s.enrollment_no)}</td>
         <td class="cell-val">${deptCode}</td>
       </tr>

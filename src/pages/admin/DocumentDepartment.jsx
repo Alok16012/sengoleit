@@ -11,6 +11,7 @@ import { CheckCircle, XCircle, Download, Eye, ExternalLink, PauseCircle } from '
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
+import { isPhdStudent } from '../../utils/isPhdStudent'
 
 const STATUS_FILTERS = ['Pending', 'Hold', 'Approved', 'Rejected']
 const CENTER_STATUS_FILTERS = ['Pending', 'Hold', 'Forwarded', 'Approved', 'Rejected']
@@ -432,7 +433,7 @@ export default function DocumentDepartment() {
     setLoading(true)
     const query = supabase
       .from('students')
-      .select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, submitted_by, created_at, doc_verified_at, forwarded_at, fee_held, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
+      .select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, submitted_by, created_at, doc_verified_at, forwarded_at, fee_held, programs(program_name, programme_types(programme_type_name)), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)')
       .order('created_at', { ascending: false })
 
     let q = query
@@ -472,13 +473,25 @@ export default function DocumentDepartment() {
     // Admission number is assigned at form submission. Only generate one here as
     // a fallback for older records that don't have it yet.
     const admNo = verifyModal.admission_number || await generateAdmissionNumber()
-    await supabase.from('students').update({
+    const now = new Date().toISOString()
+    const updates = {
       status: 'Hold',
       admission_number: admNo,
       remarks: remarks || null,
-      doc_verified_at: new Date().toISOString(),
+      doc_verified_at: now,
       correction_fields: null,   // forwarded → no pending corrections remain
-    }).eq('id', verifyModal.id)
+    }
+    // Ph.D: document verification also hands the candidate to the Research
+    // Dept, which issues the offer / entrance letters and later forwards to the
+    // Exam Section. Regular students go straight to the Account Dept as before.
+    if (isPhdStudent(verifyModal)) updates.research_forwarded_at = now
+    let { error } = await supabase.from('students').update(updates).eq('id', verifyModal.id)
+    // research_forwarded_at needs add_phd_portal_flow.sql — retry without it so
+    // verification still works on a database that hasn't been migrated yet.
+    if (error && /research_forwarded_at/.test(error.message || '')) {
+      const { research_forwarded_at, ...clean } = updates
+      await supabase.from('students').update(clean).eq('id', verifyModal.id)
+    }
     setSaving(false)
     setVerifyModal(null)
     setRemarks('')
@@ -1398,7 +1411,7 @@ export default function DocumentDepartment() {
               <Th>Center</Th>
               <Th>Submitted By</Th>
               <Th>Submitted On</Th>
-              <Th>Admission No</Th>
+              <Th>Application No</Th>
               <Th>Remarks</Th>
               <Th>Status</Th>
               <Th>View</Th>
@@ -1505,7 +1518,7 @@ export default function DocumentDepartment() {
                   <div className="bg-white border border-gray-100 rounded-xl p-3">
                     <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-3">Admission / Program</p>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                      <Row label="Admission No" value={v.admission_number} />
+                      <Row label="Application No" value={v.admission_number} />
                       <Row label="Enrollment No" value={v.enrollment_no} />
                       <Row label="Entry Type" value={v.entry_type} />
                       <Row label="Course Code" value={v.course_code} />

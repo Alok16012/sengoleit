@@ -46,9 +46,14 @@ export default function StudentLayout() {
       .then(({ data }) => setIsPhd(isPhdProgram(data?.programs?.program_name)))
   }, [student?.id])
 
-  const navItems = isPhd
-    ? [...baseNavItems.slice(0, 6), ...phdNavItems, ...baseNavItems.slice(6)]
-    : baseNavItems
+  // Ph.D research pipeline: no registration slip (that document was dropped),
+  // plus the offer letter / entrance clearance entries after the I Card.
+  const navItems = (() => {
+    if (!isPhd) return baseNavItems
+    const items = baseNavItems.filter(n => n.to !== '/student/registration-slip')
+    const at = items.findIndex(n => n.to === '/student/id-card') + 1
+    return [...items.slice(0, at), ...phdNavItems, ...items.slice(at)]
+  })()
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

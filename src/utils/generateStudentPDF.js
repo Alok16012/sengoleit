@@ -162,7 +162,7 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
       ${s.admission_number ? `<tr><td style="padding-top:6px;">
         <table style="width:100%;table-layout:fixed;">
           <tr>
-            <td style="font-size:9.5px;color:#555;">Admission No:<br/><strong style="color:#933d18;font-size:11px;">${s.admission_number}</strong></td>
+            <td style="font-size:9.5px;color:#555;">Application No:<br/><strong style="color:#933d18;font-size:11px;">${s.admission_number}</strong></td>
             ${s.enrollment_no ? `<td style="font-size:9.5px;color:#555;">Enrollment No:<br/><strong style="color:#059669;font-size:11px;">${s.enrollment_no}</strong></td>` : ''}
             ${s.registration_no && s.enrollment_no ? `<td style="font-size:9.5px;color:#555;">Reg No:<br/><strong style="font-size:11px;">${s.registration_no}</strong></td>` : ''}
           </tr>
@@ -362,7 +362,7 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
     <p style="font-size:9px;font-weight:700;color:#933d18;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">For Office Use Only</p>
     <table>
       <tr>
-        <td style="padding:3px 8px;font-size:9.5px;color:#555;width:33%;">Admission No: <strong style="color:#933d18;">${v(s.admission_number)}</strong></td>
+        <td style="padding:3px 8px;font-size:9.5px;color:#555;width:33%;">Application No: <strong style="color:#933d18;">${v(s.admission_number)}</strong></td>
         <td style="padding:3px 8px;font-size:9.5px;color:#555;width:33%;">Enrollment No: <strong style="color:#059669;">${v(s.enrollment_no)}</strong></td>
         <td style="padding:3px 8px;font-size:9.5px;color:#555;width:34%;">Reg No: <strong>${v(s.enrollment_no ? s.registration_no : '')}</strong></td>
       </tr>

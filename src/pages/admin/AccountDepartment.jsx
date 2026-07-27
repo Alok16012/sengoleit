@@ -11,6 +11,7 @@ import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Sav
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, formatDateTime, approvalPaymentDate } from '../../utils/formatDate'
+import { isPhdStudent } from '../../utils/isPhdStudent'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
@@ -764,14 +765,13 @@ export default function AccountDepartment() {
         )
         return
       }
-      // PhD (Doctorate) students do NOT get an enrollment number for now — only
-      // a registration number is issued at approval.
-      const isPhd = (student.programs?.programme_types?.programme_type_name || '')
-        .toLowerCase().includes('doctorate')
+      // Ph.D candidates get neither number here: the registration number was
+      // dropped from the research pipeline entirely, and the enrollment number
+      // is issued later, when the Research Dept forwards them to the Exam
+      // Section. Regular students get both at approval, as before.
+      const isPhd = isPhdStudent(student)
       const enrollNo = isPhd ? null : await generateEnrollmentNumber(student)
-      // Issue the registration number now, together with enrollment, unless the
-      // student already has one (e.g. re-approval after a hold).
-      const regNo = student.registration_no || await generateRegistrationNumber()
+      const regNo = isPhd ? null : (student.registration_no || await generateRegistrationNumber())
       await supabase.from('students').update({
         status: 'Approved',
         enrollment_no: enrollNo,
@@ -991,7 +991,7 @@ export default function AccountDepartment() {
                   <Th>Session</Th>
                   <Th>Center</Th>
                   <Th>Center Wallet</Th>
-                  <Th>Admission No</Th>
+                  <Th>Application No</Th>
                   <Th>Doc Verified On</Th>
                   <Th>Remarks</Th>
                   <Th>Status</Th>
@@ -1515,7 +1515,7 @@ export default function AccountDepartment() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   <span className="text-xs bg-[#933d18]/10 text-[#933d18] font-bold px-2 py-1 rounded-lg">{viewStudent.programs?.program_name || '—'}</span>
                   <span className="text-xs bg-gray-100 text-gray-600 font-semibold px-2 py-1 rounded-lg">{viewStudent.academic_sessions?.session_name || '—'}</span>
-                  <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded-lg">Admission: {viewStudent.admission_number || '—'}</span>
+                  <span className="text-xs bg-indigo-50 text-indigo-700 font-bold px-2 py-1 rounded-lg">Application No: {viewStudent.admission_number || '—'}</span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">Center: {viewStudent.centers?.center_name || '—'} {viewStudent.centers?.center_code ? `(${viewStudent.centers.center_code})` : ''}</p>
               </div>
@@ -1659,7 +1659,7 @@ export default function AccountDepartment() {
           <div className={`border rounded-xl p-4 ${studentActionModal?.type === 'approve' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
             <p className="font-semibold text-gray-900">{studentActionModal?.student?.student_name}</p>
             <p className="text-xs text-gray-500 mt-1">{studentActionModal?.student?.programs?.program_name}</p>
-            <p className="text-xs font-mono text-[#933d18] mt-1">Admission No: {studentActionModal?.student?.admission_number || '—'}</p>
+            <p className="text-xs font-mono text-[#933d18] mt-1">Application No: {studentActionModal?.student?.admission_number || '—'}</p>
           </div>
           {studentActionModal?.type === 'approve' && (() => {
             const held = Number(studentActionModal?.student?.fee_held || 0)
@@ -1726,7 +1726,7 @@ export default function AccountDepartment() {
                   </div>
                 )}
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-                  On approval, the held fee is collected{alreadyHeld ? '' : ' (deducted from the center wallet)'}, and the student's <strong>Enrollment Number</strong> and <strong>Admission Number</strong> become visible to the center / super center.
+                  On approval, the held fee is collected{alreadyHeld ? '' : ' (deducted from the center wallet)'}, and the student's <strong>Enrollment Number</strong> and <strong>Application Number</strong> become visible to the center / super center.
                 </div>
               </div>
             )

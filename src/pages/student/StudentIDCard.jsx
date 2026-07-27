@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { generateIDCard } from '../../utils/generateStudentCards'
+import { generateIDCard, isPhdProgram } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
-import { CreditCard, Download } from 'lucide-react'
+import { CreditCard, Download, Lock } from 'lucide-react'
 
 export default function StudentIDCard() {
   const { student } = useStudentAuth()
@@ -39,7 +39,13 @@ export default function StudentIDCard() {
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
   if (!data) return <div className="p-8 text-center text-gray-400">No data found.</div>
 
-  const regNo = data.registration_no || data.enrollment_no || data.admission_number
+  const isPhd = isPhdProgram(data.programs?.program_name)
+  const regNo = isPhd
+    ? (data.admission_number || data.enrollment_no)
+    : (data.registration_no || data.enrollment_no || data.admission_number)
+  // The ID card is issued only once the student has an enrollment number — for
+  // Ph.D that happens when Research forwards them to the Exam Section.
+  const enrolled = !!data.enrollment_no
   const contact = data.mobile_no || data.whatsapp_no
   const address = [
     data.student_perm_village_town, data.student_perm_landmark, data.student_perm_city,
@@ -65,7 +71,7 @@ export default function StudentIDCard() {
   const validity = startYear && courseYears ? `${startYear}-${startYear + courseYears}` : (data.academic_year || data.academic_sessions?.session_name || '—')
   const dob = data.date_of_birth ? formatDate(data.date_of_birth) : '—'
   const rows = [
-    ['Registration No.', regNo, true],
+    [isPhd ? 'Application No.' : 'Registration No.', regNo, true],
     ['Enrollment No', data.enrollment_no],
     ['Name', data.student_name],
     ['F./H. Name', data.fathers_name],
@@ -84,14 +90,22 @@ export default function StudentIDCard() {
           <h1 className="text-xl font-black text-gray-900 flex items-center gap-2"><CreditCard size={20} className="text-[#933d18]" /> Student Identity Card</h1>
           <p className="text-xs text-gray-400 mt-0.5">Download your official university ID card</p>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={generating}
-          className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors disabled:opacity-60"
-        >
-          <Download size={15} /> {generating ? 'Generating...' : 'Download ID Card'}
-        </button>
+        {enrolled && (
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors disabled:opacity-60"
+          >
+            <Download size={15} /> {generating ? 'Generating...' : 'Download ID Card'}
+          </button>
+        )}
       </div>
+
+      {!enrolled && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700 font-medium flex items-center gap-2">
+          <Lock size={15} /> Your ID card will be available once your Enrollment Number has been generated.
+        </div>
+      )}
 
       {/* Preview — matches the downloaded landscape ID card */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm max-w-xl">

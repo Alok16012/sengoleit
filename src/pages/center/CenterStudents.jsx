@@ -136,7 +136,7 @@ export default function CenterStudents() {
             <tr>
               <Th>#</Th>
               <Th>Student Name</Th>
-              <Th>Admission No</Th>
+              <Th>Application No</Th>
               <Th>Enrollment No</Th>
               <Th>Program</Th>
               <Th>Session</Th>
