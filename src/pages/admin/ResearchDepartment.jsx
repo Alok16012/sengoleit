@@ -107,9 +107,12 @@ export default function ResearchDepartment() {
     const base = 'id, student_name, status, registration_no, enrollment_no, admission_number, session_id, programme_id, fathers_name, mobile_no, date_of_birth, academic_year, fee_collected, exam_forwarded_at, doc_verified_at, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, enrollment_code, programme_types(programme_type_name)), academic_sessions(session_name), departments(name), centers(center_name, center_code)'
     const cols = `specialization, ${OPTIONAL_COLS}, ${base}`
 
-    // Preferred: everyone the Document Dept forwarded to Research.
+    // Everyone the Document Dept forwarded to Research. `doc_verified_at` is
+    // accepted too: candidates verified before add_phd_portal_flow.sql existed
+    // never got a research_forwarded_at, and they must not be stranded.
     let { data, error } = await supabase.from('students').select(cols)
-      .not('research_forwarded_at', 'is', null).order('created_at', { ascending: false })
+      .or('research_forwarded_at.not.is.null,doc_verified_at.not.is.null')
+      .order('created_at', { ascending: false })
 
     if (error) {
       // add_phd_portal_flow.sql not applied yet — fall back to the old rule
