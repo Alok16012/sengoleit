@@ -376,7 +376,9 @@ export default function CouponView({ type = 'wallet' }) {
                     ) : approvedPaid ? (
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Approved</span>
                     ) : pendingAccounts ? (
-                      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">● Accounts</span>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
+                        <Clock size={10} /> To Verify
+                      </span>
                     ) : deactivated ? (
                       <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700">● Deactivated</span>
                     ) : c.is_activated ? (
