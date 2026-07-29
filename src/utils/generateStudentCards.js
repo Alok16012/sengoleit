@@ -572,7 +572,7 @@ export function generateOfferLetter(s, opts = {}) {
       Your acceptance of this offer shall be deemed as your agreement to abide by the Statutes, Ordinances, Rules, Regulations and decisions of ${UNI_NAME}. If you have any queries, please feel free to contact us.
     </p>
     <div style="font-size:12.5px;color:#000;margin-top:20px;line-height:1.5;">
-      <p style="margin:0;">Yours faithfully,</p>
+      <p style="margin:0 0 34px;">Yours faithfully,</p>
       <p style="margin:0;">Registrar</p>
       <p style="margin:0;">${UNI_NAME}</p>
     </div>
