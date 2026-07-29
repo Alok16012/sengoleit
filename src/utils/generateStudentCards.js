@@ -535,9 +535,12 @@ function letterheadDoc(docTitle, studentName, refNo, dateStr, bodyHtml) {
   ${printBtn()}
   <div class="sheet" style="position:relative;width:794px;height:1120px;margin:0 auto;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.18);overflow:hidden;">
     <img src="${LETTERHEAD_URL}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:0;" onerror="this.style.display='none'"/>
-    <!-- Values sit on the letterhead's printed "Ref. No. ....." / "Date: ....." rules. -->
-    <div style="position:absolute;top:16.1%;left:17.6%;z-index:2;font-size:12.5px;color:#000;">${v(refNo)}</div>
-    <div style="position:absolute;top:16.1%;left:82.3%;z-index:2;font-size:12.5px;color:#000;">${v(dateStr)}</div>
+    <!-- The letterhead prints "Ref. No. ......" and "Date: ......" rules: labels end
+         at x 15.5% / 81.4%, the dotted rules run to 24.3% / 91.0%, and the dots sit
+         at y 17.0%. Values start just after each label and rest ON the rule (top is
+         set so the baseline lands a hair above the dots, not through them). -->
+    <div style="position:absolute;top:15.8%;left:16.3%;z-index:2;font-size:12px;color:#000;white-space:nowrap;">${v(refNo)}</div>
+    <div style="position:absolute;top:15.8%;left:82%;z-index:2;font-size:12px;color:#000;white-space:nowrap;">${v(dateStr)}</div>
     <!-- Body sits between the Ref/Date rule and the footer bar (starts ~94.6%). -->
     <div style="position:absolute;top:19.6%;left:9.5%;right:8.5%;bottom:9%;z-index:2;font-family:'Times New Roman',Times,serif;">
       ${bodyHtml}
