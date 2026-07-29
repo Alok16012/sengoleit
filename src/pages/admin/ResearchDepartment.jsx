@@ -28,7 +28,8 @@ export default function ResearchDepartment() {
   const today = new Date().toISOString().slice(0, 10)
   const DEFAULT_LETTERS = [
     { name: 'Offer Letter', prefix: 'SIU/PhD/OL/2025/', nextNum: 1, date: today },
-    { name: 'Entrance Certificate', prefix: 'SIU/PhD/EC/2025/', nextNum: 1, date: today },
+    // testDate fills the certificate's "Entrance Test conducted on ____" blank.
+    { name: 'Entrance Certificate', prefix: 'SIU/PhD/EC/2025/', nextNum: 1, date: today, testDate: '' },
   ]
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
   const [selIdx, setSelIdx] = useState(0)
@@ -94,7 +95,12 @@ export default function ResearchDepartment() {
   }
   function docOptsFor(student, letterName) {
     const letter = letters.find(l => l.name === letterName) || sel
-    return { refNo: refFor(student, letterName), date: letter.date ? formatDate(letter.date) : undefined }
+    return {
+      refNo: refFor(student, letterName),
+      date: letter.date ? formatDate(letter.date) : undefined,
+      // Only the Entrance Certificate prints this; blank leaves a rule to fill in.
+      testDate: letter.testDate ? formatDate(letter.testDate) : undefined,
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -253,8 +259,18 @@ export default function ResearchDepartment() {
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Date</label>
             <input type="date" value={sel?.date || ''} onChange={e => updateSel({ date: e.target.value })}
+              title="Date printed on the letter"
               className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
           </div>
+          {/* The certificate's "Entrance Test conducted on ____" date. */}
+          {/entrance/i.test(sel?.name || '') && (
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Test Conducted On</label>
+              <input type="date" value={sel?.testDate || ''} onChange={e => updateSel({ testDate: e.target.value })}
+                title="Entrance Test date printed on the certificate. Leave empty to print a blank rule to fill in by hand."
+                className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
+            </div>
+          )}
           <Button variant="primary" size="md" onClick={saveCfg}><Save size={14} /> {saved ? 'Saved ✓' : 'Save'}</Button>
           <p className="text-[11px] text-gray-400">
             Next → <span className="font-mono font-bold text-[#933d18]">{sel?.prefix}{refSerial(sel?.nextNum)}</span>
