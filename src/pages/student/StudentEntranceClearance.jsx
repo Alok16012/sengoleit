@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { generateEntranceClearance, isPhdProgram } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { letterOptsFor } from '../../utils/letterSettings'
 import { ShieldCheck, Download, Lock } from 'lucide-react'
 
 export default function StudentEntranceClearance() {
@@ -28,7 +29,10 @@ export default function StudentEntranceClearance() {
   async function handleGenerate() {
     if (!data) return
     setGenerating(true)
-    generateEntranceClearance(data)
+    // Use the Ref. No. / dates the Research Dept issued, so the student's copy
+    // matches the office copy. Falls back to the letter's defaults if unset.
+    const opts = await letterOptsFor(data.id, 'Entrance Certificate')
+    generateEntranceClearance(data, opts)
     setGenerating(false)
   }
 

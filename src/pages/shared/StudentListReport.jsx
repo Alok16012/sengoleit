@@ -14,6 +14,7 @@ import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee } from '../../utils/courseFee'
+import { letterOptsFor } from '../../utils/letterSettings'
 
 const STATUS_META = {
   Pending:    { color: 'amber',   label: 'Pending Students',    desc: 'Forms submitted — not yet forwarded to the Document Dept.' },
@@ -152,8 +153,9 @@ export default function StudentListReport({ status }) {
       const resolved = await resolveStudentDocUrls(s)
       if (type === 'reg') generateRegistrationCertificate(resolved)
       else if (type === 'id') generateIDCard(resolved)
-      else if (type === 'offer') generateOfferLetter(resolved)
-      else if (type === 'entrance') generateEntranceClearance(resolved)
+      // Reuse the Ref. No. / dates the Research Dept issued for these letters.
+      else if (type === 'offer') generateOfferLetter(resolved, await letterOptsFor(studentId, 'Offer Letter'))
+      else if (type === 'entrance') generateEntranceClearance(resolved, await letterOptsFor(studentId, 'Entrance Certificate'))
       else if (type === 'admit') {
         const subjects = await fetchAdmitCardSubjects(resolved)
         const meta = await fetchExamSettingsMeta(resolved)

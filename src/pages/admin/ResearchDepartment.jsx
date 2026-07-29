@@ -7,6 +7,7 @@ import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, T
 import { generateOfferLetter, generateEntranceClearance } from '../../utils/generateStudentCards'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
+import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
 
@@ -36,6 +37,10 @@ export default function ResearchDepartment() {
   const [newName, setNewName] = useState('')
   const [assigned, setAssigned] = useState({}) // { [letterName]: { [studentId]: num } }
   const [saved, setSaved] = useState(false)
+  // Whether the shared letter_settings/letter_refs tables exist, and whether the
+  // series still has to be pushed there once (table present but empty).
+  const [settingsInDb, setSettingsInDb] = useState(false)
+  const [settingsNeedSeed, setSettingsNeedSeed] = useState(false)
 
   // Older saves typed the leading serial digits into the prefix itself (e.g.
   // prefix "SIU/DR/AL/25/01" with Next No. 0 to read as …/010). Now that the
@@ -69,17 +74,36 @@ export default function ResearchDepartment() {
       }
       if (s?.assigned) setAssigned(s.assigned)
     } catch { /* ignore */ }
+
+    // The DB copy is shared by every admin, so it wins over this browser's copy.
+    // If the tables aren't migrated yet, loadLetterSettings/loadAssignedRefs
+    // return null and we simply keep the local values above.
+    ;(async () => {
+      const [dbLetters, dbAssigned] = await Promise.all([loadLetterSettings(), loadAssignedRefs()])
+      if (dbLetters?.length) setLetters(dbLetters.map(migratePrefix))
+      else if (dbLetters) setSettingsNeedSeed(true)   // table exists but is empty
+      if (dbAssigned) setAssigned(dbAssigned)
+      setSettingsInDb(dbLetters != null)
+    })()
   }, [])
 
   const sel = letters[selIdx] || letters[0]
   // Safety net: never show duplicate names in the dropdown (keep the first index).
   const uniqueLetters = letters.filter((l, i) =>
     letters.findIndex(x => (x.name || '').trim().toLowerCase() === (l.name || '').trim().toLowerCase()) === i)
+  // Keep the browser copy as a fallback, but the DB is the shared source of truth.
   function persist(nextLetters, nextAssigned) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters: nextLetters, assigned: nextAssigned }))
+    if (settingsInDb) saveLetterSettings(nextLetters)
   }
   function updateSel(patch) { setLetters(ls => ls.map((l, i) => i === selIdx ? { ...l, ...patch } : l)) }
-  function saveCfg() { persist(letters, assigned); setSaved(true); setTimeout(() => setSaved(false), 1500) }
+  async function saveCfg() {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters, assigned }))
+    const { error } = await saveLetterSettings(letters)
+    if (error) { alert('Could not save letter settings.\n\n' + error.message); return }
+    setSettingsInDb(true); setSettingsNeedSeed(false)
+    setSaved(true); setTimeout(() => setSaved(false), 1500)
+  }
 
   function addLetter() {
     const name = newName.trim()
@@ -109,6 +133,8 @@ export default function ResearchDepartment() {
       const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
       const nextLetters = li >= 0 ? letters.map((l, i) => i === li ? { ...l, nextNum: num + 1 } : l) : letters
       setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
+      // Record the claim so every admin — and the student's own copy — reuses it.
+      if (settingsInDb) assignRef(letterName, student.id, num)
     }
     return `${letter.prefix}${refSerial(num)}`
   }
@@ -298,6 +324,17 @@ export default function ResearchDepartment() {
             <span className="ml-1 text-gray-300">then {sel?.prefix}{refSerial((Number(sel?.nextNum) || 0) + 1)}</span>
           </p>
         </div>
+        {!settingsInDb && (
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+            These settings are saved in this browser only. Run <span className="font-mono">add_letter_settings.sql</span> in
+            Supabase → SQL Editor to share one reference series across all admins and show the same Ref. No. on the student's own copy.
+          </p>
+        )}
+        {settingsInDb && settingsNeedSeed && (
+          <p className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mt-2">
+            Press <strong>Save</strong> once to publish this reference series to the shared settings.
+          </p>
+        )}
         {trailingDigits && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
             The prefix ends in a number, so the serial is added on top of it —
