@@ -550,7 +550,7 @@ export function generateOfferLetter(s, opts = {}) {
       We are pleased to inform you that you have been provisionally selected for admission to the Ph.D. Programme at ${UNI_NAME} based on your performance in the Entrance Test and/or Interview. Your admission is offered subject to the following terms and conditions:
     </p>
     <p style="${P}">
-      You are requested to confirm your acceptance of this Admission Offer by depositing the prescribed fee within the stipulated time. Payment of the fee may be made through Online Transfer / Demand Draft in favour of "${UNI_NAME}", payable at Namchi, Sikkim. Candidates paying through Demand Draft must mention their Name and Application/Enrollment Number on the reverse side of the Demand Draft.
+      You are requested to confirm your acceptance of this Admission Offer by depositing the prescribed fee within the stipulated time. Payment of the fee may be made through Online Transfer / Demand Draft in favour of "${UNI_NAME}", payable at Singtam, Sikkim. Candidates paying through Demand Draft must mention their Name and Application/Enrollment Number on the reverse side of the Demand Draft.
     </p>
     <p style="font-size:12px;color:#222;line-height:1.5;margin:0 0 4px;">At the time of registration, you are required to produce the following original documents:</p>
     <ol style="font-size:12px;color:#222;line-height:1.5;margin:0 0 9px 18px;padding:0;">
@@ -571,7 +571,7 @@ export function generateOfferLetter(s, opts = {}) {
     </p>
     <div style="font-size:12px;color:#111;margin-top:12px;">
       <p style="margin:0 0 20px;">Yours faithfully,</p>
-      <p style="font-weight:700;margin:0;">Director (Research)</p>
+      <p style="margin:0;">Registrar</p>
       <p style="margin:0;">${UNI_NAME}</p>
     </div>
     <p style="font-size:10px;color:#555;font-style:italic;margin-top:10px;line-height:1.4;">
