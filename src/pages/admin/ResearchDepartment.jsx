@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button'
 import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck } from 'lucide-react'
 import { generateOfferLetter, generateEntranceClearance } from '../../utils/generateStudentCards'
 import { isPhdStudent } from '../../utils/isPhdStudent'
-import { formatDate } from '../../utils/formatDate'
+import { formatDate, formatDateLong } from '../../utils/formatDate'
 
 const SETTINGS_KEY = 'phd_doc_settings'
 
@@ -103,7 +103,8 @@ export default function ResearchDepartment() {
       refNo: refFor(student, letterName),
       date: letter.date ? formatDate(letter.date) : undefined,
       // Only the Entrance Certificate prints this; blank leaves a rule to fill in.
-      testDate: letter.testDate ? formatDate(letter.testDate) : undefined,
+      // Reads inside a sentence on the certificate, so spell the month: 15-June-2026.
+      testDate: letter.testDate ? formatDateLong(letter.testDate) : undefined,
     }
   }
 

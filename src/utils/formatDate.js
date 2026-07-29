@@ -11,6 +11,18 @@ export function formatDate(value, fallback = '—') {
   return `${dd}/${mm}/${yyyy}`
 }
 
+// "15-June-2026" — spelled-out month, for dates that read inside a sentence on a
+// printed letter (e.g. "Entrance Test conducted on 15-June-2026").
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December']
+
+export function formatDateLong(value, fallback = '—') {
+  if (!value) return fallback
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return fallback
+  return `${String(d.getDate()).padStart(2, '0')}-${MONTHS_LONG[d.getMonth()]}-${d.getFullYear()}`
+}
+
 // The website's PayU integration builds the transaction id as
 //   <8-char approval code><base36 Date.now()><4-char random>
 // (see newTxnId in sengolewebsite). So the moment a code was paid online can be
