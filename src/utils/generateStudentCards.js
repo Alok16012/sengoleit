@@ -592,38 +592,40 @@ export function generateEntranceClearance(s, opts = {}) {
   const refNo = opts.refNo || s.registration_no || s.enrollment_no || s.admission_number
   const dateStr = opts.date || fmtDate(new Date())
 
+  // The entrance-test date is not stored on the student — print it when supplied,
+  // otherwise leave a rule to fill in by hand (as on the printed certificate).
+  const testDate = opts.testDate
+    ? `<strong>${v(opts.testDate)}</strong>`
+    : '<span style="display:inline-block;min-width:150px;border-bottom:1px solid #000;">&nbsp;</span>'
+
+  const P = 'font-size:13px;color:#000;line-height:1.6;margin:0 0 13px;'
   const body = `
-    <div style="text-align:center;margin-bottom:18px;">
-      <span style="font-size:16px;font-weight:900;color:${BRAND};letter-spacing:0.04em;border-bottom:2px solid ${GOLD};padding-bottom:2px;">Ph.D. ENTRANCE CLEARANCE CERTIFICATE</span>
+    <div style="text-align:center;margin:54px 0 26px;">
+      <span style="font-size:15.5px;font-weight:700;color:#000;text-decoration:underline;">Ph.D. ENTRANCE CLEARANCE CERTIFICATE</span>
     </div>
-    <p style="font-size:12.5px;color:#222;line-height:1.85;margin-bottom:16px;text-align:justify;">
-      This is to certify that <strong>${v(s.student_name)}</strong>, son / daughter of
-      <strong>${v(s.fathers_name)}</strong>, bearing Reference No <strong>${v(refNo)}</strong>, has appeared in and
-      <strong>successfully cleared</strong> the Ph.D Entrance Test / Eligibility requirements for admission to the
-      <strong>Doctor of Philosophy (Ph.D) programme in ${prog}</strong> under the ${dept} for the academic session
-      <strong>${sess}</strong>.
+    <p style="font-size:13px;color:#000;font-weight:700;margin:0 0 16px;">Name of the Candidate: <span style="text-decoration:underline;">&nbsp;${v(s.student_name)}&nbsp;</span></p>
+    <p style="font-size:13px;color:#000;font-weight:700;margin:0 0 14px;">Dear Scholar,</p>
+    <p style="${P}">
+      We are pleased to inform you that, based on your performance in the <strong>Ph.D. Entrance Test</strong>
+      conducted on ${testDate}, you have successfully qualified for admission to the
+      <strong>Ph.D. Programme</strong> of the University.
     </p>
-    <p style="font-size:12.5px;color:#222;line-height:1.85;margin-bottom:20px;text-align:justify;">
-      The candidate is hereby <strong>cleared to proceed</strong> with the admission and registration process as per the
-      rules and regulations of ${UNI_NAME}.
+    <p style="${P}">
+      You are hereby provisionally offered admission, subject to the completion of all admission formalities.
+      To confirm your admission, kindly submit the duly filled application form along with the prescribed
+      documents and applicable fees within <strong>30 days</strong> from the date of issuance of this certificate.
     </p>
-    <table style="width:100%;margin:6px 0 18px;">
-      ${docDetailRow('Reference No', refNo)}
-      ${docDetailRow('Candidate Name', s.student_name)}
-      ${docDetailRow("Father's / Husband's Name", s.fathers_name)}
-      ${docDetailRow('Programme', prog)}
-      ${docDetailRow('Department', dept)}
-      ${docDetailRow('Session', sess)}
-    </table>
-    <table style="width:100%;margin-top:34px;">
-      <tr>
-        <td style="font-size:11px;color:#444;vertical-align:bottom;">Place: Sikkim</td>
-        <td style="text-align:right;vertical-align:bottom;">
-          <div style="height:30px;"></div>
-          <div style="font-size:11px;font-weight:800;color:${BRAND};">Controller of Examinations / Director (Research)</div>
-          <div style="font-size:10px;color:#666;">${UNI_NAME}</div>
-        </td>
-      </tr>
-    </table>`
+    <p style="${P}">
+      After successful enrolment, you will be required to attend the prescribed <strong>Coursework</strong> as an
+      essential component of the Ph.D. Programme, in accordance with the University regulations.
+    </p>
+    <p style="${P}margin-top:24px;">
+      We congratulate you on your achievement and wish you success in your research journey.
+    </p>
+    <p style="font-size:13px;color:#000;font-weight:700;margin:36px 0 0;">With best wishes,</p>
+    <div style="font-size:13px;color:#000;font-weight:700;margin-top:54px;line-height:1.5;">
+      <p style="margin:0;">Registrar</p>
+      <p style="margin:0;">${UNI_NAME}</p>
+    </div>`
   openWindow(letterheadDoc('Entrance Clearance Certificate', s.student_name, refNo, dateStr, body), 'Entrance Clearance Certificate')
 }
