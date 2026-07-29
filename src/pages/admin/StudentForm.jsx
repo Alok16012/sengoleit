@@ -606,12 +606,18 @@ export default function StudentForm() {
 
   const toggleEdu = (key) => setOpenEdu(prev => ({ ...prev, [key]: !prev[key] }))
 
+  // Keep the horizontal stepper's active tab in view WITHOUT scrolling the page
+  // (no vertical jump). Only adjust the stepper strip's own horizontal scroll;
+  // never touch the page / main scroll position and never animate.
   useEffect(() => {
-    const main = document.querySelector('main')
-    if (main) main.scrollTop = 0
-    // Bring the active step fully into view inside the horizontal stepper
-    // (otherwise the last steps get clipped at the right edge).
-    activeStepRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    const el = activeStepRef.current
+    if (!el) return
+    // Walk up to the horizontally-scrollable strip (the overflow-x-auto wrapper).
+    let strip = el.parentElement
+    while (strip && strip.scrollWidth <= strip.clientWidth) strip = strip.parentElement
+    if (!strip) return
+    const offsetWithin = (el.getBoundingClientRect().left - strip.getBoundingClientRect().left) + strip.scrollLeft
+    strip.scrollLeft = offsetWithin - (strip.clientWidth - el.offsetWidth) / 2
   }, [step])
 
   useEffect(() => {
