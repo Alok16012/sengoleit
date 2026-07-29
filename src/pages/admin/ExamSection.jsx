@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange } from 'lucide-react'
+import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange, Users } from 'lucide-react'
 import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
 import ExaminationCalendar from './ExaminationCalendar'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
@@ -426,48 +426,30 @@ export default function ExamSection() {
           view === 'result' ? `${filtered.length} student${filtered.length === 1 ? '' : 's'} — declare or edit results` :
           `${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`
         }
-        actions={
-          view === 'list' ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setView('calendar')}
-                title="Set examination start & end dates per session"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-sm transition-colors"
-              >
-                <CalendarRange size={16} /> Examination Calendar
-              </button>
-              <button
-                onClick={() => setSettingsOpen(true)}
-                title="Set per-course Exam Schedule"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-sm transition-colors"
-              >
-                <CalendarClock size={16} /> Exam Schedule
-              </button>
-              <button
-                onClick={() => setSettingsOpen(true)}
-                title="Set per-course Admit Card Time"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[#933d18]/30 bg-[#933d18]/10 hover:bg-[#933d18]/20 text-[#933d18] font-bold text-sm transition-colors"
-              >
-                <Clock size={16} /> Admit Card Time
-              </button>
-              <button
-                onClick={() => setView('result')}
-                title="Declare / view student results"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-sm transition-colors"
-              >
-                <Award size={16} /> Result
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setView('list')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 font-bold text-sm transition-colors"
-            >
-              <X size={16} /> Back to Exam List
+      />
+
+      {/* Sections of the Exam Section, so it's clear what exists and where you
+          are — these used to be buttons that navigated away from the list. */}
+      <div className="flex items-center gap-1 flex-wrap bg-gray-100 p-1 rounded-xl w-fit mb-5">
+        {[
+          { key: 'list', label: 'Student List', icon: Users },
+          { key: 'schedule', label: 'Date Sheet', icon: CalendarClock },
+          { key: 'calendar', label: 'Examination Calendar', icon: CalendarRange },
+          { key: 'result', label: 'Result', icon: Award },
+        ].map(t => {
+          const Icon = t.icon
+          const active = t.key === 'schedule' ? settingsOpen : (!settingsOpen && view === t.key)
+          return (
+            <button key={t.key} type="button"
+              onClick={() => { if (t.key === 'schedule') { setSettingsOpen(true) } else { setSettingsOpen(false); setView(t.key) } }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                active ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              <Icon size={14} /> {t.label}
             </button>
           )
-        }
-      />
+        })}
+      </div>
 
       {view === 'calendar' && <ExaminationCalendar />}
 

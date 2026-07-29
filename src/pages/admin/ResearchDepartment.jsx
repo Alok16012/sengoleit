@@ -346,6 +346,48 @@ export default function ResearchDepartment() {
             </button>
           </p>
         )}
+
+        {/* Every configured letter at a glance — the fields above edit one row at
+            a time, so without this you can't see what else is already set up. */}
+        <div className="mt-4">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">All Letters</p>
+          <div className="border border-gray-100 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500">
+                  <th className="text-left font-semibold px-3 py-2">Letter</th>
+                  <th className="text-left font-semibold px-3 py-2">Next Reference No.</th>
+                  <th className="text-left font-semibold px-3 py-2">Date</th>
+                  <th className="text-left font-semibold px-3 py-2">Test Date</th>
+                  <th className="text-left font-semibold px-3 py-2">Issued</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {uniqueLetters.map(l => {
+                  const idx = letters.indexOf(l)
+                  const isSel = idx === selIdx
+                  const issued = Object.keys(assigned[l.name] || {}).length
+                  return (
+                    <tr key={l.name} className={`border-t border-gray-100 ${isSel ? 'bg-[#933d18]/5' : ''}`}>
+                      <td className="px-3 py-2 font-semibold text-gray-800">{l.name}</td>
+                      <td className="px-3 py-2 font-mono text-[#933d18]">{l.prefix}{refSerial(l.nextNum)}</td>
+                      <td className="px-3 py-2 text-gray-600">{l.date ? formatDate(l.date) : '—'}</td>
+                      <td className="px-3 py-2 text-gray-600">{l.testDate ? formatDateLong(l.testDate) : '—'}</td>
+                      <td className="px-3 py-2 text-gray-600">{issued || '—'}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button type="button" onClick={() => setSelIdx(idx)}
+                          className={`text-xs font-semibold ${isSel ? 'text-gray-400' : 'text-[#933d18] hover:underline'}`}>
+                          {isSel ? 'Editing' : 'Edit'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
