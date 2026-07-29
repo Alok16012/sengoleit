@@ -1016,6 +1016,7 @@ export default function StudentForm() {
         semester_year: form.semester_year,
         semYear: progSemYear,
         duration: progDuration,
+        programName: selectedProgram?.program_name,
       })
 
       const { data: ctr } = await supabase

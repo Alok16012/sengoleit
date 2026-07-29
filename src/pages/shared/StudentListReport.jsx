@@ -175,6 +175,7 @@ export default function StudentListReport({ status }) {
       semester_year: student.semester_year,
       semYear: student.programs?.semester_year,
       duration: student.programs?.duration,
+      programName: student.programs?.program_name,
     })
 
     // Coupon discount applied at submission. Prefer the value stored on the

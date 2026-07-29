@@ -26,7 +26,7 @@ export function dueSemesterFromCalendar(calMap, totalSems) {
 //   entry     → once (Sem 1)          divide → split evenly across all semesters
 //   multiply  → every semester        multiply2 → from Sem 2 onward
 // Returns { courseFee, dueSem, totalSems, calendarActive }.
-export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration }) {
+export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration, programName }) {
   const { data: structures } = await supabase
     .from('fee_structures')
     .select('id, session_id, total_semesters')
@@ -74,10 +74,20 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
   // BEYOND the entry semester — otherwise a fresh entry whose calendar dates are
   // already in the past (e.g. a Ph.D entered after Sem 1's exam window) gets
   // charged for semesters it hasn't reached. Cap the calendar due at the entry.
-  const entrySem = Math.min(Math.max(parseInt(semester_year, 10) || 1, 1), totalSems)
-  const dueSem = calendarActive
-    ? Math.min(dueSemesterFromCalendar(calMap, totalSems), entrySem)
-    : entrySem
+  // Year-based NON-Ph.D programmes (e.g. a 1-year, 2-semester diploma) are billed
+  // per YEAR: entering "1st Year" charges that whole year's semesters up front
+  // (1 Year = 2 semesters), so the fee matches the full year's amount. Ph.D stays
+  // per-semester even though it is Year-based, and regular Semester programmes are
+  // unchanged.
+  const isPhd = /ph\.?\s*d|doctor of philosophy|doctoral|doctorate/i.test(String(programName || ''))
+  const yearlyBilling = semYear === 'Year' && !isPhd
+  const entryUnit = Math.max(parseInt(semester_year, 10) || 1, 1)
+  const entrySem = yearlyBilling
+    ? Math.min(entryUnit * 2, totalSems)                 // full year = 2 semesters
+    : Math.min(entryUnit, totalSems)
+  const dueSem = yearlyBilling
+    ? entrySem                                            // whole entry year charged up front
+    : (calendarActive ? Math.min(dueSemesterFromCalendar(calMap, totalSems), entrySem) : entrySem)
 
   const cumulative = fs
     ? entryT + (totalSems > 0 ? divideT / totalSems : 0) * dueSem + mulT * dueSem + mul2T * Math.max(dueSem - 1, 0)
