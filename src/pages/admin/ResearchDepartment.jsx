@@ -74,6 +74,10 @@ export default function ResearchDepartment() {
     setLetters(next); setSelIdx(next.length - 1); setNewName(''); persist(next, assigned)
   }
 
+  // Letter serials print zero-padded to 3 digits — 010, 011 … 099, 100 — so the
+  // running number keeps a fixed width instead of growing (…/9 then …/10).
+  const refSerial = (n) => String(Math.max(Number(n) || 0, 0)).padStart(3, '0')
+
   // Assign / reuse a student's reference for a specific letter type.
   function refFor(student, letterName) {
     const li = letters.findIndex(l => l.name === letterName)
@@ -86,7 +90,7 @@ export default function ResearchDepartment() {
       const nextLetters = li >= 0 ? letters.map((l, i) => i === li ? { ...l, nextNum: num + 1 } : l) : letters
       setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
     }
-    return `${letter.prefix}${num}`
+    return `${letter.prefix}${refSerial(num)}`
   }
   function docOptsFor(student, letterName) {
     const letter = letters.find(l => l.name === letterName) || sel
@@ -237,11 +241,13 @@ export default function ResearchDepartment() {
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Reference No. (prefix)</label>
             <input value={sel?.prefix || ''} onChange={e => updateSel({ prefix: e.target.value })}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48" placeholder="SIU/PhD/OL/2025/" />
+              title="Everything before the running serial — end it with a slash, e.g. SIU/DR/AL/26/"
+              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48" placeholder="SIU/DR/AL/26/" />
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Next No.</label>
-            <input type="number" min="1" value={sel?.nextNum ?? 1} onChange={e => updateSel({ nextNum: e.target.value })}
+            <input type="number" min="0" value={sel?.nextNum ?? 1} onChange={e => updateSel({ nextNum: e.target.value })}
+              title="Serial the next candidate will get. It counts up by 1 automatically after each letter is issued."
               className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-24" />
           </div>
           <div>
@@ -250,7 +256,10 @@ export default function ResearchDepartment() {
               className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
           </div>
           <Button variant="primary" size="md" onClick={saveCfg}><Save size={14} /> {saved ? 'Saved ✓' : 'Save'}</Button>
-          <p className="text-[11px] text-gray-400">Next → <span className="font-mono font-bold text-[#933d18]">{sel?.prefix}{sel?.nextNum}</span></p>
+          <p className="text-[11px] text-gray-400">
+            Next → <span className="font-mono font-bold text-[#933d18]">{sel?.prefix}{refSerial(sel?.nextNum)}</span>
+            <span className="ml-1 text-gray-300">then {sel?.prefix}{refSerial((Number(sel?.nextNum) || 0) + 1)}</span>
+          </p>
         </div>
       </div>
 
