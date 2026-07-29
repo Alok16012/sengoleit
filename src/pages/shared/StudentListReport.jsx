@@ -154,8 +154,8 @@ export default function StudentListReport({ status }) {
       if (type === 'reg') generateRegistrationCertificate(resolved)
       else if (type === 'id') generateIDCard(resolved)
       // Reuse the Ref. No. / dates the Research Dept issued for these letters.
-      else if (type === 'offer') generateOfferLetter(resolved, await letterOptsFor(studentId, 'Offer Letter'))
-      else if (type === 'entrance') generateEntranceClearance(resolved, await letterOptsFor(studentId, 'Entrance Certificate'))
+      else if (type === 'offer') generateOfferLetter(resolved, await letterOptsFor(studentId, 'Offer Letter', resolved.session_id))
+      else if (type === 'entrance') generateEntranceClearance(resolved, await letterOptsFor(studentId, 'Entrance Certificate', resolved.session_id))
       else if (type === 'admit') {
         const subjects = await fetchAdmitCardSubjects(resolved)
         const meta = await fetchExamSettingsMeta(resolved)

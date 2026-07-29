@@ -31,7 +31,7 @@ export default function StudentEntranceClearance() {
     setGenerating(true)
     // Use the Ref. No. / dates the Research Dept issued, so the student's copy
     // matches the office copy. Falls back to the letter's defaults if unset.
-    const opts = await letterOptsFor(data.id, 'Entrance Certificate')
+    const opts = await letterOptsFor(data.id, 'Entrance Certificate', data.session_id)
     generateEntranceClearance(data, opts)
     setGenerating(false)
   }

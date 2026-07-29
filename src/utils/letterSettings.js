@@ -19,9 +19,10 @@ export function buildRef(prefix, num) {
 export async function loadLetterSettings() {
   const { data, error } = await supabase
     .from('letter_settings')
-    .select('name, prefix, next_num, letter_date, test_date')
+    .select('session_key, name, prefix, next_num, letter_date, test_date')
   if (error) return null
   return (data || []).map(r => ({
+    session: r.session_key || '',
     name: r.name,
     prefix: r.prefix || '',
     nextNum: r.next_num ?? 1,
@@ -32,6 +33,7 @@ export async function loadLetterSettings() {
 
 export async function saveLetterSettings(letters) {
   const rows = (letters || []).filter(l => l?.name).map(l => ({
+    session_key: l.session || '',
     name: l.name,
     prefix: l.prefix || '',
     next_num: Number(l.nextNum) || 0,
@@ -40,7 +42,7 @@ export async function saveLetterSettings(letters) {
     updated_at: new Date().toISOString(),
   }))
   if (!rows.length) return { error: null }
-  const { error } = await supabase.from('letter_settings').upsert(rows, { onConflict: 'name' })
+  const { error } = await supabase.from('letter_settings').upsert(rows, { onConflict: 'session_key,name' })
   return { error }
 }
 
@@ -68,11 +70,19 @@ export async function assignRef(letterName, studentId, num) {
 // the shared student lists, which have no access to the admin panel's state.
 // Returns {} when the tables are missing or no number was ever assigned, so the
 // letter simply falls back to its built-in defaults.
-export async function letterOptsFor(studentId, letterName) {
-  const [{ data: setting }, { data: ref }] = await Promise.all([
-    supabase.from('letter_settings').select('prefix, letter_date, test_date').eq('name', letterName).maybeSingle(),
-    supabase.from('letter_refs').select('num').eq('letter_name', letterName).eq('student_id', studentId).maybeSingle(),
-  ]).catch(() => [{ data: null }, { data: null }])
+export async function letterOptsFor(studentId, letterName, sessionId = '') {
+  const [{ data: settings }, { data: ref }] = await Promise.all([
+    supabase.from('letter_settings')
+      .select('session_key, prefix, letter_date, test_date')
+      .eq('name', letterName)
+      .in('session_key', [sessionId || '', '']),
+    supabase.from('letter_refs')
+      .select('num').eq('letter_name', letterName).eq('student_id', studentId).maybeSingle(),
+  ])
+
+  // Prefer the student's own session; fall back to the any-session entry.
+  const rows = settings || []
+  const setting = rows.find(r => r.session_key === (sessionId || '')) || rows.find(r => !r.session_key)
 
   const opts = {}
   if (ref?.num != null) opts.refNo = buildRef(setting?.prefix, ref.num)

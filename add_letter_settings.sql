@@ -3,19 +3,25 @@
 --
 -- These used to live in the admin's browser (localStorage), so every computer
 -- had its own series and the student portal could not show the same reference
--- number. Storing them here makes one shared series across all admins, and lets
--- a student's own copy of a letter carry the same Ref. No. and date.
+-- number. Storing them here gives one shared setup, and lets a student's own
+-- copy of a letter carry the same Ref. No. and date.
+--
+-- Settings are per SESSION + letter, so June 2026 and July 2025 keep their own
+-- series and dates. session_key holds the session id as text; '' is the
+-- fallback used by any session that has no entry of its own (a nullable column
+-- can't take part in a primary key, hence text rather than a uuid FK).
 --
 -- Run this once in Supabase -> SQL Editor.
 
--- One row per letter type (Offer Letter, Entrance Certificate, …).
 CREATE TABLE IF NOT EXISTS letter_settings (
-  name        text PRIMARY KEY,
+  session_key text NOT NULL DEFAULT '',
+  name        text NOT NULL,
   prefix      text NOT NULL DEFAULT '',
   next_num    int  NOT NULL DEFAULT 1,
   letter_date date,
   test_date   date,
-  updated_at  timestamptz DEFAULT now()
+  updated_at  timestamptz DEFAULT now(),
+  PRIMARY KEY (session_key, name)
 );
 
 -- The reference number handed to a candidate for a given letter. Assigned once

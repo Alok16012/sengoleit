@@ -27,13 +27,17 @@ export default function ResearchDepartment() {
   const [needsSql, setNeedsSql] = useState(false)
   // Master panel — each letter type has its own reference series + date.
   const today = new Date().toISOString().slice(0, 10)
+  // Each entry is one letter type FOR ONE SESSION — so June 2026 and July 2025
+  // keep their own reference series and dates. Entries saved before sessions were
+  // tracked have no `session` and act as the fallback for any session without its
+  // own entry. testDate fills the certificate's "conducted on ____" blank.
   const DEFAULT_LETTERS = [
     { name: 'Offer Letter', prefix: 'SIU/PhD/OL/2025/', nextNum: 1, date: today },
-    // testDate fills the certificate's "Entrance Test conducted on ____" blank.
     { name: 'Entrance Certificate', prefix: 'SIU/PhD/EC/2025/', nextNum: 1, date: today, testDate: '' },
   ]
+  const LETTER_NAMES = ['Offer Letter', 'Entrance Certificate']
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
-  const [selIdx, setSelIdx] = useState(0)
+  const [selName, setSelName] = useState(LETTER_NAMES[0])
   const [newName, setNewName] = useState('')
   const [assigned, setAssigned] = useState({}) // { [letterName]: { [studentId]: num } }
   const [saved, setSaved] = useState(false)
@@ -87,16 +91,32 @@ export default function ResearchDepartment() {
     })()
   }, [])
 
-  const sel = letters[selIdx] || letters[0]
-  // Safety net: never show duplicate names in the dropdown (keep the first index).
-  const uniqueLetters = letters.filter((l, i) =>
-    letters.findIndex(x => (x.name || '').trim().toLowerCase() === (l.name || '').trim().toLowerCase()) === i)
+  // The entry for one session + letter. An entry saved without a session (from
+  // before this was session-aware) stands in for sessions that have none yet.
+  const entryFor = (sessionId, name) =>
+    letters.find(l => l.name === name && (l.session || '') === (sessionId || ''))
+    || letters.find(l => l.name === name && !l.session)
+
+  const sessionName = (id) => sessions.find(s => s.id === id)?.session_name || '—'
+  // Editing needs a concrete session; "All Sessions" has no series of its own.
+  const editingSession = sessionFilter !== 'all' ? sessionFilter : ''
+  const letterNames = [...new Set([...LETTER_NAMES, ...letters.map(l => l.name)])].filter(Boolean)
+  const sel = entryFor(editingSession, selName)
+    || { name: selName, session: editingSession, prefix: '', nextNum: 1, date: today, testDate: '' }
+
   // Keep the browser copy as a fallback, but the DB is the shared source of truth.
   function persist(nextLetters, nextAssigned) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters: nextLetters, assigned: nextAssigned }))
     if (settingsInDb) saveLetterSettings(nextLetters)
   }
-  function updateSel(patch) { setLetters(ls => ls.map((l, i) => i === selIdx ? { ...l, ...patch } : l)) }
+  // Write to this session's entry, creating it the first time it's edited.
+  function updateSel(patch) {
+    setLetters(ls => {
+      const i = ls.findIndex(l => l.name === selName && (l.session || '') === (editingSession || ''))
+      if (i >= 0) return ls.map((l, k) => k === i ? { ...l, ...patch } : l)
+      return [...ls, { ...sel, session: editingSession, name: selName, ...patch }]
+    })
+  }
   async function saveCfg() {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters, assigned }))
     const { error } = await saveLetterSettings(letters)
@@ -108,10 +128,10 @@ export default function ResearchDepartment() {
   function addLetter() {
     const name = newName.trim()
     if (!name) return
-    const exists = letters.findIndex(l => l.name.toLowerCase() === name.toLowerCase())
-    if (exists >= 0) { setSelIdx(exists); setNewName(''); return }
-    const next = [...letters, { name, prefix: '', nextNum: 1, date: today }]
-    setLetters(next); setSelIdx(next.length - 1); setNewName(''); persist(next, assigned)
+    setSelName(name); setNewName('')
+    if (letters.some(l => l.name.toLowerCase() === name.toLowerCase())) return
+    const next = [...letters, { name, session: editingSession, prefix: '', nextNum: 1, date: today }]
+    setLetters(next); persist(next, assigned)
   }
 
   // Letter serials print zero-padded to 3 digits — 010, 011 … 099, 100 — so the
@@ -122,16 +142,17 @@ export default function ResearchDepartment() {
   const trailingDigits = /\d$/.test((sel?.prefix || '').trim())
   const cleanPrefix = (sel?.prefix || '').replace(/\d+$/, '')
 
-  // Assign / reuse a student's reference for a specific letter type.
+  // Assign / reuse a student's reference for a specific letter type. The series
+  // comes from the STUDENT's own session, not whichever session is on screen.
   function refFor(student, letterName) {
-    const li = letters.findIndex(l => l.name === letterName)
-    const letter = li >= 0 ? letters[li] : sel
+    const letter = entryFor(student.session_id, letterName) || sel
     const map = assigned[letterName] || {}
     let num = map[student.id]
     if (num == null) {
       num = Number(letter.nextNum) || 1
       const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
-      const nextLetters = li >= 0 ? letters.map((l, i) => i === li ? { ...l, nextNum: num + 1 } : l) : letters
+      const nextLetters = letters.map(l =>
+        l === letter ? { ...l, nextNum: num + 1 } : l)
       setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
       // Record the claim so every admin — and the student's own copy — reuses it.
       if (settingsInDb) assignRef(letterName, student.id, num)
@@ -139,7 +160,7 @@ export default function ResearchDepartment() {
     return `${letter.prefix}${refSerial(num)}`
   }
   function docOptsFor(student, letterName) {
-    const letter = letters.find(l => l.name === letterName) || sel
+    const letter = entryFor(student.session_id, letterName) || sel
     return {
       refNo: refFor(student, letterName),
       date: letter.date ? formatDate(letter.date) : undefined,
@@ -285,9 +306,9 @@ export default function ResearchDepartment() {
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Letter</label>
-            <select value={selIdx} onChange={e => setSelIdx(Number(e.target.value))}
+            <select value={selName} onChange={e => setSelName(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-56">
-              {uniqueLetters.map((l) => <option key={l.name} value={letters.indexOf(l)}>{l.name}</option>)}
+              {letterNames.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>
           <div>
@@ -324,6 +345,12 @@ export default function ResearchDepartment() {
             <span className="ml-1 text-gray-300">then {sel?.prefix}{refSerial((Number(sel?.nextNum) || 0) + 1)}</span>
           </p>
         </div>
+        {sessionFilter === 'all' && (
+          <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mt-2">
+            Pick a session above to set its own reference series and dates. While “All Sessions” is selected you're editing
+            the fallback used by any session that has none of its own.
+          </p>
+        )}
         {!settingsInDb && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
             These settings are saved in this browser only. Run <span className="font-mono">add_letter_settings.sql</span> in
@@ -350,33 +377,37 @@ export default function ResearchDepartment() {
         {/* Every configured letter at a glance — the fields above edit one row at
             a time, so without this you can't see what else is already set up. */}
         <div className="mt-4">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">All Letters</p>
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">All Letters — every session you've set up</p>
           <div className="border border-gray-100 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500">
+                  <th className="text-left font-semibold px-3 py-2">Session</th>
                   <th className="text-left font-semibold px-3 py-2">Letter</th>
                   <th className="text-left font-semibold px-3 py-2">Next Reference No.</th>
                   <th className="text-left font-semibold px-3 py-2">Date</th>
                   <th className="text-left font-semibold px-3 py-2">Test Date</th>
-                  <th className="text-left font-semibold px-3 py-2">Issued</th>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {uniqueLetters.map(l => {
-                  const idx = letters.indexOf(l)
-                  const isSel = idx === selIdx
-                  const issued = Object.keys(assigned[l.name] || {}).length
+                {letters.length === 0 && (
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400 text-xs">
+                    Nothing set up yet — pick a session and letter above, then Save.
+                  </td></tr>
+                )}
+                {letters.map((l, i) => {
+                  const isSel = l.name === selName && (l.session || '') === (editingSession || '')
                   return (
-                    <tr key={l.name} className={`border-t border-gray-100 ${isSel ? 'bg-[#933d18]/5' : ''}`}>
+                    <tr key={`${l.session || 'any'}-${l.name}-${i}`} className={`border-t border-gray-100 ${isSel ? 'bg-[#933d18]/5' : ''}`}>
+                      <td className="px-3 py-2 text-gray-700">{l.session ? sessionName(l.session) : <span className="text-gray-400 italic">Any session</span>}</td>
                       <td className="px-3 py-2 font-semibold text-gray-800">{l.name}</td>
                       <td className="px-3 py-2 font-mono text-[#933d18]">{l.prefix}{refSerial(l.nextNum)}</td>
                       <td className="px-3 py-2 text-gray-600">{l.date ? formatDate(l.date) : '—'}</td>
                       <td className="px-3 py-2 text-gray-600">{l.testDate ? formatDateLong(l.testDate) : '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{issued || '—'}</td>
                       <td className="px-3 py-2 text-right">
-                        <button type="button" onClick={() => setSelIdx(idx)}
+                        <button type="button"
+                          onClick={() => { setSelName(l.name); if (l.session) setSessionFilter(l.session) }}
                           className={`text-xs font-semibold ${isSel ? 'text-gray-400' : 'text-[#933d18] hover:underline'}`}>
                           {isSel ? 'Editing' : 'Edit'}
                         </button>
