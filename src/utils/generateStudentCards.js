@@ -520,9 +520,11 @@ function letterheadDoc(docTitle, studentName, refNo, dateStr, bodyHtml) {
   ${printBtn()}
   <div class="sheet" style="position:relative;width:794px;height:1120px;margin:0 auto;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.18);overflow:hidden;">
     <img src="${LETTERHEAD_URL}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:0;" onerror="this.style.display='none'"/>
-    <div style="position:absolute;top:17.2%;left:13.8%;z-index:2;font-size:12px;font-weight:700;color:#111;">${v(refNo)}</div>
-    <div style="position:absolute;top:17.2%;left:81.5%;z-index:2;font-size:12px;font-weight:700;color:#111;">${v(dateStr)}</div>
-    <div style="position:absolute;top:24%;left:9.5%;right:8.5%;bottom:14%;z-index:1;">
+    <!-- Soften the letterhead watermark behind the body so the text reads crisply. -->
+    <div style="position:absolute;top:21%;left:0;right:0;bottom:12%;background:rgba(255,255,255,0.86);z-index:1;"></div>
+    <div style="position:absolute;top:17.2%;left:13.8%;z-index:3;font-size:12.5px;font-weight:700;color:#000;">${v(refNo)}</div>
+    <div style="position:absolute;top:17.2%;left:81.5%;z-index:3;font-size:12.5px;font-weight:700;color:#000;">${v(dateStr)}</div>
+    <div style="position:absolute;top:24%;left:9.5%;right:8.5%;bottom:14%;z-index:2;font-family:'Times New Roman',Times,serif;">
       ${bodyHtml}
     </div>
   </div>
@@ -538,27 +540,27 @@ export function generateOfferLetter(s, opts = {}) {
   const refNo = opts.refNo || s.registration_no || s.enrollment_no || s.admission_number
   const dateStr = opts.date || fmtDate(new Date())
 
-  const P = 'font-size:12px;color:#222;line-height:1.55;margin:0 0 9px;text-align:justify;'
+  const P = 'font-size:12.5px;color:#000;line-height:1.5;margin:0 0 9px;text-align:justify;'
   const body = `
-    <div style="text-align:center;margin-bottom:12px;">
-      <span style="font-size:16px;font-weight:900;color:${BRAND};letter-spacing:0.03em;text-decoration:underline;">Ph.D. ADMISSION OFFER LETTER</span>
+    <div style="text-align:center;margin-bottom:14px;">
+      <span style="font-size:16px;font-weight:700;color:#000;letter-spacing:0.02em;text-decoration:underline;">Ph.D. ADMISSION OFFER LETTER</span>
     </div>
-    <p style="font-size:12.5px;color:#111;margin:0 0 9px;">Name of the Candidate : <strong>${v(s.student_name)}</strong></p>
-    <p style="font-size:12px;color:#111;margin:0 0 2px;">Dear Applicant,</p>
-    <p style="font-size:12px;color:#111;font-weight:700;margin:0 0 8px;">Congratulations!</p>
+    <p style="font-size:13px;color:#000;margin:0 0 10px;">Name of the Candidate : <strong>${v(s.student_name)}</strong></p>
+    <p style="font-size:12.5px;color:#000;font-weight:700;margin:0 0 2px;">Dear Applicant,</p>
+    <p style="font-size:12.5px;color:#000;font-weight:700;margin:0 0 9px;">Congratulations!</p>
     <p style="${P}">
       We are pleased to inform you that you have been provisionally selected for admission to the Ph.D. Programme at ${UNI_NAME} based on your performance in the Entrance Test and/or Interview. Your admission is offered subject to the following terms and conditions:
     </p>
     <p style="${P}">
       You are requested to confirm your acceptance of this Admission Offer by depositing the prescribed fee within the stipulated time. Payment of the fee may be made through Online Transfer / Demand Draft in favour of "${UNI_NAME}", payable at Singtam, Sikkim. Candidates paying through Demand Draft must mention their Name and Application/Enrollment Number on the reverse side of the Demand Draft.
     </p>
-    <p style="font-size:12px;color:#222;line-height:1.5;margin:0 0 4px;">At the time of registration, you are required to produce the following original documents:</p>
-    <ol style="font-size:12px;color:#222;line-height:1.5;margin:0 0 9px 18px;padding:0;">
-      <li style="margin-bottom:3px;">Admission Offer Letter.</li>
-      <li style="margin-bottom:3px;">Original and self-attested copies of 10th, 12th, Graduation and Master's Degree mark sheets and certificates (NET/JRF/SET/GATE/M.Phil./SLET Certificate, if applicable).</li>
-      <li style="margin-bottom:3px;">Transfer Certificate/Migration Certificate from the last institution attended.</li>
-      <li style="margin-bottom:3px;">Migration Certificate (if the qualifying degree is from another University).</li>
-      <li style="margin-bottom:3px;">No Objection Certificate (NOC) from the Employer/Department, if applicable.</li>
+    <p style="font-size:12.5px;color:#000;line-height:1.5;margin:0 0 5px;">At the time of registration, you are required to produce the following original documents:</p>
+    <ol style="font-size:12.5px;color:#000;line-height:1.5;margin:0 0 9px 22px;padding:0;">
+      <li style="margin-bottom:4px;">Admission Offer Letter.</li>
+      <li style="margin-bottom:4px;">Original and self-attested copies of 10th, 12th, Graduation and Master's Degree mark sheets and certificates (NET/JRF/SET/GATE/M.Phil./SLET Certificate, if applicable).</li>
+      <li style="margin-bottom:4px;">Transfer Certificate/Migration Certificate from the last institution attended.</li>
+      <li style="margin-bottom:4px;">Migration Certificate (if the qualifying degree is from another University).</li>
+      <li style="margin-bottom:4px;">No Objection Certificate (NOC) from the Employer/Department, if applicable.</li>
     </ol>
     <p style="${P}">
       Please note that this admission is purely provisional and is subject to verification of all original documents and fulfilment of the University's eligibility criteria and Ph.D. Regulations.
@@ -569,13 +571,13 @@ export function generateOfferLetter(s, opts = {}) {
     <p style="${P}">
       Your acceptance of this offer shall be deemed as your agreement to abide by the Statutes, Ordinances, Rules, Regulations and decisions of ${UNI_NAME}. If you have any queries, please feel free to contact us.
     </p>
-    <div style="font-size:12px;color:#111;margin-top:12px;">
-      <p style="margin:0 0 20px;">Yours faithfully,</p>
+    <div style="font-size:12.5px;color:#000;margin-top:20px;line-height:1.5;">
+      <p style="margin:0;">Yours faithfully,</p>
       <p style="margin:0;">Registrar</p>
       <p style="margin:0;">${UNI_NAME}</p>
     </div>
-    <p style="font-size:10px;color:#555;font-style:italic;margin-top:10px;line-height:1.4;">
-      Note: Candidates are advised to keep sufficient self-attested copies of all original certificates before submitting them for verification. Original documents will be returned after verification.
+    <p style="font-size:11px;color:#000;margin-top:12px;line-height:1.45;">
+      <strong>Note:</strong> Candidates are advised to keep sufficient self-attested copies of all original certificates before submitting them for verification. Original documents will be returned after verification.
     </p>`
   openWindow(letterheadDoc('Offer Letter', s.student_name, refNo, dateStr, body), 'Offer Letter')
 }
