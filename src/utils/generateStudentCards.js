@@ -520,11 +520,11 @@ function letterheadDoc(docTitle, studentName, refNo, dateStr, bodyHtml) {
   ${printBtn()}
   <div class="sheet" style="position:relative;width:794px;height:1120px;margin:0 auto;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.18);overflow:hidden;">
     <img src="${LETTERHEAD_URL}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:fill;z-index:0;" onerror="this.style.display='none'"/>
-    <!-- Soften the letterhead watermark behind the body so the text reads crisply. -->
-    <div style="position:absolute;top:21%;left:0;right:0;bottom:12%;background:rgba(255,255,255,0.86);z-index:1;"></div>
-    <div style="position:absolute;top:17.2%;left:13.8%;z-index:3;font-size:12.5px;font-weight:700;color:#000;">${v(refNo)}</div>
-    <div style="position:absolute;top:17.2%;left:81.5%;z-index:3;font-size:12.5px;font-weight:700;color:#000;">${v(dateStr)}</div>
-    <div style="position:absolute;top:24%;left:9.5%;right:8.5%;bottom:14%;z-index:2;font-family:'Times New Roman',Times,serif;">
+    <!-- Values sit on the letterhead's printed "Ref. No. ....." / "Date: ....." rules. -->
+    <div style="position:absolute;top:16.1%;left:17.6%;z-index:2;font-size:12.5px;color:#000;">${v(refNo)}</div>
+    <div style="position:absolute;top:16.1%;left:82.3%;z-index:2;font-size:12.5px;color:#000;">${v(dateStr)}</div>
+    <!-- Body sits between the Ref/Date rule and the footer bar (starts ~94.6%). -->
+    <div style="position:absolute;top:19.6%;left:9.5%;right:8.5%;bottom:9%;z-index:2;font-family:'Times New Roman',Times,serif;">
       ${bodyHtml}
     </div>
   </div>
