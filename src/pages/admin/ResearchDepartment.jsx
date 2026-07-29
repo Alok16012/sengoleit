@@ -37,6 +37,19 @@ export default function ResearchDepartment() {
   const [assigned, setAssigned] = useState({}) // { [letterName]: { [studentId]: num } }
   const [saved, setSaved] = useState(false)
 
+  // Older saves typed the leading serial digits into the prefix itself (e.g.
+  // prefix "SIU/DR/AL/25/01" with Next No. 0 to read as …/010). Now that the
+  // serial is zero-padded and appended, that doubles up (…/01 + 001 = …/01001).
+  // Fold those trailing digits back into the number — the next reference stays
+  // exactly what the panel was already showing, and it keeps counting correctly.
+  function migratePrefix(l) {
+    const prefix = String(l.prefix || '')
+    const m = prefix.match(/(\d+)$/)
+    if (!m) return l
+    const folded = Number(`${m[1]}${Number(l.nextNum) || 0}`)
+    return { ...l, prefix: prefix.slice(0, -m[1].length), nextNum: folded }
+  }
+
   useEffect(() => {
     try {
       const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null')
@@ -45,10 +58,12 @@ export default function ResearchDepartment() {
         const seen = new Set(), uniq = []
         for (const l of s.letters) {
           const k = (l.name || '').trim().toLowerCase()
-          if (k && !seen.has(k)) { seen.add(k); uniq.push(l) }
+          if (k && !seen.has(k)) { seen.add(k); uniq.push(migratePrefix(l)) }
         }
         setLetters(uniq)
-        if (uniq.length !== s.letters.length) {
+        const changed = uniq.length !== s.letters.length
+          || uniq.some((l, i) => l.prefix !== s.letters[i]?.prefix)
+        if (changed) {
           localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters: uniq, assigned: s.assigned || {} }))
         }
       }
@@ -287,10 +302,10 @@ export default function ResearchDepartment() {
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
             The prefix ends in a number, so the serial is added on top of it —
             you get <span className="font-mono">{sel?.prefix}{refSerial(sel?.nextNum)}</span>.
-            Drop the trailing digits and set them as the Next No. instead.
-            <button type="button" onClick={() => updateSel({ prefix: cleanPrefix })}
+            Move those digits into the Next No. instead.
+            <button type="button" onClick={() => { const f = migratePrefix(sel); updateSel({ prefix: f.prefix, nextNum: f.nextNum }) }}
               className="ml-2 font-semibold text-[#933d18] underline">
-              Use {cleanPrefix || '—'}
+              Fix → {cleanPrefix}{refSerial(migratePrefix(sel).nextNum)}
             </button>
           </p>
         )}
