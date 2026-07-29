@@ -5,6 +5,18 @@ import { formatDate } from './formatDate'
 // absolute URL from the running origin instead.
 const LOGO_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/logo.png'
 const LETTERHEAD_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/letterhead.jpg'
+const SIGNATURE_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/registrar-signature.png'
+
+// The Registrar's signature block — used on every letter signed by the Registrar.
+function registrarSignBlock(bold) {
+  const w = bold ? 700 : 400
+  return `
+    <img src="${SIGNATURE_URL}" alt="" style="height:42px;width:auto;display:block;margin:0 0 2px;" onerror="this.style.display='none'"/>
+    <div style="font-size:13px;color:#000;font-weight:${w};line-height:1.5;">
+      <p style="margin:0;">Registrar</p>
+      <p style="margin:0;">${UNI_NAME}</p>
+    </div>`
+}
 export const UNI_NAME = 'Sengol International University'
 const UNI_SHORT = 'SIU'
 export const UNI_ADDRESS = 'Lower Pepthang, PO - Lingmoo, District - Namchi, Sikkim - 737134'
@@ -510,12 +522,15 @@ export function generateRegistrationCertificate(s) {
 function letterheadDoc(docTitle, studentName, refNo, dateStr, bodyHtml) {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>${docTitle} — ${v(studentName)}</title>${baseStyle}
-  <style>@media print {
-    /* The sheet IS the full A4 page, so drop the baseStyle body padding that
-       would otherwise push it onto a second (blank) page. */
-    body { padding:0 !important; background:#fff !important; }
-    .sheet { box-shadow:none !important; }
-  }</style></head>
+  <style>
+    /* Print exactly one full-bleed A4 sheet. */
+    @page { size: A4 portrait; margin:0; }
+    @media print {
+      /* The sheet IS the A4 page, so drop the baseStyle body padding that would
+         otherwise push it onto a second (blank) page. */
+      html, body { padding:0 !important; margin:0 !important; background:#fff !important; }
+      .sheet { width:210mm !important; height:297mm !important; box-shadow:none !important; margin:0 !important; }
+    }</style></head>
 <body style="background:#e9e9e9;">
   ${printBtn()}
   <div class="sheet" style="position:relative;width:794px;height:1120px;margin:0 auto;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.18);overflow:hidden;">
@@ -572,9 +587,8 @@ export function generateOfferLetter(s, opts = {}) {
       Your acceptance of this offer shall be deemed as your agreement to abide by the Statutes, Ordinances, Rules, Regulations and decisions of ${UNI_NAME}. If you have any queries, please feel free to contact us.
     </p>
     <div style="font-size:12.5px;color:#000;margin-top:20px;line-height:1.5;">
-      <p style="margin:0 0 34px;">Yours faithfully,</p>
-      <p style="margin:0;">Registrar</p>
-      <p style="margin:0;">${UNI_NAME}</p>
+      <p style="margin:0 0 10px;">Yours faithfully,</p>
+      ${registrarSignBlock(false)}
     </div>
     <p style="font-size:11px;color:#000;margin-top:12px;line-height:1.45;">
       <strong>Note:</strong> Candidates are advised to keep sufficient self-attested copies of all original certificates before submitting them for verification. Original documents will be returned after verification.
@@ -623,9 +637,8 @@ export function generateEntranceClearance(s, opts = {}) {
       We congratulate you on your achievement and wish you success in your research journey.
     </p>
     <p style="font-size:13px;color:#000;font-weight:700;margin:36px 0 0;">With best wishes,</p>
-    <div style="font-size:13px;color:#000;font-weight:700;margin-top:54px;line-height:1.5;">
-      <p style="margin:0;">Registrar</p>
-      <p style="margin:0;">${UNI_NAME}</p>
+    <div style="margin-top:30px;">
+      ${registrarSignBlock(true)}
     </div>`
   openWindow(letterheadDoc('Entrance Clearance Certificate', s.student_name, refNo, dateStr, body), 'Entrance Clearance Certificate')
 }
