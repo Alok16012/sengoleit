@@ -15,10 +15,32 @@ export function StudentAuthProvider({ children }) {
     setLoading(false)
   }, [])
 
-  async function studentLogin(enrollmentNo, password) {
+  async function studentLogin(identifier, password) {
+    // PhD students have no enrollment_no until they're forwarded to the Exam
+    // Section, so they log in with their Email ID instead. Detect which one
+    // was entered and query accordingly.
+    const isEmail = identifier.includes('@')
+
+    if (isEmail) {
+      const { data: row, error: qErr } = await supabase
+        .from('students')
+        .select('id, student_name, enrollment_no, email, login_password, status')
+        .ilike('email', identifier)
+        .maybeSingle()
+
+      if (qErr || !row) return { error: 'Invalid email or password.' }
+      if (row.login_password !== password) return { error: 'Invalid email or password.' }
+      if (row.status !== 'Approved') return { error: 'Account not approved yet. Please contact your center.' }
+
+      const session = { id: row.id, student_name: row.student_name, enrollment_no: row.enrollment_no }
+      localStorage.setItem('student_session', JSON.stringify(session))
+      setStudent(session)
+      return { data: session }
+    }
+
     // Use RPC to bypass RLS (runs with SECURITY DEFINER on server side)
     const { data, error } = await supabase.rpc('student_login', {
-      p_enrollment: enrollmentNo,
+      p_enrollment: identifier,
       p_pwd: password,
     })
 
@@ -27,7 +49,7 @@ export function StudentAuthProvider({ children }) {
       const { data: row, error: qErr } = await supabase
         .from('students')
         .select('id, student_name, enrollment_no, login_password, status')
-        .eq('enrollment_no', enrollmentNo)
+        .eq('enrollment_no', identifier)
         .maybeSingle()
 
       if (qErr || !row) return { error: 'Invalid enrollment number or password.' }

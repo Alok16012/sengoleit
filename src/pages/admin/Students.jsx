@@ -83,7 +83,7 @@ function CredModal({ studentId, onClose }) {
 
   useEffect(() => {
     supabase.from('students')
-      .select('student_name, enrollment_no, login_password')
+      .select('student_name, enrollment_no, email, login_password')
       .eq('id', studentId)
       .single()
       .then(({ data }) => { setCred(data); setLoading(false) })
@@ -128,14 +128,16 @@ function CredModal({ studentId, onClose }) {
               </div>
 
               <div>
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">Enrollment Number</p>
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+                  {cred?.enrollment_no ? 'Enrollment Number' : 'Email ID (Login ID)'}
+                </p>
                 <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
                   <span className="flex-1 font-mono text-sm font-semibold text-gray-800">
-                    {cred?.enrollment_no || '—'}
+                    {cred?.enrollment_no || cred?.email || '—'}
                   </span>
-                  {cred?.enrollment_no && (
+                  {(cred?.enrollment_no || cred?.email) && (
                     <button
-                      onClick={() => copyText(cred.enrollment_no, 'enroll')}
+                      onClick={() => copyText(cred.enrollment_no || cred.email, 'enroll')}
                       className="text-[#933d18] hover:text-[#933d18]/70 transition-colors"
                       title="Copy"
                     >
@@ -143,6 +145,11 @@ function CredModal({ studentId, onClose }) {
                     </button>
                   )}
                 </div>
+                {!cred?.enrollment_no && (
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    No enrollment number yet (issued once forwarded to the Exam Section) — this PhD student logs in with their Email ID instead.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -174,7 +181,7 @@ function CredModal({ studentId, onClose }) {
 
               {cred?.login_password && (
                 <p className="text-center text-xs text-gray-400">
-                  Share enrollment number + password with the student to login at{' '}
+                  Share {cred?.enrollment_no ? 'enrollment number' : 'email ID'} + password with the student to login at{' '}
                   <span className="font-semibold text-[#933d18]">/student/login</span>
                 </p>
               )}

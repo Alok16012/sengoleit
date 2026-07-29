@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
-import { Hash, Lock } from 'lucide-react'
+import { Hash, Lock, Mail } from 'lucide-react'
 
 // Public website home page. Update this to your live domain if different.
 const HOME_URL = 'https://sengolinternationaluniversity.edu.in/'
@@ -56,21 +56,23 @@ export default function StudentLogin() {
                 onError={e => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = '<span style="font-size:1.5rem;font-weight:900;color:#933d18">S</span>' }} />
             </div>
             <h2 className="text-3xl font-extrabold text-gray-900 mb-2 text-center lg:text-left">Student Login</h2>
-            <p className="text-gray-500 font-medium">Enter your enrollment number and password.</p>
+            <p className="text-gray-500 font-medium">Enter your enrollment number (or Email ID) and password.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block">
-                  Enrollment Number
+                  Enrollment Number / Email ID
                 </label>
                 <div className="relative">
-                  <Hash className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
+                  {enrollmentNo.includes('@')
+                    ? <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
+                    : <Hash className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />}
                   <input
                     type="text"
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-4 focus:ring-[#933d18]/5 focus:border-[#933d18] focus:bg-white transition-all shadow-sm"
-                    placeholder="SIU/2024/001234"
+                    placeholder="SIU/2024/001234 or name@example.com"
                     value={enrollmentNo}
                     onChange={e => setEnrollmentNo(e.target.value)}
                     required
