@@ -78,6 +78,10 @@ export default function ResearchDepartment() {
   // Letter serials print zero-padded to 3 digits — 010, 011 … 099, 100 — so the
   // running number keeps a fixed width instead of growing (…/9 then …/10).
   const refSerial = (n) => String(Math.max(Number(n) || 0, 0)).padStart(3, '0')
+  // The serial is appended to the prefix, so a prefix that itself ends in digits
+  // (a leftover from typing the number into it) doubles up: SIU/…/01 + 001.
+  const trailingDigits = /\d$/.test((sel?.prefix || '').trim())
+  const cleanPrefix = (sel?.prefix || '').replace(/\d+$/, '')
 
   // Assign / reuse a student's reference for a specific letter type.
   function refFor(student, letterName) {
@@ -248,7 +252,8 @@ export default function ResearchDepartment() {
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Reference No. (prefix)</label>
             <input value={sel?.prefix || ''} onChange={e => updateSel({ prefix: e.target.value })}
               title="Everything before the running serial — end it with a slash, e.g. SIU/DR/AL/26/"
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48" placeholder="SIU/DR/AL/26/" />
+              className={`px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48 ${
+                trailingDigits ? 'border-amber-400 bg-amber-50' : 'border-gray-200'}`} placeholder="SIU/DR/AL/26/" />
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Next No.</label>
@@ -277,6 +282,17 @@ export default function ResearchDepartment() {
             <span className="ml-1 text-gray-300">then {sel?.prefix}{refSerial((Number(sel?.nextNum) || 0) + 1)}</span>
           </p>
         </div>
+        {trailingDigits && (
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+            The prefix ends in a number, so the serial is added on top of it —
+            you get <span className="font-mono">{sel?.prefix}{refSerial(sel?.nextNum)}</span>.
+            Drop the trailing digits and set them as the Next No. instead.
+            <button type="button" onClick={() => updateSel({ prefix: cleanPrefix })}
+              className="ml-2 font-semibold text-[#933d18] underline">
+              Use {cleanPrefix || '—'}
+            </button>
+          </p>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
