@@ -252,10 +252,7 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const deptCode = s.centers?.center_code || s.center_code || (s.departments?.name ? s.departments.name.substring(0,6).toUpperCase() : '—')
-  // Ph.D candidates have no registration number; the application number takes
-  // its place in the reference strip.
-  const admitRegLabel = isPhdProgram(prog) ? 'Application No.' : 'Registration No.'
-  const admitRegNo = isPhdProgram(prog) ? s.admission_number : s.registration_no
+  const isPhd = isPhdProgram(prog)
   const defaultSubjects = subjects.length ? subjects : []
   const examSchedule  = meta.examSchedule || ''
   const admitCardTime = meta.admitCardTime || ''
@@ -289,19 +286,32 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
       ${admitCardTime ? `<div style="font-size:8.5px;color:#888;margin-top:2px;">Issued: ${admitCardTime}</div>` : ''}
     </div>
 
-    <!-- 3-col reference header -->
+    <!-- Reference header. A Ph.D candidate sits the entrance exam on the
+         Application No — no separate reference/registration column, and the
+         roll-number slot carries the application number itself. -->
+    ${isPhd ? `
     <table style="width:100%;border-collapse:collapse;border-bottom:2px solid #333;">
       <tr>
-        <td class="cell-hd" style="width:33%;border-right:2px solid #333;">${admitRegLabel}</td>
+        <td class="cell-hd" style="width:50%;border-right:2px solid #333;">Application No.</td>
+        <td class="cell-hd" style="width:50%;">University / Dept. Code</td>
+      </tr>
+      <tr>
+        <td class="cell-val" style="border-right:2px solid #333;">${v(s.admission_number)}</td>
+        <td class="cell-val">${deptCode}</td>
+      </tr>
+    </table>` : `
+    <table style="width:100%;border-collapse:collapse;border-bottom:2px solid #333;">
+      <tr>
+        <td class="cell-hd" style="width:33%;border-right:2px solid #333;">Registration No.</td>
         <td class="cell-hd" style="width:33%;border-right:2px solid #333;">Roll No (Enrollment)</td>
         <td class="cell-hd" style="width:34%;">University / Dept. Code</td>
       </tr>
       <tr>
-        <td class="cell-val" style="border-right:2px solid #333;">${v(admitRegNo)}</td>
+        <td class="cell-val" style="border-right:2px solid #333;">${v(s.registration_no)}</td>
         <td class="cell-val" style="border-right:2px solid #333;">${v(s.enrollment_no)}</td>
         <td class="cell-val">${deptCode}</td>
       </tr>
-    </table>
+    </table>`}
 
     <!-- Body -->
     <table style="width:100%;border-collapse:collapse;">
