@@ -76,6 +76,11 @@ import StudentOfferLetter from './pages/student/StudentOfferLetter'
 import StudentEntranceClearance from './pages/student/StudentEntranceClearance'
 import StudentHallTicket from './pages/student/StudentHallTicket'
 import StudentSyllabus from './pages/student/StudentSyllabus'
+import StudentEBooks from './pages/student/StudentEBooks'
+import EBooks from './pages/admin/EBooks'
+import DocumentSummary from './pages/shared/DocumentSummary'
+import SyllabusReport from './pages/shared/SyllabusReport'
+import CenterCredentials from './pages/center/CenterCredentials'
 import StudentIDCard from './pages/student/StudentIDCard'
 import StudentAdmitCard from './pages/student/StudentAdmitCard'
 import StudentRegistrationSlip from './pages/student/StudentRegistrationSlip'
@@ -122,7 +127,7 @@ export default function App() {
             <Route path="/student/admit-card" element={<StudentAdmitCard />} />
             <Route path="/student/online-exam" element={<ComingSoon title="Online Exam" description="Appear for your scheduled online exams" />} />
             <Route path="/student/syllabus" element={<StudentSyllabus />} />
-            <Route path="/student/ebook" element={<ComingSoon title="E-Book" description="Access your digital study materials" />} />
+            <Route path="/student/ebook" element={<StudentEBooks />} />
           </Route>
 
           <Route element={<AppLayout />}>
@@ -171,6 +176,7 @@ export default function App() {
             <Route path="/admin/center-pricing" element={<CenterPricing />} />
             <Route path="/admin/exam-section" element={<ExamSection />} />
             <Route path="/admin/syllabus" element={<Syllabus />} />
+            <Route path="/admin/ebooks" element={<EBooks />} />
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />
@@ -197,12 +203,12 @@ export default function App() {
             <Route path="/super-center/reports/forwarding" element={<StudentListReport status="Forwarding" />} />
             <Route path="/super-center/reports/approved" element={<StudentListReport status="Approved" />} />
             <Route path="/super-center/reports/rejected" element={<StudentListReport status="Rejected" />} />
-            <Route path="/super-center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
+            <Route path="/super-center/reports/document-summary" element={<DocumentSummary />} />
             <Route path="/super-center/reports/payment-summary" element={<PaymentSummary />} />
             <Route path="/super-center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
             <Route path="/super-center/reports/university-courier" element={<ComingSoon title="University Courier" description="Courier dispatches to university" />} />
             <Route path="/super-center/reports/course-fee" element={<CourseFeeView />} />
-            <Route path="/super-center/reports/syllabus" element={<ComingSoon title="Syllabus" description="Program syllabus and curriculum" />} />
+            <Route path="/super-center/reports/syllabus" element={<SyllabusReport />} />
             <Route path="/super-center/reports/credentials" element={<ComingSoon title="Credentials" description="Student credentials and certificates" />} />
             <Route path="/super-center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
             <Route path="/super-center/reports/wallet-coupon" element={<CouponView type="wallet" />} />
@@ -229,13 +235,13 @@ export default function App() {
             <Route path="/center/reports/forwarding" element={<StudentListReport status="Forwarding" />} />
             <Route path="/center/reports/approved" element={<StudentListReport status="Approved" />} />
             <Route path="/center/reports/rejected" element={<StudentListReport status="Rejected" />} />
-            <Route path="/center/reports/document-summary" element={<ComingSoon title="Document Summary" description="Summary of submitted student documents" />} />
+            <Route path="/center/reports/document-summary" element={<DocumentSummary />} />
             <Route path="/center/reports/payment-summary" element={<PaymentSummary />} />
             <Route path="/center/reports/courier-summary" element={<ComingSoon title="Center Courier Summary" description="Courier dispatch summary for centers" />} />
             <Route path="/center/reports/university-courier" element={<ComingSoon title="University Courier" description="Courier dispatches to university" />} />
             <Route path="/center/reports/course-fee" element={<CourseFeeView />} />
-            <Route path="/center/reports/syllabus" element={<ComingSoon title="Syllabus" description="Program syllabus and curriculum" />} />
-            <Route path="/center/reports/credentials" element={<ComingSoon title="Credentials" description="Student credentials and certificates" />} />
+            <Route path="/center/reports/syllabus" element={<SyllabusReport />} />
+            <Route path="/center/reports/credentials" element={<CenterCredentials />} />
             <Route path="/center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
             <Route path="/center/reports/wallet-coupon" element={<CouponView type="wallet" />} />
             <Route path="/center/reports/admission-coupon" element={<CouponView type="admission" />} />

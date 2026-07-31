@@ -33,6 +33,7 @@ const adminLinks = [
   { to: '/admin/center-pricing', icon: Tag, label: 'Center Pricing' },
   { to: '/admin/exam-section', icon: ClipboardList, label: 'Exam Section' },
   { to: '/admin/syllabus', icon: ScrollText, label: 'Syllabus' },
+  { to: '/admin/ebooks', icon: BookOpen, label: 'E-Books' },
 ]
 
 const reportItems = (base) => [
@@ -41,9 +42,9 @@ const reportItems = (base) => [
   { to: `${base}/reports/forwarding`, icon: Send, label: 'Forwarding Student List' },
   { to: `${base}/reports/approved`, icon: CheckCircle, label: 'Approved Student List' },
   { to: `${base}/reports/rejected`, icon: XCircle, label: 'Rejected Student List' },
-  // Document Summary / Courier Summary / University Courier are unbuilt
-  // ("Coming Soon" shells) — advertising them in the sidebar only sent
-  // centers to dead pages. Restore the entries once the reports exist.
+  { to: `${base}/reports/document-summary`, icon: FileText, label: 'Document Summary' },
+  // Courier Summary / University Courier are unbuilt ("Coming Soon" shells) —
+  // advertising them in the sidebar only sent centers to dead pages.
   { to: `${base}/reports/payment-summary`, icon: CreditCard, label: 'Payment Summary' },
   { to: `${base}/balance`, icon: Wallet, label: 'Wallet Summary' },
   { to: `${base}/reports/course-fee`, icon: GraduationCap, label: 'Center Course Fee' },
@@ -76,7 +77,6 @@ const superCenterNavGroups = [
     items: reportItems('/super-center').filter(
       item => ![
         '/super-center/reports/course-fee',
-        '/super-center/reports/syllabus',
         '/super-center/reports/credentials',
         '/super-center/reports/wallet-coupon',
         '/super-center/reports/admission-coupon',
@@ -101,16 +101,13 @@ const centerNavGroups = [
   {
     group: 'Reports',
     // Wallet Summary lives in the Entry group for centers (renamed from Payment
-    // Deposit); also hide the pending/hold/rejected/progress lists for centers,
-    // and the still-unbuilt syllabus/credentials report shells.
+    // Deposit); also hide the pending/hold/rejected/progress lists for centers.
     items: reportItems('/center').filter(item => ![
       '/center/balance',
       '/center/reports/pending',
       '/center/reports/hold',
       '/center/reports/rejected',
       '/center/reports/progress',
-      '/center/reports/syllabus',
-      '/center/reports/credentials',
     ].includes(item.to)),
   },
 ]

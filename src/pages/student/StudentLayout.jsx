@@ -15,9 +15,10 @@ const baseNavItems = [
   { to: '/student/id-card',          icon: CreditCard,      label: 'I Card' },
   { to: '/student/admit-card',       icon: BadgeCheck,      label: 'Admit Card' },
   { to: '/student/results',          icon: GraduationCap,   label: 'Results' },
-  // Online Exam and E-Book are unbuilt "Coming Soon" shells — hidden from the
-  // menu until they exist (their routes remain for when they're ready).
+  // Online Exam is an unbuilt "Coming Soon" shell — hidden from the menu
+  // until it exists (its route remains for when it's ready).
   { to: '/student/syllabus',         icon: BookMarked,      label: 'Syllabus' },
+  { to: '/student/ebook',            icon: BookOpenCheck,   label: 'E-Book' },
 ]
 
 // Ph.D-only documents, inserted after the I Card entry. The Hall Ticket comes
