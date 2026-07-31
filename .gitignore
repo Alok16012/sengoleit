@@ -28,3 +28,4 @@ dist-ssr
 .env.prod
 .env*.local
 .env.*
+.netlify
