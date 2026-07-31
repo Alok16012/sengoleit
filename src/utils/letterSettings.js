@@ -66,6 +66,15 @@ export async function saveLetterSettings(letters) {
   return { error }
 }
 
+// Drop one letter's settings. saveLetterSettings only upserts, so a row removed
+// in the panel would otherwise survive in the shared table and come back on the
+// next load.
+export async function deleteLetterSetting(sessionKey, name) {
+  const { error } = await supabase.from('letter_settings')
+    .delete().eq('session_key', sessionKey || '').eq('name', name)
+  return { error }
+}
+
 // All assigned reference numbers, as { [letterName]: { [studentId]: num } }.
 export async function loadAssignedRefs() {
   const { data, error } = await supabase.from('letter_refs').select('letter_name, student_id, num')

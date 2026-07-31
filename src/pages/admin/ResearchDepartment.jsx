@@ -3,12 +3,12 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket } from 'lucide-react'
+import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2 } from 'lucide-react'
 import { generateOfferLetter, generateEntranceClearance, generateHallTicket } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
-import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef } from '../../utils/letterSettings'
+import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, deleteLetterSetting } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
 
@@ -134,6 +134,30 @@ export default function ResearchDepartment() {
     if (letters.some(l => l.name.toLowerCase() === name.toLowerCase())) return
     const next = [...letters, { name, session: editingSession, prefix: '', nextNum: 1, date: today }]
     setLetters(next); persist(next, assigned)
+  }
+
+  // Remove one letter entry. Needed to clear out duplicates and the session-less
+  // entries left behind from before the panel tracked sessions — there was no
+  // way to take a letter off this list once it had been added.
+  async function removeLetter(l) {
+    const where = l.session ? `for ${sessionName(l.session)}` : 'for “Any session”'
+    // Reference numbers already handed to candidates live in letter_refs and are
+    // keyed by the letter NAME, so they survive — but they lose the prefix that
+    // makes them readable. Say so rather than silently breaking issued letters.
+    const issued = Object.keys(assigned[l.name] || {}).length
+    const warn = issued
+      ? `\n\n${issued} candidate(s) already have a ${l.name} reference number. Their letters will fall back to the application number until you set this letter up again.`
+      : ''
+    if (!confirm(`Remove “${l.name}” ${where}?${warn}`)) return
+
+    const next = letters.filter(x => !(x.name === l.name && (x.session || '') === (l.session || '')))
+    setLetters(next)
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters: next, assigned }))
+    // The upsert in persist() can't remove a row, so delete it explicitly.
+    if (settingsInDb) {
+      const { error } = await deleteLetterSetting(l.session || '', l.name)
+      if (error) alert('Removed here, but the shared copy could not be deleted:\n\n' + error.message)
+    }
   }
 
   // Letter serials print zero-padded to 3 digits — 010, 011 … 099, 100 — so the
@@ -447,16 +471,25 @@ export default function ResearchDepartment() {
                   const isSel = l.name === selName && (l.session || '') === (editingSession || '')
                   return (
                     <tr key={`${l.session || 'any'}-${l.name}-${i}`} className={`border-t border-gray-100 ${isSel ? 'bg-[#933d18]/5' : ''}`}>
-                      <td className="px-3 py-2 text-gray-700">{l.session ? sessionName(l.session) : <span className="text-gray-400 italic">Any session</span>}</td>
+                      <td className="px-3 py-2 text-gray-700">{l.session ? sessionName(l.session)
+                        : <span className="text-gray-400 italic"
+                            title="No session of its own — this entry is the fallback used by every session that has none. To give a session its own series, pick it in the Session dropdown above, then set the reference and Save.">
+                            Any session
+                          </span>}</td>
                       <td className="px-3 py-2 font-semibold text-gray-800">{l.name}</td>
                       <td className="px-3 py-2 font-mono text-[#933d18]">{l.prefix}{refSerial(l.nextNum)}</td>
                       <td className="px-3 py-2 text-gray-600">{l.date ? formatDate(l.date) : '—'}</td>
                       <td className="px-3 py-2 text-gray-600">{l.testDate ? formatDateLong(l.testDate) : '—'}</td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
                         <button type="button"
                           onClick={() => { setSelName(l.name); if (l.session) setSessionFilter(l.session) }}
                           className={`text-xs font-semibold ${isSel ? 'text-gray-400' : 'text-[#933d18] hover:underline'}`}>
                           {isSel ? 'Editing' : 'Edit'}
+                        </button>
+                        <button type="button" onClick={() => removeLetter(l)}
+                          title={`Remove this ${l.name} entry`}
+                          className="ml-3 align-middle text-gray-300 hover:text-red-500 transition-colors">
+                          <Trash2 size={13} />
                         </button>
                       </td>
                     </tr>
