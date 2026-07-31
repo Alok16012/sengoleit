@@ -32,10 +32,14 @@ export default function ResearchDepartment() {
   // keep their own reference series and dates. Entries saved before sessions were
   // tracked have no `session` and act as the fallback for any session without its
   // own entry. testDate fills the certificate's "conducted on ____" blank.
+  // Prefixes start BLANK on purpose. These defaults are also what refFor sees
+  // while the shared settings are still loading (or were never saved), and a
+  // sample prefix here once let Generate mint a real ".../001" from it before
+  // the true series arrived. An empty prefix trips refFor's guard instead.
   const DEFAULT_LETTERS = [
-    { name: 'Hall Ticket', prefix: 'SIU/PhD/HT/2025/', nextNum: 1, date: today, testDate: '', examTime: '', reportTime: '', examCentre: '' },
-    { name: 'Offer Letter', prefix: 'SIU/PhD/OL/2025/', nextNum: 1, date: today },
-    { name: 'Entrance Certificate', prefix: 'SIU/PhD/EC/2025/', nextNum: 1, date: today, testDate: '' },
+    { name: 'Hall Ticket', prefix: '', nextNum: 1, date: today, testDate: '', examTime: '', reportTime: '', examCentre: '' },
+    { name: 'Offer Letter', prefix: '', nextNum: 1, date: today },
+    { name: 'Entrance Certificate', prefix: '', nextNum: 1, date: today, testDate: '' },
   ]
   const LETTER_NAMES = ['Hall Ticket', 'Offer Letter', 'Entrance Certificate']
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
@@ -187,21 +191,26 @@ export default function ResearchDepartment() {
   // Assign / reuse a student's reference for a specific letter type. The series
   // comes from the STUDENT's own session, not whichever session is on screen.
   function refFor(student, letterName) {
-    const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
+    const letter = entryFor(student.session_id, letterName)
     const map = assigned[letterName] || {}
     let num = map[student.id]
-    if (num == null) {
-      num = Number(letter.nextNum) || 1
-      const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
-      // A letter that was never configured has no row to count up, so add one —
-      // otherwise every candidate would keep getting the same serial.
-      const nextLetters = letters.includes(letter)
-        ? letters.map(l => l === letter ? { ...l, nextNum: num + 1 } : l)
-        : [...letters, { ...letter, nextNum: num + 1 }]
-      setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
-      // Record the claim so every admin — and the student's own copy — reuses it.
-      if (settingsInDb) assignRef(letterName, student.id, num)
+    // An already-issued number is shown with whatever series exists — even a
+    // missing one — so the admin can still see (and ×-clear) a stale claim.
+    if (num != null) return `${letter?.prefix || ''}${refSerial(num)}`
+    // Never mint a number without a configured series. This used to fall back
+    // to a blank letter and quietly issue "001" with no prefix — e.g. when
+    // Generate was pressed before the shared settings finished loading, or for
+    // a session that was never set up. Fail loudly instead of numbering junk.
+    if (!letter || !String(letter.prefix || '').trim()) {
+      alert(`No ${letterName} reference series is set up for ${student.academic_sessions?.session_name || 'this student’s session'} yet.\n\nSet its prefix in the Master Panel and press Save, then Generate again. This copy prints with the application number instead.`)
+      return null
     }
+    num = Number(letter.nextNum) || 1
+    const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
+    const nextLetters = letters.map(l => l === letter ? { ...l, nextNum: num + 1 } : l)
+    setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
+    // Record the claim so every admin — and the student's own copy — reuses it.
+    if (settingsInDb) assignRef(letterName, student.id, num)
     return `${letter.prefix}${refSerial(num)}`
   }
   function docOptsFor(student, letterName) {
@@ -340,7 +349,7 @@ export default function ResearchDepartment() {
     <button onClick={() => setTab(id)}
       className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === id ? 'bg-[#933d18] text-white' : 'bg-[#933d18]/8 text-[#933d18] hover:bg-[#933d18]/15'}`}>
       <Icon size={15} /> {label}
-      <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === id ? 'bg-white/25' : 'bg-white/70'}`}>{count}</span>
+      {count != null && <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === id ? 'bg-white/25' : 'bg-white/70'}`}>{count}</span>}
     </button>
   )
 
@@ -357,7 +366,25 @@ export default function ResearchDepartment() {
         </div>
       )}
 
+      {/* The letter setup and the student lists each live in their own tab —
+          the master panel is tall, and it buried the candidates below it. */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <TabBtn id="master" icon={Settings2} label="Master Panel" />
+          <TabBtn id="letters" icon={FlaskConical} label="Candidates" count={filtered.length} />
+          <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={filtered.filter(s => !s.exam_forwarded_at).length} />
+        </div>
+        {tab !== 'master' && (
+          <div className="relative">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name / application no / stream..."
+              className="pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-72" />
+          </div>
+        )}
+      </div>
+
       {/* Master panel — per-letter reference series + date */}
+      {tab === 'master' && (
       <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
         <div className="flex items-center gap-2">
           <Settings2 size={16} className="text-[#933d18]" />
@@ -595,18 +622,7 @@ export default function ResearchDepartment() {
           </div>
         </div>
       </div>
-
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <TabBtn id="letters" icon={FlaskConical} label="Candidates" count={filtered.length} />
-          <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={filtered.filter(s => !s.exam_forwarded_at).length} />
-        </div>
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name / application no / stream..."
-            className="pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-72" />
-        </div>
-      </div>
+      )}
 
       {tab === 'letters' && (
         <Table>
