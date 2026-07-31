@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { fetchStudentSelf } from '../../utils/studentSelf'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { FileText, Eye, CheckCircle, XCircle } from 'lucide-react'
 
@@ -28,7 +29,7 @@ export default function StudentDocuments() {
   useEffect(() => {
     if (!student?.id) return
     async function load() {
-      const { data } = await supabase.from('students').select('*').eq('id', student.id).single()
+      const data = await fetchStudentSelf()
       if (data) {
         const resolved = await resolveStudentDocUrls(data)
         setDocs(resolved)

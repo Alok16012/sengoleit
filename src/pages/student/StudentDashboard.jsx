@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { fetchStudentSelf } from '../../utils/studentSelf'
 import { BookOpen, Calendar, Award, Hash, User } from 'lucide-react'
 import Badge from '../../components/ui/Badge'
 import { isPhdProgram } from '../../utils/generateStudentCards'
@@ -12,11 +13,8 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     if (!student?.id) return
-    supabase.from('students')
-      .select('*, programs(program_name, short_name, duration, semester_year), centers(center_name, center_code), academic_sessions(session_name), departments(name)')
-      .eq('id', student.id)
-      .single()
-      .then(({ data }) => { setData(data); setLoading(false) })
+    fetchStudentSelf()
+      .then((data) => { setData(data); setLoading(false) })
   }, [student?.id])
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>

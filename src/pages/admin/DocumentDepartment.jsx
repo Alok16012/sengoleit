@@ -1420,7 +1420,7 @@ export default function DocumentDepartment() {
           </Thead>
           <Tbody>
             {students.length === 0 ? (
-              <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No students found</Td></Tr>
+              <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No students found</Td></Tr>
             ) : students.map((s, i) => (
               <Tr key={s.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>

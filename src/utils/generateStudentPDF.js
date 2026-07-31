@@ -12,8 +12,17 @@ const UNI_WEB = 'www.sengolinternationaluniversity.edu.in'
 const UNI_ACT = 'Established under Act No. 14 of 2025, Sikkim State Legislative Assembly'
 const UNI_UGC = 'Estb. by the Act of State Govt. & Under Section 2(f) of UGC Act 1956, Govt. of India'
 
+// Every DB-supplied value is interpolated into an HTML string and rendered via
+// document.write in the admin's browser — escape it, or a student-entered name
+// / address / remark containing markup would execute there (stored XSS).
+export function esc(val) {
+  return String(val).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ))
+}
+
 function v(val) {
-  return val && String(val).trim() ? String(val).trim() : '—'
+  return val && String(val).trim() ? esc(String(val).trim()) : '—'
 }
 
 function fmtDate(d) {
@@ -168,7 +177,7 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
           </tr>
         </table>
       </td></tr>` : ''}
-      ${s.remarks ? `<tr><td style="font-size:9.5px;padding-top:4px;color:${s.status === 'Rejected' ? '#dc2626' : '#555'};">Remarks: <strong>${s.remarks}</strong></td></tr>` : ''}
+      ${s.remarks ? `<tr><td style="font-size:9.5px;padding-top:4px;color:${s.status === 'Rejected' ? '#dc2626' : '#555'};">Remarks: <strong>${v(s.remarks)}</strong></td></tr>` : ''}
     </table>
   </div>
 

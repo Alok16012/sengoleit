@@ -502,7 +502,7 @@ export default function ExamSection() {
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">
                 {search ? 'No students match your search.' : 'No students have been forwarded to the Exam Section yet.'}
               </Td></Tr>
             ) : filtered.map((s, i) => (

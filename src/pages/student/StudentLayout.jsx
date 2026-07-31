@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { fetchStudentSelf } from '../../utils/studentSelf'
 import { supabase } from '../../lib/supabase'
 import { isPhdProgram } from '../../utils/generateStudentCards'
 import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings, Menu, FileCheck2, ShieldCheck, Ticket } from 'lucide-react'
@@ -14,9 +15,9 @@ const baseNavItems = [
   { to: '/student/id-card',          icon: CreditCard,      label: 'I Card' },
   { to: '/student/admit-card',       icon: BadgeCheck,      label: 'Admit Card' },
   { to: '/student/results',          icon: GraduationCap,   label: 'Results' },
-  { to: '/student/online-exam',      icon: MonitorPlay,     label: 'Online Exam' },
+  // Online Exam and E-Book are unbuilt "Coming Soon" shells — hidden from the
+  // menu until they exist (their routes remain for when they're ready).
   { to: '/student/syllabus',         icon: BookMarked,      label: 'Syllabus' },
-  { to: '/student/ebook',            icon: BookOpenCheck,   label: 'E-Book' },
 ]
 
 // Ph.D-only documents, inserted after the I Card entry. The Hall Ticket comes
@@ -44,8 +45,8 @@ export default function StudentLayout() {
   // Ph.D students get extra document menu items (Offer Letter, Entrance Clearance).
   useEffect(() => {
     if (!student?.id) return
-    supabase.from('students').select('programs(program_name)').eq('id', student.id).single()
-      .then(({ data }) => setIsPhd(isPhdProgram(data?.programs?.program_name)))
+    fetchStudentSelf()
+      .then((data) => setIsPhd(isPhdProgram(data?.programs?.program_name)))
   }, [student?.id])
 
   // Ph.D research pipeline: no registration slip (that document was dropped),

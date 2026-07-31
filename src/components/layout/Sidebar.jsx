@@ -41,11 +41,11 @@ const reportItems = (base) => [
   { to: `${base}/reports/forwarding`, icon: Send, label: 'Forwarding Student List' },
   { to: `${base}/reports/approved`, icon: CheckCircle, label: 'Approved Student List' },
   { to: `${base}/reports/rejected`, icon: XCircle, label: 'Rejected Student List' },
-  { to: `${base}/reports/document-summary`, icon: FileText, label: 'Document Summary' },
+  // Document Summary / Courier Summary / University Courier are unbuilt
+  // ("Coming Soon" shells) — advertising them in the sidebar only sent
+  // centers to dead pages. Restore the entries once the reports exist.
   { to: `${base}/reports/payment-summary`, icon: CreditCard, label: 'Payment Summary' },
   { to: `${base}/balance`, icon: Wallet, label: 'Wallet Summary' },
-  { to: `${base}/reports/courier-summary`, icon: Truck, label: 'Center Courier Summary' },
-  { to: `${base}/reports/university-courier`, icon: Truck, label: 'University Courier' },
   { to: `${base}/reports/course-fee`, icon: GraduationCap, label: 'Center Course Fee' },
   { to: `${base}/reports/syllabus`, icon: ScrollText, label: 'Syllabus' },
   { to: `${base}/reports/credentials`, icon: BadgeCheck, label: 'Credentials' },
@@ -68,7 +68,7 @@ const superCenterNavGroups = [
     group: 'Entry',
     items: [
       { to: '/super-center/students', icon: Users, label: 'Registered Student List', end: true },
-      { to: '/super-center/courier', icon: Truck, label: 'Courier Entry' },
+      // Courier Entry is an unbuilt "Coming Soon" shell — hidden until it exists.
     ],
   },
   {
@@ -80,6 +80,7 @@ const superCenterNavGroups = [
         '/super-center/reports/credentials',
         '/super-center/reports/wallet-coupon',
         '/super-center/reports/admission-coupon',
+        '/super-center/reports/progress',   // unbuilt "Coming Soon" shell
       ].includes(item.to)
     ),
   },
@@ -93,21 +94,23 @@ const centerNavGroups = [
       { to: '/center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
       { to: '/center/students', icon: Users, label: 'Student Status List', end: true },
       { to: '/center/balance', icon: Wallet, label: 'Wallet Summary' },
-      { to: '/center/courier', icon: Truck, label: 'Courier Entry' },
-      { to: '/center/answersheet', icon: FileCheck, label: 'Student Answersheet' },
-      { to: '/center/supplementary', icon: UserCheck, label: 'Supplementary Student' },
+      // Courier Entry / Answersheet / Supplementary are unbuilt "Coming Soon"
+      // shells — hidden until the features exist.
     ],
   },
   {
     group: 'Reports',
     // Wallet Summary lives in the Entry group for centers (renamed from Payment
-    // Deposit); also hide the pending/hold/rejected/progress lists for centers.
+    // Deposit); also hide the pending/hold/rejected/progress lists for centers,
+    // and the still-unbuilt syllabus/credentials report shells.
     items: reportItems('/center').filter(item => ![
       '/center/balance',
       '/center/reports/pending',
       '/center/reports/hold',
       '/center/reports/rejected',
       '/center/reports/progress',
+      '/center/reports/syllabus',
+      '/center/reports/credentials',
     ].includes(item.to)),
   },
 ]

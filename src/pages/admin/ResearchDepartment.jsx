@@ -151,9 +151,9 @@ export default function ResearchDepartment() {
   function addLetter() {
     const name = newName.trim()
     if (!name) return
-    setSelName(name); setNewName('')
+    setNewName('')
     if (letters.some(l => l.name.toLowerCase() === name.toLowerCase())) return
-    const next = [...letters, { name, session: editingSession, prefix: '', nextNum: 1, date: today }]
+    const next = [...letters, blankLetter(name, editingSession)]
     setLetters(next); persist(next, assigned)
   }
 

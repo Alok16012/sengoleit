@@ -16,6 +16,11 @@ import { isPhdStudent } from '../../utils/isPhdStudent'
 const TABS = [
   { key: 'students', label: 'Student Applications' },
   { key: 'approvals', label: 'Center Applications' },
+  // Applications from the public Add Center form (center_applications table) —
+  // approving one creates the sub-center under its super center and mints its
+  // coupons. The tab existed but was missing from this list, so the whole
+  // workflow was unreachable.
+  { key: 'center_apps', label: 'Sub-Center Applications' },
   { key: 'super_approvals', label: 'Super Center Applications' },
   { key: 'recharges', label: 'Recharge Requests' },
   { key: 'approval_codes', label: 'Approval Code Requests' },
@@ -83,12 +88,18 @@ export default function AccountDepartment() {
   const [refNoSaving, setRefNoSaving] = useState(false)
 
   useEffect(() => { fetchAll() }, [])
+  // Load once for the tab badge, and refresh whenever the tab is opened.
+  useEffect(() => { fetchCenterApps() }, [])
   useEffect(() => { if (tab === 'center_apps') fetchCenterApps() }, [tab])
 
   async function fetchCenterApps() {
+    // Every application that is still open. The old filter demanded a
+    // 'doc_verified' status that no step of the pipeline ever sets — the Add
+    // Center form inserts with the table default and the super center's
+    // review marks 'Approved'/'Rejected' — so the list was permanently empty.
     const { data } = await supabase.from('center_applications')
-      .select('*').eq('status', 'doc_verified').order('created_at', { ascending: false })
-    setCenterApps(data || [])
+      .select('*').order('created_at', { ascending: false })
+    setCenterApps((data || []).filter(a => !/^(approved|rejected)$/i.test(a.status || '')))
   }
 
   async function handleCAApprove() {
@@ -136,7 +147,10 @@ export default function AccountDepartment() {
       face_value: 1,
       application_id: app.id,
     }))
-    const scCoupons = Array.from({ length: scFee }, () => ({
+    // No super center on the application (applied straight to the university)
+    // → nobody to credit the SC share to; minting coupons with a null
+    // center_id would only error after the center was already created.
+    const scCoupons = !app.super_center_id ? [] : Array.from({ length: scFee }, () => ({
       center_id: app.super_center_id,
       face_value: 1,
       application_id: app.id,
@@ -942,6 +956,9 @@ export default function AccountDepartment() {
             )}
             {t.key === 'approvals' && pendingCount > 0 && (
               <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+            )}
+            {t.key === 'center_apps' && pendingCenterApps > 0 && (
+              <span className="ml-2 bg-purple-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingCenterApps}</span>
             )}
             {t.key === 'super_approvals' && pendingSuperApprovals > 0 && (
               <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingSuperApprovals}</span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
@@ -31,6 +31,26 @@ const STATUS_COLOR = {
   'Hold': 'bg-orange-50 text-orange-700',
 }
 
+// The DB status is only Pending / Hold / Approved / Rejected; the finer stage
+// (shown as the tabs & badge) is derived from status + the workflow flags.
+// Mirrors CenterStudents — comparing the raw status against these stage
+// labels made the Reviewing/Verified/Account/Admitted tabs always empty.
+function stageOf(s) {
+  if (s.status === 'Rejected') return 'Rejected'
+  if (s.status === 'Approved') return 'Admitted'                 // Enrolled
+  if (s.status === 'Hold') return s.doc_verified_at ? 'Account Section' : 'Hold'
+  return s.forwarded_at ? 'Reviewing' : 'Pending'                // Pending status
+}
+
+// 'Documents Verified' and 'Under Process for Enrollment' are the same
+// underlying state (doc-verified, at Account).
+function matchesFilter(s, filter) {
+  if (filter === 'All') return true
+  const st = stageOf(s)
+  if (filter === 'Document Verified' || filter === 'Account Section') return st === 'Account Section'
+  return st === filter
+}
+
 export default function SuperCenterStudents() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -40,6 +60,12 @@ export default function SuperCenterStudents() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [sourceFilter, setSourceFilter] = useState('All') // 'All', 'Mine', 'Sub-Centers'
+  // The header search bar lands here as ?q=… — adopt it as the list filter.
+  const location = useLocation()
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('q')
+    if (q != null) setSearch(q)
+  }, [location.search])
   const [downloading, setDownloading] = useState(null)
 
   useEffect(() => {
@@ -82,7 +108,7 @@ export default function SuperCenterStudents() {
     // Get students from all centers
     const { data: students } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, entry_type, submitted_by, created_at, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code)')
+      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, entry_type, submitted_by, created_at, forwarded_at, doc_verified_at, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code)')
       .in('center_id', allIds)
       .order('created_at', { ascending: false })
 
@@ -93,7 +119,7 @@ export default function SuperCenterStudents() {
   const filtered = data.filter(s => {
     const searchStr = `${s.student_name} ${s.enrollment_no} ${s.mobile_no} ${s.admission_number} ${s.programs?.program_name || ''} ${s.academic_sessions?.session_name || ''} ${s.centers?.center_name || ''}`.toLowerCase()
     const matchSearch = searchStr.includes(search.toLowerCase())
-    const matchStatus = statusFilter === 'All' || s.status === statusFilter
+    const matchStatus = matchesFilter(s, statusFilter)
     const matchSource = sourceFilter === 'All'
       ? true
       : sourceFilter === 'Mine'
@@ -209,9 +235,11 @@ export default function SuperCenterStudents() {
                 <Td className="text-gray-500">{s.mobile_no || '—'}</Td>
                 <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
                 <Td>
-                  <span className={`text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${STATUS_COLOR[s.status] || 'bg-gray-50 text-gray-600'}`}>
-                    {STATUS_DISPLAY[s.status] || s.status || 'Pending'}
-                  </span>
+                  {(() => { const st = stageOf(s); return (
+                    <span className={`text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${STATUS_COLOR[st] || 'bg-gray-50 text-gray-600'}`}>
+                      {STATUS_DISPLAY[st] || st}
+                    </span>
+                  ) })()}
                 </Td>
                 <Td>
                   <div className="flex gap-1">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { fetchStudentSelf } from '../../utils/studentSelf'
 import { generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { Receipt, Download, Hash, BookOpen, User, MapPin } from 'lucide-react'
@@ -16,11 +17,7 @@ export default function StudentRegistrationSlip() {
   useEffect(() => {
     if (!student?.id) return
     async function load() {
-      const { data: raw } = await supabase
-        .from('students')
-        .select('*, programs(program_name, short_name), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
-        .eq('id', student.id)
-        .single()
+      const raw = await fetchStudentSelf()
       if (raw) {
         const resolved = await resolveStudentDocUrls(raw)
         setData(resolved)

@@ -75,6 +75,7 @@ import StudentSettings from './pages/student/StudentSettings'
 import StudentOfferLetter from './pages/student/StudentOfferLetter'
 import StudentEntranceClearance from './pages/student/StudentEntranceClearance'
 import StudentHallTicket from './pages/student/StudentHallTicket'
+import StudentSyllabus from './pages/student/StudentSyllabus'
 import StudentIDCard from './pages/student/StudentIDCard'
 import StudentAdmitCard from './pages/student/StudentAdmitCard'
 import StudentRegistrationSlip from './pages/student/StudentRegistrationSlip'
@@ -120,7 +121,7 @@ export default function App() {
             <Route path="/student/id-card" element={<StudentIDCard />} />
             <Route path="/student/admit-card" element={<StudentAdmitCard />} />
             <Route path="/student/online-exam" element={<ComingSoon title="Online Exam" description="Appear for your scheduled online exams" />} />
-            <Route path="/student/syllabus" element={<ComingSoon title="Syllabus" description="View your program syllabus and curriculum" />} />
+            <Route path="/student/syllabus" element={<StudentSyllabus />} />
             <Route path="/student/ebook" element={<ComingSoon title="E-Book" description="Access your digital study materials" />} />
           </Route>
 

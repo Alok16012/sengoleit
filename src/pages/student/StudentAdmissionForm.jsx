@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { fetchStudentSelf } from '../../utils/studentSelf'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { ClipboardList, Download, Hash, BookOpen, User, MapPin } from 'lucide-react'
@@ -15,11 +16,7 @@ export default function StudentAdmissionForm() {
   useEffect(() => {
     if (!student?.id) return
     async function load() {
-      const { data: raw } = await supabase
-        .from('students')
-        .select('*, programs(program_name, short_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
-        .eq('id', student.id)
-        .single()
+      const raw = await fetchStudentSelf()
       if (raw) {
         const resolved = await resolveStudentDocUrls(raw)
         setData(resolved)

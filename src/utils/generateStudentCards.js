@@ -28,8 +28,17 @@ const UNI_UGC = 'Estb. by the Act of State Govt. & Under Section 2(f) of UGC Act
 export const BRAND = '#933d18'
 const GOLD = '#d9a441'
 
+// Every DB-supplied value lands inside an HTML string rendered with
+// document.write in the viewer's browser — escape it, or a student-entered
+// name / address containing markup would execute there (stored XSS).
+function esc(val) {
+  return String(val).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ))
+}
+
 function v(val) {
-  return val && String(val).trim() ? String(val).trim() : '—'
+  return val && String(val).trim() ? esc(String(val).trim()) : '—'
 }
 
 // A PhD / doctoral entry — detected from the program name.
@@ -188,7 +197,7 @@ export function generateIDCard(s) {
         <!-- photo with a faint seal overlapping its lower area -->
         <div style="position:relative;width:118px;">
           ${s.photo_url
-            ? `<img src="${s.photo_url}" alt="Photo" style="width:118px;height:138px;object-fit:cover;border:1px solid #bbb;border-radius:8px;display:block;"/>`
+            ? `<img src="${esc(s.photo_url)}" alt="Photo" style="width:118px;height:138px;object-fit:cover;border:1px solid #bbb;border-radius:8px;display:block;"/>`
             : `<div style="width:118px;height:138px;border:1px solid #bbb;border-radius:8px;background:#fafafa;display:flex;align-items:center;justify-content:center;font-size:10px;color:#bbb;">Photo</div>`
           }
           <img src="${LOGO_URL}" style="position:absolute;right:6px;bottom:6px;width:56px;height:56px;object-fit:contain;opacity:0.28;" onerror="this.style.display='none'"/>
@@ -196,7 +205,7 @@ export function generateIDCard(s) {
         <!-- signature below the photo -->
         <div style="text-align:center;margin-top:8px;height:34px;">
           ${s.signature_url
-            ? `<img src="${s.signature_url}" style="height:30px;max-width:112px;object-fit:contain;display:inline-block;"/>`
+            ? `<img src="${esc(s.signature_url)}" style="height:30px;max-width:112px;object-fit:contain;display:inline-block;"/>`
             : ''
           }
         </div>
@@ -366,7 +375,7 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
         <!-- Right: photo + signature -->
         <td style="width:130px;vertical-align:top;text-align:center;padding:14px 12px;">
           ${s.photo_url
-            ? `<img src="${s.photo_url}" alt="Photo" style="width:100px;height:120px;object-fit:cover;border:2px solid #ccc;display:block;margin:0 auto;"/>`
+            ? `<img src="${esc(s.photo_url)}" alt="Photo" style="width:100px;height:120px;object-fit:cover;border:2px solid #ccc;display:block;margin:0 auto;"/>`
             : `<div style="width:100px;height:120px;border:1.5px solid #ccc;display:flex;align-items:center;justify-content:center;background:#fafafa;margin:0 auto;"><span style="font-size:8px;color:#bbb;text-align:center;">Photo</span></div>`
           }
           <p style="font-size:8px;color:#555;margin-top:4px;">(Student Photo)</p>
@@ -374,7 +383,7 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
           <!-- Student Signature box (auto-filled from the uploaded signature) -->
           <div style="margin-top:18px;">
             <div style="height:40px;width:100px;margin:0 auto;display:flex;align-items:flex-end;justify-content:center;">
-              ${s.signature_url ? `<img src="${s.signature_url}" style="max-height:38px;max-width:96px;object-fit:contain;"/>` : ''}
+              ${s.signature_url ? `<img src="${esc(s.signature_url)}" style="max-height:38px;max-width:96px;object-fit:contain;"/>` : ''}
             </div>
             <div style="border-top:1px solid #888;width:100px;margin:0 auto;"></div>
             <p style="font-size:8px;color:#555;margin-top:4px;">Student Signature</p>
@@ -492,14 +501,14 @@ export function generateRegistrationCertificate(s) {
         <!-- Right: photo + student signature box (no registrar) -->
         <td style="width:140px;vertical-align:top;text-align:center;padding:16px 12px;">
           ${s.photo_url
-            ? `<img src="${s.photo_url}" alt="Photo" style="width:108px;height:132px;object-fit:cover;border:2px solid #ccc;display:block;margin:0 auto;"/>`
+            ? `<img src="${esc(s.photo_url)}" alt="Photo" style="width:108px;height:132px;object-fit:cover;border:2px solid #ccc;display:block;margin:0 auto;"/>`
             : `<div style="width:108px;height:132px;border:1.5px solid #ccc;display:flex;align-items:center;justify-content:center;background:#fafafa;margin:0 auto;"><span style="font-size:8px;color:#bbb;text-align:center;">Photo<br/>Here</span></div>`
           }
 
           <!-- Student Signature box below the photo -->
           <div style="margin:14px auto 0;width:108px;height:58px;border:1.5px solid #999;position:relative;background:#fff;">
             ${s.signature_url
-              ? `<img src="${s.signature_url}" style="max-width:100px;max-height:36px;object-fit:contain;position:absolute;top:5px;left:50%;transform:translateX(-50%);"/>`
+              ? `<img src="${esc(s.signature_url)}" style="max-width:100px;max-height:36px;object-fit:contain;position:absolute;top:5px;left:50%;transform:translateX(-50%);"/>`
               : ''
             }
             <span style="position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:8px;color:#555;">Student Signature</span>
@@ -575,14 +584,14 @@ export function generateHallTicket(s, opts = {}) {
           <table style="width:100%;">
             ${row('Roll Number:', `<span style="font-weight:800;">${v(rollNo)}</span>${s.gender ? `<span style="display:inline-block;margin-left:70px;font-weight:800;">${String(s.gender).toUpperCase()}</span>` : ''}`)}
             ${row('Candidate Name:', `<span style="font-weight:800;">${v(s.student_name).toUpperCase()}</span>`)}
-            ${row('Faculty and Subject:', `<span style="background:#dce9f7;padding:2px 10px;">${v(faculty)}</span>${subject ? `&nbsp;&nbsp;<span style="background:#fbf2e3;padding:2px 10px;">${subject.toUpperCase()}</span>` : ''}`)}
+            ${row('Faculty and Subject:', `<span style="background:#dce9f7;padding:2px 10px;">${v(faculty)}</span>${subject ? `&nbsp;&nbsp;<span style="background:#fbf2e3;padding:2px 10px;">${esc(subject.toUpperCase())}</span>` : ''}`)}
             ${row('Date &amp; Time of Exam:', `<span style="font-weight:800;">${examWhen || blank(220)}</span>`)}
             ${row('Reporting time at the Centre:', `<span style="font-weight:800;">${reporting || blank(160)}</span>`)}
           </table>
         </td>
         <td style="width:130px;vertical-align:top;text-align:right;padding:6px 0 0 10px;">
           ${s.photo_url
-            ? `<img src="${s.photo_url}" alt="Photo" style="width:110px;height:130px;object-fit:cover;border:1px solid #999;"/>`
+            ? `<img src="${esc(s.photo_url)}" alt="Photo" style="width:110px;height:130px;object-fit:cover;border:1px solid #999;"/>`
             : `<div style="width:110px;height:130px;border:1px solid #999;background:#fafafa;display:flex;align-items:center;justify-content:center;font-size:9px;color:#bbb;">Photo</div>`
           }
         </td>
@@ -608,7 +617,7 @@ export function generateHallTicket(s, opts = {}) {
       <tr>
         <td style="width:34%;vertical-align:bottom;">
           <div style="height:36px;display:flex;align-items:flex-end;">
-            ${s.signature_url ? `<img src="${s.signature_url}" style="max-height:34px;max-width:150px;object-fit:contain;"/>` : ''}
+            ${s.signature_url ? `<img src="${esc(s.signature_url)}" style="max-height:34px;max-width:150px;object-fit:contain;"/>` : ''}
           </div>
           <p style="font-size:13px;font-weight:700;color:#000;margin:4px 0 0;">Signature of Candidate</p>
         </td>

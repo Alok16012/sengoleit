@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
@@ -200,6 +200,12 @@ export default function Students() {
   const [statusFilter, setStatusFilter] = useState('All')
   const [downloading, setDownloading] = useState(null)
   const [credStudentId, setCredStudentId] = useState(null)
+  // The header search bar lands here as ?q=… — adopt it as the list filter.
+  const location = useLocation()
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('q')
+    if (q != null) setSearch(q)
+  }, [location.search])
   const [resultStudent, setResultStudent] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)

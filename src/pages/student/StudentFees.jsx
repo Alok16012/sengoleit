@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { fetchStudentSelf } from '../../utils/studentSelf'
 import { IndianRupee } from 'lucide-react'
 
 function calcTotals(feeItems, totalSems) {
@@ -31,20 +32,19 @@ export default function StudentFees() {
   useEffect(() => {
     if (!student?.id) return
     async function load() {
-      const { data: s } = await supabase
-        .from('students')
-        .select('programme_id, session_id, programs(program_name, short_name, duration, semester_year)')
-        .eq('id', student.id)
-        .single()
+      const s = await fetchStudentSelf()
       if (!s) { setLoading(false); return }
       setProg(s.programs)
-      const { data: fs } = await supabase
+      // fee_structures keys on program_id, and the items live in the related
+      // fee_items table. Prefer the student's own session; fall back to the
+      // programme's only structure (mirrors courseFee.js) so the page still
+      // shows fees when no session-specific structure was set up.
+      const { data: structures } = await supabase
         .from('fee_structures')
-        .select('*')
-        .eq('programme_id', s.programme_id)
-        .eq('session_id', s.session_id)
-        .maybeSingle()
-      setFeeData(fs)
+        .select('*, fee_items(label, category, amount)')
+        .eq('program_id', s.programme_id)
+      const fs = (structures || []).find(f => f.session_id === s.session_id) || (structures || [])[0]
+      setFeeData(fs || null)
       setLoading(false)
     }
     load()
@@ -52,9 +52,9 @@ export default function StudentFees() {
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
 
-  const totalSems = prog?.semester_year === 'Year'
-    ? (prog?.duration || 1) * 2
-    : (prog?.duration || 1)
+  // `duration` is stored in semesters for every programme (a 3-year Ph.D is 6)
+  // — see courseFee.js. Doubling it for Year-mode programmes was wrong.
+  const totalSems = Number(prog?.duration) || 1
 
   const feeItems = feeData?.fee_items || []
   const totals = calcTotals(feeItems, totalSems)

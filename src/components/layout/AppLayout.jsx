@@ -8,7 +8,21 @@ function TopBar() {
   const { profile, user, signOut } = useAuth()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [q, setQ] = useState('')
   const role = profile?.role || user?.user_metadata?.role || 'admin'
+
+  // Enter in the header search jumps to this role's student list, which picks
+  // the term up from ?q= — the input used to be a dead control.
+  const searchTarget =
+    role === 'center' ? '/center/students' :
+    role === 'super_center' ? '/super-center/students' :
+    '/admin/students'
+  const runSearch = () => {
+    const term = q.trim()
+    if (!term) return
+    navigate(`${searchTarget}?q=${encodeURIComponent(term)}`)
+    setQ('')
+  }
   const name = profile?.full_name ||
     (role === 'admin' ? 'Admin User' :
      role === 'super_center' ? 'Super Center' :
@@ -42,15 +56,19 @@ function TopBar() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Search..."
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && runSearch()}
+            placeholder="Search students — name / application no / enrollment…"
             className="w-full bg-white border border-gray-100 rounded-2xl py-2.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] transition-all shadow-sm"
           />
         </div>
       </div>
       <div className="flex items-center space-x-6">
+        {/* No notifications system exists yet — a permanent red "unread" dot
+            here promised alerts that could never be opened. */}
         <button className="p-2.5 bg-white border border-gray-100 rounded-xl text-gray-500 hover:text-[#933d18] hover:border-[#933d18]/20 transition-all shadow-sm relative">
           <Bell size={18} />
-          <span className="absolute top-2.5 right-2.5 h-2 w-2 bg-red-500 border-2 border-white rounded-full" />
         </button>
 
         {/* Account / Settings dropdown */}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { fetchStudentSelf } from '../../utils/studentSelf'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { ChevronDown } from 'lucide-react'
 
@@ -40,8 +41,8 @@ export default function StudentProfile() {
 
   useEffect(() => {
     if (!student?.id) return
-    supabase.from('students').select('*').eq('id', student.id).single()
-      .then(async ({ data }) => {
+    fetchStudentSelf()
+      .then(async (data) => {
         // Photo/signature live in a private bucket — resolve to signed URLs so
         // they actually load (raw stored URLs 404).
         setData(data ? await resolveStudentDocUrls(data) : data)

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import { fetchStudentSelf } from '../../utils/studentSelf'
 import { generateAdmitCard, isPhdProgram, UNI_NAME, UNI_ADDRESS, UNI_ACT, BRAND } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
-import { fetchExamDates } from '../../utils/examSettings'
+import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
 import { BadgeCheck, Download } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
@@ -18,11 +19,7 @@ export default function StudentAdmitCard() {
   useEffect(() => {
     if (!student?.id) return
     async function load() {
-      const { data: raw } = await supabase
-        .from('students')
-        .select('*, programs(program_name, short_name), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
-        .eq('id', student.id)
-        .single()
+      const raw = await fetchStudentSelf()
       if (raw) {
         const resolved = await resolveStudentDocUrls(raw)
         setData(resolved)
@@ -40,8 +37,13 @@ export default function StudentAdmitCard() {
     if (!data) return
     setGenerating(true)
     const subs = subjects.length ? subjects : await fetchAdmitCardSubjects(data)
+    // Same meta shape the shared student lists pass: fetchExamSettingsMeta
+    // carries examSchedule / semester / the admitCardAt release gate, and
+    // fetchExamDates the exam-date list. Passing only the dates left the
+    // student's own download without a schedule and skipped the date gate.
+    const meta = await fetchExamSettingsMeta(data)
     const dates = await fetchExamDates(data)
-    generateAdmitCard(data, subs, dates)
+    generateAdmitCard(data, subs, { ...meta, ...dates })
     setGenerating(false)
   }
 

@@ -15,13 +15,28 @@ export default function StudentSettings() {
   async function handleSubmit(e) {
     e.preventDefault()
     setMsg(null)
-    if (newPwd.trim().length < 4) return setMsg({ type: 'err', text: 'New password must be at least 4 characters.' })
+    if (newPwd.trim().length < 6) return setMsg({ type: 'err', text: 'New password must be at least 6 characters.' })
     if (newPwd !== confirmPwd) return setMsg({ type: 'err', text: 'New password and confirm password do not match.' })
 
     setSaving(true)
-    // Verify the current password, then update login_password — the same column
-    // the admin panel (Students page) and the login flow read, so the new
-    // password is immediately visible to admin and usable to log in.
+    // Server-side change (student_auth.sql): the old password is verified
+    // against its hash and the update runs under the session token — the
+    // browser can no longer read or write the students table directly.
+    if (student?.token) {
+      const { data, error } = await supabase.rpc('student_change_password', {
+        p_token: student.token, p_old: oldPwd, p_new: newPwd,
+      })
+      setSaving(false)
+      if (error) return setMsg({ type: 'err', text: 'Could not update password. Please try again later.' })
+      if (data?.error === 'wrong_password') return setMsg({ type: 'err', text: 'Your current password is incorrect.' })
+      if (data?.error === 'weak_password') return setMsg({ type: 'err', text: 'New password must be at least 6 characters.' })
+      if (data?.error) return setMsg({ type: 'err', text: 'Could not verify your account. Please sign in again.' })
+      setMsg({ type: 'ok', text: 'Password changed successfully.' })
+      setOldPwd(''); setNewPwd(''); setConfirmPwd('')
+      return
+    }
+
+    // Legacy fallback — pre-migration session/database.
     const { data: row, error: readErr } = await supabase
       .from('students').select('login_password').eq('id', student.id).maybeSingle()
     if (readErr || !row) { setSaving(false); return setMsg({ type: 'err', text: 'Could not verify your account. Please try again.' }) }
