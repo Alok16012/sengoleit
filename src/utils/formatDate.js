@@ -11,10 +11,11 @@ export function formatDate(value, fallback = '—') {
   return `${dd}/${mm}/${yyyy}`
 }
 
-// "15-Jun-2026" — abbreviated month, for dates that read inside a sentence on a
-// printed letter (e.g. "Entrance Test conducted on 15-Jun-2026").
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// "15-June-2026" — month names for dates that read inside a sentence on a
+// printed letter (e.g. "Entrance Test conducted on 15-June-2026"). Long names
+// abbreviate (August → Aug); already-short ones print in full (June, July).
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June',
+  'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function formatDateLong(value, fallback = '—') {
   if (!value) return fallback
