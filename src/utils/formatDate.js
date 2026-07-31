@@ -11,16 +11,16 @@ export function formatDate(value, fallback = '—') {
   return `${dd}/${mm}/${yyyy}`
 }
 
-// "15-June-2026" — spelled-out month, for dates that read inside a sentence on a
-// printed letter (e.g. "Entrance Test conducted on 15-June-2026").
-const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December']
+// "15-Jun-2026" — abbreviated month, for dates that read inside a sentence on a
+// printed letter (e.g. "Entrance Test conducted on 15-Jun-2026").
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function formatDateLong(value, fallback = '—') {
   if (!value) return fallback
   const d = new Date(value)
   if (isNaN(d.getTime())) return fallback
-  return `${String(d.getDate()).padStart(2, '0')}-${MONTHS_LONG[d.getMonth()]}-${d.getFullYear()}`
+  return `${String(d.getDate()).padStart(2, '0')}-${MONTHS_SHORT[d.getMonth()]}-${d.getFullYear()}`
 }
 
 // The website's PayU integration builds the transaction id as

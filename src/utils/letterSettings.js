@@ -29,7 +29,13 @@ export async function loadLetterSettings() {
       .from('letter_settings')
       .select('session_key, name, prefix, next_num, letter_date, test_date'))
   }
-  if (error) return null
+  if (error) {
+    // Falling back to browser-only storage from here, and the panel can only say
+    // so in general terms — log why, because "table missing" and "table exists
+    // but predates session_key" need very different fixes.
+    console.warn('[letterSettings] shared settings unavailable, using this browser only:', error.message)
+    return null
+  }
   return (data || []).map(r => ({
     session: r.session_key || '',
     name: r.name,
@@ -93,6 +99,15 @@ export async function assignRef(letterName, studentId, num) {
   await supabase
     .from('letter_refs')
     .upsert({ letter_name: letterName, student_id: studentId, num }, { onConflict: 'letter_name,student_id', ignoreDuplicates: true })
+}
+
+// Release a candidate's claimed number. Numbers lock on first issue so reopening
+// a letter can't renumber it — but that also locks in a number claimed under an
+// old series, so the admin needs a way to let go of one and re-issue it.
+export async function unassignRef(letterName, studentId) {
+  const { error } = await supabase.from('letter_refs')
+    .delete().eq('letter_name', letterName).eq('student_id', studentId)
+  return { error }
 }
 
 // The Ref. No. / dates for one student's letter — used by the student portal and

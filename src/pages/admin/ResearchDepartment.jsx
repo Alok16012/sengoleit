@@ -8,7 +8,7 @@ import { generateOfferLetter, generateEntranceClearance, generateHallTicket } fr
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
-import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, deleteLetterSetting } from '../../utils/letterSettings'
+import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, unassignRef, deleteLetterSetting } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
 
@@ -39,8 +39,10 @@ export default function ResearchDepartment() {
   ]
   const LETTER_NAMES = ['Hall Ticket', 'Offer Letter', 'Entrance Certificate']
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
-  const [selName, setSelName] = useState(LETTER_NAMES[0])
   const [newName, setNewName] = useState('')
+  // Types down the session list — sessions pile up year on year, so picking one
+  // out of a plain dropdown gets slow.
+  const [sessionSearch, setSessionSearch] = useState('')
   const [assigned, setAssigned] = useState({}) // { [letterName]: { [studentId]: num } }
   const [saved, setSaved] = useState(false)
   // Whether the shared letter_settings/letter_refs tables exist, and whether the
@@ -103,20 +105,35 @@ export default function ResearchDepartment() {
   // Editing needs a concrete session; "All Sessions" has no series of its own.
   const editingSession = sessionFilter !== 'all' ? sessionFilter : ''
   const letterNames = [...new Set([...LETTER_NAMES, ...letters.map(l => l.name)])].filter(Boolean)
-  const sel = entryFor(editingSession, selName)
-    || { name: selName, session: editingSession, prefix: '', nextNum: 1, date: today, testDate: '' }
+  const blankLetter = (name, session = '') =>
+    ({ name, session, prefix: '', nextNum: 1, date: today, testDate: '', examTime: '', reportTime: '', examCentre: '' })
+  // Every letter for the session on screen, so the whole set is filled in one go.
+  // A letter with no entry of its own shows the "Any session" fallback's values.
+  const sessionLetters = letterNames.map(name => ({
+    name,
+    entry: entryFor(editingSession, name) || blankLetter(name, editingSession),
+    // False while the card is still showing the fallback (or nothing at all).
+    own: letters.some(l => l.name === name && (l.session || '') === (editingSession || '')),
+  }))
+  // Only sessions matching the search box, plus whichever one is selected so it
+  // never vanishes from under the user mid-edit.
+  const shownSessions = sessions.filter(s =>
+    s.id === sessionFilter || s.session_name.toLowerCase().includes(sessionSearch.trim().toLowerCase()))
 
   // Keep the browser copy as a fallback, but the DB is the shared source of truth.
   function persist(nextLetters, nextAssigned) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters: nextLetters, assigned: nextAssigned }))
     if (settingsInDb) saveLetterSettings(nextLetters)
   }
-  // Write to this session's entry, creating it the first time it's edited.
-  function updateSel(patch) {
+  // Write to this session's entry for one letter, creating it the first time it
+  // is edited. Editing a card that was showing the "Any session" fallback copies
+  // those values across, so the session starts from what was already on screen.
+  function updateLetter(name, patch) {
     setLetters(ls => {
-      const i = ls.findIndex(l => l.name === selName && (l.session || '') === (editingSession || ''))
+      const i = ls.findIndex(l => l.name === name && (l.session || '') === (editingSession || ''))
       if (i >= 0) return ls.map((l, k) => k === i ? { ...l, ...patch } : l)
-      return [...ls, { ...sel, session: editingSession, name: selName, ...patch }]
+      const base = ls.find(l => l.name === name && !l.session) || blankLetter(name)
+      return [...ls, { ...base, session: editingSession, name, ...patch }]
     })
   }
   async function saveCfg() {
@@ -165,20 +182,22 @@ export default function ResearchDepartment() {
   const refSerial = (n) => String(Math.max(Number(n) || 0, 0)).padStart(3, '0')
   // The serial is appended to the prefix, so a prefix that itself ends in digits
   // (a leftover from typing the number into it) doubles up: SIU/…/01 + 001.
-  const trailingDigits = /\d$/.test((sel?.prefix || '').trim())
-  const cleanPrefix = (sel?.prefix || '').replace(/\d+$/, '')
+  const endsInDigit = (prefix) => /\d$/.test(String(prefix || '').trim())
 
   // Assign / reuse a student's reference for a specific letter type. The series
   // comes from the STUDENT's own session, not whichever session is on screen.
   function refFor(student, letterName) {
-    const letter = entryFor(student.session_id, letterName) || sel
+    const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
     const map = assigned[letterName] || {}
     let num = map[student.id]
     if (num == null) {
       num = Number(letter.nextNum) || 1
       const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
-      const nextLetters = letters.map(l =>
-        l === letter ? { ...l, nextNum: num + 1 } : l)
+      // A letter that was never configured has no row to count up, so add one —
+      // otherwise every candidate would keep getting the same serial.
+      const nextLetters = letters.includes(letter)
+        ? letters.map(l => l === letter ? { ...l, nextNum: num + 1 } : l)
+        : [...letters, { ...letter, nextNum: num + 1 }]
       setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
       // Record the claim so every admin — and the student's own copy — reuses it.
       if (settingsInDb) assignRef(letterName, student.id, num)
@@ -186,7 +205,7 @@ export default function ResearchDepartment() {
     return `${letter.prefix}${refSerial(num)}`
   }
   function docOptsFor(student, letterName) {
-    const letter = entryFor(student.session_id, letterName) || sel
+    const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
     return {
       refNo: refFor(student, letterName),
       date: letter.date ? formatDate(letter.date) : undefined,
@@ -199,6 +218,25 @@ export default function ResearchDepartment() {
       examCentre: letter.examCentre || undefined,
     }
   }
+  // Let go of a candidate's issued number so the next Generate claims a fresh
+  // one from the CURRENT series. Numbers lock on first issue (so reopening a
+  // letter never renumbers it), but that also locks in numbers claimed under an
+  // old series — like a certificate issued before the session's series existed.
+  async function clearRef(student, letterName) {
+    const letter = entryFor(student.session_id, letterName)
+    const cur = `${letter?.prefix || ''}${refSerial(assigned[letterName]?.[student.id])}`
+    if (!confirm(`Clear ${student.student_name}'s ${letterName} number ${cur}?\n\nTheir copy falls back to the application number until you press Generate again, which issues the next number of the current series.`)) return
+    const map = { ...(assigned[letterName] || {}) }
+    delete map[student.id]
+    const nextAssigned = { ...assigned, [letterName]: map }
+    setAssigned(nextAssigned)
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters, assigned: nextAssigned }))
+    if (settingsInDb) {
+      const { error } = await unassignRef(letterName, student.id)
+      if (error) alert('Cleared here, but the shared copy could not be removed:\n\n' + error.message)
+    }
+  }
+
   // The Hall Ticket prints the photo and signature, which live in private
   // storage — swap the stored paths for signed URLs before generating.
   async function hallTicketFor(student) {
@@ -336,96 +374,161 @@ export default function ResearchDepartment() {
           <Button variant="secondary" size="md" onClick={addLetter}><Plus size={14} /> Add</Button>
         </div>
 
-        {/* Select a letter, then set its reference + date */}
-        <div className="flex items-end gap-4 flex-wrap border-t border-gray-100 pt-4">
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Session</label>
-            <select value={sessionFilter} onChange={e => setSessionFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-48">
-              <option value="all">All Sessions</option>
-              {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Letter</label>
-            <select value={selName} onChange={e => setSelName(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-56">
-              {letterNames.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Reference No. (prefix)</label>
-            <input value={sel?.prefix || ''} onChange={e => updateSel({ prefix: e.target.value })}
-              title="Everything before the running serial — end it with a slash, e.g. SIU/DR/AL/26/"
-              className={`px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48 ${
-                trailingDigits ? 'border-amber-400 bg-amber-50' : 'border-gray-200'}`} placeholder="SIU/DR/AL/26/" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Next No.</label>
-            <input type="number" min="0" value={sel?.nextNum ?? 1} onChange={e => updateSel({ nextNum: e.target.value })}
-              title="Serial the next candidate will get. It counts up by 1 automatically after each letter is issued."
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-24" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Date</label>
-            <input type="date" value={sel?.date || ''} onChange={e => updateSel({ date: e.target.value })}
-              title="Date printed on the letter"
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
-          </div>
-          {/* The certificate's "Entrance Test conducted on ____" date — the
-              Hall Ticket prints the same date as "Date & Time of Exam". */}
-          {/entrance|hall/i.test(sel?.name || '') && (
+        {/* Pick a session, then fill in every letter for it in one pass. */}
+        <div className="border-t border-gray-100 pt-4 space-y-3">
+          <div className="flex items-end gap-3 flex-wrap">
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">
-                {/hall/i.test(sel?.name || '') ? 'Exam Date' : 'Test Conducted On'}
-              </label>
-              <input type="date" value={sel?.testDate || ''} onChange={e => updateSel({ testDate: e.target.value })}
-                title="Entrance Test date printed on the letter. Leave empty to print a blank rule to fill in by hand."
-                className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Search Session</label>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={sessionSearch} onChange={e => setSessionSearch(e.target.value)}
+                  placeholder="Type a session…"
+                  className="pl-8 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-44" />
+              </div>
             </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Session</label>
+              <select value={sessionFilter} onChange={e => setSessionFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-52">
+                <option value="all">All Sessions (fallback)</option>
+                {shownSessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
+              </select>
+            </div>
+            <Button variant="primary" size="md" onClick={saveCfg}>
+              <Save size={14} /> {saved ? 'Saved ✓' : 'Save All Letters'}
+            </Button>
+            <p className="text-[11px] text-gray-500 pb-2">
+              {editingSession
+                ? <>Setting up <strong className="text-gray-700">{sessionName(editingSession)}</strong> — fill every letter below, then Save once.</>
+                : <>No session picked — you're editing the fallback that any session without its own series will use.</>}
+            </p>
+          </div>
+
+          {sessionSearch.trim() && shownSessions.length === 0 && (
+            <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+              No session matches “{sessionSearch}”.
+            </p>
           )}
-          {/* Hall Ticket only — exam time, reporting time and the exam centre. */}
-          {/hall/i.test(sel?.name || '') && (
-            <>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Exam Time</label>
-                <input value={sel?.examTime || ''} onChange={e => updateSel({ examTime: e.target.value })}
-                  title="Printed after the exam date, e.g. 10.00 a.m. to 01.00 p.m."
-                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48"
-                  placeholder="10.00 a.m. to 01.00 p.m." />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Reporting Time</label>
-                <input value={sel?.reportTime || ''} onChange={e => updateSel({ reportTime: e.target.value })}
-                  title='Printed as "… (Mandatory)". Leave empty for a blank rule.'
-                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-32"
-                  placeholder="09.00 a.m." />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Examination Centre</label>
-                <input value={sel?.examCentre || ''} onChange={e => updateSel({ examCentre: e.target.value })}
-                  title="Full address of the exam centre. Leave empty for a blank rule to fill in by hand."
-                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-96"
-                  placeholder="Centre name and full address" />
-              </div>
-            </>
-          )}
-          <Button variant="primary" size="md" onClick={saveCfg}><Save size={14} /> {saved ? 'Saved ✓' : 'Save'}</Button>
-          <p className="text-[11px] text-gray-400">
-            Next → <span className="font-mono font-bold text-[#933d18]">{sel?.prefix}{refSerial(sel?.nextNum)}</span>
-            <span className="ml-1 text-gray-300">then {sel?.prefix}{refSerial((Number(sel?.nextNum) || 0) + 1)}</span>
-          </p>
+
+          {/* One card per letter — all of them for the chosen session at once. */}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {sessionLetters.map(({ name, entry, own }) => {
+              const isHall = /hall/i.test(name)
+              const hasTestDate = isHall || /entrance/i.test(name)
+              const bad = endsInDigit(entry.prefix)
+              const set = (patch) => updateLetter(name, patch)
+              return (
+                <div key={name} className="border border-gray-200 rounded-xl p-3.5 space-y-2.5 bg-gray-50/40">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-bold text-gray-900">{name}</p>
+                    {editingSession && !own && (
+                      <span className="text-[10px] font-semibold text-gray-400 bg-white border border-gray-200 px-1.5 py-0.5 rounded"
+                        title="This session has no series of its own yet — showing the “Any session” fallback. Edit any field to give it one.">
+                        inherited
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-[10px] font-semibold text-gray-500 mb-1">Reference No. (prefix)</label>
+                      <input value={entry.prefix || ''} onChange={e => set({ prefix: e.target.value })}
+                        title="Everything before the running serial — end it with a slash, e.g. SIU/DR/AL/26/"
+                        className={`w-full px-2.5 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 ${
+                          bad ? 'border-amber-400 bg-amber-50' : 'border-gray-200'}`} placeholder="SIU/DR/AL/26/" />
+                    </div>
+                    <div className="w-20 shrink-0">
+                      <label className="block text-[10px] font-semibold text-gray-500 mb-1">Next No.</label>
+                      <input type="number" min="0" value={entry.nextNum ?? 1} onChange={e => set({ nextNum: e.target.value })}
+                        title="Serial the next candidate will get. It counts up by 1 automatically after each letter is issued."
+                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-[10px] font-semibold text-gray-500 mb-1">Letter Date</label>
+                      <input type="date" value={entry.date || ''} onChange={e => set({ date: e.target.value })}
+                        title="Date printed on the letter"
+                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
+                    </div>
+                    {/* The certificate's "conducted on ____" blank; the Hall
+                        Ticket prints the same date as "Date & Time of Exam". */}
+                    {hasTestDate && (
+                      <div className="flex-1 min-w-0">
+                        <label className="block text-[10px] font-semibold text-gray-500 mb-1">{isHall ? 'Exam Date' : 'Test Conducted On'}</label>
+                        <input type="date" value={entry.testDate || ''} onChange={e => set({ testDate: e.target.value })}
+                          title="Entrance Test date printed on the letter. Leave empty to print a blank rule to fill in by hand."
+                          className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hall Ticket only — exam time, reporting time, exam centre. */}
+                  {isHall && (
+                    <>
+                      <div className="flex gap-2">
+                        <div className="flex-1 min-w-0">
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Exam Time</label>
+                          <input value={entry.examTime || ''} onChange={e => set({ examTime: e.target.value })}
+                            title="Printed after the exam date, e.g. 10.00 a.m. to 01.00 p.m."
+                            className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30"
+                            placeholder="10.00 a.m. to 01.00 p.m." />
+                        </div>
+                        <div className="w-28 shrink-0">
+                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Reporting</label>
+                          <input value={entry.reportTime || ''} onChange={e => set({ reportTime: e.target.value })}
+                            title='Printed as "… (Mandatory)". Leave empty for a blank rule.'
+                            className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30"
+                            placeholder="09.00 a.m." />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-gray-500 mb-1">Examination Centre</label>
+                        <input value={entry.examCentre || ''} onChange={e => set({ examCentre: e.target.value })}
+                          title="Full address of the exam centre. Leave empty for a blank rule to fill in by hand."
+                          className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30"
+                          placeholder="Centre name and full address" />
+                      </div>
+                    </>
+                  )}
+
+                  <p className="text-[10px] text-gray-400">
+                    Next → <span className="font-mono font-bold text-[#933d18]">{entry.prefix}{refSerial(entry.nextNum)}</span>
+                  </p>
+
+                  {/* A blank prefix is almost always an unfinished setup — the
+                      reference then prints as a bare serial with nothing to
+                      identify the university, the letter or the year. */}
+                  {!String(entry.prefix || '').trim() && (
+                    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                      No prefix set — this letter's reference will print as just
+                      <span className="font-mono font-bold"> {refSerial(entry.nextNum)}</span>.
+                    </p>
+                  )}
+
+                  {bad && (
+                    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                      The prefix ends in a number, so the serial is added on top of it.
+                      <button type="button" onClick={() => { const f = migratePrefix(entry); set({ prefix: f.prefix, nextNum: f.nextNum }) }}
+                        className="ml-1 font-semibold text-[#933d18] underline">
+                        Fix → {String(entry.prefix || '').replace(/\d+$/, '')}{refSerial(migratePrefix(entry).nextNum)}
+                      </button>
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
-        {sessionFilter === 'all' && (
-          <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 mt-2">
-            Pick a session above to set its own reference series and dates. While “All Sessions” is selected you're editing
-            the fallback used by any session that has none of its own.
-          </p>
-        )}
         {!settingsInDb && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
             These settings are saved in this browser only. Run <span className="font-mono">add_letter_settings.sql</span> in
             Supabase → SQL Editor to share one reference series across all admins and show the same Ref. No. on the student's own copy.
+            <br />
+            <strong>Already ran it?</strong> Then your <span className="font-mono">letter_settings</span> table is from an earlier
+            version of that script and is missing a column. Re-run it — it now upgrades an existing table instead of skipping it.
+            The browser console shows the exact reason.
           </p>
         )}
         {settingsInDb && settingsNeedSeed && (
@@ -433,20 +536,9 @@ export default function ResearchDepartment() {
             Press <strong>Save</strong> once to publish this reference series to the shared settings.
           </p>
         )}
-        {trailingDigits && (
-          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
-            The prefix ends in a number, so the serial is added on top of it —
-            you get <span className="font-mono">{sel?.prefix}{refSerial(sel?.nextNum)}</span>.
-            Move those digits into the Next No. instead.
-            <button type="button" onClick={() => { const f = migratePrefix(sel); updateSel({ prefix: f.prefix, nextNum: f.nextNum }) }}
-              className="ml-2 font-semibold text-[#933d18] underline">
-              Fix → {cleanPrefix}{refSerial(migratePrefix(sel).nextNum)}
-            </button>
-          </p>
-        )}
 
-        {/* Every configured letter at a glance — the fields above edit one row at
-            a time, so without this you can't see what else is already set up. */}
+        {/* Every configured letter at a glance — the cards above only cover the
+            session on screen, so without this you can't see the other sessions. */}
         <div className="mt-4">
           <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">All Letters — every session you've set up</p>
           <div className="border border-gray-100 rounded-xl overflow-hidden">
@@ -464,11 +556,13 @@ export default function ResearchDepartment() {
               <tbody>
                 {letters.length === 0 && (
                   <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400 text-xs">
-                    Nothing set up yet — pick a session and letter above, then Save.
+                    Nothing set up yet — pick a session above, fill the letters in, then Save.
                   </td></tr>
                 )}
                 {letters.map((l, i) => {
-                  const isSel = l.name === selName && (l.session || '') === (editingSession || '')
+                  // The cards above already show every letter, so a row only has
+                  // to say whether its session is the one currently on screen.
+                  const isSel = (l.session || '') === (editingSession || '')
                   return (
                     <tr key={`${l.session || 'any'}-${l.name}-${i}`} className={`border-t border-gray-100 ${isSel ? 'bg-[#933d18]/5' : ''}`}>
                       <td className="px-3 py-2 text-gray-700">{l.session ? sessionName(l.session)
@@ -482,7 +576,8 @@ export default function ResearchDepartment() {
                       <td className="px-3 py-2 text-gray-600">{l.testDate ? formatDateLong(l.testDate) : '—'}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
                         <button type="button"
-                          onClick={() => { setSelName(l.name); if (l.session) setSessionFilter(l.session) }}
+                          onClick={() => setSessionFilter(l.session || 'all')}
+                          title="Load this session's letters into the cards above"
                           className={`text-xs font-semibold ${isSel ? 'text-gray-400' : 'text-[#933d18] hover:underline'}`}>
                           {isSel ? 'Editing' : 'Edit'}
                         </button>
@@ -543,9 +638,22 @@ export default function ResearchDepartment() {
                 </Td>
                 <Td className="font-mono text-xs font-bold text-[#933d18]">
                   {s.admission_number || '—'}
-                  {letters.map(l => assigned[l.name]?.[s.id] != null && (
-                    <div key={l.name} className="text-[10px] text-gray-400 font-normal mt-0.5">{l.name}: {l.prefix}{assigned[l.name][s.id]}</div>
-                  ))}
+                  {/* One chip per letter NAME (not per entry — a name can have
+                      per-session entries too), with the prefix of the student's
+                      own session and the serial padded exactly as printed. */}
+                  {letterNames.map(name => {
+                    const num = assigned[name]?.[s.id]
+                    if (num == null) return null
+                    const letter = entryFor(s.session_id, name)
+                    return (
+                      <div key={name} className="text-[10px] text-gray-400 font-normal mt-0.5">
+                        {name}: {letter?.prefix}{refSerial(num)}
+                        <button type="button" onClick={() => clearRef(s, name)}
+                          title={`Clear this number — the next Generate issues a fresh one from the current ${name} series`}
+                          className="ml-1 text-gray-300 hover:text-red-500 font-bold align-middle">×</button>
+                      </div>
+                    )
+                  })}
                 </Td>
                 <Td className="text-sm">{s.stream || '—'}</Td>
                 <Td className="text-sm">{s.programs?.program_name || '—'}</Td>
