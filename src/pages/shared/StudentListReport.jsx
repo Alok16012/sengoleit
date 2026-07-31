@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X, Award } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
-import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, isPhdProgram } from '../../utils/generateStudentCards'
+import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, generateHallTicket, isPhdProgram } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -114,10 +114,18 @@ export default function StudentListReport({ status }) {
     // in a separate query so a database without that migration still lists
     // students normally — the flags simply stay undefined.
     if (rows.length) {
-      const { data: flags } = await supabase
+      // hall_ticket_active is newer still (add_hall_ticket.sql) — retry without
+      // it so the older flags keep working on a partially migrated database.
+      let { data: flags, error: flagsErr } = await supabase
         .from('students')
-        .select('id, offer_letter_active, entrance_letter_active, result_released_at')
+        .select('id, hall_ticket_active, offer_letter_active, entrance_letter_active, result_released_at')
         .in('id', rows.map(r => r.id))
+      if (flagsErr) {
+        ;({ data: flags } = await supabase
+          .from('students')
+          .select('id, offer_letter_active, entrance_letter_active, result_released_at')
+          .in('id', rows.map(r => r.id)))
+      }
       if (flags) {
         const byId = Object.fromEntries(flags.map(f => [f.id, f]))
         rows = rows.map(r => ({ ...r, ...(byId[r.id] || {}) }))
@@ -154,6 +162,7 @@ export default function StudentListReport({ status }) {
       if (type === 'reg') generateRegistrationCertificate(resolved)
       else if (type === 'id') generateIDCard(resolved)
       // Reuse the Ref. No. / dates the Research Dept issued for these letters.
+      else if (type === 'hall') generateHallTicket(resolved, await letterOptsFor(studentId, 'Hall Ticket', resolved.session_id))
       else if (type === 'offer') generateOfferLetter(resolved, await letterOptsFor(studentId, 'Offer Letter', resolved.session_id))
       else if (type === 'entrance') generateEntranceClearance(resolved, await letterOptsFor(studentId, 'Entrance Certificate', resolved.session_id))
       else if (type === 'admit') {
@@ -465,6 +474,10 @@ export default function StudentListReport({ status }) {
                         </Button>
                         {isPhdProgram(s.programs?.program_name) && (
                           <>
+                            <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'hall')} disabled={!s.hall_ticket_active || downloading === `${s.id}-hall`} title={s.hall_ticket_active ? 'Download Ph.D Entrance Exam Hall Ticket' : 'Hall ticket not released by the Research Dept yet'}>
+                              <FileText size={14} className={downloading === `${s.id}-hall` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
+                              <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-hall` ? '...' : 'Hall Ticket'}</span>
+                            </Button>
                             <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'offer')} disabled={!s.offer_letter_active || downloading === `${s.id}-offer`} title={s.offer_letter_active ? 'Download Ph.D Offer Letter' : 'Offer letter not released by the Research Dept yet'}>
                               <FileText size={14} className={downloading === `${s.id}-offer` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
                               <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-offer` ? '...' : 'Offer Letter'}</span>

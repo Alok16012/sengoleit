@@ -15,11 +15,20 @@ export function buildRef(prefix, num) {
   return `${prefix || ''}${refSerial(num)}`
 }
 
+// The Hall Ticket's exam columns only exist after add_hall_ticket.sql has been
+// run — every read/write retries without them so an older schema keeps working.
+const EXAM_COLS = 'exam_time, reporting_time, exam_centre'
+
 // Load every letter's settings. Returns null when the table is missing.
 export async function loadLetterSettings() {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('letter_settings')
-    .select('session_key, name, prefix, next_num, letter_date, test_date')
+    .select(`session_key, name, prefix, next_num, letter_date, test_date, ${EXAM_COLS}`)
+  if (error) {
+    ;({ data, error } = await supabase
+      .from('letter_settings')
+      .select('session_key, name, prefix, next_num, letter_date, test_date'))
+  }
   if (error) return null
   return (data || []).map(r => ({
     session: r.session_key || '',
@@ -28,6 +37,9 @@ export async function loadLetterSettings() {
     nextNum: r.next_num ?? 1,
     date: r.letter_date || '',
     testDate: r.test_date || '',
+    examTime: r.exam_time || '',
+    reportTime: r.reporting_time || '',
+    examCentre: r.exam_centre || '',
   }))
 }
 
@@ -39,10 +51,18 @@ export async function saveLetterSettings(letters) {
     next_num: Number(l.nextNum) || 0,
     letter_date: l.date || null,
     test_date: l.testDate || null,
+    exam_time: l.examTime || null,
+    reporting_time: l.reportTime || null,
+    exam_centre: l.examCentre || null,
     updated_at: new Date().toISOString(),
   }))
   if (!rows.length) return { error: null }
-  const { error } = await supabase.from('letter_settings').upsert(rows, { onConflict: 'session_key,name' })
+  let { error } = await supabase.from('letter_settings').upsert(rows, { onConflict: 'session_key,name' })
+  if (error) {
+    // Exam columns missing (add_hall_ticket.sql not run) — save the rest.
+    const legacy = rows.map(({ exam_time, reporting_time, exam_centre, ...r }) => r)
+    ;({ error } = await supabase.from('letter_settings').upsert(legacy, { onConflict: 'session_key,name' }))
+  }
   return { error }
 }
 
@@ -71,14 +91,16 @@ export async function assignRef(letterName, studentId, num) {
 // Returns {} when the tables are missing or no number was ever assigned, so the
 // letter simply falls back to its built-in defaults.
 export async function letterOptsFor(studentId, letterName, sessionId = '') {
-  const [{ data: settings }, { data: ref }] = await Promise.all([
-    supabase.from('letter_settings')
-      .select('session_key, prefix, letter_date, test_date')
-      .eq('name', letterName)
-      .in('session_key', [sessionId || '', '']),
+  const settingsQ = (cols) => supabase.from('letter_settings')
+    .select(cols)
+    .eq('name', letterName)
+    .in('session_key', [sessionId || '', ''])
+  let [{ data: settings, error: settingsErr }, { data: ref }] = await Promise.all([
+    settingsQ(`session_key, prefix, letter_date, test_date, ${EXAM_COLS}`),
     supabase.from('letter_refs')
       .select('num').eq('letter_name', letterName).eq('student_id', studentId).maybeSingle(),
   ])
+  if (settingsErr) ({ data: settings } = await settingsQ('session_key, prefix, letter_date, test_date'))
 
   // Prefer the student's own session; fall back to the any-session entry.
   const rows = settings || []
@@ -88,5 +110,8 @@ export async function letterOptsFor(studentId, letterName, sessionId = '') {
   if (ref?.num != null) opts.refNo = buildRef(setting?.prefix, ref.num)
   if (setting?.letter_date) opts.date = formatDate(setting.letter_date)
   if (setting?.test_date) opts.testDate = formatDateLong(setting.test_date)
+  if (setting?.exam_time) opts.examTime = setting.exam_time
+  if (setting?.reporting_time) opts.reportTime = setting.reporting_time
+  if (setting?.exam_centre) opts.examCentre = setting.exam_centre
   return opts
 }

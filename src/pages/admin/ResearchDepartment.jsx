@@ -3,8 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck } from 'lucide-react'
-import { generateOfferLetter, generateEntranceClearance } from '../../utils/generateStudentCards'
+import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket } from 'lucide-react'
+import { generateOfferLetter, generateEntranceClearance, generateHallTicket } from '../../utils/generateStudentCards'
+import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
 import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef } from '../../utils/letterSettings'
@@ -32,10 +33,11 @@ export default function ResearchDepartment() {
   // tracked have no `session` and act as the fallback for any session without its
   // own entry. testDate fills the certificate's "conducted on ____" blank.
   const DEFAULT_LETTERS = [
+    { name: 'Hall Ticket', prefix: 'SIU/PhD/HT/2025/', nextNum: 1, date: today, testDate: '', examTime: '', reportTime: '', examCentre: '' },
     { name: 'Offer Letter', prefix: 'SIU/PhD/OL/2025/', nextNum: 1, date: today },
     { name: 'Entrance Certificate', prefix: 'SIU/PhD/EC/2025/', nextNum: 1, date: today, testDate: '' },
   ]
-  const LETTER_NAMES = ['Offer Letter', 'Entrance Certificate']
+  const LETTER_NAMES = ['Hall Ticket', 'Offer Letter', 'Entrance Certificate']
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
   const [selName, setSelName] = useState(LETTER_NAMES[0])
   const [newName, setNewName] = useState('')
@@ -167,7 +169,17 @@ export default function ResearchDepartment() {
       // Only the Entrance Certificate prints this; blank leaves a rule to fill in.
       // Reads inside a sentence on the certificate, so spell the month: 15-June-2026.
       testDate: letter.testDate ? formatDateLong(letter.testDate) : undefined,
+      // Hall Ticket only — exam time, reporting time and the exam centre.
+      examTime: letter.examTime || undefined,
+      reportTime: letter.reportTime || undefined,
+      examCentre: letter.examCentre || undefined,
     }
+  }
+  // The Hall Ticket prints the photo and signature, which live in private
+  // storage — swap the stored paths for signed URLs before generating.
+  async function hallTicketFor(student) {
+    const opts = docOptsFor(student, 'Hall Ticket')
+    generateHallTicket(await resolveStudentDocUrls(student), opts)
   }
 
   useEffect(() => { load() }, [])
@@ -181,15 +193,20 @@ export default function ResearchDepartment() {
   // the fee is approved; forwarding to the Exam Section still waits for it.
   async function load() {
     setLoading(true)
-    const base = 'id, student_name, status, registration_no, enrollment_no, admission_number, session_id, programme_id, fathers_name, mobile_no, date_of_birth, academic_year, fee_collected, exam_forwarded_at, doc_verified_at, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, enrollment_code, programme_types(programme_type_name)), academic_sessions(session_name), departments(name), centers(center_name, center_code)'
+    const base = 'id, student_name, status, registration_no, enrollment_no, admission_number, session_id, programme_id, fathers_name, mobile_no, date_of_birth, gender, photo_url, signature_url, academic_year, fee_collected, exam_forwarded_at, doc_verified_at, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, enrollment_code, programme_types(programme_type_name)), academic_sessions(session_name), departments(name), centers(center_name, center_code)'
     const cols = `specialization, ${OPTIONAL_COLS}, ${base}`
 
     // Everyone the Document Dept forwarded to Research. `doc_verified_at` is
     // accepted too: candidates verified before add_phd_portal_flow.sql existed
     // never got a research_forwarded_at, and they must not be stranded.
-    let { data, error } = await supabase.from('students').select(cols)
+    const forwarded = (sel) => supabase.from('students').select(sel)
       .or('research_forwarded_at.not.is.null,doc_verified_at.not.is.null')
       .order('created_at', { ascending: false })
+
+    // hall_ticket_active arrives with add_hall_ticket.sql — retry without it so
+    // a database migrated only up to add_phd_portal_flow.sql still works.
+    let { data, error } = await forwarded(`hall_ticket_active, ${cols}`)
+    if (error) ({ data, error } = await forwarded(cols))
 
     if (error) {
       // add_phd_portal_flow.sql not applied yet — fall back to the old rule
@@ -211,7 +228,8 @@ export default function ResearchDepartment() {
     const next = !student[field]
     const { error } = await supabase.from('students').update({ [field]: next }).eq('id', student.id)
     if (error) {
-      alert(`Could not update: ${error.message}\n\nRun add_phd_portal_flow.sql in Supabase first.`)
+      const sqlFile = field === 'hall_ticket_active' ? 'add_hall_ticket.sql' : 'add_phd_portal_flow.sql'
+      alert(`Could not update: ${error.message}\n\nRun ${sqlFile} in Supabase first.`)
     } else {
       setRows(rs => rs.map(r => r.id === student.id ? { ...r, [field]: next } : r))
     }
@@ -330,14 +348,43 @@ export default function ResearchDepartment() {
               title="Date printed on the letter"
               className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
           </div>
-          {/* The certificate's "Entrance Test conducted on ____" date. */}
-          {/entrance/i.test(sel?.name || '') && (
+          {/* The certificate's "Entrance Test conducted on ____" date — the
+              Hall Ticket prints the same date as "Date & Time of Exam". */}
+          {/entrance|hall/i.test(sel?.name || '') && (
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Test Conducted On</label>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+                {/hall/i.test(sel?.name || '') ? 'Exam Date' : 'Test Conducted On'}
+              </label>
               <input type="date" value={sel?.testDate || ''} onChange={e => updateSel({ testDate: e.target.value })}
-                title="Entrance Test date printed on the certificate. Leave empty to print a blank rule to fill in by hand."
+                title="Entrance Test date printed on the letter. Leave empty to print a blank rule to fill in by hand."
                 className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
             </div>
+          )}
+          {/* Hall Ticket only — exam time, reporting time and the exam centre. */}
+          {/hall/i.test(sel?.name || '') && (
+            <>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Exam Time</label>
+                <input value={sel?.examTime || ''} onChange={e => updateSel({ examTime: e.target.value })}
+                  title="Printed after the exam date, e.g. 10.00 a.m. to 01.00 p.m."
+                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-48"
+                  placeholder="10.00 a.m. to 01.00 p.m." />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Reporting Time</label>
+                <input value={sel?.reportTime || ''} onChange={e => updateSel({ reportTime: e.target.value })}
+                  title='Printed as "… (Mandatory)". Leave empty for a blank rule.'
+                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-32"
+                  placeholder="09.00 a.m." />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Examination Centre</label>
+                <input value={sel?.examCentre || ''} onChange={e => updateSel({ examCentre: e.target.value })}
+                  title="Full address of the exam centre. Leave empty for a blank rule to fill in by hand."
+                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-96"
+                  placeholder="Centre name and full address" />
+              </div>
+            </>
           )}
           <Button variant="primary" size="md" onClick={saveCfg}><Save size={14} /> {saved ? 'Saved ✓' : 'Save'}</Button>
           <p className="text-[11px] text-gray-400">
@@ -444,15 +491,16 @@ export default function ResearchDepartment() {
               <Th>Programme</Th>
               <Th>Specialization</Th>
               <Th>Session</Th>
+              <Th>Hall Ticket</Th>
               <Th>Offer Letter</Th>
               <Th>Entrance Certificate</Th>
             </Tr>
           </Thead>
           <Tbody>
             {loading ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-8">Loading...</Td></Tr>
+              <Tr><Td colSpan={10} className="text-center text-gray-400 py-8">Loading...</Td></Tr>
             ) : filtered.length === 0 ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-8">No Ph.D candidates forwarded by the Document Dept yet.</Td></Tr>
+              <Tr><Td colSpan={10} className="text-center text-gray-400 py-8">No Ph.D candidates forwarded by the Document Dept yet.</Td></Tr>
             ) : filtered.map((s, i) => (
               <Tr key={s.id}>
                 <Td>{i + 1}</Td>
@@ -470,6 +518,10 @@ export default function ResearchDepartment() {
                 <Td className="text-sm">{s.programs?.program_name || '—'}</Td>
                 <Td className="text-sm">{s.specialization || '—'}</Td>
                 <Td className="text-sm">{s.academic_sessions?.session_name || s.academic_year || '—'}</Td>
+                <LetterCell student={s} field="hall_ticket_active" busy={busy}
+                  onGenerate={() => hallTicketFor(s)}
+                  onToggle={() => toggleLetter(s, 'hall_ticket_active')}
+                  icon={Ticket} label="Hall Ticket" />
                 <LetterCell student={s} field="offer_letter_active" busy={busy}
                   onGenerate={() => generateOfferLetter(s, docOptsFor(s, 'Offer Letter'))}
                   onToggle={() => toggleLetter(s, 'offer_letter_active')}

@@ -3,7 +3,7 @@ import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { supabase } from '../../lib/supabase'
 import { isPhdProgram } from '../../utils/generateStudentCards'
-import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings, Menu, FileCheck2, ShieldCheck } from 'lucide-react'
+import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings, Menu, FileCheck2, ShieldCheck, Ticket } from 'lucide-react'
 
 const baseNavItems = [
   { to: '/student/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
@@ -19,8 +19,10 @@ const baseNavItems = [
   { to: '/student/ebook',            icon: BookOpenCheck,   label: 'E-Book' },
 ]
 
-// Ph.D-only documents, inserted after the I Card entry.
+// Ph.D-only documents, inserted after the I Card entry. The Hall Ticket comes
+// first — it is issued before the entrance exam, ahead of the other letters.
 const phdNavItems = [
+  { to: '/student/hall-ticket',         icon: Ticket,      label: 'Hall Ticket' },
   { to: '/student/offer-letter',        icon: FileCheck2,  label: 'Offer Letter' },
   { to: '/student/entrance-clearance',  icon: ShieldCheck, label: 'Entrance Clearance' },
 ]

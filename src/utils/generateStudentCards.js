@@ -514,6 +514,110 @@ export function generateRegistrationCertificate(s) {
 }
 
 /* ───────────────────────────────────────────────────
+   PhD ENTRANCE EXAM HALL TICKET
+─────────────────────────────────────────────────── */
+// Modeled on a university provisional hall-ticket: header, dashed title rule,
+// labelled rows with the photo at the right, exam centre block, then the
+// candidate / invigilator / registrar signature strip.
+export function generateHallTicket(s, opts = {}) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  const rollNo = opts.refNo || s.admission_number || s.enrollment_no || '—'
+  // Faculty = the research stream (falls back to the programme name).
+  const faculty = s.stream || prog
+  const subject = s.specialization || ''
+
+  // Exam details come from the Research Dept's master panel. Anything left
+  // unset prints as a blank rule to fill in by hand.
+  const blank = (w) => `<span style="display:inline-block;min-width:${w}px;border-bottom:1px dotted #000;">&nbsp;</span>`
+  const examWhen = opts.testDate
+    ? `${opts.testDate}${opts.examTime ? ` - ${opts.examTime}` : ''}`
+    : (opts.examTime || '')
+  const reporting = opts.reportTime ? `${opts.reportTime} (Mandatory)` : ''
+
+  // Label + value row; the label column keeps a fixed width like the sample.
+  const row = (label, valueHtml) => `<tr>
+    <td style="width:190px;font-size:13px;font-weight:700;color:#000;padding:7px 0;vertical-align:top;white-space:nowrap;">${label}</td>
+    <td style="font-size:13px;color:#000;padding:7px 0;vertical-align:top;">${valueHtml}</td>
+  </tr>`
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+  <title>Hall Ticket — ${v(s.student_name)}</title>${baseStyle}</head>
+<body>
+<div style="max-width:780px;margin:24px auto;">
+  ${printBtn()}
+
+  <div style="border:1.5px solid #555;background:#fff;padding:18px 26px 20px;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
+
+    <div style="text-align:right;font-size:11px;font-weight:800;color:#000;text-decoration:underline;">Candidate Copy</div>
+
+    <!-- University header -->
+    <div style="padding:2px 0 10px;border-bottom:2px solid ${BRAND};">${uniHeader()}</div>
+
+    <!-- Title between dashed rules -->
+    <div style="border-bottom:2px dashed #444;text-align:center;padding:10px 0 6px;margin-bottom:6px;">
+      <span style="font-size:15px;font-weight:900;color:#000;letter-spacing:0.02em;">PROVISIONAL HALL-TICKET — Ph.D Entrance Exam</span>
+    </div>
+
+    <!-- Details + photo -->
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="vertical-align:top;">
+          <table style="width:100%;">
+            ${row('Roll Number:', `<span style="font-weight:800;">${v(rollNo)}</span>${s.gender ? `<span style="display:inline-block;margin-left:70px;font-weight:800;">${String(s.gender).toUpperCase()}</span>` : ''}`)}
+            ${row('Candidate Name:', `<span style="font-weight:800;">${v(s.student_name).toUpperCase()}</span>`)}
+            ${row('Faculty and Subject:', `<span style="background:#dce9f7;padding:2px 10px;">${v(faculty)}</span>${subject ? `&nbsp;&nbsp;<span style="background:#fbf2e3;padding:2px 10px;">${subject.toUpperCase()}</span>` : ''}`)}
+            ${row('Date &amp; Time of Exam:', `<span style="font-weight:800;">${examWhen || blank(220)}</span>`)}
+            ${row('Reporting time at the Centre:', `<span style="font-weight:800;">${reporting || blank(160)}</span>`)}
+          </table>
+        </td>
+        <td style="width:130px;vertical-align:top;text-align:right;padding:6px 0 0 10px;">
+          ${s.photo_url
+            ? `<img src="${s.photo_url}" alt="Photo" style="width:110px;height:130px;object-fit:cover;border:1px solid #999;"/>`
+            : `<div style="width:110px;height:130px;border:1px solid #999;background:#fafafa;display:flex;align-items:center;justify-content:center;font-size:9px;color:#bbb;">Photo</div>`
+          }
+        </td>
+      </tr>
+    </table>
+
+    <!-- Examination centre -->
+    <table style="width:100%;margin-top:2px;">
+      ${row('Examination Centre:', opts.examCentre
+        ? `<span style="font-weight:700;">${opts.examCentre}</span>`
+        : blank(360))}
+    </table>
+
+    <div style="margin-top:6px;">
+      <p style="font-size:13px;font-weight:700;color:#000;margin:0 0 2px;">Note:</p>
+      <p style="font-size:13px;font-weight:700;color:#000;line-height:1.45;margin:0;">
+        The Photo ID Proof along with the Hall-ticket shall be submitted at the time of reporting at the Examination Centre
+      </p>
+    </div>
+
+    <!-- Signature strip -->
+    <table style="width:100%;margin-top:34px;">
+      <tr>
+        <td style="width:34%;vertical-align:bottom;">
+          <div style="height:36px;display:flex;align-items:flex-end;">
+            ${s.signature_url ? `<img src="${s.signature_url}" style="max-height:34px;max-width:150px;object-fit:contain;"/>` : ''}
+          </div>
+          <p style="font-size:13px;font-weight:700;color:#000;margin:4px 0 0;">Signature of Candidate</p>
+        </td>
+        <td style="width:33%;vertical-align:bottom;">
+          <div style="height:36px;"></div>
+          <p style="font-size:13px;font-weight:700;color:#000;margin:4px 0 0;">Signature of Invigilator</p>
+        </td>
+        <td style="width:33%;vertical-align:bottom;text-align:right;">
+          <div style="display:inline-block;text-align:left;">${registrarSignBlock(true)}</div>
+        </td>
+      </tr>
+    </table>
+  </div>
+</div>
+</body></html>`
+  openWindow(html, 'Hall Ticket')
+}
+
+/* ───────────────────────────────────────────────────
    4. PhD OFFER LETTER
 ─────────────────────────────────────────────────── */
 // Render a PhD document on the official Sengol letterhead (A4). The letterhead
