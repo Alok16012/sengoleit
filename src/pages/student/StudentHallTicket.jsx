@@ -67,7 +67,7 @@ export default function StudentHallTicket() {
       ) : (
         <div className="bg-white border-2 border-gray-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="bg-[#933d18] text-white text-center py-3">
-            <span className="font-black text-base tracking-wide">PROVISIONAL HALL TICKET</span>
+            <span className="font-black text-base tracking-wide">HALL TICKET</span>
           </div>
           <div className="p-6 space-y-2 text-sm text-gray-800">
             <p><span className="font-bold">Application No:</span> {data.admission_number || '—'}</p>

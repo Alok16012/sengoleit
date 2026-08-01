@@ -584,7 +584,7 @@ export function generateHallTicket(s, opts = {}) {
 
     <!-- Title between dashed rules -->
     <div style="border-bottom:2px dashed #444;text-align:center;padding:10px 0 6px;margin-bottom:6px;">
-      <span style="font-size:15px;font-weight:900;color:#000;letter-spacing:0.02em;">PROVISIONAL HALL-TICKET — Ph.D Entrance Exam</span>
+      <span style="font-size:15px;font-weight:900;color:#000;letter-spacing:0.02em;">HALL-TICKET — Ph.D Entrance Exam</span>
     </div>
 
     <!-- Details + photo -->
