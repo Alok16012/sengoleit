@@ -300,7 +300,8 @@ export default function Syllabus() {
   async function openSemesters(s) {
     setSemModal(s); setOpenSemView(null); setSemLoading(true); setSemSubjects([])
     let q = supabase.from('syllabus_subjects')
-      .select('semester, paper_no, subject_code, subject_name, criteria, sort_order')
+      // exam_date drives the date sheet column on the exported syllabus PDF.
+      .select('semester, paper_no, subject_code, subject_name, criteria, exam_date, sort_order')
       .eq('program_id', s.program_id)
     q = s.session_id ? q.eq('session_id', s.session_id) : q.is('session_id', null)
     const { data } = await q.order('sort_order', { ascending: true })

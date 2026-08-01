@@ -167,26 +167,21 @@ export function generateIDCard(s) {
   <!-- CARD (landscape) -->
   <div style="width:600px;margin:0 auto;border:1px solid #ccc;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.16);position:relative;overflow:hidden;">
 
-    <!-- Top: maroon stripe with white logo box overlapping -->
-    <div style="position:relative;height:92px;">
-      <div style="position:absolute;top:26px;left:0;right:0;height:40px;background:${BRAND};border-bottom:2px solid ${GOLD};"></div>
-      <div style="position:absolute;top:12px;left:22px;background:#fff;border:1px solid #ddd;border-radius:10px;padding:7px 16px 5px;box-shadow:0 2px 8px rgba(0,0,0,0.18);display:flex;align-items:center;gap:12px;">
-        <img src="${LOGO_URL}" width="52" height="52" style="object-fit:contain;" onerror="this.style.display='none'"/>
-        <div style="line-height:1;">
-          <div style="color:${BRAND};font-size:16px;font-weight:900;letter-spacing:0.02em;">SENGOL</div>
-          <div style="color:${BRAND};font-size:13px;font-weight:800;letter-spacing:0.02em;margin-top:2px;">INTERNATIONAL</div>
-          <div style="color:${BRAND};font-size:13px;font-weight:800;letter-spacing:0.02em;margin-top:2px;">UNIVERSITY</div>
-        </div>
+    <!-- Header: logo left, university name filling the maroon band. The band
+         used to run edge-to-edge behind a floating logo box, which left a
+         wide empty maroon strip to the right of it. -->
+    <div style="background:${BRAND};border-bottom:2px solid ${GOLD};display:flex;align-items:center;gap:12px;padding:9px 16px;">
+      <img src="${LOGO_URL}" width="46" height="46"
+        style="object-fit:contain;background:#fff;border-radius:50%;padding:3px;flex-shrink:0;"
+        onerror="this.style.display='none'"/>
+      <div style="line-height:1.15;">
+        <div style="color:#fff;font-size:17px;font-weight:900;letter-spacing:0.06em;">SENGOL INTERNATIONAL UNIVERSITY</div>
+        <div style="color:rgba(255,255,255,0.82);font-size:8px;font-weight:600;margin-top:3px;">${UNI_UGC}</div>
       </div>
     </div>
 
-    <!-- UGC recognition line -->
-    <div style="text-align:center;padding:2px 8px 4px;">
-      <span style="font-size:8.5px;font-weight:700;color:#333;letter-spacing:0.02em;">${UNI_UGC}</span>
-    </div>
-
     <!-- IDENTITY CARD title bar -->
-    <div style="background:${BRAND};text-align:center;padding:4px;margin:0 22px 8px;border-radius:5px;border-top:1.5px solid ${GOLD};border-bottom:1.5px solid ${GOLD};">
+    <div style="background:${BRAND};text-align:center;padding:4px;margin:10px 22px 8px;border-radius:5px;border-top:1.5px solid ${GOLD};border-bottom:1.5px solid ${GOLD};">
       <span style="color:#fff;font-size:12px;font-weight:800;letter-spacing:0.18em;">IDENTITY CARD</span>
     </div>
 
@@ -235,10 +230,11 @@ export function generateIDCard(s) {
       <span style="font-size:7px;font-style:italic;color:#888;">This is a computer-generated ID Card and does not require any signature or seal.</span>
     </div>
 
-    <!-- Bottom: maroon band with address + website box -->
+    <!-- Bottom: maroon band with address + website box. The address is sized
+         to stay on ONE line so it lines up with the website block beside it. -->
     <div style="background:${BRAND};border-top:2px solid ${GOLD};display:flex;align-items:stretch;justify-content:space-between;">
-      <span style="color:#fff;font-size:11px;font-weight:700;padding:7px 16px;align-self:center;">Address: ${UNI_ADDRESS}</span>
-      <span style="background:${GOLD};color:#3a2000;font-size:11px;font-weight:800;padding:7px 18px;display:flex;align-items:center;">${UNI_WEB}</span>
+      <span style="color:#fff;font-size:8.5px;font-weight:700;padding:6px 12px;align-self:center;white-space:nowrap;">${UNI_ADDRESS}</span>
+      <span style="background:${GOLD};color:#3a2000;font-size:8.5px;font-weight:800;padding:6px 12px;display:flex;align-items:center;white-space:nowrap;">${UNI_WEB}</span>
     </div>
   </div>
 </div>
@@ -272,7 +268,7 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
   <title>Admit Card — ${v(s.student_name)}</title>${baseStyle}
   <style>
     .bordered { border:2px solid #333; }
-    .cell-hd { background:#111;color:#fff;text-align:center;font-weight:700;font-size:10px;padding:5px 8px; }
+    .cell-hd { background:${BRAND};color:#fff;text-align:center;font-weight:700;font-size:10px;padding:5px 8px; }
     .cell-val { text-align:center;font-size:11px;font-weight:700;color:#333;padding:6px 8px; }
   </style>
 </head>
@@ -359,12 +355,14 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
           </table>
 
           <!-- Subjects / Papers -->
-          <div style="margin-top:10px;">
-            <div style="font-size:9px;font-weight:700;color:#333;font-style:italic;margin-bottom:5px;">Paper to be appeared</div>
-            <div style="font-size:9px;font-weight:700;color:#555;margin-bottom:3px;font-style:italic;">Code :</div>
+          <!-- Papers. Each line already reads "Paper 1: CODE Subject — date"
+               (see formatSubjectRow), so the old separate "Code :" heading
+               was a leftover that labelled nothing. -->
+          <div style="margin-top:12px;border-top:1px solid #e5e7eb;padding-top:8px;">
+            <div style="font-size:9px;font-weight:700;color:${BRAND};letter-spacing:0.04em;text-transform:uppercase;margin-bottom:5px;">Papers to be appeared</div>
             ${defaultSubjects.length > 0
-              ? defaultSubjects.map(sub => `<div style="font-size:9.5px;font-style:italic;color:#111;margin-left:10px;margin-bottom:2px;">${sub}</div>`).join('')
-              : `<div style="font-size:9px;font-style:italic;color:#888;margin-left:10px;">As per university curriculum schedule</div>`
+              ? defaultSubjects.map(sub => `<div style="font-size:9.5px;font-style:italic;color:#111;margin-bottom:3px;">${sub}</div>`).join('')
+              : `<div style="font-size:9px;font-style:italic;color:#888;">As per university curriculum schedule</div>`
             }
           </div>
           <div style="margin-top:16px;font-size:8.5px;font-style:italic;color:#555;">
@@ -420,7 +418,7 @@ export function generateRegistrationCertificate(s) {
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>Registration Certificate — ${v(s.student_name)}</title>${baseStyle}
   <style>
-    .hd-cell { background:#111;color:#fff;text-align:center;font-weight:700;font-size:10px;padding:5px 8px; }
+    .hd-cell { background:${BRAND};color:#fff;text-align:center;font-weight:700;font-size:10px;padding:5px 8px; }
     .val-cell { text-align:center;font-size:11px;font-weight:700;color:#333;padding:6px 8px; }
     .info-label { font-size:9.5px;font-weight:700;color:#111;padding-right:6px;padding-bottom:6px;white-space:nowrap;vertical-align:top;font-style:italic; }
     .info-val { font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic; }
@@ -472,8 +470,8 @@ export function generateRegistrationCertificate(s) {
               <td class="info-val">: &nbsp;${prog}</td>
             </tr>
             <tr>
-              <td class="info-label" style="padding-top:6px;padding-bottom:6px;">&nbsp;</td>
-              <td></td>
+              <td class="info-label">Session</td>
+              <td class="info-val">: &nbsp;${v(sess)}</td>
             </tr>
             <tr>
               <td class="info-label">Student Name</td>
@@ -492,8 +490,8 @@ export function generateRegistrationCertificate(s) {
               <td style="font-size:9.5px;color:#111;padding-bottom:6px;font-style:italic;max-width:300px;word-break:break-word;vertical-align:top;">: &nbsp;${addr(s)}</td>
             </tr>
             <tr>
-              <td class="info-label">PIN No</td>
-              <td class="info-val">: &nbsp;${v(s.perm_pin_code || s.student_perm_pin_code)}</td>
+              <td class="info-label">Mobile No</td>
+              <td class="info-val">: &nbsp;${v(s.mobile_no)}</td>
             </tr>
           </table>
         </td>

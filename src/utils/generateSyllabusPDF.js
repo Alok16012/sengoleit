@@ -26,6 +26,7 @@ export function generateSyllabusPDF(meta = {}, subjects = []) {
       <td style="padding:6px 10px;font-size:10px;color:#555;">${esc(r.subject_code) || '—'}</td>
       <td style="padding:6px 10px;font-size:10px;font-weight:700;color:#111;">${esc(r.subject_name) || '—'}</td>
       <td style="padding:6px 10px;font-size:9.5px;color:#555;">${esc(r.criteria) || '—'}</td>
+      <td style="padding:6px 10px;font-size:9.5px;color:#111;white-space:nowrap;">${r.exam_date ? formatDate(r.exam_date) : '—'}</td>
     </tr>`).join('')
 
   const metaPairs = [
@@ -109,6 +110,7 @@ export function generateSyllabusPDF(meta = {}, subjects = []) {
           <th style="padding:7px 10px;text-align:left;font-size:9.5px;color:#fff;font-weight:700;">Subject Code</th>
           <th style="padding:7px 10px;text-align:left;font-size:9.5px;color:#fff;font-weight:700;">Subject Name</th>
           <th style="padding:7px 10px;text-align:left;font-size:9.5px;color:#fff;font-weight:700;">Criteria</th>
+          <th style="padding:7px 10px;text-align:left;font-size:9.5px;color:#fff;font-weight:700;">Exam Date</th>
         </tr>
       </thead>
       <tbody>${bodyRows}</tbody>
