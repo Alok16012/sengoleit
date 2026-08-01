@@ -79,6 +79,7 @@ CREATE TRIGGER trg_guard_center_money
 --    shared Ref. No.), writes become admin-only.
 -- ------------------------------------------------------------
 DROP POLICY IF EXISTS letter_settings_all_authenticated ON letter_settings;
+DROP POLICY IF EXISTS letter_settings_admin_write ON letter_settings;
 CREATE POLICY letter_settings_admin_write ON letter_settings
   FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
 DROP POLICY IF EXISTS letter_settings_read_authenticated ON letter_settings;
@@ -86,6 +87,7 @@ CREATE POLICY letter_settings_read_authenticated ON letter_settings
   FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS letter_refs_all_authenticated ON letter_refs;
+DROP POLICY IF EXISTS letter_refs_admin_write ON letter_refs;
 CREATE POLICY letter_refs_admin_write ON letter_refs
   FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
 DROP POLICY IF EXISTS letter_refs_read_authenticated ON letter_refs;
@@ -99,6 +101,7 @@ CREATE POLICY letter_refs_read_authenticated ON letter_refs
 -- 4) exam_calendar — read for everyone signed in, write for admins.
 -- ------------------------------------------------------------
 DROP POLICY IF EXISTS exam_calendar_all_authenticated ON exam_calendar;
+DROP POLICY IF EXISTS exam_calendar_admin_write ON exam_calendar;
 CREATE POLICY exam_calendar_admin_write ON exam_calendar
   FOR ALL TO authenticated USING (is_admin()) WITH CHECK (is_admin());
 DROP POLICY IF EXISTS exam_calendar_read_authenticated ON exam_calendar;
