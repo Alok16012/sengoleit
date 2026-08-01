@@ -35,6 +35,8 @@ export default function StudentLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isPhd, setIsPhd] = useState(false)
+  // Until the row loads, assume enrolled so an enrolled student's menu doesn't flicker.
+  const [hasEnrollment, setHasEnrollment] = useState(true)
   const menuRef = useRef(null)
 
   useEffect(() => {
@@ -47,16 +49,25 @@ export default function StudentLayout() {
   useEffect(() => {
     if (!student?.id) return
     fetchStudentSelf()
-      .then((data) => setIsPhd(isPhdProgram(data?.programs?.program_name)))
+      .then((data) => {
+        setIsPhd(isPhdProgram(data?.programs?.program_name))
+        setHasEnrollment(!!String(data?.enrollment_no || '').trim())
+      })
   }, [student?.id])
 
   // Ph.D research pipeline: no registration slip (that document was dropped),
   // plus the offer letter / entrance clearance entries after the I Card.
+  // The I Card itself is an enrolled student's document — the menu entry only
+  // appears once the enrollment number has been issued.
   const navItems = (() => {
-    if (!isPhd) return baseNavItems
-    const items = baseNavItems.filter(n => n.to !== '/student/registration-slip')
-    const at = items.findIndex(n => n.to === '/student/id-card') + 1
-    return [...items.slice(0, at), ...phdNavItems, ...items.slice(at)]
+    let items = baseNavItems
+    if (isPhd) {
+      items = items.filter(n => n.to !== '/student/registration-slip')
+      const at = items.findIndex(n => n.to === '/student/id-card') + 1
+      items = [...items.slice(0, at), ...phdNavItems, ...items.slice(at)]
+    }
+    if (!hasEnrollment) items = items.filter(n => n.to !== '/student/id-card')
+    return items
   })()
 
   if (loading) return (
