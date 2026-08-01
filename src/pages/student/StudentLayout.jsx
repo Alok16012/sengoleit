@@ -9,7 +9,8 @@ import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, Clipbo
 const baseNavItems = [
   { to: '/student/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/student/profile',          icon: User,            label: 'My Profile' },
-  { to: '/student/fees',             icon: IndianRupee,     label: 'Fee Details' },
+  // Fee Details is hidden from students by university policy — fees are
+  // handled through the center. (Route still exists if it ever comes back.)
   { to: '/student/admission-form',   icon: ClipboardList,   label: 'Admission Form' },
   { to: '/student/registration-slip',icon: Receipt,         label: 'Registration Slip' },
   { to: '/student/id-card',          icon: CreditCard,      label: 'I Card' },
