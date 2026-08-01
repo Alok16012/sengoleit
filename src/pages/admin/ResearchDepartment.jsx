@@ -3,8 +3,8 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2 } from 'lucide-react'
-import { generateOfferLetter, generateEntranceClearance, generateHallTicket } from '../../utils/generateStudentCards'
+import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard } from 'lucide-react'
+import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
@@ -264,7 +264,7 @@ export default function ResearchDepartment() {
   // the fee is approved; forwarding to the Exam Section still waits for it.
   async function load() {
     setLoading(true)
-    const base = 'id, student_name, status, registration_no, enrollment_no, admission_number, session_id, programme_id, fathers_name, mobile_no, date_of_birth, gender, photo_url, signature_url, academic_year, fee_collected, exam_forwarded_at, doc_verified_at, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, enrollment_code, programme_types(programme_type_name)), academic_sessions(session_name), departments(name), centers(center_name, center_code)'
+    const base = 'id, student_name, status, registration_no, enrollment_no, admission_number, session_id, programme_id, fathers_name, mobile_no, date_of_birth, gender, photo_url, signature_url, academic_year, fee_collected, exam_forwarded_at, doc_verified_at, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, enrollment_code, duration, complete_duration, semester_year, programme_types(programme_type_name)), academic_sessions(session_name, start_date), departments(name), centers(center_name, center_code)'
     const cols = `specialization, ${OPTIONAL_COLS}, ${base}`
 
     // Everyone the Document Dept forwarded to Research. `doc_verified_at` is
@@ -333,8 +333,37 @@ export default function ResearchDepartment() {
     return `${prefix}${String(n).padStart(4, '0')}`
   }
 
-  // Forward to the Exam Section. This is the moment a Ph.D candidate's
-  // enrollment number is issued — nothing earlier in the pipeline creates one.
+  // All three letters must have an issued reference number before the
+  // enrollment number can be generated — that is the Research Dept's rule.
+  const lettersDone = (s) =>
+    LETTER_NAMES.every(n => assigned[n]?.[s.id] != null)
+
+  // Generate the enrollment number from the Candidates row (once the Hall
+  // Ticket, Offer Letter and Entrance Certificate are all issued), and open
+  // the candidate's ID card right away — enrollment is what the card needs.
+  // Forwarding to the Exam Section stays a separate, fee-gated step.
+  async function generateEnrollment(student) {
+    if (student.enrollment_no) return
+    if (!lettersDone(student)) return
+    if (!confirm(`Generate the Enrollment Number for ${student.student_name}?\n\nThe ID card will be generated along with it.`)) return
+    setBusy(`${student.id}-enroll`)
+    const enrollNo = await generateEnrollmentNumber(student)
+    const { error } = await supabase.from('students')
+      .update({ enrollment_no: enrollNo }).eq('id', student.id)
+    if (error) {
+      alert('Could not save the enrollment number: ' + error.message)
+      setBusy(null)
+      return
+    }
+    setRows(rs => rs.map(r => r.id === student.id ? { ...r, enrollment_no: enrollNo } : r))
+    // Auto-generate the ID card with the fresh number (signed photo/signature URLs).
+    generateIDCard(await resolveStudentDocUrls({ ...student, enrollment_no: enrollNo }))
+    setBusy(null)
+  }
+
+  // Forward to the Exam Section. The enrollment number is normally issued
+  // from the Candidates tab once all three letters are out; if it wasn't,
+  // it is minted here as a fallback.
   async function forwardToExam(student) {
     if (student.exam_forwarded_at) return
     if (!confirm(`Forward ${student.student_name} to the Exam Section?\n\nAn Enrollment Number will be generated now.`)) return
@@ -648,13 +677,14 @@ export default function ResearchDepartment() {
               <Th>Hall Ticket</Th>
               <Th>Offer Letter</Th>
               <Th>Entrance Certificate</Th>
+              <Th>Enrollment / ID Card</Th>
             </Tr>
           </Thead>
           <Tbody>
             {loading ? (
-              <Tr><Td colSpan={10} className="text-center text-gray-400 py-8">Loading...</Td></Tr>
+              <Tr><Td colSpan={11} className="text-center text-gray-400 py-8">Loading...</Td></Tr>
             ) : filtered.length === 0 ? (
-              <Tr><Td colSpan={10} className="text-center text-gray-400 py-8">No Ph.D candidates forwarded by the Document Dept yet.</Td></Tr>
+              <Tr><Td colSpan={11} className="text-center text-gray-400 py-8">No Ph.D candidates forwarded by the Document Dept yet.</Td></Tr>
             ) : filtered.map((s, i) => (
               <Tr key={s.id}>
                 <Td>{i + 1}</Td>
@@ -697,6 +727,29 @@ export default function ResearchDepartment() {
                   onGenerate={() => generateEntranceClearance(s, docOptsFor(s, 'Entrance Certificate'))}
                   onToggle={() => toggleLetter(s, 'entrance_letter_active')}
                   icon={ShieldCheck} label="Entrance Letter" />
+                <Td>
+                  {s.enrollment_no ? (
+                    <div className="flex flex-col gap-1.5">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit font-mono">
+                        <BadgeCheck size={12} /> {s.enrollment_no}
+                      </span>
+                      <Button size="sm" variant="secondary" className="w-fit"
+                        title="Open the ID card"
+                        onClick={async () => generateIDCard(await resolveStudentDocUrls(s))}>
+                        <CreditCard size={13} /> ID Card
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="primary" className="w-fit"
+                      disabled={!lettersDone(s) || busy === `${s.id}-enroll`}
+                      title={lettersDone(s)
+                        ? 'Generate the Enrollment Number — the ID card opens along with it'
+                        : 'Generate the Hall Ticket, Offer Letter and Entrance Certificate first'}
+                      onClick={() => generateEnrollment(s)}>
+                      <Hash size={13} /> {busy === `${s.id}-enroll` ? '…' : 'Enrollment'}
+                    </Button>
+                  )}
+                </Td>
               </Tr>
             ))}
           </Tbody>
