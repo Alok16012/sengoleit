@@ -757,7 +757,7 @@ export function generateEntranceClearance(s, opts = {}) {
     <div style="text-align:center;margin:54px 0 26px;">
       <span style="font-size:15.5px;font-weight:700;color:#000;text-decoration:underline;">Ph.D. ENTRANCE CLEARANCE CERTIFICATE</span>
     </div>
-    <p style="font-size:13px;color:#000;margin:0 0 16px;">Name of the Candidate: <span style="font-weight:700;text-decoration:underline;">&nbsp;${v(s.student_name)}&nbsp;</span></p>
+    <p style="font-size:13px;color:#000;margin:0 0 16px;">Name of the Candidate: <span style="font-weight:700;">${v(s.student_name)}</span></p>
     <p style="font-size:13px;color:#000;font-weight:700;margin:0 0 14px;">Dear Scholar,</p>
     <p style="${P}">
       We are pleased to inform you that, based on your performance in the <strong>Ph.D. Entrance Test</strong>
