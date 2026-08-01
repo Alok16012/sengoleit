@@ -692,7 +692,7 @@ const docDetailRow = (label, value) => `<tr>
 </tr>`
 
 export function generateOfferLetter(s, opts = {}) {
-  const refNo = opts.refNo || s.registration_no || s.enrollment_no || s.admission_number
+  const refNo = opts.refNo || s.admission_number || s.enrollment_no
   const dateStr = opts.date || fmtDate(new Date())
 
   const P = 'font-size:12.5px;color:#000;line-height:1.5;margin:0 0 9px;text-align:justify;'
@@ -743,7 +743,7 @@ export function generateEntranceClearance(s, opts = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || s.academic_year || '—'
   const dept = s.departments?.name || '—'
-  const refNo = opts.refNo || s.registration_no || s.enrollment_no || s.admission_number
+  const refNo = opts.refNo || s.admission_number || s.enrollment_no
   const dateStr = opts.date || fmtDate(new Date())
 
   // The entrance-test date is not stored on the student — print it when supplied,

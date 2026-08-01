@@ -1,16 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { GraduationCap, Award } from 'lucide-react'
-
-const EDU_SECTIONS = [
-  { key: 'tenth', label: '10th (Matriculation)' },
-  { key: 'twelfth', label: '12th (Intermediate)' },
-  { key: 'diploma', label: 'Diploma' },
-  { key: 'ug', label: 'Graduation (UG)' },
-  { key: 'pg', label: 'Post Graduation (PG)' },
-]
 
 function Field({ label, value }) {
   return (
@@ -27,6 +18,9 @@ function pct(obt, tot) {
   return ((o / t) * 100).toFixed(1) + '%'
 }
 
+// Only the university's own exam result lives here. The student's previous
+// education used to be listed below it, but that already shows on My Profile —
+// and the university asked for it to be dropped from the Results page.
 export default function StudentResults() {
   const { student } = useStudentAuth()
   const [data, setData] = useState(null)
@@ -40,95 +34,53 @@ export default function StudentResults() {
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
 
-  // Column names as they exist on students (see add_all_student_fields.sql):
-  // <key>_board_university, <key>_institute_name, <key>_passing_year,
-  // <key>_obtained_marks, <key>_total_marks. Filtering on wrong names here
-  // once left this page permanently on "No academic records".
-  const sections = EDU_SECTIONS.filter(s =>
-    data?.[`${s.key}_board_university`] || data?.[`${s.key}_institute_name`]
-      || data?.[`${s.key}_obtained_marks`]
-  )
+  // Shown only after the Exam Section presses "Send Result".
+  const released = data?.exam_result_status && data.exam_result_status !== 'Pending' && data.result_released_at
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-xl font-black text-gray-900">Academic Records</h1>
+      <h1 className="text-xl font-black text-gray-900">Results</h1>
 
-      <div className="space-y-4">
-          {/* Shown only after the Exam Section presses "Send Result". Lives
-              OUTSIDE the previous-education check — a released university
-              result must show even when no earlier education was entered. */}
-          {data?.exam_result_status && data.exam_result_status !== 'Pending' && data.result_released_at && (
-            <div className="bg-white rounded-xl border-2 border-emerald-100 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-2">
-                  <Award size={20} className="text-emerald-600" />
-                  <h3 className="font-black text-gray-900 text-lg">University Exam Result</h3>
-                </div>
-                <span className={`text-xs font-black px-3 py-1 rounded-lg ${data.exam_result_status === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                  {data.exam_result_status}
-                </span>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
-                <Field label="Obtained Marks" value={data.exam_result_obtained_marks} />
-                <Field label="Total Marks" value={data.exam_result_total_marks} />
-                <Field label="Percentage" value={pct(data.exam_result_obtained_marks, data.exam_result_total_marks)} />
-                <Field label="Declared On" value={data.exam_result_declared_at ? new Date(data.exam_result_declared_at).toLocaleDateString() : '—'} />
-              </div>
+      {!released ? (
+        <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+          <GraduationCap size={40} className="text-gray-200 mx-auto mb-3" />
+          <p className="text-gray-400">Your result has not been declared yet.</p>
+          <p className="text-gray-300 text-xs mt-1">It will appear here once the Exam Section releases it.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border-2 border-emerald-100 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <Award size={20} className="text-emerald-600" />
+              <h3 className="font-black text-gray-900 text-lg">University Exam Result</h3>
+            </div>
+            <span className={`text-xs font-black px-3 py-1 rounded-lg ${data.exam_result_status === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+              {data.exam_result_status}
+            </span>
+          </div>
 
-              {data.exam_result_remarks && (
-                <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">
-                  "{data.exam_result_remarks}"
-                </div>
-              )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
+            <Field label="Obtained Marks" value={data.exam_result_obtained_marks} />
+            <Field label="Total Marks" value={data.exam_result_total_marks} />
+            <Field label="Percentage" value={pct(data.exam_result_obtained_marks, data.exam_result_total_marks)} />
+            <Field label="Declared On" value={data.exam_result_declared_at ? new Date(data.exam_result_declared_at).toLocaleDateString() : '—'} />
+          </div>
 
-              {data.exam_result_marksheet_url && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <a href={data.exam_result_marksheet_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
-                    Download Marksheet
-                  </a>
-                </div>
-              )}
+          {data.exam_result_remarks && (
+            <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">
+              "{data.exam_result_remarks}"
             </div>
           )}
 
-          {sections.length === 0 ? (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-              <GraduationCap size={40} className="text-gray-200 mx-auto mb-3" />
-              <p className="text-gray-400">No academic records found.</p>
+          {data.exam_result_marksheet_url && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <a href={data.exam_result_marksheet_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
+                Download Marksheet
+              </a>
             </div>
-          ) : <>
-
-          <h2 className="text-lg font-black text-gray-900 mt-8 mb-4">Previous Education</h2>
-
-          {sections.map(({ key, label }) => {
-            const percentage = pct(data?.[`${key}_obtained_marks`], data?.[`${key}_total_marks`])
-            return (
-              <div key={key} className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap size={16} className="text-[#933d18]" />
-                    <h3 className="font-bold text-gray-900">{label}</h3>
-                  </div>
-                  {percentage && (
-                    <span className="text-xs font-black px-3 py-1 rounded-lg bg-[#933d18]/10 text-[#933d18]">
-                      {percentage}
-                    </span>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <Field label="Board / University" value={data?.[`${key}_board_university`]} />
-                  <Field label="Institution" value={data?.[`${key}_institute_name`]} />
-                  <Field label="Year of Passing" value={data?.[`${key}_passing_year`]} />
-                  <Field label="Obtained Marks" value={data?.[`${key}_obtained_marks`]} />
-                  <Field label="Total Marks" value={data?.[`${key}_total_marks`]} />
-                </div>
-              </div>
-            )
-          })}
-          </>}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
