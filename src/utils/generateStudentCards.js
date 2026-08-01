@@ -116,6 +116,14 @@ const baseStyle = `
 ─────────────────────────────────────────────────── */
 export function generateIDCard(s) {
   const prog = s.programs?.program_name || s.program_name || '—'
+  // The ID card is an enrolled student's document — without an enrollment
+  // number it used to print with a blank "Enrollment No: —" row. A Ph.D
+  // candidate only receives one when the Research Dept forwards them to the
+  // Exam Section, so until then the card must not generate at all.
+  if (!String(s.enrollment_no || '').trim()) {
+    alert('Enrollment number has not been issued yet — the ID card can be generated only after enrollment.')
+    return
+  }
   const regNo = isPhdProgram(prog)
     ? (s.admission_number || s.enrollment_no)
     : (s.registration_no || s.enrollment_no || s.admission_number)
