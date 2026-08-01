@@ -320,7 +320,17 @@ export default function ResearchDepartment() {
     if (student.programme_id) qy = qy.eq('programme_id', student.programme_id)
     if (student.session_id) qy = qy.eq('session_id', student.session_id)
     const { count } = await qy
-    return `${prefix}${String((count || 0) + 1).padStart(4, '0')}`
+    // The count is a snapshot, so two admins acting at once — or a number
+    // issued under an older counting rule — can land on a taken serial.
+    // Walk forward until a free one is found.
+    let n = (count || 0) + 1
+    for (let tries = 0; tries < 50; tries++, n++) {
+      const candidate = `${prefix}${String(n).padStart(4, '0')}`
+      const { count: taken } = await supabase.from('students')
+        .select('*', { count: 'exact', head: true }).eq('enrollment_no', candidate)
+      if (!taken) return candidate
+    }
+    return `${prefix}${String(n).padStart(4, '0')}`
   }
 
   // Forward to the Exam Section. This is the moment a Ph.D candidate's

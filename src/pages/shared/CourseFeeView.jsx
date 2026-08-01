@@ -337,8 +337,11 @@ export default function CourseFeeView() {
         if (!prog) return
 
         const feeItems  = (itemMap[fs.id] || []).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-        const totalSems = fs.total_semesters ||
-          (prog.semester_year === 'Year' ? (prog.duration || 1) * 2 : (prog.duration || 1))
+        // `duration` is stored in semesters for EVERY programme (a 3-year
+        // Ph.D is 6) — it is what billing (courseFee.js) actually uses, so it
+        // wins over fee_structures.total_semesters, which older saves doubled
+        // for Year-mode. The old ×2 here overstated Year-mode course totals.
+        const totalSems = Number(prog.duration) || fs.total_semesters || 1
 
         rows.push({
           key:           fs.id,

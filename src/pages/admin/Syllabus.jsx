@@ -9,11 +9,12 @@ let _k = 0
 const uid = () => ++_k
 
 /* Semester count derived from the program (matches Programs page SEM/YEAR). */
+// `duration` is stored in semesters for every programme — including
+// Year-mode ones (a 3-year Ph.D is 6). Doubling it here showed twice the
+// real number of semester tabs for Year-mode courses.
 const calcSemesters = (p) => {
   if (!p) return 0
-  if (!p.duration) return 0
-  if (p.semester_year === 'Year') return p.duration * 2
-  return p.duration   // 'Semester' or default
+  return Number(p.duration) || 0
 }
 
 /* Searchable single-select dropdown. value 'all' = show everything. */

@@ -741,7 +741,16 @@ export default function AccountDepartment() {
     if (student.session_id)   q = q.eq('session_id', student.session_id)
     const { count } = await q
 
-    return `${prefix}${String((count || 0) + 1).padStart(4, '0')}`
+    // The count is a snapshot — walk forward past any serial that is already
+    // taken (concurrent approvals, or numbers issued under older rules).
+    let n = (count || 0) + 1
+    for (let tries = 0; tries < 50; tries++, n++) {
+      const candidate = `${prefix}${String(n).padStart(4, '0')}`
+      const { count: taken } = await supabase.from('students')
+        .select('*', { count: 'exact', head: true }).eq('enrollment_no', candidate)
+      if (!taken) return candidate
+    }
+    return `${prefix}${String(n).padStart(4, '0')}`
   }
 
   // Registration number is issued only here — after account verification, at the
@@ -753,7 +762,15 @@ export default function AccountDepartment() {
       .from('students')
       .select('*', { count: 'exact', head: true })
       .like('registration_no', `${prefix}%`)
-    return `${prefix}${1001 + (count || 0)}`
+    // Same snapshot problem as the enrollment number — skip taken serials.
+    let n = 1001 + (count || 0)
+    for (let tries = 0; tries < 50; tries++, n++) {
+      const candidate = `${prefix}${n}`
+      const { count: taken } = await supabase.from('students')
+        .select('*', { count: 'exact', head: true }).eq('registration_no', candidate)
+      if (!taken) return candidate
+    }
+    return `${prefix}${n}`
   }
 
   async function confirmStudentAction() {

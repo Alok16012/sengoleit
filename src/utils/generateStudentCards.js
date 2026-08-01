@@ -135,7 +135,9 @@ export function generateIDCard(s) {
     if (m) return parseInt(m[1], 10)
     const dur = Number(s.programs?.duration) || 0
     if (!dur) return 0
-    return s.programs?.semester_year === 'Year' ? dur : Math.round(dur / 2)
+    // duration is in semesters for every mode — halve it for years. The old
+    // Year branch returned semesters-as-years, doubling a Ph.D's validity.
+    return Math.max(Math.round(dur / 2), 1)
   }
   const startYear = () => {
     const ay = String(s.academic_year || '').match(/(20\d{2})/)

@@ -91,9 +91,14 @@ export default function StudentDashboard() {
               ['Program', data?.programs?.program_name],
               ['Short Name', data?.programs?.short_name],
               ['Department', data?.departments?.name],
-              ['Duration', data?.programs?.duration
-                ? `${data.programs.duration} ${data.programs.semester_year || 'Sem'}`
-                : null],
+              // duration is stored in semesters — for a Year-mode course show
+              // years (a 3-year Ph.D is duration 6, not "6 Year").
+              ['Duration', data?.programs?.complete_duration
+                || (data?.programs?.duration
+                  ? (data.programs.semester_year === 'Year'
+                    ? `${Math.max(Math.round(data.programs.duration / 2), 1)} Years`
+                    : `${data.programs.duration} Semesters`)
+                  : null)],
               ['Session', data?.academic_sessions?.session_name],
             ].map(([label, val]) => (
               <div key={label} className="flex justify-between gap-2">

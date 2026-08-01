@@ -25,8 +25,21 @@ $$;
 --    Admin: full access. Centers: read their own coupons only.
 --    Reservation during student entry keeps working through the
 --    reserve_coupon() SECURITY DEFINER function, which bypasses RLS.
+--
+--    Policies are OR'd, so any permissive policy created earlier in the
+--    dashboard would keep the table writable no matter what we add here —
+--    drop EVERY existing policy on it first (verified live: an anon INSERT
+--    still passed RLS after the first version of this script).
 -- ------------------------------------------------------------
 ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
+
+DO $$
+DECLARE p record;
+BEGIN
+  FOR p IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'coupons' LOOP
+    EXECUTE format('DROP POLICY %I ON coupons', p.policyname);
+  END LOOP;
+END $$;
 
 DROP POLICY IF EXISTS coupons_admin_all ON coupons;
 CREATE POLICY coupons_admin_all ON coupons
@@ -95,9 +108,16 @@ CREATE POLICY exam_calendar_read_authenticated ON exam_calendar
 -- ------------------------------------------------------------
 -- 5) recharge_requests — a center sees and files its own requests;
 --    only admins decide them (or touch other centers' rows).
+--    Same story as coupons: clear every pre-existing policy first.
 -- ------------------------------------------------------------
-DROP POLICY IF EXISTS "Recharge requests all" ON recharge_requests;
-DROP POLICY IF EXISTS recharge_requests_all ON recharge_requests;
+DO $$
+DECLARE p record;
+BEGIN
+  FOR p IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = 'recharge_requests' LOOP
+    EXECUTE format('DROP POLICY %I ON recharge_requests', p.policyname);
+  END LOOP;
+END $$;
+ALTER TABLE recharge_requests ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS recharge_admin_all ON recharge_requests;
 CREATE POLICY recharge_admin_all ON recharge_requests

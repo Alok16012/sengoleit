@@ -428,7 +428,10 @@ export default function FeeManagement() {
                   __programOnly: true,
                   id: `prog_${p.id}`,
                   program_id: p.id,
-                  total_semesters: p.duration ? (p.semester_year === 'Year' ? p.duration * 2 : p.duration) : null,
+                  // duration is already the total semester count for every
+                  // programme (a 3-year Ph.D is 6) — doubling it for Year
+                  // mode overstated the course total in the fee master/PDF.
+                  total_semesters: p.duration || null,
                   programs: { program_name: p.program_name },
                 }))
               const allRows = masterStatus === 'done' ? feeRows

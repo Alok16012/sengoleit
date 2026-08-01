@@ -946,10 +946,13 @@ export default function StudentForm() {
     return n + (s[(v - 20) % 10] || s[v] || s[0])
   }
 
+  // `duration` is stored in semesters for every programme, so a Year-mode
+  // course has duration/2 years — a 3-year Ph.D (duration 6) offers
+  // 1st–3rd Year, not 1st–6th.
   const semesterOptions = progDuration > 0
     ? progSemYear === 'Year'
-      ? Array.from({ length: progDuration }, (_, i) => `${ordinal(i + 1)} Year`)
-      : Array.from({ length: progSemYear === 'Semester' ? progDuration : progDuration * 2 }, (_, i) => `${ordinal(i + 1)} Semester`)
+      ? Array.from({ length: Math.max(Math.round(progDuration / 2), 1) }, (_, i) => `${ordinal(i + 1)} Year`)
+      : Array.from({ length: progDuration }, (_, i) => `${ordinal(i + 1)} Semester`)
     : null
 
   // The admission ENTRY semester (what shows on the form / download): a regular
