@@ -4,6 +4,7 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { generateOfferLetter, isPhdProgram } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { letterOptsFor } from '../../utils/letterSettings'
 import { FileCheck2, Download, Lock } from 'lucide-react'
 
 export default function StudentOfferLetter() {
@@ -25,7 +26,11 @@ export default function StudentOfferLetter() {
   async function handleGenerate() {
     if (!data) return
     setGenerating(true)
-    generateOfferLetter(data)
+    // Use the Ref. No. / date the Research Dept issued, so the student's copy
+    // matches the office copy — this page used to skip letterOptsFor entirely
+    // and printed the application-number fallback with today's date.
+    const opts = await letterOptsFor(data.id, 'Offer Letter', data.session_id)
+    generateOfferLetter(data, opts)
     setGenerating(false)
   }
 
