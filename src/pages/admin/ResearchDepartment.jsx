@@ -205,7 +205,14 @@ export default function ResearchDepartment() {
       alert(`No ${letterName} reference series is set up for ${student.academic_sessions?.session_name || 'this student’s session'} yet.\n\nSet its prefix in the Master Panel and press Save, then Generate again. This copy prints with the application number instead.`)
       return null
     }
+    // Never hand out a serial another candidate already holds — the panel's
+    // Next No. can drift backwards (an edit, or a stale browser overwriting
+    // the shared copy), and that once re-issued 010 to a second student.
+    // Walk forward past every taken number; persisting num+1 also heals the
+    // drifted series.
+    const taken = new Set(Object.values(map).map(Number))
     num = Number(letter.nextNum) || 1
+    while (taken.has(num)) num++
     const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
     const nextLetters = letters.map(l => l === letter ? { ...l, nextNum: num + 1 } : l)
     setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
