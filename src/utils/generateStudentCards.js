@@ -622,20 +622,16 @@ export function generateHallTicket(s, opts = {}) {
       </p>
     </div>
 
-    <!-- Signature strip -->
+    <!-- Signature strip: candidate left, registrar right. -->
     <table style="width:100%;margin-top:34px;">
       <tr>
-        <td style="width:34%;vertical-align:bottom;">
+        <td style="width:50%;vertical-align:bottom;">
           <div style="height:36px;display:flex;align-items:flex-end;">
             ${s.signature_url ? `<img src="${esc(s.signature_url)}" style="max-height:34px;max-width:150px;object-fit:contain;"/>` : ''}
           </div>
           <p style="font-size:13px;font-weight:700;color:#000;margin:4px 0 0;">Signature of Candidate</p>
         </td>
-        <td style="width:33%;vertical-align:bottom;">
-          <div style="height:36px;"></div>
-          <p style="font-size:13px;font-weight:700;color:#000;margin:4px 0 0;">Signature of Invigilator</p>
-        </td>
-        <td style="width:33%;vertical-align:bottom;text-align:right;">
+        <td style="width:50%;vertical-align:bottom;text-align:right;">
           <div style="display:inline-block;text-align:left;">${registrarSignBlock(true)}</div>
         </td>
       </tr>
