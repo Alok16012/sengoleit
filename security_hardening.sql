@@ -48,7 +48,7 @@ CREATE POLICY coupons_admin_all ON coupons
 DROP POLICY IF EXISTS coupons_center_read_own ON coupons;
 CREATE POLICY coupons_center_read_own ON coupons
   FOR SELECT TO authenticated USING (
-    center_id IN (SELECT id FROM centers WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()))
+    center_id IN (SELECT id FROM centers WHERE email = (auth.jwt() ->> 'email'))
   );
 
 -- ------------------------------------------------------------
@@ -129,13 +129,13 @@ CREATE POLICY recharge_admin_all ON recharge_requests
 DROP POLICY IF EXISTS recharge_center_own ON recharge_requests;
 CREATE POLICY recharge_center_own ON recharge_requests
   FOR SELECT TO authenticated USING (
-    center_id IN (SELECT id FROM centers WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()))
+    center_id IN (SELECT id FROM centers WHERE email = (auth.jwt() ->> 'email'))
   );
 
 DROP POLICY IF EXISTS recharge_center_insert_own ON recharge_requests;
 CREATE POLICY recharge_center_insert_own ON recharge_requests
   FOR INSERT TO authenticated WITH CHECK (
-    is_admin() OR center_id IN (SELECT id FROM centers WHERE email = (SELECT email FROM auth.users WHERE id = auth.uid()))
+    is_admin() OR center_id IN (SELECT id FROM centers WHERE email = (auth.jwt() ->> 'email'))
   );
 
 SELECT 'security hardening applied' AS result;
