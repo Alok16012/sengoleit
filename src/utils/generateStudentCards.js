@@ -548,7 +548,9 @@ export function generateRegistrationCertificate(s) {
 // candidate / invigilator / registrar signature strip.
 export function generateHallTicket(s, opts = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
-  const rollNo = opts.refNo || s.admission_number || s.enrollment_no || '—'
+  // The candidate sits the entrance exam on their Application No — that is
+  // what the ticket identifies them by (not the letter's reference serial).
+  const applicationNo = s.admission_number || opts.refNo || s.enrollment_no || '—'
   // Faculty = the research stream (falls back to the programme name).
   const faculty = s.stream || prog
   const subject = s.specialization || ''
@@ -590,7 +592,7 @@ export function generateHallTicket(s, opts = {}) {
       <tr>
         <td style="vertical-align:top;">
           <table style="width:100%;">
-            ${row('Roll Number:', `<span style="font-weight:800;">${v(rollNo)}</span>${s.gender ? `<span style="display:inline-block;margin-left:70px;font-weight:800;">${String(s.gender).toUpperCase()}</span>` : ''}`)}
+            ${row('Application No:', `<span style="font-weight:800;">${v(applicationNo)}</span>${s.gender ? `<span style="display:inline-block;margin-left:70px;font-weight:800;">${String(s.gender).toUpperCase()}</span>` : ''}`)}
             ${row('Candidate Name:', `<span style="font-weight:800;">${v(s.student_name).toUpperCase()}</span>`)}
             ${row('Faculty and Subject:', `<span style="background:#dce9f7;padding:2px 10px;">${v(faculty)}</span>${subject ? `&nbsp;&nbsp;<span style="background:#fbf2e3;padding:2px 10px;">${esc(subject.toUpperCase())}</span>` : ''}`)}
             ${row('Date &amp; Time of Exam:', `<span style="font-weight:800;">${examWhen || blank(220)}</span>`)}
