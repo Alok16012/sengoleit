@@ -89,7 +89,12 @@ export default function StudentDashboard() {
           <dl className="space-y-3 text-sm">
             {[
               ['Program', data?.programs?.program_name],
-              ['Short Name', data?.programs?.short_name],
+              // Ph.D candidates carry their research stream + specialization
+              // here (in place of the internal short name, which was dropped).
+              ...(isPhd ? [
+                ['Stream', data?.stream],
+                ['Specialization', data?.specialization],
+              ] : []),
               ['Department', data?.departments?.name],
               // duration is stored in semesters — for a Year-mode course show
               // years (a 3-year Ph.D is duration 6, not "6 Year").
