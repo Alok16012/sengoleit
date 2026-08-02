@@ -20,6 +20,16 @@ import RegistrationCardModal from '../../components/RegistrationCardModal'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
 
+// A timestamp's calendar day in the viewer's timezone, as YYYY-MM-DD — so the
+// date filters line up with what the Entered On column shows.
+function localDay(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return ''
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 function genPassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
   let pwd = 'Sg@'
@@ -330,11 +340,11 @@ export default function Students() {
 
   async function fetchData() {
     setLoading(true)
-    const FULL = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const FULL = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
     // Fallback for DBs where the exam-result / admit-card columns are not yet
     // created (run_all_migrations.sql not applied) — students still list; only
     // the admit-card / result actions stay inactive.
-    const MIN = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const MIN = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
 
     let { data, error } = await supabase
       .from('students')
@@ -366,11 +376,12 @@ export default function Students() {
     if (centerFilter !== 'all' && s.center_id !== centerFilter) return false
     if (programFilter !== 'all' && s.programme_id !== programFilter) return false
     if (sessionFilter !== 'all' && s.session_id !== sessionFilter) return false
-    // Submission-date range (inclusive). A student with no date recorded is
-    // left out only once a range is actually set.
-    const sub = (s.date_of_submission || '').slice(0, 10)
-    if (fromDate && (!sub || sub < fromDate)) return false
-    if (toDate && (!sub || sub > toDate)) return false
+    // Entry-date range (inclusive) — when the form was actually recorded, not
+    // the date typed into it. Compared on the LOCAL day so a late-evening
+    // entry doesn't fall into the previous day via UTC.
+    const day = localDay(s.created_at)
+    if (fromDate && (!day || day < fromDate)) return false
+    if (toDate && (!day || day > toDate)) return false
     const matchSearch = `${s.student_name} ${s.enrollment_no} ${s.mobile_no}`.toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'All' || s.status === statusFilter
     return matchSearch && matchStatus
@@ -387,13 +398,14 @@ export default function Students() {
     { header: 'Center', value: s => s.centers?.center_name || '' },
     { header: 'Session', value: s => s.academic_sessions?.session_name || '' },
     { header: 'Entry', value: s => s.entry_type || '' },
-    { header: 'Form Submitted', value: s => (s.date_of_submission ? formatDate(s.date_of_submission) : '') },
+    { header: 'Entered On', value: s => (s.created_at ? formatDate(s.created_at) : '') },
+    { header: 'Form Date', value: s => (s.date_of_submission ? formatDate(s.date_of_submission) : '') },
     { header: 'Status', value: s => s.status || '' },
   ]
   const exportMeta = () => {
     const m = []
     if (fromDate || toDate) {
-      m.push(`Form submitted: ${fromDate ? formatDate(fromDate) : 'start'} to ${toDate ? formatDate(toDate) : 'today'}`)
+      m.push(`Entered: ${fromDate ? formatDate(fromDate) : 'start'} to ${toDate ? formatDate(toDate) : 'today'}`)
     }
     if (statusFilter !== 'All') m.push(`Status: ${statusFilter}`)
     if (programFilter !== 'all') m.push(`Program: ${programs.find(p => p.id === programFilter)?.program_name || ''}`)
@@ -479,7 +491,7 @@ export default function Students() {
         {/* How many admissions came in over a period — filters on the form's
             submission date, and the exports below carry the same range. */}
         <div className="flex flex-col">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Form Submitted From</label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Entered From</label>
           <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
             className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
         </div>
@@ -543,7 +555,7 @@ export default function Students() {
               <Th>Session</Th>
               <Th>Mobile</Th>
               <Th>Entry</Th>
-              <Th>Form Submitted</Th>
+              <Th>Entered On</Th>
               <Th>Status</Th>
               <Th>Actions</Th>
             </tr>
@@ -571,8 +583,9 @@ export default function Students() {
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td className="text-gray-500">{s.mobile_no || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{s.entry_type || '—'}</Td>
-                <Td className="text-gray-600 text-xs whitespace-nowrap">
-                  {s.date_of_submission ? formatDate(s.date_of_submission) : '—'}
+                <Td className="text-gray-600 text-xs whitespace-nowrap"
+                  title={s.created_at ? new Date(s.created_at).toLocaleString('en-IN') : ''}>
+                  {s.created_at ? formatDate(s.created_at) : '—'}
                 </Td>
                 <Td><Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge></Td>
                 <Td>
@@ -661,7 +674,7 @@ export default function Students() {
         <p className="text-xs text-gray-500">
           Showing <span className="font-bold text-gray-700">{filtered.length}</span> of {data.length} students
           {(fromDate || toDate) && (
-            <> · form submitted {fromDate ? formatDate(fromDate) : 'start'} — {toDate ? formatDate(toDate) : 'today'}</>
+            <> · entered {fromDate ? formatDate(fromDate) : 'start'} — {toDate ? formatDate(toDate) : 'today'}</>
           )}
         </p>
         <div className="flex gap-2">
