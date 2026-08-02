@@ -1,25 +1,26 @@
 import { supabase } from '../lib/supabase'
 
 // How many semesters' fee is due, driven by the Examination Calendar.
-// A semester counts once ITS OWN exam window has ended (plus 5 days' grace) —
-// i.e. the fee due tracks the semesters the student has actually completed.
-// So with Sem 1's exam over and Sem 2's still running, only Sem 1 is due
-// (half of a 2-semester year); Sem 2 joins 5 days after Sem 2's exam ends.
-// Always at least 1 (the entry semester), never more than the programme's
-// total. A semester with no end date stops the count there.
+// The student owes Sem 1 up to Sem 1's exam end date; 5 days past that end
+// date (as of TODAY) Sem 2 is added, 5 days past Sem 2's end adds Sem 3, and
+// so on, capped at the programme's total semesters. A semester with no end
+// date stops the advance there.
+// So for a July-2025 student today — Sem 1's exams long finished, Sem 2's
+// still running — both semesters of the year are due; the wallet then holds
+// 50% of that year's fee at forward time.
 // calMap: { [semesterNumber]: 'YYYY-MM-DD' end_date }.
 export function dueSemesterFromCalendar(calMap, totalSems) {
   const now = new Date()
-  let completed = 0
-  for (let k = 1; k <= totalSems; k++) {
+  let due = 1
+  for (let k = 1; k <= totalSems - 1; k++) {
     const end = calMap[k]
     if (!end) break
     const threshold = new Date(end)
     threshold.setDate(threshold.getDate() + 5)
-    if (now > threshold) completed = k
+    if (now > threshold) due = k + 1
     else break
   }
-  return Math.min(Math.max(completed, 1), totalSems)
+  return Math.min(due, totalSems)
 }
 
 // The single source of truth for a student's course fee. Cumulative for Sem
@@ -73,11 +74,10 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
 
   // The entry semester is the FLOOR — a lateral entry at Sem 3 owes three
   // semesters from day one — and the exam calendar carries it forward from
-  // there as each semester completes. (It used to cap the calendar AT the
-  // entry semester, which froze every fresh Sem-1 entrant at one semester
-  // forever; the calendar could then only ever reduce the fee, never advance
-  // it. Over-charging a back-dated entry is no longer a risk either, because
-  // the calendar now counts completed semesters rather than the next one.)
+  // there as the session progresses. (It used to CAP the calendar at the entry
+  // semester, which froze every fresh Sem-1 entrant at one semester forever:
+  // a July-2025 PGDCA student whose Sem 1 exams were long over still owed a
+  // single semester, so the wallet held half of half the year's fee.)
   // Year-based NON-Ph.D programmes (e.g. a 1-year, 2-semester diploma) are billed
   // per YEAR: entering "1st Year" charges that whole year's semesters up front
   // (1 Year = 2 semesters), so the fee matches the full year's amount. Ph.D stays
