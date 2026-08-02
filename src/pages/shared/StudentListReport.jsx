@@ -13,7 +13,7 @@ import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
-import { computeCumulativeCourseFee } from '../../utils/courseFee'
+import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
 import { letterOptsFor } from '../../utils/letterSettings'
 
 const STATUS_META = {
@@ -41,6 +41,11 @@ export default function StudentListReport({ status }) {
   const [allCenters, setAllCenters] = useState([])
   const [superCentersList, setSuperCentersList] = useState([])
   const [targetSuper, setTargetSuper] = useState('all')
+  // What each forwarded student's hold SHOULD be today, keyed by student id.
+  // fee_held is a snapshot taken at forward time; once a further semester's
+  // exams finish the fee due grows and that snapshot is short, so the list
+  // shows the shortfall instead of quietly under-reporting the fee.
+  const [holdDue, setHoldDue] = useState({})
 
   const meta = STATUS_META[status] || { color: 'gray', label: status + ' Students', desc: '' }
 
@@ -133,6 +138,35 @@ export default function StudentListReport({ status }) {
     }
     setData(rows)
     setLoading(false)
+    loadHoldsDue(rows)
+  }
+
+  // Recompute today's required hold for every student whose fee is still held.
+  // Students on the same programme + session + entry semester share a fee, so
+  // the calculation is done once per distinct combination, not once per row.
+  async function loadHoldsDue(rows) {
+    const held = rows.filter(r => Number(r.fee_held || 0) > 0)
+    if (!held.length) { setHoldDue({}); return }
+    const groups = {}
+    held.forEach(r => {
+      const key = `${r.programme_id}|${r.session_id}|${r.semester_year}`
+      ;(groups[key] ||= []).push(r)
+    })
+    const next = {}
+    await Promise.all(Object.values(groups).map(async members => {
+      const s = members[0]
+      const { courseFee } = await computeCumulativeCourseFee({
+        programme_id: s.programme_id,
+        session_id: s.session_id,
+        semester_year: s.semester_year,
+        semYear: s.programs?.semester_year,
+        duration: s.programs?.duration,
+        programName: s.programs?.program_name,
+      })
+      // The coupon is per student, so only the course fee is shared.
+      members.forEach(m => { next[m.id] = holdAmount(courseFee, m.coupon_discount) })
+    }))
+    setHoldDue(next)
   }
 
   async function handleDownload(studentId) {
@@ -211,7 +245,7 @@ export default function StudentListReport({ status }) {
 
     // Hold 50% of the course fee at forward, minus any coupon — matches the
     // "50% Required" the center saw in the entry wallet check.
-    const net = Math.max(Math.ceil(courseFee * 0.5) - discount, 0)
+    const net = holdAmount(courseFee, discount)
     return { courseFee, discount, net, balance }
   }
 
@@ -408,11 +442,24 @@ export default function StudentListReport({ status }) {
                       {s.doc_verified_at ? 'Awaiting Account Dept.' : 'Sent back for correction'}
                     </p>
                   )}
-                  {s.status === 'Pending' && s.forwarded_at && (
-                    <p className="text-[10px] font-semibold mt-0.5 text-blue-600 flex items-center gap-0.5">
-                      <Lock size={9} /> ₹{Number(s.fee_held || 0).toLocaleString('en-IN')} held
-                    </p>
-                  )}
+                  {s.status === 'Pending' && s.forwarded_at && (() => {
+                    const heldNow = Number(s.fee_held || 0)
+                    const due = holdDue[s.id]
+                    const shortfall = due == null ? 0 : Math.max(due - heldNow, 0)
+                    return (
+                      <>
+                        <p className="text-[10px] font-semibold mt-0.5 text-blue-600 flex items-center gap-0.5">
+                          <Lock size={9} /> ₹{heldNow.toLocaleString('en-IN')} held
+                        </p>
+                        {shortfall > 0 && (
+                          <p className="text-[10px] font-semibold text-amber-600"
+                            title={`A further semester's fee has fallen due since this student was forwarded. ₹${due.toLocaleString('en-IN')} is now required; the ₹${shortfall.toLocaleString('en-IN')} difference is deducted from the wallet when the Account Dept. approves.`}>
+                            + ₹{shortfall.toLocaleString('en-IN')} due on approval
+                          </p>
+                        )}
+                      </>
+                    )
+                  })()}
                 </Td>
                 <Td>
                   <div className="flex items-center gap-1 flex-nowrap whitespace-nowrap">

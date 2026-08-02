@@ -23,6 +23,25 @@ export function dueSemesterFromCalendar(calMap, totalSems) {
   return Math.min(due, totalSems)
 }
 
+// Fallback for sessions with no Examination Calendar rows: work the due semester
+// out from how long the session has been running. A semester is six months, and
+// its fee falls due a fortnight after that semester's exams would have ended —
+// the same "once the exam is over" rule the calendar encodes, just without the
+// dates having been entered.
+// Without this a July-2025 student was still billed for Sem 1 alone a year
+// later, because an empty calendar fell straight back to the entry semester.
+export function dueSemesterFromElapsed(sessionStart, totalSems) {
+  if (!sessionStart) return 1
+  const start = new Date(sessionStart)
+  if (isNaN(start.getTime())) return 1
+  const now = new Date()
+  const months = (now.getFullYear() - start.getFullYear()) * 12
+    + (now.getMonth() - start.getMonth())
+    + (now.getDate() - start.getDate()) / 30
+  if (months <= 0) return 1
+  return Math.min(Math.max(Math.floor((months - 0.5) / 6) + 1, 1), totalSems)
+}
+
 // The single source of truth for a student's course fee. Cumulative for Sem
 // 1..due (the exam calendar decides `due`; falls back to the admission semester
 // when no calendar is set). Fee item categories:
@@ -72,6 +91,14 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
   } catch { /* exam_calendar table not created yet */ }
   const calendarActive = Object.keys(calMap).length > 0
 
+  // No calendar for this session — fall back to its elapsed running time.
+  let sessionStart = null
+  if (!calendarActive && session_id) {
+    const { data: ses } = await supabase
+      .from('academic_sessions').select('start_date').eq('id', session_id).maybeSingle()
+    sessionStart = ses?.start_date || null
+  }
+
   // The entry semester is the FLOOR — a lateral entry at Sem 3 owes three
   // semesters from day one — and the exam calendar carries it forward from
   // there as the session progresses. (It used to CAP the calendar at the entry
@@ -91,15 +118,24 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
     : Math.min(entryUnit, totalSems)
   const dueSem = yearlyBilling
     ? entrySem                                            // whole entry year charged up front
-    : (calendarActive
-      ? Math.min(Math.max(dueSemesterFromCalendar(calMap, totalSems), entrySem), totalSems)
-      : entrySem)
+    : Math.min(Math.max(
+      calendarActive
+        ? dueSemesterFromCalendar(calMap, totalSems)
+        : dueSemesterFromElapsed(sessionStart, totalSems),
+      entrySem), totalSems)
 
   const cumulative = fs
     ? entryT + (totalSems > 0 ? divideT / totalSems : 0) * dueSem + mulT * dueSem + mul2T * Math.max(dueSem - 1, 0)
     : 0
 
   return { courseFee: Math.round(cumulative), dueSem, totalSems, calendarActive }
+}
+
+// The wallet hold taken when a center forwards a student: half the fee due so
+// far, less any coupon. Shared so the forward, the approval and the reports all
+// quote the same number instead of each re-deriving it.
+export function holdAmount(courseFee, discount) {
+  return Math.max(Math.ceil(Number(courseFee || 0) * 0.5) - Number(discount || 0), 0)
 }
 
 // Per-semester cumulative course fee + which semesters are "cleared" — i.e. the

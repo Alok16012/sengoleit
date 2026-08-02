@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, supabaseAdmin } from '../../lib/supabase'
-import { computeCumulativeCourseFee } from '../../utils/courseFee'
+import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
@@ -787,11 +787,20 @@ export default function AccountDepartment() {
       const held = Number(student.fee_held || 0)
       const alreadyHeld = held > 0
       const computedNet = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
-      const net = alreadyHeld ? held : computedNet
-      if (!alreadyHeld && net > 0 && studentFee.balance < net) {
+      // The hold is a snapshot taken when the center forwarded. If another
+      // semester's exams have finished since then, the fee due has grown and the
+      // hold is short — collect the difference now rather than approving on a
+      // stale amount and under-crediting the student's fee.
+      const requiredHold = holdAmount(studentFee.courseFee, studentFee.discount)
+      const shortfall = alreadyHeld ? Math.max(requiredHold - held, 0) : 0
+      const net = alreadyHeld ? held + shortfall : computedNet
+      const toDeduct = alreadyHeld ? shortfall : net
+      if (toDeduct > 0 && studentFee.balance < toDeduct) {
         alert(
           `Insufficient wallet balance.\n\n` +
-          `Fee to collect: ₹${net.toLocaleString('en-IN')}\n` +
+          (shortfall > 0
+            ? `Already held: ₹${held.toLocaleString('en-IN')}\nStill to collect: ₹${toDeduct.toLocaleString('en-IN')}\n`
+            : `Fee to collect: ₹${toDeduct.toLocaleString('en-IN')}\n`) +
           `Center balance: ₹${Number(studentFee.balance).toLocaleString('en-IN')}\n\n` +
           `Ask the center to recharge before approving this application.`
         )
@@ -815,11 +824,11 @@ export default function AccountDepartment() {
         // Hold is now consumed — clear it.
         fee_held: null,
       }).eq('id', student.id)
-      // Only deduct now for legacy (non-held) records; held money already left
-      // the wallet at forward time.
-      if (!alreadyHeld && net > 0 && student.centers?.id) {
+      // Money already held left the wallet at forward time, so only the shortfall
+      // (or the whole fee, for legacy records with no hold) is deducted now.
+      if (toDeduct > 0 && student.centers?.id) {
         await supabase.from('centers')
-          .update({ virtual_balance: studentFee.balance - net })
+          .update({ virtual_balance: studentFee.balance - toDeduct })
           .eq('id', student.centers.id)
       }
     } else {
@@ -1700,11 +1709,15 @@ export default function AccountDepartment() {
             const held = Number(studentActionModal?.student?.fee_held || 0)
             const alreadyHeld = held > 0
             const computedNet = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
-            const net = alreadyHeld ? held : computedNet
-            const after = (studentFee.balance || 0) - net
-            // For held students the money already left the wallet at forward
-            // time, so there is no further deduction and no balance check.
-            const insufficient = !alreadyHeld && net > 0 && studentFee.balance < net
+            // A hold taken at forward time can be short if another semester's
+            // exams have finished since — the difference is collected on approval.
+            const shortfall = alreadyHeld
+              ? Math.max(holdAmount(studentFee.courseFee, studentFee.discount) - held, 0)
+              : 0
+            const net = alreadyHeld ? held + shortfall : computedNet
+            const toDeduct = alreadyHeld ? shortfall : net
+            const after = (studentFee.balance || 0) - toDeduct
+            const insufficient = toDeduct > 0 && studentFee.balance < toDeduct
             return (
               <div className="space-y-3">
                 {/* Fee collection summary */}
@@ -1735,8 +1748,18 @@ export default function AccountDepartment() {
                         </div>
                       )}
                       <div className="flex justify-between"><span className="text-gray-500">Amount Held (at forward)</span><span className="font-semibold text-gray-900">₹{held.toLocaleString('en-IN')}</span></div>
+                      {shortfall > 0 && (
+                        <div className="flex justify-between"><span className="text-amber-700">Shortfall (a further semester now due)</span><span className="font-semibold text-amber-700">+ ₹{shortfall.toLocaleString('en-IN')}</span></div>
+                      )}
                       <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Collect Now</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
-                      <p className="text-[11px] text-gray-500 pt-0.5">Already deducted from the wallet when the center forwarded this student — no further deduction.</p>
+                      {shortfall > 0 && (
+                        <div className="flex justify-between"><span className="text-gray-500">Balance After</span><span className={`font-semibold ${after < 0 ? 'text-red-600' : 'text-emerald-700'}`}>₹{after.toLocaleString('en-IN')}</span></div>
+                      )}
+                      <p className="text-[11px] text-gray-500 pt-0.5">
+                        {shortfall > 0
+                          ? `₹${held.toLocaleString('en-IN')} already left the wallet at forward time; the ₹${shortfall.toLocaleString('en-IN')} shortfall is deducted on approval.`
+                          : 'Already deducted from the wallet when the center forwarded this student — no further deduction.'}
+                      </p>
                     </div>
                   ) : (
                     <div className="text-sm space-y-1.5">
