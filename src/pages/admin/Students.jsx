@@ -14,6 +14,8 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
+import ReRegistrationModal from '../../components/ReRegistrationModal'
+import { fetchReRegistrations } from '../../utils/reRegistration'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
 
@@ -203,6 +205,9 @@ export default function Students() {
   // Form-submission date range — how many admissions came in over a period.
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  // Re-Registration: latest request per student ({} = none, null = table missing)
+  const [reReg, setReReg] = useState({})
+  const [reRegStudent, setReRegStudent] = useState(null)
   const [downloading, setDownloading] = useState(null)
   const [credStudentId, setCredStudentId] = useState(null)
   // The header search bar lands here as ?q=… — adopt it as the list filter.
@@ -322,11 +327,11 @@ export default function Students() {
 
   async function fetchData() {
     setLoading(true)
-    const FULL = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const FULL = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
     // Fallback for DBs where the exam-result / admit-card columns are not yet
     // created (run_all_migrations.sql not applied) — students still list; only
     // the admit-card / result actions stay inactive.
-    const MIN = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, entry_type, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const MIN = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
 
     let { data, error } = await supabase
       .from('students')
@@ -341,6 +346,8 @@ export default function Students() {
       if (error) console.error('Students fetch error (minimal select):', error)
     }
     setData(data || [])
+    // null = add_re_registration.sql not run yet, so the feature stays hidden.
+    setReReg(await fetchReRegistrations((data || []).map(s => s.id)))
     setLoading(false)
   }
 
@@ -577,6 +584,19 @@ export default function Students() {
                       disabled={downloading === `${s.id}-docs`} title="Download ALL uploaded documents (one per page)">
                       <FolderDown size={14} className={downloading === `${s.id}-docs` ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
                     </Button>
+                    {/* Re-Registration — a pending request from the centre is
+                        highlighted so it can be decided from this list. */}
+                    {s.status === 'Approved' && reReg !== null && (
+                      <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)}
+                        title={reReg[s.id]?.status === 'Pending'
+                          ? `Re-Registration requested: ${reReg[s.id].from_term} → ${reReg[s.id].to_term}`
+                          : 'Re-Registration'}>
+                        <RefreshCw size={14} className={reReg[s.id]?.status === 'Pending' ? 'text-amber-600' : 'text-gray-500'} />
+                        {reReg[s.id]?.status === 'Pending' && (
+                          <span className="text-[10px] ml-1 font-bold text-amber-700">Re-Reg</span>
+                        )}
+                      </Button>
+                    )}
                     <Button size="sm" variant="ghost" onClick={() => setCredStudentId(s.id)} title="Login Credentials">
                       <KeyRound size={14} className="text-gray-500" />
                     </Button>
@@ -651,6 +671,16 @@ export default function Students() {
           </Button>
         </div>
       </div>
+
+      {reRegStudent && (
+        <ReRegistrationModal
+          student={reRegStudent}
+          request={reReg?.[reRegStudent.id]?.status === 'Pending' ? reReg[reRegStudent.id] : null}
+          mode={reReg?.[reRegStudent.id]?.status === 'Pending' ? 'review' : 'request'}
+          onClose={() => setReRegStudent(null)}
+          onDone={() => { setReRegStudent(null); fetchData() }}
+        />
+      )}
 
       {credStudentId && (
         <CredModal studentId={credStudentId} onClose={() => setCredStudentId(null)} />

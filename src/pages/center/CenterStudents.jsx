@@ -5,7 +5,9 @@ import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Search, Download, Send } from 'lucide-react'
+import { Plus, Search, Download, Send, RefreshCw } from 'lucide-react'
+import ReRegistrationModal from '../../components/ReRegistrationModal'
+import { fetchReRegistrations } from '../../utils/reRegistration'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -55,6 +57,10 @@ export default function CenterStudents() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   const [downloading, setDownloading] = useState(null)
+  // Re-Registration: latest request per student ({} = none, null = table missing)
+  const [reReg, setReReg] = useState({})
+  const [reRegStudent, setReRegStudent] = useState(null)
+  const [myCenterId, setMyCenterId] = useState(null)
   const { user } = useAuth()
   // The header search bar lands here as ?q=… — adopt it as the list filter.
   const location = useLocation()
@@ -67,7 +73,7 @@ export default function CenterStudents() {
   useEffect(() => {
     if (!user) return
     supabase.from('centers').select('id').eq('email', user.email).single()
-      .then(({ data: cd }) => { if (cd) fetchStudents(cd.id) })
+      .then(({ data: cd }) => { if (cd) { setMyCenterId(cd.id); fetchStudents(cd.id) } })
   }, [user])
 
   async function handleDownload(studentId) {
@@ -88,10 +94,12 @@ export default function CenterStudents() {
     setLoading(true)
     const { data } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, doc_verified_at, forwarded_at, programs(program_name), academic_sessions(session_name)')
+      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, doc_verified_at, forwarded_at, semester_year, center_id, programme_id, session_id, programs(program_name, duration, semester_year), academic_sessions(session_name)')
       .eq('center_id', centerId)
       .order('created_at', { ascending: false })
     setData(data || [])
+    // null = add_re_registration.sql not run yet, so the feature stays hidden.
+    setReReg(await fetchReRegistrations((data || []).map(s => s.id)))
     setLoading(false)
   }
 
@@ -207,12 +215,35 @@ export default function CenterStudents() {
                         <span className="text-xs ml-1 text-[#933d18]">Forward</span>
                       </Button>
                     )}
+                    {/* Re-Registration — only for an enrolled student, and only
+                        one open request at a time. */}
+                    {s.status === 'Approved' && reReg !== null && (
+                      reReg[s.id]?.status === 'Pending' ? (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded whitespace-nowrap">
+                          Re-Reg pending
+                        </span>
+                      ) : (
+                        <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)} title="Request Re-Registration">
+                          <RefreshCw size={13} className="text-[#933d18]" />
+                          <span className="text-xs ml-1 text-[#933d18]">Re-Reg</span>
+                        </Button>
+                      )
+                    )}
                   </div>
                 </Td>
               </Tr>
             ))}
           </Tbody>
         </Table>
+      )}
+
+      {reRegStudent && (
+        <ReRegistrationModal
+          student={{ ...reRegStudent, center_id: reRegStudent.center_id || myCenterId }}
+          mode="request"
+          onClose={() => setReRegStudent(null)}
+          onDone={() => { setReRegStudent(null); if (myCenterId) fetchStudents(myCenterId) }}
+        />
       )}
     </div>
   )
