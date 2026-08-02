@@ -28,7 +28,9 @@ function Field({ label, value }) {
 
 // Sections start collapsed — the page opens as a short list of headings the
 // student expands as needed, instead of one very long scroll.
-function Section({ title, children, defaultOpen = false }) {
+// `plain` renders the children as-is (for the marks table) instead of laying
+// them out on the Field grid.
+function Section({ title, children, plain = false, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -43,7 +45,7 @@ function Section({ title, children, defaultOpen = false }) {
           <ChevronDown size={14} className={`transition-transform ${open ? '' : '-rotate-90'}`} />
         </span>
       </button>
-      {open && <div className="grid grid-cols-2 md:grid-cols-3 gap-4">{children}</div>}
+      {open && (plain ? children : <div className="grid grid-cols-2 md:grid-cols-3 gap-4">{children}</div>)}
     </div>
   )
 }
@@ -168,8 +170,7 @@ export default function StudentProfile() {
       </Section>
 
       {eduRows.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-4">Educational Qualifications</p>
+        <Section title="Educational Qualifications" plain>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -198,7 +199,7 @@ export default function StudentProfile() {
               </tbody>
             </table>
           </div>
-        </div>
+        </Section>
       )}
 
       {(data.bank_account_holder || data.bank_account_number || data.ifsc_code) && (
@@ -210,20 +211,22 @@ export default function StudentProfile() {
         </Section>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 p-6 flex flex-wrap items-start gap-10">
-        <div className="text-center">
-          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Student Photo</p>
-          {data.photo_url
-            ? <img src={data.photo_url} alt="Student" className="w-28 h-32 object-cover rounded-lg border-2 border-gray-200 shadow-sm" />
-            : <div className="w-28 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Photo</div>}
+      <Section title="Photo & Signature" plain>
+        <div className="flex flex-wrap items-start gap-10">
+          <div className="text-center">
+            <p className="text-[11px] text-gray-400 mb-2">Student Photo</p>
+            {data.photo_url
+              ? <img src={data.photo_url} alt="Student" className="w-28 h-32 object-cover rounded-lg border-2 border-gray-200 shadow-sm" />
+              : <div className="w-28 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Photo</div>}
+          </div>
+          <div className="text-center">
+            <p className="text-[11px] text-gray-400 mb-2">Signature</p>
+            {data.signature_url
+              ? <img src={data.signature_url} alt="Signature" className="w-44 h-32 object-contain rounded-lg border-2 border-gray-200 bg-white p-2 shadow-sm" />
+              : <div className="w-44 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Signature</div>}
+          </div>
         </div>
-        <div className="text-center">
-          <p className="text-[10px] font-black text-[#933d18] uppercase tracking-widest mb-2">Signature</p>
-          {data.signature_url
-            ? <img src={data.signature_url} alt="Signature" className="w-44 h-32 object-contain rounded-lg border-2 border-gray-200 bg-white p-2 shadow-sm" />
-            : <div className="w-44 h-32 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-xs text-gray-400">No Signature</div>}
-        </div>
-      </div>
+      </Section>
     </div>
   )
 }
