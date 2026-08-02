@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
+import { studentSession } from '../../utils/studentSelf'
+import { fetchMyResults } from '../../utils/semesterResults'
 import { GraduationCap, Award } from 'lucide-react'
 
 function Field({ label, value }) {
@@ -26,16 +28,66 @@ export default function StudentResults() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const [semResults, setSemResults] = useState([])
+
   useEffect(() => {
     if (!student?.id) return
-    fetchStudentSelf()
-      .then((data) => { setData(data); setLoading(false) })
+    async function load() {
+      const [self, sem] = await Promise.all([
+        fetchStudentSelf(),
+        fetchMyResults(studentSession()?.token),
+      ])
+      setData(self)
+      setSemResults(sem)
+      setLoading(false)
+    }
+    load()
   }, [student?.id])
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
 
-  // Shown only after the Exam Section presses "Send Result".
+  // Results are released per semester by the Exam Section. The older
+  // single-result columns are still shown as a fallback for students whose
+  // result was recorded before results became semester-wise.
   const released = data?.exam_result_status && data.exam_result_status !== 'Pending' && data.result_released_at
+
+  if (semResults.length) {
+    return (
+      <div className="p-6 space-y-4">
+        <h1 className="text-xl font-black text-gray-900">Results</h1>
+        {semResults.map(r => (
+          <div key={r.semester} className="bg-white rounded-xl border-2 border-emerald-100 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Award size={20} className={r.status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
+                <h3 className="font-black text-gray-900 text-lg">Semester {r.semester}</h3>
+              </div>
+              <span className={`text-xs font-black px-3 py-1 rounded-lg ${r.status === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                {r.status}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
+              <Field label="Obtained Marks" value={r.obtained_marks} />
+              <Field label="Total Marks" value={r.total_marks} />
+              <Field label="Percentage" value={pct(r.obtained_marks, r.total_marks)} />
+              <Field label="Declared On" value={r.declared_at ? new Date(r.declared_at).toLocaleDateString() : '—'} />
+            </div>
+            {r.remarks && (
+              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">"{r.remarks}"</div>
+            )}
+            {r.marksheet_url && (
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <a href={r.marksheet_url} target="_blank" rel="noreferrer"
+                  className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
+                  Download Marksheet
+                </a>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-4">

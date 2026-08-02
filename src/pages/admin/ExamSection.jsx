@@ -13,6 +13,7 @@ import { fetchExamDates } from '../../utils/examSettings'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
 import { Lock } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
+import SemesterResultModal from '../../components/SemesterResultModal'
 
 function ResultModal({ isOpen, onClose, student, onSaved }) {
   const [status, setStatus] = useState('Pending')
@@ -551,32 +552,12 @@ export default function ExamSection() {
                     })()}
                   </div>
                 </Td>
+                {/* Results are entered per semester — the same semesters the
+                    admit card is issued for. */}
                 <Td>
-                  {s.exam_result_status && s.exam_result_status !== 'Pending' ? (
-                    <div className="flex flex-col gap-2">
-                      <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit ${s.exam_result_status === 'Pass' ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
-                        <Award size={12} /> {s.exam_result_status} ({s.exam_result_obtained_marks}/{s.exam_result_total_marks})
-                      </div>
-                      {s.result_released_at ? (
-                        <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
-                          <BadgeCheck size={12} /> Result Sent
-                        </div>
-                      ) : (
-                        <Button size="sm" variant="ghost" onClick={() => handleSendResult(s)} disabled={releasing === s.id} title="Send result to Student Portal" className="w-fit text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10">
-                          <Send size={14} className={releasing === s.id ? 'animate-pulse' : ''} />
-                          <span className="text-xs ml-1">Send Result</span>
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => setResultModalStudent(s)} className="w-fit">
-                        <FileEdit size={14} className="text-blue-600" />
-                        <span className="text-xs ml-1 text-blue-600">Edit</span>
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => setResultModalStudent(s)}>
-                      Enter Result
-                    </Button>
-                  )}
+                  <Button size="sm" variant="outline" onClick={() => setResultModalStudent(s)}>
+                    <Award size={13} /> Results
+                  </Button>
                 </Td>
               </Tr>
             ))}
@@ -645,32 +626,12 @@ export default function ExamSection() {
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td className="font-mono text-xs font-bold text-emerald-700">{s.enrollment_no || '—'}</Td>
                 <Td className="font-mono text-xs text-[#933d18] font-bold">{s.registration_no || s.admission_number || '—'}</Td>
+                {/* Results are entered per semester — the same semesters the
+                    admit card is issued for. */}
                 <Td>
-                  {s.exam_result_status && s.exam_result_status !== 'Pending' ? (
-                    <div className="flex flex-col gap-2">
-                      <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit ${s.exam_result_status === 'Pass' ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50'}`}>
-                        <Award size={12} /> {s.exam_result_status} ({s.exam_result_obtained_marks}/{s.exam_result_total_marks})
-                      </div>
-                      {s.result_released_at ? (
-                        <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
-                          <BadgeCheck size={12} /> Result Sent
-                        </div>
-                      ) : (
-                        <Button size="sm" variant="ghost" onClick={() => handleSendResult(s)} disabled={releasing === s.id} title="Send result to Student Portal" className="w-fit text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10">
-                          <Send size={14} className={releasing === s.id ? 'animate-pulse' : ''} />
-                          <span className="text-xs ml-1">Send Result</span>
-                        </Button>
-                      )}
-                      <Button size="sm" variant="ghost" onClick={() => setResultModalStudent(s)} className="w-fit">
-                        <FileEdit size={14} className="text-blue-600" />
-                        <span className="text-xs ml-1 text-blue-600">Edit</span>
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => setResultModalStudent(s)}>
-                      Enter Result
-                    </Button>
-                  )}
+                  <Button size="sm" variant="outline" onClick={() => setResultModalStudent(s)}>
+                    <Award size={13} /> Results
+                  </Button>
                 </Td>
               </Tr>
             ))}
@@ -679,14 +640,12 @@ export default function ExamSection() {
       )}
       </>)}
 
-      <ResultModal
-        isOpen={!!resultModalStudent}
-        onClose={() => setResultModalStudent(null)}
-        student={resultModalStudent}
-        onSaved={(updatedStudent) => {
-          setData(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s))
-        }}
-      />
+      {resultModalStudent && (
+        <SemesterResultModal
+          student={resultModalStudent}
+          onClose={() => setResultModalStudent(null)}
+        />
+      )}
 
       {admitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAdmitModal(null)}>
