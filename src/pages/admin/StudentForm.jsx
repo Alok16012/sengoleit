@@ -403,7 +403,7 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, onRemove
 }
 
 const emptyForm = {
-  date_of_submission: new Date().toISOString().split('T')[0],
+  date_of_submission: '',
   date_of_admission: '', entry_type: 'Regular',
   session_id: '', mode_id: '', university_id: '',
   center_id: '', center_name: '',
@@ -830,27 +830,41 @@ export default function StudentForm() {
     setCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
   }
 
+  // The Mode is a property of the programme, not a choice: a Year-based
+  // programme is "Yearly", a semester-based one is "Sem". Match it against the
+  // study_modes rows by name so the stored mode_id always agrees with the
+  // programme the student was admitted to.
+  const modeIdForProgram = (prog) => {
+    if (!prog) return ''
+    const wanted = prog.semester_year === 'Year' ? 'year' : 'sem'
+    const hit = studyModes.find(m => String(m.mode_name || '').toLowerCase().startsWith(wanted))
+    return hit?.id || ''
+  }
+
   const handleProgramChange = (e) => {
     const prog = programs.find(p => p.id === e.target.value)
     // Default the Semester/Year to the program's entry point (Sem 1, or Sem 3 for
     // a lateral program) — this is what appears on the admission form.
-    setForm(f => ({ ...f, programme_id: e.target.value, course_code: prog?.course_code || '', semester_year: prog ? entrySemLabel(prog) : '' }))
+    setForm(f => ({
+      ...f,
+      programme_id: e.target.value,
+      course_code: prog?.course_code || '',
+      semester_year: prog ? entrySemLabel(prog) : '',
+      mode_id: modeIdForProgram(prog) || f.mode_id,
+    }))
   }
 
   const handleSessionChange = (e) => {
     const sess = sessions.find(s => s.id === e.target.value)
-    const today = new Date().toISOString().split('T')[0]
-    let submissionDate = today
-    if (sess?.start_date && sess?.end_date) {
-      if (today < sess.start_date) submissionDate = sess.start_date
-      else if (today > sess.end_date) submissionDate = sess.end_date
-    }
     const yr = sessionYear(sess)
     setForm(f => ({
       ...f,
       session_id: e.target.value,
       academic_year: sess?.academic_year || sess?.session_name || f.academic_year,
-      date_of_submission: submissionDate,
+      // Both dates are entered by hand. Pre-filling the submission date (today,
+      // clamped into the session window) meant a form opened for an older
+      // session silently carried the session's LAST day as the entry date.
+      date_of_submission: '',
       date_of_admission: '',
       // Keep the admission number's year segment in sync with the session.
       admission_number: f.admission_number
@@ -1100,7 +1114,6 @@ export default function StudentForm() {
     switch (s) {
       case 0:
         if (!form.session_id) return 'Please select a Session'
-        if (!form.mode_id) return 'Please select a Mode'
         if (!form.entry_type) return 'Please select an Entry Type'
         if (!form.date_of_submission) return 'Date of Submission is required'
         if (!form.date_of_admission) return 'Date of Admission is required'
@@ -1110,6 +1123,9 @@ export default function StudentForm() {
       case 1:
         if (!form.department_id) return 'Please select a Department'
         if (!form.programme_id) return 'Please select a Program'
+        // Mode is derived from the programme (see modeIdForProgram), so it is
+        // checked here rather than on Basic Entry where it can't be filled yet.
+        if (!form.mode_id) return 'This programme has no Mode set — check the programme’s Semester/Year'
         if (!form.semester_year) return 'Please select Semester / Year'
         if (isPhd && !form.stream.trim()) return 'Stream is required for Ph.D'
         if (isPhd && !form.specialization.trim()) return 'Specialization is required for Ph.D'
@@ -1448,10 +1464,17 @@ export default function StudentForm() {
                   .filter(s => (s.status || 'Active').toLowerCase() !== 'inactive' || s.id === form.session_id)
                   .map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
               </Select>
-              <Select label="Mode *" value={form.mode_id} onChange={set('mode_id')} disabled={isReadOnly || isLocked('mode_id')} required>
-                <option value="">Select Mode</option>
-                {studyModes.map(m => <option key={m.id} value={m.id}>{m.mode_name}</option>)}
-              </Select>
+              {/* Mode belongs to the programme (Year-based → Yearly, otherwise
+                  Sem), so it is filled in on the Program Info step rather than
+                  chosen here — the list also carried modes from other courses. */}
+              <Input
+                label="Mode"
+                value={studyModes.find(m => m.id === form.mode_id)?.mode_name || ''}
+                placeholder="From the programme"
+                readOnly
+                className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed"
+                hint="Set automatically from the programme"
+              />
               <Select label="Entry Type *" value={form.entry_type} onChange={set('entry_type')} disabled={isReadOnly || isLocked('entry_type')}>
                 <option value="Regular">Regular</option>
                 <option value="Lateral">Lateral</option>
@@ -1547,6 +1570,14 @@ export default function StudentForm() {
                   }
                 </Select>
                 <Input label="Academic Year" placeholder="2024-25" value={form.academic_year} readOnly className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Filled in from the programme's Semester/Year — shown here so
+                    it is visible where it is actually decided. */}
+                <Input label="Mode"
+                  value={studyModes.find(m => m.id === form.mode_id)?.mode_name || ''}
+                  placeholder="From the programme" readOnly
+                  className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed" />
               </div>
               {/* Specialization — PhD (Doctorate) programmes only. */}
               {isPhd && (
