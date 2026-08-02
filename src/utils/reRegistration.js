@@ -51,6 +51,30 @@ export async function reRegistrationFee(student) {
   return { fee, hold: Math.ceil(fee * 0.5), ...t }
 }
 
+// The Registration Certificate is issued once per YEAR of the course: a
+// 6-semester course has three, starting at Semester 1, 3 and 5. A year opens
+// once the fee up to its FIRST semester is cleared — the same rule the
+// semester-wise admit card uses, applied to the year's opening semester.
+// Returns [{ year, fromSem, toSem, cumFee, cleared }].
+export async function registrationYears(student) {
+  const totalSems = Number(student?.programs?.duration) || 0
+  if (!totalSems) return []
+  const { sems } = await computeSemesterFeeStatus({
+    programme_id: student.programme_id,
+    session_id: student.session_id,
+    duration: totalSems,
+    fee_collected: student.fee_collected,
+  })
+  const years = []
+  for (let y = 1; (y - 1) * 2 + 1 <= totalSems; y++) {
+    const fromSem = (y - 1) * 2 + 1
+    const toSem = Math.min(fromSem + 1, totalSems)
+    const gate = sems.find(x => x.sem === fromSem)
+    years.push({ year: y, fromSem, toSem, cumFee: gate?.cumFee ?? 0, cleared: !!gate?.cleared })
+  }
+  return years
+}
+
 // Centre → request. One open request per student (enforced by a unique index).
 export async function requestReRegistration({ student, feeAmount, remarks }) {
   const t = nextTerm(student)

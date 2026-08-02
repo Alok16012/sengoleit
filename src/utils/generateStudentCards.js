@@ -418,11 +418,16 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
 /* ───────────────────────────────────────────────────
    3. REGISTRATION CERTIFICATE
 ─────────────────────────────────────────────────── */
-export function generateRegistrationCertificate(s) {
+// `opts.year` issues the certificate for one YEAR of the course (a 6-semester
+// course has three: Year 1 covers Sem 1-2, Year 2 Sem 3-4, Year 3 Sem 5-6).
+// Called without it, the certificate stays as it was.
+export function generateRegistrationCertificate(s, opts = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const centerCode = s.centers?.center_code || s.center_code || '—'
-  const regYear = s.academic_year || sess || '—'
+  const regYear = opts.year
+    ? `Year ${opts.year}${s.academic_year ? ` · ${s.academic_year}` : ''}`
+    : (s.academic_year || sess || '—')
   const regLabel = isPhdProgram(prog) ? 'Reference No.' : 'Registration No.'
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
@@ -483,6 +488,10 @@ export function generateRegistrationCertificate(s) {
               <td class="info-label">Session</td>
               <td class="info-val">: &nbsp;${v(sess)}</td>
             </tr>
+            ${opts.year ? `<tr>
+              <td class="info-label">Registered for</td>
+              <td class="info-val">: &nbsp;Year ${opts.year}${opts.fromSem ? ` (Semester ${opts.fromSem}–${opts.toSem})` : ''}</td>
+            </tr>` : ''}
             <tr>
               <td class="info-label">Student Name</td>
               <td style="font-size:10px;font-weight:900;color:#111;padding-bottom:6px;font-style:italic;">: &nbsp;${v(s.student_name)}</td>

@@ -16,6 +16,7 @@ import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { fetchReRegistrations } from '../../utils/reRegistration'
+import RegistrationCardModal from '../../components/RegistrationCardModal'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
 
@@ -208,6 +209,8 @@ export default function Students() {
   // Re-Registration: latest request per student ({} = none, null = table missing)
   const [reReg, setReReg] = useState({})
   const [reRegStudent, setReRegStudent] = useState(null)
+  // Registration Certificate is issued per YEAR — a picker gates each year on fee.
+  const [regCardStudent, setRegCardStudent] = useState(null)
   const [downloading, setDownloading] = useState(null)
   const [credStudentId, setCredStudentId] = useState(null)
   // The header search bar lands here as ?q=… — adopt it as the list filter.
@@ -617,8 +620,9 @@ export default function Students() {
                     {s.status === 'Approved' && (
                       <>
                         {!isPhdProgram(s.programs?.program_name) && (
-                          <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'reg')} disabled={downloading === `${s.id}-reg`} title="Download Registration Certificate">
-                            <FileText size={14} className={downloading === `${s.id}-reg` ? 'animate-pulse text-[#933d18]' : 'text-indigo-600'} />
+                          <Button size="sm" variant="ghost" onClick={() => setRegCardStudent(s)}
+                            title="Registration Certificate — one per year of the course">
+                            <FileText size={14} className="text-indigo-600" />
                           </Button>
                         )}
                         <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'id')} disabled={!s.enrollment_no || downloading === `${s.id}-id`} title={s.enrollment_no ? 'Download ID Card' : 'ID card is issued after the Enrollment Number is generated'}>
@@ -680,6 +684,10 @@ export default function Students() {
           onClose={() => setReRegStudent(null)}
           onDone={() => { setReRegStudent(null); fetchData() }}
         />
+      )}
+
+      {regCardStudent && (
+        <RegistrationCardModal student={regCardStudent} onClose={() => setRegCardStudent(null)} />
       )}
 
       {credStudentId && (
