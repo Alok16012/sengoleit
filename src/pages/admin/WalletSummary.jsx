@@ -37,10 +37,13 @@ export default function WalletSummary() {
   const [superFilter, setSuperFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  // Recharge date range — filters on when the recharge was REQUESTED, so a
-  // day's collection can be totalled and printed for the file.
+  // Each tab keeps its own date range: the recharge one means "requested on",
+  // the balances one means "center registered on". Sharing a single range would
+  // silently hide centers the moment you came back from the recharge tab.
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [balFrom, setBalFrom] = useState('')
+  const [balTo, setBalTo] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -48,7 +51,7 @@ export default function WalletSummary() {
       const [ctr, rch] = await Promise.all([
         supabase
           .from('centers')
-          .select('id, center_name, center_code, center_type, super_center_id, virtual_balance, email, approval_status')
+          .select('id, center_name, center_code, center_type, super_center_id, virtual_balance, email, approval_status, created_at')
           .order('virtual_balance', { ascending: false }),
         supabase
           .from('recharge_requests')
@@ -67,10 +70,13 @@ export default function WalletSummary() {
   const regularCenters = centers.filter(c => c.center_type === 'center')
   const scopedCenters = regularCenters.filter(c => superFilter === 'all' ? true : c.super_center_id === superFilter)
 
-  // Rows shown in the balances table after the two filters.
+  // Rows shown in the balances table after the two filters and the date range.
   const filteredCenters = centers.filter(c => {
     if (superFilter !== 'all' && c.super_center_id !== superFilter) return false
     if (centerFilter !== 'all' && c.id !== centerFilter) return false
+    const day = localDay(c.created_at)
+    if (balFrom && (!day || day < balFrom)) return false
+    if (balTo && (!day || day > balTo)) return false
     return true
   })
 
@@ -149,6 +155,7 @@ export default function WalletSummary() {
     { header: 'Type', value: c => (c.center_type === 'super_center' ? 'Super Center' : 'Center') },
     { header: 'Email', value: c => c.email || '' },
     { header: 'Status', value: c => c.approval_status || 'pending' },
+    { header: 'Registered On', value: c => (c.created_at ? formatDate(c.created_at) : '') },
     { header: 'Total Recharge', value: c => verifiedByCenter[c.id] || 0, pdfValue: c => rupees(verifiedByCenter[c.id]) },
     { header: 'Used Recharge',
       value: c => Math.max(0, (verifiedByCenter[c.id] || 0) - Number(c.virtual_balance || 0)),
@@ -160,24 +167,28 @@ export default function WalletSummary() {
   const exportColumns = onBalances ? BALANCE_COLUMNS : RECHARGE_COLUMNS
   const exportRows = onBalances ? filteredCenters : statusedRecharges
   const exportTitle = onBalances ? 'Center Wallet Balances' : 'Recharge History Report'
-  const rangeLabel = `${fromDate ? formatDate(fromDate) : 'start'} to ${toDate ? formatDate(toDate) : 'today'}`
+  // The range that applies to whichever tab is open.
+  const [rangeFrom, rangeTo] = onBalances ? [balFrom, balTo] : [fromDate, toDate]
+  const hasRange = !!(rangeFrom || rangeTo)
+  const rangeLabel = `${rangeFrom ? formatDate(rangeFrom) : 'start'} to ${rangeTo ? formatDate(rangeTo) : 'today'}`
 
   const exportMeta = () => {
     const m = []
     if (superFilter !== 'all') m.push(`Super Center: ${centers.find(c => c.id === superFilter)?.center_name || ''}`)
     if (centerFilter !== 'all') m.push(`Center: ${centers.find(c => c.id === centerFilter)?.center_name || ''}`)
-    if (!onBalances) {
-      if (fromDate || toDate) m.push(`Requested: ${rangeLabel}`)
+    if (onBalances) {
+      if (hasRange) m.push(`Registered: ${rangeLabel}`)
+      m.push(`Total balance: ₹${totalBalance.toLocaleString('en-IN')}`)
+    } else {
+      if (hasRange) m.push(`Requested: ${rangeLabel}`)
       if (statusFilter !== 'all') m.push(`Status: ${statusFilter}`)
       m.push(`Total amount: ₹${shownRechargeTotal.toLocaleString('en-IN')}`)
-    } else {
-      m.push(`Total balance: ₹${totalBalance.toLocaleString('en-IN')}`)
     }
     return m
   }
   const exportName = () => {
-    if (onBalances) return 'center-wallet-balances'
-    const range = fromDate || toDate ? `_${fromDate || 'start'}_to_${toDate || 'today'}` : ''
+    const range = hasRange ? `_${rangeFrom || 'start'}_to_${rangeTo || 'today'}` : ''
+    if (onBalances) return `center-wallet-balances${range}`
     const st = statusFilter === 'all' ? '' : `_${statusFilter}`
     return `recharge-history${st}${range}`
   }
@@ -188,7 +199,7 @@ export default function WalletSummary() {
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-4 mb-6">
         <StatCard label="Total Centers" value={filteredCenters.length} color="blue" />
-        <StatCard label="Total Wallet Balance" value={`₹${totalBalance.toLocaleString('en-IN')}`} color="green" sub={superFilter === 'all' && centerFilter === 'all' ? 'across all centers' : 'for current filter'} />
+        <StatCard label="Total Wallet Balance" value={`₹${totalBalance.toLocaleString('en-IN')}`} color="green" sub={superFilter === 'all' && centerFilter === 'all' && !balFrom && !balTo ? 'across all centers' : 'for current filter'} />
         <StatCard label="Used Recharge" value={`₹${totalUsed.toLocaleString('en-IN')}`} color="amber" sub="spent so far" />
         <StatCard label="Pending Recharges" value={pendingRecharges.length} sub={`₹${totalPendingAmount.toLocaleString('en-IN')} awaiting`} color="amber" />
         <StatCard label="Total Verified" value={`₹${totalVerified.toLocaleString('en-IN')}`} color="gray" sub="all time" />
@@ -222,27 +233,30 @@ export default function WalletSummary() {
               ))}
             </select>
           </div>
-          {/* Recharges only — the balances tab is a snapshot of today, it has
-              no date to filter on. */}
-          {tab === 'recharges' && (
-            <>
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Requested From</label>
-                <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">To</label>
-                <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
-                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20" />
-              </div>
-              {(fromDate || toDate) && (
-                <button onClick={() => { setFromDate(''); setToDate('') }}
-                  className="py-2 px-3 text-xs font-bold text-gray-500 hover:text-[#933d18] underline">
-                  Clear dates
-                </button>
-              )}
-            </>
+          {/* Each tab filters on its own date: when the recharge was requested,
+              or when the center was registered. */}
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+              {onBalances ? 'Registered From' : 'Requested From'}
+            </label>
+            <input type="date"
+              value={onBalances ? balFrom : fromDate}
+              onChange={e => (onBalances ? setBalFrom : setFromDate)(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">To</label>
+            <input type="date"
+              value={onBalances ? balTo : toDate}
+              onChange={e => (onBalances ? setBalTo : setToDate)(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20" />
+          </div>
+          {(onBalances ? (balFrom || balTo) : (fromDate || toDate)) && (
+            <button
+              onClick={() => onBalances ? (setBalFrom(''), setBalTo('')) : (setFromDate(''), setToDate(''))}
+              className="py-2 px-3 text-xs font-bold text-gray-500 hover:text-[#933d18] underline">
+              Clear dates
+            </button>
           )}
         </div>
       )}
@@ -298,6 +312,7 @@ export default function WalletSummary() {
               <Th>Code</Th>
               <Th>Email</Th>
               <Th>Status</Th>
+              <Th>Registered On</Th>
               <Th>Total Recharge</Th>
               <Th>Used Recharge</Th>
               <Th>Wallet Balance</Th>
@@ -305,7 +320,7 @@ export default function WalletSummary() {
           </Thead>
           <Tbody>
             {filteredCenters.length === 0 ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
+              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
             ) : filteredCenters.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -324,6 +339,7 @@ export default function WalletSummary() {
                 <Td>
                   <Badge status={c.approval_status?.toLowerCase()}>{c.approval_status || 'pending'}</Badge>
                 </Td>
+                <Td className="text-gray-400 text-xs">{formatDate(c.created_at)}</Td>
                 {(() => {
                   const totalRecharge = verifiedByCenter[c.id] || 0
                   const balance = Number(c.virtual_balance || 0)
@@ -393,12 +409,16 @@ export default function WalletSummary() {
         <div className="flex items-center justify-between gap-3 flex-wrap mt-4">
           <p className="text-xs text-gray-500">
             {onBalances ? (
-              <>Showing <span className="font-bold text-gray-700">{filteredCenters.length}</span> centers · ₹{totalBalance.toLocaleString('en-IN')} total balance</>
+              <>
+                Showing <span className="font-bold text-gray-700">{filteredCenters.length}</span> of {centers.length} centers
+                {' · '}<span className="font-bold text-gray-700">₹{totalBalance.toLocaleString('en-IN')}</span> total balance
+                {hasRange && <> · registered {rangeLabel}</>}
+              </>
             ) : (
               <>
                 Showing <span className="font-bold text-gray-700">{statusedRecharges.length}</span> of {filteredRecharges.length} recharges
                 {' · '}<span className="font-bold text-gray-700">₹{shownRechargeTotal.toLocaleString('en-IN')}</span> total
-                {(fromDate || toDate) && <> · requested {rangeLabel}</>}
+                {hasRange && <> · requested {rangeLabel}</>}
               </>
             )}
           </p>
