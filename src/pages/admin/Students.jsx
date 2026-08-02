@@ -13,6 +13,7 @@ import { fetchExamSettingsMeta } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, localDay } from '../../utils/formatDate'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
+import { matchesSearch } from '../../utils/studentSearch'
 import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { fetchReRegistrations } from '../../utils/reRegistration'
@@ -330,11 +331,11 @@ export default function Students() {
 
   async function fetchData() {
     setLoading(true)
-    const FULL = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const FULL = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
     // Fallback for DBs where the exam-result / admit-card columns are not yet
     // created (run_all_migrations.sql not applied) — students still list; only
     // the admit-card / result actions stay inactive.
-    const MIN = 'id, student_name, enrollment_no, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const MIN = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
 
     let { data, error } = await supabase
       .from('students')
@@ -372,9 +373,8 @@ export default function Students() {
     const day = localDay(s.created_at)
     if (fromDate && (!day || day < fromDate)) return false
     if (toDate && (!day || day > toDate)) return false
-    const matchSearch = `${s.student_name} ${s.enrollment_no} ${s.mobile_no}`.toLowerCase().includes(search.toLowerCase())
     const matchStatus = statusFilter === 'All' || s.status === statusFilter
-    return matchSearch && matchStatus
+    return matchesSearch(s, search) && matchStatus
   })
 
   // What the Excel / PDF exports contain — the list exactly as filtered.
@@ -421,7 +421,7 @@ export default function Students() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm w-72 focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
-            placeholder="Search by name, enrollment, mobile..."
+            placeholder="Search name, enrollment, mobile, program, center..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
