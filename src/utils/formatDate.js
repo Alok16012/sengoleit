@@ -11,6 +11,17 @@ export function formatDate(value, fallback = '—') {
   return `${dd}/${mm}/${yyyy}`
 }
 
+// A timestamp's calendar day in the viewer's timezone, as YYYY-MM-DD — the form
+// a <input type="date"> uses. Date-range filters compare against this so an
+// evening entry counts on the day it was actually made, not the UTC day.
+export function localDay(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  if (isNaN(d.getTime())) return ''
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 // "15-June-2026" — month names for dates that read inside a sentence on a
 // printed letter (e.g. "Entrance Test conducted on 15-June-2026"). Long names
 // abbreviate (August → Aug); already-short ones print in full (June, July).

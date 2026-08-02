@@ -2,7 +2,10 @@ import { UNI_NAME, UNI_ADDRESS, UNI_ACT, BRAND } from './generateStudentCards'
 import { formatDate } from './formatDate'
 
 // Shared table exports for the admin reports.
-// columns: [{ header, value: (row) => string }]
+// columns: [{ header, value: (row) => string, pdfValue?: (row) => string }]
+// `value` is what Excel gets — money stays a bare number there so a column can
+// still be summed. `pdfValue`, where a column supplies it, is what the printed
+// sheet shows instead (e.g. the same figure as ₹1,23,456).
 
 function esc(v) {
   return String(v ?? '').replace(/[&<>"']/g, c => (
@@ -13,7 +16,7 @@ function esc(v) {
 // Excel opens CSV directly. A UTF-8 BOM keeps ₹ and Indian names readable, and
 // every field is quoted so commas inside a name/address can't split a column.
 export function exportCsv(filename, columns, rows) {
-  if (!rows.length) { alert('Nothing to export — the current filters match no students.'); return }
+  if (!rows.length) { alert('Nothing to export — the current filters match no rows.'); return }
   const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
   const lines = [
     columns.map(c => cell(c.header)).join(','),
@@ -32,14 +35,14 @@ export function exportCsv(filename, columns, rows) {
 // approach as the other documents, so no PDF library is needed.
 // `meta` lines describe the filters the report was run with.
 export function exportPdf(title, columns, rows, meta = []) {
-  if (!rows.length) { alert('Nothing to export — the current filters match no students.'); return }
+  if (!rows.length) { alert('Nothing to export — the current filters match no rows.'); return }
   const win = window.open('', '_blank', 'width=1100,height=760')
   if (!win) { alert('Popup blocked — please allow popups for this site.'); return }
 
   const head = columns.map(c => `<th>${esc(c.header)}</th>`).join('')
   const body = rows.map((r, i) => `<tr>
     <td class="num">${i + 1}</td>
-    ${columns.map(c => `<td>${esc(c.value(r))}</td>`).join('')}
+    ${columns.map(c => `<td>${esc((c.pdfValue || c.value)(r))}</td>`).join('')}
   </tr>`).join('')
 
   win.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>

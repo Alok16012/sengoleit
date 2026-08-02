@@ -3,8 +3,10 @@ import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
-import { formatDate } from '../../utils/formatDate'
-import { Wallet, TrendingUp, Clock, Building2 } from 'lucide-react'
+import Button from '../../components/ui/Button'
+import { formatDate, localDay } from '../../utils/formatDate'
+import { exportCsv, exportPdf } from '../../utils/exportTable'
+import { FileSpreadsheet, FileText } from 'lucide-react'
 
 function StatCard({ label, value, sub, color = 'gray' }) {
   const colors = {
@@ -35,6 +37,10 @@ export default function WalletSummary() {
   const [superFilter, setSuperFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
+  // Recharge date range — filters on when the recharge was REQUESTED, so a
+  // day's collection can be totalled and printed for the file.
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -95,6 +101,17 @@ export default function WalletSummary() {
     return s + Math.max(0, recharge - balance)
   }, 0)
 
+  // The date range narrows the Recharge History table only. The stat cards and
+  // the tab badge above stay on the full list on purpose — a range must never
+  // make a pending recharge look like it isn't waiting.
+  const inRange = r => {
+    const day = localDay(r.created_at)
+    if (fromDate && (!day || day < fromDate)) return false
+    if (toDate && (!day || day > toDate)) return false
+    return true
+  }
+  const rangedRecharges = filteredRecharges.filter(inRange)
+
   // Status sub-filter for the Recharge History table (counts based on the
   // super-center/center filters above, before the status filter itself).
   const STATUS_MATCH = {
@@ -105,12 +122,65 @@ export default function WalletSummary() {
     rejected: r => r.status === 'rejected',
   }
   const statusCounts = {
-    pending:  filteredRecharges.filter(STATUS_MATCH.pending).length,
-    hold:     filteredRecharges.filter(STATUS_MATCH.hold).length,
-    verified: filteredRecharges.filter(STATUS_MATCH.verified).length,
-    rejected: filteredRecharges.filter(STATUS_MATCH.rejected).length,
+    pending:  rangedRecharges.filter(STATUS_MATCH.pending).length,
+    hold:     rangedRecharges.filter(STATUS_MATCH.hold).length,
+    verified: rangedRecharges.filter(STATUS_MATCH.verified).length,
+    rejected: rangedRecharges.filter(STATUS_MATCH.rejected).length,
   }
-  const statusedRecharges = filteredRecharges.filter(STATUS_MATCH[statusFilter] || (() => true))
+  const statusedRecharges = rangedRecharges.filter(STATUS_MATCH[statusFilter] || (() => true))
+  const shownRechargeTotal = statusedRecharges.reduce((s, r) => s + Number(r.amount || 0), 0)
+
+  // ---- Excel / PDF exports: whichever tab is open, exactly as filtered ----
+  const rupees = n => `₹${Number(n || 0).toLocaleString('en-IN')}`
+  const RECHARGE_COLUMNS = [
+    { header: 'Center', value: r => r.centers?.center_name || '' },
+    { header: 'Center Code', value: r => r.centers?.center_code || '' },
+    { header: 'Type', value: r => (r.centers?.center_type === 'super_center' ? 'Super Center' : 'Center') },
+    { header: 'Amount', value: r => Number(r.amount || 0), pdfValue: r => rupees(r.amount) },
+    { header: 'UTR Number', value: r => r.utr_number || '' },
+    { header: 'Notes', value: r => r.notes || '' },
+    { header: 'Requested On', value: r => (r.created_at ? formatDate(r.created_at) : '') },
+    { header: 'Verified On', value: r => (r.verified_at ? formatDate(r.verified_at) : '') },
+    { header: 'Status', value: r => r.status || 'pending' },
+  ]
+  const BALANCE_COLUMNS = [
+    { header: 'Center', value: c => c.center_name || '' },
+    { header: 'Center Code', value: c => c.center_code || '' },
+    { header: 'Type', value: c => (c.center_type === 'super_center' ? 'Super Center' : 'Center') },
+    { header: 'Email', value: c => c.email || '' },
+    { header: 'Status', value: c => c.approval_status || 'pending' },
+    { header: 'Total Recharge', value: c => verifiedByCenter[c.id] || 0, pdfValue: c => rupees(verifiedByCenter[c.id]) },
+    { header: 'Used Recharge',
+      value: c => Math.max(0, (verifiedByCenter[c.id] || 0) - Number(c.virtual_balance || 0)),
+      pdfValue: c => rupees(Math.max(0, (verifiedByCenter[c.id] || 0) - Number(c.virtual_balance || 0))) },
+    { header: 'Wallet Balance', value: c => Number(c.virtual_balance || 0), pdfValue: c => rupees(c.virtual_balance) },
+  ]
+
+  const onBalances = tab === 'balances'
+  const exportColumns = onBalances ? BALANCE_COLUMNS : RECHARGE_COLUMNS
+  const exportRows = onBalances ? filteredCenters : statusedRecharges
+  const exportTitle = onBalances ? 'Center Wallet Balances' : 'Recharge History Report'
+  const rangeLabel = `${fromDate ? formatDate(fromDate) : 'start'} to ${toDate ? formatDate(toDate) : 'today'}`
+
+  const exportMeta = () => {
+    const m = []
+    if (superFilter !== 'all') m.push(`Super Center: ${centers.find(c => c.id === superFilter)?.center_name || ''}`)
+    if (centerFilter !== 'all') m.push(`Center: ${centers.find(c => c.id === centerFilter)?.center_name || ''}`)
+    if (!onBalances) {
+      if (fromDate || toDate) m.push(`Requested: ${rangeLabel}`)
+      if (statusFilter !== 'all') m.push(`Status: ${statusFilter}`)
+      m.push(`Total amount: ₹${shownRechargeTotal.toLocaleString('en-IN')}`)
+    } else {
+      m.push(`Total balance: ₹${totalBalance.toLocaleString('en-IN')}`)
+    }
+    return m
+  }
+  const exportName = () => {
+    if (onBalances) return 'center-wallet-balances'
+    const range = fromDate || toDate ? `_${fromDate || 'start'}_to_${toDate || 'today'}` : ''
+    const st = statusFilter === 'all' ? '' : `_${statusFilter}`
+    return `recharge-history${st}${range}`
+  }
 
   return (
     <div className="p-6">
@@ -152,6 +222,28 @@ export default function WalletSummary() {
               ))}
             </select>
           </div>
+          {/* Recharges only — the balances tab is a snapshot of today, it has
+              no date to filter on. */}
+          {tab === 'recharges' && (
+            <>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Requested From</label>
+                <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">To</label>
+                <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20" />
+              </div>
+              {(fromDate || toDate) && (
+                <button onClick={() => { setFromDate(''); setToDate('') }}
+                  className="py-2 px-3 text-xs font-bold text-gray-500 hover:text-[#933d18] underline">
+                  Clear dates
+                </button>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -294,6 +386,33 @@ export default function WalletSummary() {
             ))}
           </Tbody>
         </Table>
+      )}
+
+      {/* Daily / range report — exports exactly what the table above shows. */}
+      {!loading && (
+        <div className="flex items-center justify-between gap-3 flex-wrap mt-4">
+          <p className="text-xs text-gray-500">
+            {onBalances ? (
+              <>Showing <span className="font-bold text-gray-700">{filteredCenters.length}</span> centers · ₹{totalBalance.toLocaleString('en-IN')} total balance</>
+            ) : (
+              <>
+                Showing <span className="font-bold text-gray-700">{statusedRecharges.length}</span> of {filteredRecharges.length} recharges
+                {' · '}<span className="font-bold text-gray-700">₹{shownRechargeTotal.toLocaleString('en-IN')}</span> total
+                {(fromDate || toDate) && <> · requested {rangeLabel}</>}
+              </>
+            )}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="md"
+              onClick={() => exportCsv(exportName(), exportColumns, exportRows)}>
+              <FileSpreadsheet size={14} /> Export Excel
+            </Button>
+            <Button variant="secondary" size="md"
+              onClick={() => exportPdf(exportTitle, exportColumns, exportRows, exportMeta())}>
+              <FileText size={14} /> Export PDF
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -11,7 +11,7 @@ import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, isP
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamSettingsMeta } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
-import { formatDate } from '../../utils/formatDate'
+import { formatDate, localDay } from '../../utils/formatDate'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
@@ -19,16 +19,6 @@ import { fetchReRegistrations } from '../../utils/reRegistration'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
-
-// A timestamp's calendar day in the viewer's timezone, as YYYY-MM-DD — so the
-// date filters line up with what the Entered On column shows.
-function localDay(ts) {
-  if (!ts) return ''
-  const d = new Date(ts)
-  if (isNaN(d.getTime())) return ''
-  const p = n => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
 
 function genPassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
