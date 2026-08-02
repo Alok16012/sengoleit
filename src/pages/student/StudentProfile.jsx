@@ -26,7 +26,9 @@ function Field({ label, value }) {
   )
 }
 
-function Section({ title, children, defaultOpen = true }) {
+// Sections start collapsed — the page opens as a short list of headings the
+// student expands as needed, instead of one very long scroll.
+function Section({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -98,31 +100,41 @@ export default function StudentProfile() {
         <Field label="Center" value={data.centers?.center_name} />
       </Section>
 
+      {/* Column names must match the admission form's fields — Alternate
+          Mobile / Category / ABC ID were read from columns that don't exist,
+          so those rows could only ever print a dash. */}
       <Section title="Personal Information">
         <Field label="Full Name" value={data.student_name} />
         <Field label="Date of Birth" value={data.date_of_birth} />
         <Field label="Gender" value={data.gender} />
         <Field label="Blood Group" value={data.blood_group} />
         <Field label="Mobile" value={data.mobile_no} />
-        <Field label="Alternate Mobile" value={data.alternate_mobile} />
+        <Field label="WhatsApp No" value={data.whatsapp_no} />
         <Field label="Email" value={data.email} />
-        <Field label="Category" value={data.category} />
+        <Field label="Caste / Category" value={data.caste} />
         <Field label="Nationality" value={data.nationality} />
         <Field label="Religion" value={data.religion} />
+        <Field label="Mother Tongue" value={data.mother_tongue} />
+        <Field label="Profession" value={data.profession} />
         <Field label="Aadhar No" value={data.aadhar_no} />
-        <Field label="ABC ID" value={data.abc_id} />
+        <Field label="Aadhar Linked Mobile" value={data.aadhar_link_mobile} />
+        <Field label="PAN No" value={data.pan_no} />
+        <Field label="Height" value={data.height} />
+        <Field label="Identification Marks" value={data.identification_marks} />
+        <Field label="Physically Handicapped" value={data.physically_handicapped} />
+        <Field label="Scholarship Applied" value={data.scholarship_applied} />
       </Section>
 
       <Section title="Family Details">
         <Field label="Father's Name" value={data.fathers_name} />
         <Field label="Father's Occupation" value={data.fathers_occupation} />
-        <Field label="Father's Mobile" value={data.fathers_mobile} />
         <Field label="Mother's Name" value={data.mothers_name} />
         <Field label="Mother's Occupation" value={data.mothers_occupation} />
-        <Field label="Mother's Mobile" value={data.mothers_mobile} />
         <Field label="Guardian Name" value={data.guardian_name} />
+        <Field label="Guardian Relation" value={data.guardian_relation} />
+        <Field label="Guardian Occupation" value={data.guardian_occupation} />
         <Field label="Guardian Mobile" value={data.guardian_mobile} />
-        <Field label="Annual Income" value={data.annual_income ? `₹${Number(data.annual_income).toLocaleString('en-IN')}` : null} />
+        <Field label="Guardian Email" value={data.guardian_email} />
       </Section>
 
       <Section title="Permanent Address">
