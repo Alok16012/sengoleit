@@ -5,6 +5,9 @@ const DOC_FIELDS = [
   'tc_url', 'migration_url', 'noc_url',
   'tenth_marksheet_url', 'twelfth_marksheet_url', 'ug_marksheet_url',
   'pg_marksheet_url', 'diploma_marksheet_url',
+  // Added by add_student_mphil_others.sql — without signing these two the
+  // M.Phil / Other marksheets 404 wherever documents are shown.
+  'mphil_marksheet_url', 'others_marksheet_url',
 ]
 
 function extractPath(url, bucket) {

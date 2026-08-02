@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award, FileSpreadsheet } from 'lucide-react'
+import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award, FileSpreadsheet, FolderDown } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
@@ -13,6 +13,7 @@ import { fetchExamSettingsMeta } from '../../utils/examSettings'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
+import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
 
@@ -287,6 +288,18 @@ export default function Students() {
   }
 
   // Registration Certificate / ID Card / Admit Card.
+  // Every uploaded document as one printable set, for the office file.
+  async function handleAllDocuments(studentId) {
+    setDownloading(`${studentId}-docs`)
+    const { data: s } = await supabase
+      .from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code)')
+      .eq('id', studentId)
+      .single()
+    if (s) generateAllDocumentsPDF(await resolveStudentDocUrls(s))
+    setDownloading(null)
+  }
+
   async function handleCard(studentId, type) {
     setDownloading(`${studentId}-${type}`)
     const { data: s } = await supabase
@@ -557,8 +570,12 @@ export default function Students() {
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/edit/${s.id}`)}>
                       <Edit size={14} />
                     </Button>
-                    <Button size="sm" variant="ghost" onClick={() => handleDownload(s.id)} disabled={downloading === s.id} title="Download PDF">
+                    <Button size="sm" variant="ghost" onClick={() => handleDownload(s.id)} disabled={downloading === s.id} title="Download Admission Form PDF">
                       <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleAllDocuments(s.id)}
+                      disabled={downloading === `${s.id}-docs`} title="Download ALL uploaded documents (one per page)">
+                      <FolderDown size={14} className={downloading === `${s.id}-docs` ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
                     </Button>
                     <Button size="sm" variant="ghost" onClick={() => setCredStudentId(s.id)} title="Login Credentials">
                       <KeyRound size={14} className="text-gray-500" />
