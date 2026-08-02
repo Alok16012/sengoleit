@@ -107,6 +107,12 @@ CREATE POLICY exam_calendar_admin_write ON exam_calendar
 DROP POLICY IF EXISTS exam_calendar_read_authenticated ON exam_calendar;
 CREATE POLICY exam_calendar_read_authenticated ON exam_calendar
   FOR SELECT TO authenticated USING (true);
+-- The student portal runs as `anon` (its own session, not Supabase Auth) and
+-- prints these dates on the admit card — without this the dates silently
+-- vanish there. Exam schedules are public information, not personal data.
+DROP POLICY IF EXISTS exam_calendar_read_anon ON exam_calendar;
+CREATE POLICY exam_calendar_read_anon ON exam_calendar
+  FOR SELECT TO anon USING (true);
 
 -- ------------------------------------------------------------
 -- 5) recharge_requests — a center sees and files its own requests;
