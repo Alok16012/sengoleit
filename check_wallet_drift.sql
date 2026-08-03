@@ -66,19 +66,70 @@ ORDER BY abs(c.virtual_balance
 --                     opening balance before touching it.
 
 -- ============================================================
--- STEP 2 — correct ONE centre, once you have read the report.
--- Replace the code and the amount, then run. Deliberately per-centre: there is
--- no safe way to bulk-correct balances that may have legitimate manual history.
+-- READING THE REPORT — three different situations, three different answers.
+--
+--  a) drift > 0 AND balance_expected >= 0
+--     Money is in the wallet that the records do not justify — a hold that was
+--     never debited, or a refund of one. Take the drift off: STEP 2A.
+--
+--  b) balance_expected < 0
+--     More was collected than was ever recorded as recharged, so the centre
+--     began with an opening balance that predates recharge_requests. The wallet
+--     is not wrong; the report simply cannot see where the money came from.
+--     LEAVE IT ALONE.
+--
+--  c) drift > 0 but verified_recharges = 0
+--     Same thing: a balance that arrived by some route other than a recharge
+--     request (a registration payment, or one set by hand). LEAVE IT ALONE.
+--
+-- students_on_hold with a wallet that could not have paid for them is a
+-- separate problem — see STEP 2B.
 -- ============================================================
+
+-- ------------------------------------------------------------
+-- STEP 2A — take the drift off ONE centre. Read STEP 1 first.
+-- Per-centre on purpose: balances with manual history must not be bulk-written.
+-- ------------------------------------------------------------
 /*
 BEGIN;
 
 UPDATE centers
-SET virtual_balance = virtual_balance - 4000     -- the `drift` from STEP 1
+SET virtual_balance = virtual_balance - 12000    -- the `drift` from STEP 1
 WHERE center_code = 'SIU009';
 
--- Re-read the same row to confirm before committing.
 SELECT center_name, center_code, virtual_balance FROM centers WHERE center_code = 'SIU009';
 
 COMMIT;   -- change to ROLLBACK; if the number is not what you expected
+*/
+
+-- ------------------------------------------------------------
+-- STEP 2B — a hold that was never actually paid.
+--
+-- A forwarded student can carry fee_held that never left the wallet (the debit
+-- was blocked, and the app did not notice). Refunding it would hand the centre
+-- money it never paid; leaving it lets the approval record a fee that was never
+-- collected. Clearing it to zero is the honest option: the Account Dept then
+-- collects the full amount on approval, and refuses to approve until the
+-- centre's wallet can cover it.
+--
+-- Run the SELECT first and check the students are the ones you expect.
+-- ------------------------------------------------------------
+SELECT s.admission_number, s.student_name, s.fee_held, c.center_name, c.virtual_balance
+FROM students s
+JOIN centers c ON c.id = s.center_id
+WHERE COALESCE(s.fee_held, 0) > 0
+  AND c.virtual_balance < s.fee_held      -- the wallet could not have paid it
+ORDER BY c.center_name;
+
+/*
+BEGIN;
+
+UPDATE students s
+SET fee_held = 0
+FROM centers c
+WHERE c.id = s.center_id
+  AND COALESCE(s.fee_held, 0) > 0
+  AND c.virtual_balance < s.fee_held;
+
+COMMIT;   -- or ROLLBACK;
 */
