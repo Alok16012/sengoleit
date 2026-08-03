@@ -11,7 +11,8 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
 import { fetchExamDates } from '../../utils/examSettings'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
-import { Lock } from 'lucide-react'
+import { admitCardsFor, saveAdmitCard, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
+import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 import SemesterResultModal from '../../components/SemesterResultModal'
 
@@ -303,13 +304,25 @@ export default function ExamSection() {
   // cleared (fee_collected covers the cumulative fee up to that semester).
   async function openAdmitModal(student) {
     setAdmitModal({ student, loading: true, sems: [] })
-    const status = await computeSemesterFeeStatus({
-      programme_id: student.programme_id,
-      session_id: student.session_id,
-      duration: student.programs?.duration,
-      fee_collected: student.fee_collected,
-    })
-    setAdmitModal({ student, loading: false, ...status })
+    const [status, issued] = await Promise.all([
+      computeSemesterFeeStatus({
+        programme_id: student.programme_id,
+        session_id: student.session_id,
+        duration: student.programs?.duration,
+        fee_collected: student.fee_collected,
+      }),
+      admitCardsFor(student.id),
+    ])
+    // issued === null means add_semester_admit_cards.sql hasn't been run — the
+    // picker then behaves exactly as it did before.
+    setAdmitModal({ student, loading: false, ...status, issued: issued || {}, issuedMissing: issued === null })
+  }
+
+  // Re-read the issued cards after any change, keeping the modal open so the
+  // admin sees the semester's new state instead of being thrown out.
+  async function refreshIssued(student) {
+    const issued = await admitCardsFor(student.id)
+    setAdmitModal(m => m && { ...m, issued: issued || {}, pick: undefined })
   }
 
   // Step 2: after picking a fee-cleared semester, load its papers so the admin
@@ -328,7 +341,7 @@ export default function ExamSection() {
 
   // Admit card is generated ONLY here — for a specific semester, using the
   // papers the admin selected.
-  async function handleAdmitCard(student, sem, rows, selected) {
+  async function handleAdmitCard(student, sem, rows, selected, { record = true } = {}) {
     setBusy(`${student.id}-${sem}`)
     const { data: s } = await supabase
       .from('students')
@@ -350,8 +363,39 @@ export default function ExamSection() {
         ...dates,
       })
     }
+    // Remember that this semester's card was issued, and which papers were on
+    // it, so it can be re-printed, hidden or withdrawn later. A re-print passes
+    // record:false so it does not reset when the card was first issued.
+    if (record) {
+      const ids = (rows && selected) ? rows.filter(r => selected.has(r.id)).map(r => r.id) : []
+      const { error } = await saveAdmitCard(student.id, sem, ids)
+      if (error) {
+        alert('The admit card printed, but it could not be recorded:\n\n' + error.message +
+              '\n\nRun add_semester_admit_cards.sql in Supabase.')
+      }
+    }
     setBusy(null)
-    setAdmitModal(null)
+    await refreshIssued(student)
+  }
+
+  // Re-print an issued card with exactly the papers it carried.
+  async function reprintAdmitCard(student, sem, savedIds) {
+    setBusy(`${student.id}-${sem}`)
+    const rows = await fetchSemesterSubjectRows(student, sem)
+    await handleAdmitCard(student, sem, rows, new Set(savedIds || []), { record: false })
+  }
+
+  async function toggleAdmitVisible(student, sem, visible) {
+    const { error } = await setAdmitCardVisible(student.id, sem, visible)
+    if (error) { alert('Could not change visibility: ' + error.message); return }
+    await refreshIssued(student)
+  }
+
+  async function withdrawAdmitCard(student, sem) {
+    if (!confirm(`Withdraw Semester ${sem}'s admit card for ${student.student_name}?\n\nIt disappears from the student portal and the semester goes back to "Select Papers".`)) return
+    const { error } = await deleteAdmitCard(student.id, sem)
+    if (error) { alert('Could not withdraw: ' + error.message); return }
+    await refreshIssued(student)
   }
 
   // Send Result — publishes a declared result to the student portal. Until this
@@ -696,23 +740,59 @@ export default function ExamSection() {
                 <p className="text-center text-gray-400 py-8 text-sm">No fee structure found for this course.</p>
               ) : (
                 <>
+                  {admitModal.issuedMissing && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800 mb-3">
+                      Run <span className="font-mono">add_semester_admit_cards.sql</span> in Supabase to keep a record of each semester's admit card.
+                    </div>
+                  )}
                   <p className="text-[11px] text-gray-400 mb-3">Fee collected: <span className="font-bold text-gray-700">₹{Number(admitModal.collected).toLocaleString('en-IN')}</span>. A semester unlocks once its cumulative fee is cleared.</p>
                   <div className="space-y-2">
-                    {admitModal.sems.map(({ sem, cumFee, cleared }) => (
-                      <div key={sem} className={`flex items-center justify-between rounded-xl border px-4 py-2.5 ${cleared ? 'border-gray-200' : 'border-gray-100 bg-gray-50'}`}>
-                        <div>
+                    {admitModal.sems.map(({ sem, cumFee, cleared }) => {
+                      const card = admitModal.issued?.[sem]
+                      const visible = !!card?.released_at
+                      return (
+                      <div key={sem} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-2.5 ${cleared ? 'border-gray-200' : 'border-gray-100 bg-gray-50'}`}>
+                        <div className="min-w-0">
                           <p className={`text-sm font-bold ${cleared ? 'text-gray-900' : 'text-gray-400'}`}>Semester {sem}</p>
-                          <p className="text-[11px] text-gray-400">Fee upto: ₹{Number(cumFee).toLocaleString('en-IN')}</p>
+                          {card ? (
+                            <p className="text-[11px] text-gray-400">
+                              Issued {formatDate(card.generated_at)} ·{' '}
+                              <span className={visible ? 'text-emerald-600 font-semibold' : 'text-gray-400 font-semibold'}>
+                                {visible ? 'visible to student' : 'hidden'}
+                              </span>
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-gray-400">Fee upto: ₹{Number(cumFee).toLocaleString('en-IN')}</p>
+                          )}
                         </div>
-                        {cleared ? (
+                        {!cleared ? (
+                          <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 shrink-0"><Lock size={12} /> Fee pending</span>
+                        ) : card ? (
+                          // Already issued — re-print it, hide it from the
+                          // student, or withdraw it altogether.
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button size="sm" variant="secondary" disabled={busy === `${admitModal.student.id}-${sem}`}
+                              title="Print this card again with the same papers"
+                              onClick={() => reprintAdmitCard(admitModal.student, sem, card.subject_ids)}>
+                              <ClipboardList size={13} /> {busy === `${admitModal.student.id}-${sem}` ? '…' : 'Print'}
+                            </Button>
+                            <Button size="sm" variant="secondary"
+                              title={visible ? 'Hide from the student portal' : 'Show in the student portal'}
+                              onClick={() => toggleAdmitVisible(admitModal.student, sem, !visible)}>
+                              {visible ? <><EyeOff size={13} /> Hide</> : <><Eye size={13} /> Show</>}
+                            </Button>
+                            <Button size="sm" variant="danger" title="Withdraw this admit card"
+                              onClick={() => withdrawAdmitCard(admitModal.student, sem)}>
+                              <Trash2 size={13} />
+                            </Button>
+                          </div>
+                        ) : (
                           <Button size="sm" variant="primary" onClick={() => chooseSem(admitModal.student, sem)}>
                             <ClipboardList size={13} /> Select Papers
                           </Button>
-                        ) : (
-                          <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400"><Lock size={12} /> Fee pending</span>
                         )}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </>
               )}

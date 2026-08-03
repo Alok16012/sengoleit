@@ -4,7 +4,9 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { generateAdmitCard, isPhdProgram, UNI_NAME, UNI_ADDRESS, UNI_ACT, BRAND } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
-import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
+import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
+import { fetchMyAdmitCards } from '../../utils/semesterAdmitCards'
+import { studentSession } from '../../utils/studentSelf'
 import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
 import { BadgeCheck, Download } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
@@ -15,43 +17,71 @@ export default function StudentAdmitCard() {
   const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  // Admit cards the Exam Section has issued and left visible, one per semester.
+  // Empty means either none were issued or the migration hasn't been run — the
+  // page then falls back to the single card it showed before.
+  const [cards, setCards] = useState([])
+  const [sem, setSem] = useState(null)
 
   useEffect(() => {
     if (!student?.id) return
     async function load() {
-      const raw = await fetchStudentSelf()
+      const [raw, mine] = await Promise.all([
+        fetchStudentSelf(),
+        fetchMyAdmitCards(studentSession()?.token),
+      ])
+      setCards(mine)
       if (raw) {
         const resolved = await resolveStudentDocUrls(raw)
         setData(resolved)
-        if (resolved.admit_card_released_at) {
-          const subs = await fetchAdmitCardSubjects(resolved)
-          setSubjects(subs)
-        }
+        // Show the most recent semester first — that is the exam coming up.
+        const latest = mine.length ? mine[mine.length - 1] : null
+        setSem(latest?.semester ?? null)
+        if (latest) setSubjects(await subjectsForCard(resolved, latest))
+        else if (resolved.admit_card_released_at) setSubjects(await fetchAdmitCardSubjects(resolved))
       }
       setLoading(false)
     }
     load()
   }, [student?.id])
 
-  async function handleGenerate() {
+  // Exactly the papers the Exam Section ticked for that semester. An empty
+  // subject_ids list means the card was issued without a syllabus, and prints
+  // "as per university curriculum".
+  async function subjectsForCard(s, card) {
+    const ids = new Set(card.subject_ids || [])
+    if (!ids.size) return []
+    const rows = await fetchSemesterSubjectRows(s, card.semester)
+    return rows.filter(r => ids.has(r.id)).map(formatSubjectRow).filter(Boolean)
+  }
+
+  async function pickSemester(card) {
+    setSem(card.semester)
+    setSubjects(await subjectsForCard(data, card))
+  }
+
+  async function handleGenerate(card) {
     if (!data) return
     setGenerating(true)
-    const subs = subjects.length ? subjects : await fetchAdmitCardSubjects(data)
+    const subs = card ? await subjectsForCard(data, card)
+      : (subjects.length ? subjects : await fetchAdmitCardSubjects(data))
     // Same meta shape the shared student lists pass: fetchExamSettingsMeta
     // carries examSchedule / semester / the admitCardAt release gate, and
     // fetchExamDates the exam-date list. Passing only the dates left the
     // student's own download without a schedule and skipped the date gate.
     const meta = await fetchExamSettingsMeta(data)
-    const dates = await fetchExamDates(data)
-    generateAdmitCard(data, subs, { ...meta, ...dates })
+    const dates = await fetchExamDates(data, card?.semester)
+    generateAdmitCard(data, subs, { ...meta, ...dates, ...(card ? { semester: card.semester } : {}) })
     setGenerating(false)
   }
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
   if (!data) return <div className="p-8 text-center text-gray-400">No data found.</div>
 
-  // The admit card is released only after the Exam Section releases it explicitly.
-  const isApproved = !!data.admit_card_released_at
+  // Released either per semester (student_admit_cards) or, for records issued
+  // before semester-wise cards existed, by the single flag on the student.
+  const isApproved = cards.length > 0 || !!data.admit_card_released_at
+  const selected = cards.find(c => c.semester === sem) || null
   const deptCode = data.centers?.center_code || (data.departments?.name ? data.departments.name.substring(0, 6).toUpperCase() : '—')
   // Ph.D has no registration number; the application number takes that slot.
   const isPhd = isPhdProgram(data.programs?.program_name)
@@ -63,14 +93,39 @@ export default function StudentAdmitCard() {
           <h1 className="text-xl font-black text-gray-900 flex items-center gap-2"><BadgeCheck size={20} className="text-[#933d18]" /> Admit Card</h1>
           <p className="text-xs text-gray-400 mt-0.5">Download your exam admit card</p>
         </div>
-        <button
-          onClick={handleGenerate}
-          disabled={generating || !isApproved}
-          className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Download size={15} /> {generating ? 'Generating...' : 'Download Admit Card'}
-        </button>
+        {cards.length === 0 && (
+          <button
+            onClick={() => handleGenerate(null)}
+            disabled={generating || !isApproved}
+            className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Download size={15} /> {generating ? 'Generating...' : 'Download Admit Card'}
+          </button>
+        )}
       </div>
+
+      {/* One row per semester the Exam Section has issued a card for. */}
+      {cards.length > 0 && (
+        <div className="space-y-2">
+          {cards.map(c => (
+            <div key={c.semester}
+              className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${
+                c.semester === sem ? 'border-[#933d18] bg-[#933d18]/5' : 'border-gray-200 hover:border-gray-300'}`}
+              onClick={() => pickSemester(c)}>
+              <div>
+                <p className="text-sm font-bold text-gray-900">Semester {c.semester}</p>
+                <p className="text-[11px] text-gray-400">Issued {formatDate(c.generated_at)}</p>
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); handleGenerate(c) }}
+                disabled={generating}
+                className="flex items-center gap-2 bg-[#933d18] hover:bg-[#7a3215] text-white px-4 py-2 rounded-xl font-bold text-xs transition-colors disabled:opacity-50">
+                <Download size={14} /> {generating ? '…' : 'Download'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!isApproved && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700 font-medium">
@@ -96,7 +151,11 @@ export default function StudentAdmitCard() {
         {/* ADMIT CARD title */}
         <div className="text-center py-2.5 border-b-2 bg-gray-50" style={{ borderColor: BRAND }}>
           <span className="font-black text-lg tracking-[0.15em]" style={{ color: BRAND }}>ADMIT CARD</span>
-          <p className="text-[11px] text-gray-500 mt-0.5">{data.programs?.program_name || '—'} Examination &nbsp;·&nbsp; {data.academic_sessions?.session_name || '—'}</p>
+          <p className="text-[11px] text-gray-500 mt-0.5">
+            {data.programs?.program_name || '—'} Examination
+            {selected ? ` · Semester ${selected.semester}` : ''}
+            &nbsp;·&nbsp; {data.academic_sessions?.session_name || '—'}
+          </p>
         </div>
 
         {/* 3-col reference */}
