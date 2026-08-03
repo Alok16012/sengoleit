@@ -283,25 +283,27 @@ export default function StudentListReport({ status }) {
       )
       return
     }
-    // The wallet the fee is held against: the destination center for a staging
-    // transfer, otherwise the student's own center.
-    const walletCenterId = staging ? targetId : student.centers?.id
     setForwarding(true)
     try {
-      const update = {
-        fee_held: net,
-        forwarded_at: new Date().toISOString(),
-      }
-      // Reassign the student to the destination center on transfer. The super
-      // center relationship follows automatically (it's derived from the center's
-      // super_center_id — students have no super_center_id column of their own).
-      if (staging) update.center_id = targetId
-      await supabase.from('students').update(update).eq('id', student.id)
-
-      if (net > 0 && walletCenterId) {
-        await supabase.from('centers')
-          .update({ virtual_balance: balance - net })
-          .eq('id', walletCenterId)
+      // The debit and the stamp happen together inside student_forward_hold.
+      // They used to be two separate writes from here, and the wallet one was
+      // rejected outright for a centre login (wallets are admin-only) while its
+      // error went unchecked — so the student was forwarded, fee_held was
+      // recorded, and the money never actually left the wallet.
+      // On a Staging transfer the destination centre is charged and the student
+      // moves to it; the super centre follows from that centre's own row.
+      const { error } = await supabase.rpc('student_forward_hold', {
+        p_student: student.id,
+        p_amount: net,
+        p_target_center: staging ? targetId : null,
+      })
+      if (error) {
+        alert(
+          error.message?.includes('function')
+            ? 'Forwarding needs a database update. Please ask the university to run fix_wallet_writes.sql.'
+            : 'Could not forward this student:\n\n' + error.message
+        )
+        return
       }
       setForwardModal(null)
       fetchStudents(myCenterId)

@@ -501,8 +501,14 @@ export default function DocumentDepartment() {
   async function handleReject() {
     if (!remarks.trim()) { alert('Remarks are required for rejection'); return }
     setSaving(true)
-    // Release the wallet hold: refund the held fee back to the center balance.
-    await releaseHold(rejectModal)
+    // Refund first: if the money cannot be returned there is nothing to undo,
+    // whereas marking the student rejected first could leave the fee stranded.
+    const { error: refundErr } = await releaseHold(rejectModal)
+    if (refundErr) {
+      setSaving(false)
+      alert('Could not return the held fee to the center wallet, so the student has NOT been rejected:\n\n' + refundErr.message)
+      return
+    }
     await supabase.from('students').update({
       status: 'Rejected',
       remarks: remarks,
@@ -516,19 +522,13 @@ export default function DocumentDepartment() {
   }
 
   // Refund a student's held fee back into the center wallet (used on rejection).
-  // Reads fee_held + center_id fresh from the DB so it works regardless of how
-  // the passed student object was loaded.
+  // student_release_hold reads the held amount, credits the wallet and clears
+  // fee_held in one transaction, so a repeat rejection cannot refund twice —
+  // and, unlike the read-then-write this replaces, a failure is reported
+  // instead of leaving the student rejected with the money still gone.
   async function releaseHold(student) {
-    const { data: st } = await supabase
-      .from('students').select('fee_held, center_id').eq('id', student.id).maybeSingle()
-    const held = Number(st?.fee_held || 0)
-    if (held <= 0 || !st?.center_id) return
-    const { data: ctr } = await supabase
-      .from('centers').select('virtual_balance').eq('id', st.center_id).maybeSingle()
-    const bal = Number(ctr?.virtual_balance || 0)
-    await supabase.from('centers')
-      .update({ virtual_balance: bal + held })
-      .eq('id', st.center_id)
+    const { error } = await supabase.rpc('student_release_hold', { p_student: student.id })
+    return { error }
   }
 
   // Hold = send the application back for correction. The student moves to the

@@ -555,8 +555,12 @@ export default function AccountDepartment() {
 
     const { data: centerData } = await supabase.from('centers').select('virtual_balance').eq('id', req.center_id).single()
     const newBalance = (centerData?.virtual_balance || 0) + Number(req.amount)
-    await supabase.from('centers').update({ virtual_balance: newBalance }).eq('id', req.center_id)
+    // The request is already marked verified above, so a silent failure here
+    // would leave the centre credited on paper and not in its wallet.
+    const { error: wErr } = await supabase.from('centers')
+      .update({ virtual_balance: newBalance }).eq('id', req.center_id)
     setRechargeSaving(false); closeRechargeModal()
+    if (wErr) alert('The recharge was verified but the wallet could not be credited:\n\n' + wErr.message)
     fetchAll()
   }
 
@@ -812,6 +816,17 @@ export default function AccountDepartment() {
       // dropped from the research pipeline entirely, and the enrollment number
       // is issued later, when the Research Dept forwards them to the Exam
       // Section. Regular students get both at approval, as before.
+      // Take the money BEFORE issuing numbers. A failed wallet write used to go
+      // unchecked here, which approved the student and left the fee uncollected.
+      if (toDeduct > 0 && student.centers?.id) {
+        const { error: wErr } = await supabase.from('centers')
+          .update({ virtual_balance: studentFee.balance - toDeduct })
+          .eq('id', student.centers.id)
+        if (wErr) {
+          alert('Could not collect the fee from the center wallet, so the student has NOT been approved:\n\n' + wErr.message)
+          return
+        }
+      }
       const isPhd = isPhdStudent(student)
       const enrollNo = isPhd ? null : await generateEnrollmentNumber(student)
       const regNo = isPhd ? null : (student.registration_no || await generateRegistrationNumber())
@@ -826,23 +841,14 @@ export default function AccountDepartment() {
         // Hold is now consumed — clear it.
         fee_held: null,
       }).eq('id', student.id)
-      // Money already held left the wallet at forward time, so only the shortfall
-      // (or the whole fee, for legacy records with no hold) is deducted now.
-      if (toDeduct > 0 && student.centers?.id) {
-        await supabase.from('centers')
-          .update({ virtual_balance: studentFee.balance - toDeduct })
-          .eq('id', student.centers.id)
-      }
     } else {
-      // Reject: release the wallet hold back to the center.
-      const held = Number(student.fee_held || 0)
-      if (held > 0 && student.centers?.id) {
-        const { data: ctr } = await supabase
-          .from('centers').select('virtual_balance').eq('id', student.centers.id).maybeSingle()
-        const bal = Number(ctr?.virtual_balance || 0)
-        await supabase.from('centers')
-          .update({ virtual_balance: bal + held })
-          .eq('id', student.centers.id)
+      // Reject: return the hold to the center first. student_release_hold does
+      // the refund and clears fee_held together, so rejecting twice cannot pay
+      // the money back twice.
+      const { error: refundErr } = await supabase.rpc('student_release_hold', { p_student: student.id })
+      if (refundErr) {
+        alert('Could not return the held fee to the center wallet, so the student has NOT been rejected:\n\n' + refundErr.message)
+        return
       }
       await supabase.from('students').update({
         status: 'Rejected',
