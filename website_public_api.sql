@@ -229,9 +229,13 @@ BEGIN
   ELSIF pending THEN
     rr_note := 'A re-registration request is already awaiting approval.';
   ELSE
-    rr_fee := GREATEST(
+    -- Half the step between the two terms, matching what a centre pays from its
+    -- wallet for the same re-registration (src/utils/reRegistration.js). The
+    -- two routes must cost the same, or where a student pays would decide how
+    -- much they pay.
+    rr_fee := CEIL(GREATEST(
       course_fee_upto(s.programme_id, s.session_id, (cur + 1) * per_year)
-      - course_fee_upto(s.programme_id, s.session_id, cur * per_year), 0);
+      - course_fee_upto(s.programme_id, s.session_id, cur * per_year), 0) * 0.5);
   END IF;
 
   -- Admit card: the first semester whose cumulative fee is not yet covered.

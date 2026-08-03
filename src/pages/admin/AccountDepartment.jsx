@@ -785,20 +785,22 @@ export default function AccountDepartment() {
       // collected fee — no second deduction. Older records that were forwarded
       // before the hold mechanism (fee_held null) fall back to deducting now.
       const held = Number(student.fee_held || 0)
-      const alreadyHeld = held > 0
-      const computedNet = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
-      // The hold is a snapshot taken when the center forwarded. If another
-      // semester's exams have finished since then, the fee due has grown and the
-      // hold is short — collect the difference now rather than approving on a
-      // stale amount and under-crediting the student's fee.
+      // One rate for every student: half the fee due so far, less any coupon.
+      // A record forwarded before holds existed (fee_held null) used to be
+      // charged the FULL course fee here — twice what everyone else pays for
+      // the same admission.
+      //
+      // The hold itself is only a snapshot taken at forward time, so it can also
+      // be short if another semester's exams have finished since. Charging the
+      // difference covers both cases; a hold that is already large enough is
+      // left alone rather than refunded.
       const requiredHold = holdAmount(studentFee.courseFee, studentFee.discount)
-      const shortfall = alreadyHeld ? Math.max(requiredHold - held, 0) : 0
-      const net = alreadyHeld ? held + shortfall : computedNet
-      const toDeduct = alreadyHeld ? shortfall : net
+      const net = Math.max(held, requiredHold)
+      const toDeduct = net - held
       if (toDeduct > 0 && studentFee.balance < toDeduct) {
         alert(
           `Insufficient wallet balance.\n\n` +
-          (shortfall > 0
+          (held > 0
             ? `Already held: ₹${held.toLocaleString('en-IN')}\nStill to collect: ₹${toDeduct.toLocaleString('en-IN')}\n`
             : `Fee to collect: ₹${toDeduct.toLocaleString('en-IN')}\n`) +
           `Center balance: ₹${Number(studentFee.balance).toLocaleString('en-IN')}\n\n` +
@@ -1708,14 +1710,13 @@ export default function AccountDepartment() {
           {studentActionModal?.type === 'approve' && (() => {
             const held = Number(studentActionModal?.student?.fee_held || 0)
             const alreadyHeld = held > 0
-            const computedNet = Math.max((studentFee.courseFee || 0) - (studentFee.discount || 0), 0)
-            // A hold taken at forward time can be short if another semester's
-            // exams have finished since — the difference is collected on approval.
-            const shortfall = alreadyHeld
-              ? Math.max(holdAmount(studentFee.courseFee, studentFee.discount) - held, 0)
-              : 0
-            const net = alreadyHeld ? held + shortfall : computedNet
-            const toDeduct = alreadyHeld ? shortfall : net
+            // Half the fee due so far, for everyone. A hold taken at forward
+            // time can be short if another semester's exams have finished
+            // since — the difference is collected on approval.
+            const requiredHold = holdAmount(studentFee.courseFee, studentFee.discount)
+            const net = Math.max(held, requiredHold)
+            const toDeduct = net - held
+            const shortfall = alreadyHeld ? toDeduct : 0
             const after = (studentFee.balance || 0) - toDeduct
             const insufficient = toDeduct > 0 && studentFee.balance < toDeduct
             return (
@@ -1773,8 +1774,12 @@ export default function AccountDepartment() {
                           <span className="font-semibold text-emerald-600">− ₹{Number(studentFee.discount).toLocaleString('en-IN')}</span>
                         </div>
                       )}
-                      <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Deduct Now</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Deduct Now (50%)</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
                       <div className="flex justify-between"><span className="text-gray-500">Balance After</span><span className={`font-semibold ${after < 0 ? 'text-red-600' : 'text-emerald-700'}`}>₹{after.toLocaleString('en-IN')}</span></div>
+                      <p className="text-[11px] text-gray-500 pt-0.5">
+                        This student was forwarded before the wallet hold existed, so the fee is
+                        collected now — at the same 50% rate every other admission pays.
+                      </p>
                     </div>
                   )}
                 </div>

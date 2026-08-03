@@ -108,8 +108,15 @@ export async function approveReRegistration(req) {
     if (wErr) return { error: wErr }
   }
 
+  // Credit what was taken to the student's collected fee as well as advancing
+  // the term. The admit card gate reads fee_collected, so without this the
+  // centre paid for the next term and the student still could not sit its exam.
+  const { data: st } = await supabase
+    .from('students').select('fee_collected').eq('id', req.student_id).maybeSingle()
+  const collected = Number(st?.fee_collected || 0) + Number(req.fee_amount || 0)
+
   const { error: sErr } = await supabase.from('students')
-    .update({ semester_year: req.to_term }).eq('id', req.student_id)
+    .update({ semester_year: req.to_term, fee_collected: collected }).eq('id', req.student_id)
   if (sErr) return { error: sErr }
 
   const { error } = await supabase.from('re_registrations')
