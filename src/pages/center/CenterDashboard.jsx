@@ -12,15 +12,16 @@ const QUICK_ACTIONS = [
   { label: 'Supplementary Student', icon: UserCheck, color: 'bg-indigo-500', hover: 'hover:bg-indigo-600', to: '/center/supplementary' },
 ]
 
-function StatCard({ label, value, icon: Icon, color }) {
+function StatCard({ label, value, sub, icon: Icon, color }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-center gap-4">
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color} flex-shrink-0`}>
         <Icon size={22} className="text-white" />
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-2xl font-bold text-gray-900">{value ?? '—'}</p>
         <p className="text-sm text-gray-500">{label}</p>
+        {sub && <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">{sub}</p>}
       </div>
     </div>
   )
@@ -47,8 +48,15 @@ export default function CenterDashboard() {
             // stale fee_held left on a decided student never inflates the total.
             supabase.from('students').select('fee_held').eq('center_id', data.id).not('fee_held', 'is', null).not('status', 'in', '("Approved","Rejected")'),
           ]).then(([total, admitted, pending, held]) => {
-            const holdAmount = (held.data || []).reduce((sum, r) => sum + Number(r.fee_held || 0), 0)
-            setStats({ total: total.count, admitted: admitted.count, pending: pending.count, holdAmount })
+            // A TOTAL across students, not a per-student figure — the card says
+            // so, because two students holding Rs 2,000 each reads exactly like
+            // one student holding Rs 4,000 otherwise.
+            const holdRows = held.data || []
+            const holdAmount = holdRows.reduce((sum, r) => sum + Number(r.fee_held || 0), 0)
+            setStats({
+              total: total.count, admitted: admitted.count, pending: pending.count,
+              holdAmount, holdCount: holdRows.length,
+            })
           })
         }
       })
@@ -107,6 +115,9 @@ export default function CenterDashboard() {
         <StatCard
           label="Hold Amount"
           value={stats.holdAmount != null ? `₹${Number(stats.holdAmount).toLocaleString('en-IN')}` : '—'}
+          sub={stats.holdCount
+            ? `across ${stats.holdCount} student${stats.holdCount > 1 ? 's' : ''} · already deducted from your wallet`
+            : stats.holdAmount === 0 ? 'no fee is locked right now' : null}
           icon={Lock}
           color="bg-blue-500"
         />
