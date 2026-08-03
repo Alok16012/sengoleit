@@ -70,6 +70,13 @@ export default function FeeManagement() {
   }
   // Short-lived confirmation shown after the editor hands back to the list.
   const [flash, setFlash] = useState('')
+  // Programmes ticked in the Fee Master list, to give them all one fee at once.
+  const [picked, setPicked] = useState(new Set())
+  const togglePicked = (pid) => setPicked(prev => {
+    const next = new Set(prev)
+    next.has(pid) ? next.delete(pid) : next.add(pid)
+    return next
+  })
   const [masterList, setMasterList] = useState([])
   const [masterLoading, setMasterLoading] = useState(true)
   const [masterSearch, setMasterSearch] = useState('')
@@ -193,6 +200,29 @@ export default function FeeManagement() {
       setSelectedProgIds(new Set()); setSelectedSessIds(new Set())
       setTotalSems(4); setIsEditMode(false); setItems(keyed(DEFAULTS)); setSaved(false)
     }
+    setTab('editor')
+  }
+
+  // Open the editor with SEVERAL programmes selected, so one fee applies to all
+  // of them — 30 MBA specialisations share a fee, and entering it 30 times was
+  // the whole complaint. The editor already multiplies programmes × sessions;
+  // this just gets the list there from the Fee Master.
+  function openEditorForPrograms(ids) {
+    const list = [...ids]
+    if (!list.length) return
+    const picks = list.map(id => programs.find(p => p.id === id)).filter(Boolean)
+    // Only carry the department / type across when every pick shares one,
+    // otherwise leave them blank so the editor's programme list stays complete.
+    const same = (key) => picks.every(p => p[key] === picks[0]?.[key]) ? (picks[0]?.[key] || '') : ''
+    setDeptId(same('department_id'))
+    setTypeId(same('programme_type_id'))
+    setSelectedProgIds(new Set(list))
+    setSelectedSessIds(new Set())
+    setTotalSems(picks[0]?.duration || 4)
+    setIsEditMode(false)
+    setItems(keyed(DEFAULTS))
+    setSaved(false)
+    setPicked(new Set())
     setTab('editor')
   }
 
@@ -477,6 +507,21 @@ export default function FeeManagement() {
                 </button>
               ))}
             </div>
+            {picked.size > 0 && (
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-3 bg-[#933d18]/8 border border-[#933d18]/20 rounded-xl px-4 py-2.5">
+                <p className="text-sm font-semibold text-[#933d18]">
+                  {picked.size} course{picked.size > 1 ? 's' : ''} selected
+                  <span className="font-normal text-gray-500"> — give them all the same fee in one go</span>
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => setPicked(new Set())}
+                    className="text-xs font-bold text-gray-500 hover:text-[#933d18] underline px-2">Clear</button>
+                  <Button size="md" onClick={() => openEditorForPrograms(picked)}>
+                    <Plus size={14} /> Set Fee for {picked.size}
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
               {allRows.length === 0 && (masterSearch || masterDept !== 'all' || masterType !== 'all' || masterSession !== 'all' || masterStatus !== 'all') && (
                 <div className="flex flex-col items-center justify-center py-14 text-gray-300">
@@ -488,6 +533,15 @@ export default function FeeManagement() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#933d18]">
+                    <th className="px-4 py-3 w-10">
+                      <input type="checkbox"
+                        title="Select every course listed"
+                        checked={allRows.length > 0 && allRows.every(r => picked.has(r.program_id))}
+                        onChange={e => setPicked(e.target.checked
+                          ? new Set(allRows.map(r => r.program_id))
+                          : new Set())}
+                        className="accent-white w-4 h-4 align-middle" />
+                    </th>
                     <th className="text-left text-white font-semibold px-4 py-3">#</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Program</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Department</th>
@@ -503,7 +557,12 @@ export default function FeeManagement() {
                   {allRows.map((struct, i) => {
                     if (struct.__programOnly) {
                       return (
-                        <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                        <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${picked.has(struct.program_id) ? 'bg-[#933d18]/5' : i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                          <td className="px-4 py-3">
+                            <input type="checkbox" checked={picked.has(struct.program_id)}
+                              onChange={() => togglePicked(struct.program_id)}
+                              className="accent-[#933d18] w-4 h-4 align-middle" />
+                          </td>
                           <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
@@ -535,7 +594,12 @@ export default function FeeManagement() {
                     }
                     const t = calcTotals(struct.fee_items, struct.total_semesters)
                     return (
-                      <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                      <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${picked.has(struct.program_id) ? 'bg-[#933d18]/5' : i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                        <td className="px-4 py-3">
+                          <input type="checkbox" checked={picked.has(struct.program_id)}
+                            onChange={() => togglePicked(struct.program_id)}
+                            className="accent-[#933d18] w-4 h-4 align-middle" />
+                        </td>
                         <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
                         <td className="px-4 py-3">
                           <p className="font-semibold text-gray-900">{struct.programs?.program_name || '—'}</p>
