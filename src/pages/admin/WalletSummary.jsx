@@ -27,7 +27,13 @@ function StatCard({ label, value, sub, color = 'gray' }) {
 const TABS = [
   { key: 'balances', label: 'Center Balances' },
   { key: 'recharges', label: 'Recharge History' },
+  { key: 'online', label: 'Student Online Payments' },
 ]
+
+const PAYMENT_KIND = {
+  re_registration: 'Re-Registration',
+  admit_card: 'Admit Card',
+}
 
 export default function WalletSummary() {
   const [tab, setTab] = useState('balances')
@@ -44,6 +50,11 @@ export default function WalletSummary() {
   const [toDate, setToDate] = useState('')
   const [balFrom, setBalFrom] = useState('')
   const [balTo, setBalTo] = useState('')
+  // Fees students paid on the public website (student_online_payments).
+  const [online, setOnline] = useState([])
+  const [onlineMissing, setOnlineMissing] = useState(false)
+  const [onFrom, setOnFrom] = useState('')
+  const [onTo, setOnTo] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -61,6 +72,16 @@ export default function WalletSummary() {
       setCenters(ctr.data || [])
       setRecharges(rch.data || [])
       setLoading(false)
+
+      // Website payments live behind website_public_api.sql. Read them
+      // separately so a database without that migration still shows the rest of
+      // the page instead of failing outright.
+      const { data: pay, error: payErr } = await supabase
+        .from('student_online_payments')
+        .select('id, kind, amount, txn_id, paid_at, students(student_name, admission_number, enrollment_no, center_id, centers(center_name, center_code, super_center_id))')
+        .order('paid_at', { ascending: false })
+      if (payErr) setOnlineMissing(true)
+      else setOnline(pay || [])
     }
     fetchData()
   }, [])
@@ -163,12 +184,39 @@ export default function WalletSummary() {
     { header: 'Wallet Balance', value: c => Number(c.virtual_balance || 0), pdfValue: c => rupees(c.virtual_balance) },
   ]
 
+  const ONLINE_COLUMNS = [
+    { header: 'Student', value: p => p.students?.student_name || '' },
+    { header: 'Application No', value: p => p.students?.admission_number || '' },
+    { header: 'Enrollment No', value: p => p.students?.enrollment_no || '' },
+    { header: 'Center', value: p => p.students?.centers?.center_name || '' },
+    { header: 'Paid For', value: p => PAYMENT_KIND[p.kind] || p.kind },
+    { header: 'Amount', value: p => Number(p.amount || 0), pdfValue: p => rupees(p.amount) },
+    { header: 'Transaction ID', value: p => p.txn_id || '' },
+    { header: 'Paid On', value: p => (p.paid_at ? formatDate(p.paid_at) : '') },
+  ]
+
   const onBalances = tab === 'balances'
-  const exportColumns = onBalances ? BALANCE_COLUMNS : RECHARGE_COLUMNS
-  const exportRows = onBalances ? filteredCenters : statusedRecharges
-  const exportTitle = onBalances ? 'Center Wallet Balances' : 'Recharge History Report'
+  const onOnline = tab === 'online'
+
+  // Website payments follow the same super-center / center scoping as the rest
+  // of the page, plus their own paid-on range.
+  const filteredOnline = online.filter(p => {
+    const c = p.students?.centers
+    if (superFilter !== 'all' && c?.super_center_id !== superFilter) return false
+    if (centerFilter !== 'all' && p.students?.center_id !== centerFilter) return false
+    const day = localDay(p.paid_at)
+    if (onFrom && (!day || day < onFrom)) return false
+    if (onTo && (!day || day > onTo)) return false
+    return true
+  })
+  const onlineTotal = filteredOnline.reduce((s, p) => s + Number(p.amount || 0), 0)
+
+  const exportColumns = onBalances ? BALANCE_COLUMNS : onOnline ? ONLINE_COLUMNS : RECHARGE_COLUMNS
+  const exportRows = onBalances ? filteredCenters : onOnline ? filteredOnline : statusedRecharges
+  const exportTitle = onBalances ? 'Center Wallet Balances'
+    : onOnline ? 'Student Online Payments' : 'Recharge History Report'
   // The range that applies to whichever tab is open.
-  const [rangeFrom, rangeTo] = onBalances ? [balFrom, balTo] : [fromDate, toDate]
+  const [rangeFrom, rangeTo] = onBalances ? [balFrom, balTo] : onOnline ? [onFrom, onTo] : [fromDate, toDate]
   const hasRange = !!(rangeFrom || rangeTo)
   const rangeLabel = `${rangeFrom ? formatDate(rangeFrom) : 'start'} to ${rangeTo ? formatDate(rangeTo) : 'today'}`
 
@@ -179,6 +227,9 @@ export default function WalletSummary() {
     if (onBalances) {
       if (hasRange) m.push(`Registered: ${rangeLabel}`)
       m.push(`Total balance: ₹${totalBalance.toLocaleString('en-IN')}`)
+    } else if (onOnline) {
+      if (hasRange) m.push(`Paid: ${rangeLabel}`)
+      m.push(`Total collected: ₹${onlineTotal.toLocaleString('en-IN')}`)
     } else {
       if (hasRange) m.push(`Requested: ${rangeLabel}`)
       if (statusFilter !== 'all') m.push(`Status: ${statusFilter}`)
@@ -189,6 +240,7 @@ export default function WalletSummary() {
   const exportName = () => {
     const range = hasRange ? `_${rangeFrom || 'start'}_to_${rangeTo || 'today'}` : ''
     if (onBalances) return `center-wallet-balances${range}`
+    if (onOnline) return `student-online-payments${range}`
     const st = statusFilter === 'all' ? '' : `_${statusFilter}`
     return `recharge-history${st}${range}`
   }
@@ -237,23 +289,25 @@ export default function WalletSummary() {
               or when the center was registered. */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-              {onBalances ? 'Registered From' : 'Requested From'}
+              {onBalances ? 'Registered From' : onOnline ? 'Paid From' : 'Requested From'}
             </label>
             <input type="date"
-              value={onBalances ? balFrom : fromDate}
-              onChange={e => (onBalances ? setBalFrom : setFromDate)(e.target.value)}
+              value={rangeFrom}
+              onChange={e => (onBalances ? setBalFrom : onOnline ? setOnFrom : setFromDate)(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20" />
           </div>
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">To</label>
             <input type="date"
-              value={onBalances ? balTo : toDate}
-              onChange={e => (onBalances ? setBalTo : setToDate)(e.target.value)}
+              value={rangeTo}
+              onChange={e => (onBalances ? setBalTo : onOnline ? setOnTo : setToDate)(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/20" />
           </div>
-          {(onBalances ? (balFrom || balTo) : (fromDate || toDate)) && (
+          {hasRange && (
             <button
-              onClick={() => onBalances ? (setBalFrom(''), setBalTo('')) : (setFromDate(''), setToDate(''))}
+              onClick={() => onBalances ? (setBalFrom(''), setBalTo(''))
+                : onOnline ? (setOnFrom(''), setOnTo(''))
+                : (setFromDate(''), setToDate(''))}
               className="py-2 px-3 text-xs font-bold text-gray-500 hover:text-[#933d18] underline">
               Clear dates
             </button>
@@ -360,6 +414,58 @@ export default function WalletSummary() {
             ))}
           </Tbody>
         </Table>
+      ) : onOnline ? (
+        <>
+          {onlineMissing && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 mb-3">
+              Run <span className="font-mono">website_public_api.sql</span> in Supabase to record fees students pay on the website.
+            </div>
+          )}
+          <Table>
+            <Thead>
+              <tr>
+                <Th>#</Th>
+                <Th>Student</Th>
+                <Th>Center</Th>
+                <Th>Paid For</Th>
+                <Th>Amount</Th>
+                <Th>Transaction ID</Th>
+                <Th>Paid On</Th>
+              </tr>
+            </Thead>
+            <Tbody>
+              {filteredOnline.length === 0 ? (
+                <Tr><Td colSpan={7} className="text-center text-gray-400 py-12">No payments made on the website yet</Td></Tr>
+              ) : filteredOnline.map((p, i) => (
+                <Tr key={p.id}>
+                  <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                  <Td>
+                    <p className="font-semibold text-gray-900">{p.students?.student_name || '—'}</p>
+                    <p className="text-xs text-gray-400 font-mono">
+                      {p.students?.enrollment_no || p.students?.admission_number || ''}
+                    </p>
+                  </Td>
+                  <Td>
+                    <p className="text-sm text-gray-700">{p.students?.centers?.center_name || '—'}</p>
+                    {p.students?.centers?.center_code && (
+                      <p className="text-xs text-gray-400">{p.students.centers.center_code}</p>
+                    )}
+                  </Td>
+                  <Td>
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      p.kind === 're_registration' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      {PAYMENT_KIND[p.kind] || p.kind}
+                    </span>
+                  </Td>
+                  <Td><span className="font-bold text-gray-900">₹{Number(p.amount || 0).toLocaleString('en-IN')}</span></Td>
+                  <Td className="font-mono text-xs text-gray-500">{p.txn_id}</Td>
+                  <Td className="text-gray-400 text-xs">{formatDate(p.paid_at)}</Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </>
       ) : (
         <Table>
           <Thead>
@@ -413,6 +519,12 @@ export default function WalletSummary() {
                 Showing <span className="font-bold text-gray-700">{filteredCenters.length}</span> of {centers.length} centers
                 {' · '}<span className="font-bold text-gray-700">₹{totalBalance.toLocaleString('en-IN')}</span> total balance
                 {hasRange && <> · registered {rangeLabel}</>}
+              </>
+            ) : onOnline ? (
+              <>
+                Showing <span className="font-bold text-gray-700">{filteredOnline.length}</span> of {online.length} payments
+                {' · '}<span className="font-bold text-gray-700">₹{onlineTotal.toLocaleString('en-IN')}</span> collected
+                {hasRange && <> · paid {rangeLabel}</>}
               </>
             ) : (
               <>
