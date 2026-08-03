@@ -8,7 +8,7 @@ import { generateOfferLetter, generateEntranceClearance, generateHallTicket, gen
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
-import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, unassignRef, deleteLetterSetting } from '../../utils/letterSettings'
+import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, unassignRef, deleteLetterSetting, setSitting } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
 
@@ -43,6 +43,8 @@ export default function ResearchDepartment() {
   ]
   const LETTER_NAMES = ['Hall Ticket', 'Offer Letter', 'Entrance Certificate']
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
+  // Open while asking which exam sitting a candidate's letter is for.
+  const [sittingAsk, setSittingAsk] = useState(null)   // { letter, resolve }
   const [newName, setNewName] = useState('')
   // Types down the session list — sessions pile up year on year, so picking one
   // out of a plain dropdown gets slow.
@@ -220,14 +222,17 @@ export default function ResearchDepartment() {
     if (settingsInDb) assignRef(letterName, student.id, num)
     return `${letter.prefix}${refSerial(num)}`
   }
-  function docOptsFor(student, letterName) {
+  function docOptsFor(student, letterName, sitting = 1) {
     const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
+    // The Ph.D entrance exam runs twice for one session; `sitting` says which
+    // date this candidate was given.
+    const testDate = sitting === 2 ? letter.testDate2 : letter.testDate
     return {
       refNo: refFor(student, letterName),
       date: letter.date ? formatDate(letter.date) : undefined,
       // Only the Entrance Certificate prints this; blank leaves a rule to fill in.
       // Reads inside a sentence on the certificate, so spell the month: 15-June-2026.
-      testDate: letter.testDate ? formatDateLong(letter.testDate) : undefined,
+      testDate: testDate ? formatDateLong(testDate) : undefined,
       // Hall Ticket only — exam time, reporting time and the exam centre.
       examTime: letter.examTime || undefined,
       reportTime: letter.reportTime || undefined,
@@ -253,11 +258,29 @@ export default function ResearchDepartment() {
     }
   }
 
+  // Ask which sitting the candidate is being given. Resolves straight away when
+  // the letter has only one exam date, so nothing changes for a single sitting.
+  function askSitting(letter) {
+    if (!letter?.testDate2) return Promise.resolve(1)
+    return new Promise(resolve => setSittingAsk({ letter, resolve }))
+  }
+
+  // Issue a letter: pick the sitting, record it against the candidate so their
+  // own copy prints the same date, then hand the options to the generator.
+  async function issue(student, letterName, generate) {
+    const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
+    const sitting = await askSitting(letter)
+    if (!sitting) return                       // cancelled
+    const opts = docOptsFor(student, letterName, sitting)
+    if (settingsInDb && letter.testDate2) await setSitting(letterName, student.id, sitting)
+    await generate(opts)
+  }
+
   // The Hall Ticket prints the photo and signature, which live in private
   // storage — swap the stored paths for signed URLs before generating.
   async function hallTicketFor(student) {
-    const opts = docOptsFor(student, 'Hall Ticket')
-    generateHallTicket(await resolveStudentDocUrls(student), opts)
+    await issue(student, 'Hall Ticket', async (opts) =>
+      generateHallTicket(await resolveStudentDocUrls(student), opts))
   }
 
   useEffect(() => { load() }, [])
@@ -537,6 +560,25 @@ export default function ResearchDepartment() {
                     )}
                   </div>
 
+                  {/* The Ph.D entrance exam is held twice for one session — the
+                      same paper on two dates. Fill the second in and the letter
+                      asks which sitting the candidate is being given. */}
+                  {hasTestDate && (
+                    <div>
+                      <label className="block text-[10px] font-semibold text-gray-500 mb-1">
+                        2nd Sitting {isHall ? 'Exam Date' : 'Test Date'} <span className="font-normal text-gray-400">— optional</span>
+                      </label>
+                      <input type="date" value={entry.testDate2 || ''} onChange={e => set({ testDate2: e.target.value })}
+                        title="Fill this only when the same exam is held a second time (e.g. August and September). You then pick the sitting when issuing each candidate's letter."
+                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
+                      {entry.testDate2 && (
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          Two sittings set — issuing a letter will ask which one the candidate gets.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Hall Ticket only — exam time, reporting time, exam centre. */}
                   {isHall && (
                     <>
@@ -727,11 +769,11 @@ export default function ResearchDepartment() {
                   onToggle={() => toggleLetter(s, 'hall_ticket_active')}
                   icon={Ticket} label="Hall Ticket" />
                 <LetterCell student={s} field="offer_letter_active" busy={busy}
-                  onGenerate={() => generateOfferLetter(s, docOptsFor(s, 'Offer Letter'))}
+                  onGenerate={() => issue(s, 'Offer Letter', opts => generateOfferLetter(s, opts))}
                   onToggle={() => toggleLetter(s, 'offer_letter_active')}
                   icon={FileCheck2} label="Offer Letter" />
                 <LetterCell student={s} field="entrance_letter_active" busy={busy}
-                  onGenerate={() => generateEntranceClearance(s, docOptsFor(s, 'Entrance Certificate'))}
+                  onGenerate={() => issue(s, 'Entrance Certificate', opts => generateEntranceClearance(s, opts))}
                   onToggle={() => toggleLetter(s, 'entrance_letter_active')}
                   icon={ShieldCheck} label="Entrance Letter" />
                 <Td>
@@ -820,6 +862,37 @@ export default function ResearchDepartment() {
             })}
           </Tbody>
         </Table>
+      )}
+
+      {/* Which of the two exam sittings this candidate is being given. Only
+          appears when the letter has a second date set. */}
+      {sittingAsk && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => { sittingAsk.resolve(null); setSittingAsk(null) }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900">Which exam sitting?</h3>
+            <p className="text-xs text-gray-500 mt-1 mb-4">
+              This date prints on the candidate's letter, and on their own copy in the student portal.
+            </p>
+            <div className="space-y-2">
+              {[1, 2].map(n => {
+                const d = n === 1 ? sittingAsk.letter.testDate : sittingAsk.letter.testDate2
+                return (
+                  <button key={n}
+                    onClick={() => { sittingAsk.resolve(n); setSittingAsk(null) }}
+                    className="w-full text-left border border-gray-200 hover:border-[#933d18] hover:bg-[#933d18]/5 rounded-xl px-4 py-3 transition-colors">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Sitting {n}</p>
+                    <p className="text-sm font-bold text-gray-900">{d ? formatDateLong(d) : 'No date set'}</p>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button size="md" variant="secondary"
+                onClick={() => { sittingAsk.resolve(null); setSittingAsk(null) }}>Cancel</Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

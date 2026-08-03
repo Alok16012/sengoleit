@@ -17,7 +17,7 @@ export function buildRef(prefix, num) {
 
 // The Hall Ticket's exam columns only exist after add_hall_ticket.sql has been
 // run — every read/write retries without them so an older schema keeps working.
-const EXAM_COLS = 'exam_time, reporting_time, exam_centre'
+const EXAM_COLS = 'exam_time, reporting_time, exam_centre, test_date_2'
 
 // Load every letter's settings. Returns null when the table is missing.
 export async function loadLetterSettings() {
@@ -46,6 +46,7 @@ export async function loadLetterSettings() {
     examTime: r.exam_time || '',
     reportTime: r.reporting_time || '',
     examCentre: r.exam_centre || '',
+    testDate2: r.test_date_2 || '',
   }))
 }
 
@@ -60,13 +61,14 @@ export async function saveLetterSettings(letters) {
     exam_time: l.examTime || null,
     reporting_time: l.reportTime || null,
     exam_centre: l.examCentre || null,
+    test_date_2: l.testDate2 || null,
     updated_at: new Date().toISOString(),
   }))
   if (!rows.length) return { error: null }
   let { error } = await supabase.from('letter_settings').upsert(rows, { onConflict: 'session_key,name' })
   if (error) {
     // Exam columns missing (add_hall_ticket.sql not run) — save the rest.
-    const legacy = rows.map(({ exam_time, reporting_time, exam_centre, ...r }) => r)
+    const legacy = rows.map(({ exam_time, reporting_time, exam_centre, test_date_2, ...r }) => r)
     ;({ error } = await supabase.from('letter_settings').upsert(legacy, { onConflict: 'session_key,name' }))
   }
   return { error }
@@ -95,10 +97,26 @@ export async function loadAssignedRefs() {
 
 // Claim a number for a candidate. ignoreDuplicates keeps the first assignment,
 // so a second admin opening the same letter can't renumber it.
-export async function assignRef(letterName, studentId, num) {
-  await supabase
-    .from('letter_refs')
-    .upsert({ letter_name: letterName, student_id: studentId, num }, { onConflict: 'letter_name,student_id', ignoreDuplicates: true })
+export async function assignRef(letterName, studentId, num, sitting) {
+  const row = { letter_name: letterName, student_id: studentId, num }
+  if (sitting) row.sitting = sitting
+  const opts = { onConflict: 'letter_name,student_id', ignoreDuplicates: true }
+  const { error } = await supabase.from('letter_refs').upsert(row, opts)
+  // `sitting` needs add_second_sitting.sql — without it, still claim the number.
+  if (error && sitting) {
+    await supabase.from('letter_refs')
+      .upsert({ letter_name: letterName, student_id: studentId, num }, opts)
+  }
+}
+
+// Record which exam sitting a candidate was given, after the number is claimed.
+// Separate from assignRef because ignoreDuplicates means a re-issue never
+// rewrites the row — the sitting still has to be settable on a second attempt.
+export async function setSitting(letterName, studentId, sitting) {
+  if (!sitting) return { error: null }
+  const { error } = await supabase.from('letter_refs')
+    .update({ sitting }).eq('letter_name', letterName).eq('student_id', studentId)
+  return { error }
 }
 
 // Release a candidate's claimed number. Numbers lock on first issue so reopening
@@ -119,12 +137,16 @@ export async function letterOptsFor(studentId, letterName, sessionId = '') {
     .select(cols)
     .eq('name', letterName)
     .in('session_key', [sessionId || '', ''])
-  let [{ data: settings, error: settingsErr }, { data: ref }] = await Promise.all([
+  const refQ = (cols) => supabase.from('letter_refs')
+    .select(cols).eq('letter_name', letterName).eq('student_id', studentId).maybeSingle()
+  let [{ data: settings, error: settingsErr }, { data: ref, error: refErr }] = await Promise.all([
     settingsQ(`session_key, prefix, letter_date, test_date, ${EXAM_COLS}`),
-    supabase.from('letter_refs')
-      .select('num').eq('letter_name', letterName).eq('student_id', studentId).maybeSingle(),
+    refQ('num, sitting'),
   ])
   if (settingsErr) ({ data: settings } = await settingsQ('session_key, prefix, letter_date, test_date'))
+  // `sitting` arrives with add_second_sitting.sql — retry without it so an
+  // older database still returns the reference number.
+  if (refErr) ({ data: ref } = await refQ('num'))
 
   // Prefer the student's own session; fall back to the any-session entry.
   const rows = settings || []
@@ -133,7 +155,12 @@ export async function letterOptsFor(studentId, letterName, sessionId = '') {
   const opts = {}
   if (ref?.num != null) opts.refNo = buildRef(setting?.prefix, ref.num)
   if (setting?.letter_date) opts.date = formatDate(setting.letter_date)
-  if (setting?.test_date) opts.testDate = formatDateLong(setting.test_date)
+  // The Ph.D entrance exam runs twice for one session. Which sitting a
+  // candidate was given is recorded against their reference number, so the
+  // student's own copy and the centre's copy print the same date as the office
+  // copy — the choice must not live only in the admin's browser.
+  const sittingDate = ref?.sitting === 2 ? setting?.test_date_2 : setting?.test_date
+  if (sittingDate) opts.testDate = formatDateLong(sittingDate)
   if (setting?.exam_time) opts.examTime = setting.exam_time
   if (setting?.reporting_time) opts.reportTime = setting.reporting_time
   if (setting?.exam_centre) opts.examCentre = setting.exam_centre
