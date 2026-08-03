@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2 } from 'lucide-react'
+import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2, Check } from 'lucide-react'
 import { generateFeePDF } from '../../utils/generateFeePDF'
 import CenterCourses from './CenterCourses'
 
@@ -56,12 +56,20 @@ export default function FeeManagement() {
   // out to the previous page. 'master' is the default and stays param-free.
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = searchParams.get('tab') || 'master'
-  const setTab = (t) => setSearchParams(prev => {
-    const next = new URLSearchParams(prev)
-    if (t && t !== 'master') next.set('tab', t); else next.delete('tab')
-    next.delete('center')   // a top-level tab switch always returns to the list
-    return next
-  })
+  // Where the editor was opened from, so saving can hand the admin straight
+  // back instead of leaving them to press Back after every structure.
+  const [returnTab, setReturnTab] = useState('master')
+  const setTab = (t) => {
+    if (t === 'editor' && tab !== 'editor') setReturnTab(tab)
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      if (t && t !== 'master') next.set('tab', t); else next.delete('tab')
+      next.delete('center')   // a top-level tab switch always returns to the list
+      return next
+    })
+  }
+  // Short-lived confirmation shown after the editor hands back to the list.
+  const [flash, setFlash] = useState('')
   const [masterList, setMasterList] = useState([])
   const [masterLoading, setMasterLoading] = useState(true)
   const [masterSearch, setMasterSearch] = useState('')
@@ -283,6 +291,13 @@ export default function FeeManagement() {
 
     setSaving(false); setSaved(true)
     fetchMaster()
+
+    // Back to whichever tab the editor was opened from. The confirmation moves
+    // with them, so leaving the editor does not also lose the "saved" feedback.
+    const count = progList.length * sessList.length
+    setFlash(`Saved ${count} fee structure${count > 1 ? 's' : ''}.`)
+    setTab(returnTab)
+    setTimeout(() => setFlash(''), 4000)
   }
 
   /* ── cascading filter logic ── */
@@ -329,6 +344,12 @@ export default function FeeManagement() {
           </button>
         ))}
       </div>
+
+      {flash && (
+        <div className="mb-4 flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl px-4 py-2.5 text-sm font-semibold">
+          <Check size={15} /> {flash}
+        </div>
+      )}
 
       {/* ══════════════ FEE MASTER TAB ══════════════ */}
       {tab === 'master' && (
