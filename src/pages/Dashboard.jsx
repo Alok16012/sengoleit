@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { supabase, isConfigured } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { University, BookOpen, Building2, Users } from 'lucide-react'
+import { University, BookOpen, Building2, Users, Star } from 'lucide-react'
 
 const statCards = [
   { key: 'universities', label: 'Universities', icon: University, bg: 'bg-blue-100', color: 'text-blue-600' },
   { key: 'programs', label: 'Programs', icon: BookOpen, bg: 'bg-purple-100', color: 'text-purple-600' },
+  // Counted apart, because they are separate things with separate pages —
+  // one "Centers: 13" was the two added together and matched neither list.
+  { key: 'superCenters', label: 'Super Centers', icon: Star, bg: 'bg-indigo-100', color: 'text-indigo-600' },
   { key: 'centers', label: 'Centers', icon: Building2, bg: 'bg-green-100', color: 'text-green-600' },
   { key: 'students', label: 'Students', icon: Users, bg: 'bg-orange-100', color: 'text-orange-600' },
 ]
@@ -19,10 +22,17 @@ export default function Dashboard() {
     Promise.all([
       supabase.from('universities').select('id', { count: 'exact', head: true }),
       supabase.from('programs').select('id', { count: 'exact', head: true }),
-      supabase.from('centers').select('id', { count: 'exact', head: true }),
+      // Same filters the Centers and Super Centers pages use, so the cards and
+      // those lists always report the same number.
+      supabase.from('centers').select('id', { count: 'exact', head: true }).eq('center_type', 'center'),
+      supabase.from('centers').select('id', { count: 'exact', head: true }).eq('center_type', 'super_center'),
       supabase.from('students').select('id', { count: 'exact', head: true }),
-    ]).then(([u, p, c, s]) => {
-      setStats({ universities: u.count ?? 0, programs: p.count ?? 0, centers: c.count ?? 0, students: s.count ?? 0 })
+    ]).then(([u, p, c, sc, s]) => {
+      setStats({
+        universities: u.count ?? 0, programs: p.count ?? 0,
+        centers: c.count ?? 0, superCenters: sc.count ?? 0,
+        students: s.count ?? 0,
+      })
     })
   }, [])
 
@@ -30,7 +40,7 @@ export default function Dashboard() {
     <div className="space-y-8 p-8">
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         {statCards.map(({ key, label, icon: Icon, bg, color }) => (
           <div key={key} className="group hover:scale-[1.02] transition-all duration-300 bg-white rounded-xl shadow-sm border border-gray-100">
             <div className="p-6">
