@@ -42,6 +42,10 @@ export default function CouponManagement() {
   // Coupon generation modal state
   const [genCenter, setGenCenter] = useState(null)
   const [genRate, setGenRate] = useState('')
+  // How many coupons to mint. It used to be derived as wallet ÷ rate, with the
+  // rate as the only input — an admin who read that field as "how many" minted
+  // 1000 coupons of Rs 25 instead of 25 coupons of Rs 1000.
+  const [genQty, setGenQty] = useState('')
   const [genSaving, setGenSaving] = useState(false)
 
   // Direct single-code generation (Approval Code / Discounted Coupon).
@@ -299,12 +303,25 @@ export default function CouponManagement() {
 
   const genBalance = Math.round(Number(genCenter?.coupon_wallet_balance || 0))
   const genRateNum = Math.round(Number(genRate) || 0)
-  const genCount = genRateNum > 0 ? Math.floor(genBalance / genRateNum) : 0
+  const genQtyNum = Math.max(Math.round(Number(genQty) || 0), 0)
+  // How many the wallet could cover at this rate — offered as a shortcut, not
+  // applied on its own.
+  const genMaxQty = genRateNum > 0 ? Math.floor(genBalance / genRateNum) : 0
+  const genCount = genQtyNum
   const genMinted = genCount * genRateNum
   const genRemaining = genBalance - genMinted
+  const genOverBudget = genMinted > genBalance
 
   async function generateCoupons() {
-    if (!genCenter || genCount < 1) return
+    if (!genCenter || genCount < 1 || genRateNum < 1 || genOverBudget) return
+    // A slip in either box is expensive and irreversible, so the numbers are
+    // read back in words before anything is minted.
+    if (!confirm(
+      `Generate ${genCount} coupon${genCount > 1 ? 's' : ''} of ₹${genRateNum.toLocaleString('en-IN')} each` +
+      ` for ${genCenter.center_name}?\n\n` +
+      `Total: ₹${genMinted.toLocaleString('en-IN')} of the ₹${genBalance.toLocaleString('en-IN')} coupon wallet.\n` +
+      `Remaining after: ₹${genRemaining.toLocaleString('en-IN')}.`
+    )) return
     setGenSaving(true)
     const rows = Array.from({ length: genCount }, () => ({
       center_id: genCenter.id,
@@ -321,6 +338,7 @@ export default function CouponManagement() {
     setGenSaving(false)
     setGenCenter(null)
     setGenRate('')
+    setGenQty('')
     await fetchData()
     if (madeCount === 0) {
       alert('The insert ran but returned 0 coupons — RLS may be blocking SELECT/INSERT on the coupons table. Please check.')
@@ -569,7 +587,7 @@ export default function CouponManagement() {
       </>)}
 
       {/* Generate coupons modal */}
-      <Modal isOpen={!!genCenter} onClose={() => { setGenCenter(null); setGenRate('') }} title="Generate Coupons">
+      <Modal isOpen={!!genCenter} onClose={() => { setGenCenter(null); setGenRate(''); setGenQty('') }} title="Generate Coupons">
         {genCenter && (
           <div className="space-y-4">
             <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
@@ -581,44 +599,73 @@ export default function CouponManagement() {
               </div>
             </div>
 
-            <div>
-              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Per Coupon Rate (₹)</label>
-              <input
-                type="number"
-                min="1"
-                autoFocus
-                placeholder="E.g. 100 or 200"
-                value={genRate}
-                onChange={e => setGenRate(e.target.value)}
-                className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
-              />
+            {/* Two boxes, both typed in. The count used to be derived from the
+                rate alone, which reads as one number doing two jobs. */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">How many coupons</label>
+                <input
+                  type="number"
+                  min="1"
+                  autoFocus
+                  placeholder="E.g. 25"
+                  value={genQty}
+                  onChange={e => setGenQty(e.target.value)}
+                  className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+                />
+                {genMaxQty > 0 && (
+                  <button type="button" onClick={() => setGenQty(String(genMaxQty))}
+                    className="mt-1 text-[11px] font-bold text-[#933d18] hover:underline">
+                    Use all {genMaxQty}
+                  </button>
+                )}
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Value of each (₹)</label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="E.g. 1000"
+                  value={genRate}
+                  onChange={e => setGenRate(e.target.value)}
+                  className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white"
+                />
+              </div>
             </div>
 
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-              <p className="text-[11px] font-bold text-emerald-700 uppercase">Coupons to Generate</p>
-              {genRateNum > 0 ? (
+            <div className={`rounded-xl border px-4 py-3 ${genOverBudget ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
+              <p className={`text-[11px] font-bold uppercase ${genOverBudget ? 'text-red-700' : 'text-emerald-700'}`}>
+                {genOverBudget ? 'More than the wallet holds' : 'Total to mint'}
+              </p>
+              {genRateNum > 0 && genCount > 0 ? (
                 <>
-                  <p className="text-sm text-emerald-800 mt-0.5">
-                    ₹{genBalance.toLocaleString('en-IN')} ÷ ₹{genRateNum} = <span className="text-xl font-black">{genCount}</span> coupons
+                  <p className={`text-sm mt-0.5 ${genOverBudget ? 'text-red-800' : 'text-emerald-800'}`}>
+                    {genCount} × ₹{genRateNum.toLocaleString('en-IN')} ={' '}
+                    <span className="text-xl font-black">₹{genMinted.toLocaleString('en-IN')}</span>
                   </p>
-                  {genRemaining > 0 && (
-                    <p className="text-[11px] text-emerald-600/80 mt-1">₹{genRemaining.toLocaleString('en-IN')} will remain in the wallet (less than 1 coupon).</p>
-                  )}
+                  <p className={`text-[11px] mt-1 ${genOverBudget ? 'text-red-600/90' : 'text-emerald-600/80'}`}>
+                    {genOverBudget
+                      ? `The coupon wallet has only ₹${genBalance.toLocaleString('en-IN')} — reduce the count or the value.`
+                      : `₹${genRemaining.toLocaleString('en-IN')} stays in the wallet.`}
+                  </p>
                 </>
               ) : (
-                <p className="text-xs text-emerald-600/80 mt-0.5">Enter a rate to see the coupon count.</p>
+                <p className="text-xs text-emerald-600/80 mt-0.5">Fill in both boxes to see the total.</p>
               )}
             </div>
 
             <div className="flex gap-3">
               <Button
                 onClick={generateCoupons}
-                disabled={genSaving || genCount < 1}
+                disabled={genSaving || genCount < 1 || genRateNum < 1 || genOverBudget}
                 className="flex-1 justify-center"
               >
-                <Sparkles size={14} /> {genSaving ? 'Generating...' : `Generate ${genCount > 0 ? genCount : ''} Coupons`}
+                <Sparkles size={14} /> {genSaving ? 'Generating...'
+                  : genCount > 0 && genRateNum > 0
+                    ? `Generate ${genCount} × ₹${genRateNum.toLocaleString('en-IN')}`
+                    : 'Generate Coupons'}
               </Button>
-              <Button variant="outline" onClick={() => { setGenCenter(null); setGenRate('') }} className="flex-1 justify-center">Cancel</Button>
+              <Button variant="outline" onClick={() => { setGenCenter(null); setGenRate(''); setGenQty('') }} className="flex-1 justify-center">Cancel</Button>
             </div>
           </div>
         )}
