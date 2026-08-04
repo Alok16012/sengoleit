@@ -72,6 +72,12 @@ export default function FeeManagement() {
   const [flash, setFlash] = useState('')
   // Programmes ticked in the Fee Master list, to give them all one fee at once.
   const [picked, setPicked] = useState(new Set())
+  // Editor: search every course at once, without walking Department → Type.
+  const [progSearch, setProgSearch] = useState('')
+  // Courses that already have a fee are noise when you are adding one, so they
+  // are out of the list by default — but still reachable, because changing an
+  // existing fee for several courses at once is the other half of this screen.
+  const [hideWithFee, setHideWithFee] = useState(true)
   const togglePicked = (pid) => setPicked(prev => {
     const next = new Set(prev)
     next.has(pid) ? next.delete(pid) : next.add(pid)
@@ -334,7 +340,26 @@ export default function FeeManagement() {
   const progsByDept  = deptId ? programs.filter(p => p.department_id === deptId) : programs
   const typeIdsInDept = [...new Set(progsByDept.map(p => p.programme_type_id).filter(Boolean))]
   const availableTypes = programmeTypes.filter(t => typeIdsInDept.includes(t.id))
-  const filteredProgs  = typeId ? progsByDept.filter(p => p.programme_type_id === typeId) : progsByDept
+
+  // Which courses already have a fee structure of any session.
+  const feeProgramIds = new Set(masterList.map(s => s.program_id))
+  // Something already ticked stays listed even when it has a fee — otherwise a
+  // selection would silently disappear from the box that shows it.
+  const dropFee = list => hideWithFee
+    ? list.filter(p => !feeProgramIds.has(p.id) || selectedProgIds.has(p.id))
+    : list
+  const filteredProgs = dropFee(typeId ? progsByDept.filter(p => p.programme_type_id === typeId) : progsByDept)
+
+  // The overall search looks at EVERY course, whatever Department / Type say.
+  const deptNameOf = id => departments.find(d => d.id === id)?.name || ''
+  const searchHits = (() => {
+    const q = progSearch.trim().toLowerCase()
+    if (!q) return []
+    return dropFee(programs).filter(p =>
+      (p.program_name || '').toLowerCase().includes(q) ||
+      (p.short_name || '').toLowerCase().includes(q)
+    ).slice(0, 40)
+  })()
 
   /* ── editor derived totals ── */
   const entryItems     = items.filter(i => i.category === 'entry')
@@ -695,6 +720,63 @@ export default function FeeManagement() {
           {/* Cascading Selectors */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6 shadow-sm">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Select Programs & Sessions</p>
+
+            {/* Find a course straight away, without walking the three steps. */}
+            <div className="mb-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative flex-1 min-w-[260px]">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={progSearch} onChange={e => setProgSearch(e.target.value)}
+                    placeholder="Search any course by name or short name — e.g. MBA"
+                    className="w-full pl-9 pr-9 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                  {progSearch && (
+                    <button onClick={() => setProgSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 whitespace-nowrap cursor-pointer">
+                  <input type="checkbox" checked={hideWithFee}
+                    onChange={e => setHideWithFee(e.target.checked)}
+                    className="accent-[#933d18] w-4 h-4" />
+                  Hide courses that already have a fee
+                </label>
+              </div>
+
+              {progSearch.trim() && (
+                <div className="mt-2 border border-gray-200 rounded-xl bg-white max-h-64 overflow-y-auto">
+                  {searchHits.length === 0 ? (
+                    <p className="px-4 py-4 text-xs text-gray-400 text-center">
+                      No course matches “{progSearch}”
+                      {hideWithFee && <> — it may already have a fee. Untick the box above to include those.</>}
+                    </p>
+                  ) : searchHits.map(p => (
+                    <button key={p.id} type="button"
+                      onClick={() => {
+                        const next = new Set(selectedProgIds)
+                        next.has(p.id) ? next.delete(p.id) : next.add(p.id)
+                        setSelectedProgIds(next); setIsEditMode(false); setSaved(false)
+                      }}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left border-b border-gray-50 last:border-0 transition-colors ${
+                        selectedProgIds.has(p.id) ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}`}>
+                      <input type="checkbox" readOnly checked={selectedProgIds.has(p.id)} className="accent-[#933d18] w-4 h-4 pointer-events-none" />
+                      <span className="flex-1 min-w-0">
+                        <span className="text-xs font-semibold text-gray-800">{p.program_name}</span>
+                        {p.short_name && (
+                          <span className="ml-1.5 text-[10px] font-bold text-[#933d18] bg-[#933d18]/8 px-1.5 py-0.5 rounded">{p.short_name}</span>
+                        )}
+                        {feeProgramIds.has(p.id) && (
+                          <span className="ml-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">fee set</span>
+                        )}
+                        <span className="block text-[11px] text-gray-400 mt-0.5">{deptNameOf(p.department_id) || '—'}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
               <SearchableDropdown
                 label="Step 1 — Department"
@@ -721,6 +803,7 @@ export default function FeeManagement() {
                 options={filteredProgs}
                 getLabel={p => p.program_name}
                 getSubLabel={p => p.short_name}
+                getNote={p => feeProgramIds.has(p.id) ? 'fee set' : ''}
                 disabled={!typeId}
               />
               <MultiCheckDropdown
@@ -950,7 +1033,7 @@ function AddSessionBtn({ sessions, existingIds, busy, onPick }) {
   )
 }
 
-function MultiCheckDropdown({ label, placeholder, selectedIds, onChange, options, getLabel, getSubLabel, disabled }) {
+function MultiCheckDropdown({ label, placeholder, selectedIds, onChange, options, getLabel, getSubLabel, getNote, disabled }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef(null)
@@ -1031,6 +1114,11 @@ function MultiCheckDropdown({ label, placeholder, selectedIds, onChange, options
                   {getSubLabel && getSubLabel(o) && (
                     <span className="ml-1.5 text-[10px] font-bold text-[#933d18] bg-[#933d18]/8 px-1.5 py-0.5 rounded">
                       {getSubLabel(o)}
+                    </span>
+                  )}
+                  {getNote && getNote(o) && (
+                    <span className="ml-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                      {getNote(o)}
                     </span>
                   )}
                 </span>
