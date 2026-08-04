@@ -311,9 +311,14 @@ export default function CouponManagement() {
   const genMinted = genCount * genRateNum
   const genRemaining = genBalance - genMinted
   const genOverBudget = genMinted > genBalance
+  // A rupee ceiling does not bound the ROW count: ₹1 × 25,000 costs the same as
+  // 25 × ₹1,000 and would insert twenty-five thousand rows. Matches the limit
+  // inside mint_coupon_batch.
+  const GEN_MAX_ROWS = 2000
+  const genOverRows = genCount > GEN_MAX_ROWS
 
   async function generateCoupons() {
-    if (!genCenter || genCount < 1 || genRateNum < 1 || genOverBudget) return
+    if (!genCenter || genCount < 1 || genRateNum < 1 || genOverBudget || genOverRows) return
     // A slip in either box is expensive and irreversible, so the numbers are
     // read back in words before anything is minted.
     if (!confirm(
@@ -322,29 +327,39 @@ export default function CouponManagement() {
       `Total: ₹${genMinted.toLocaleString('en-IN')} of the ₹${genBalance.toLocaleString('en-IN')} coupon wallet.\n` +
       `Remaining after: ₹${genRemaining.toLocaleString('en-IN')}.`
     )) return
+
     setGenSaving(true)
-    const rows = Array.from({ length: genCount }, () => ({
-      center_id: genCenter.id,
-      face_value: genRateNum,
-    }))
-    const { data: inserted, error: cpErr } = await supabase.from('coupons').insert(rows).select('id')
-    if (cpErr) { alert('Error generating coupons: ' + cpErr.message); setGenSaving(false); return }
-    // Deduct the minted money; any remainder (< 1 coupon) stays in the wallet.
-    const { error: balErr } = await supabase.from('centers')
-      .update({ coupon_wallet_balance: genRemaining })
-      .eq('id', genCenter.id)
-    if (balErr) { alert('Wallet balance update error: ' + balErr.message) }
-    const madeCount = inserted?.length ?? 0
+    // One transaction. This used to insert the coupons, then write the wallet
+    // as a second statement from a balance read when the page last loaded — so
+    // a failed debit left real coupons beside a full wallet, and the same money
+    // could be minted again. mint_coupon_batch locks the wallet, debits it and
+    // inserts the rows together, and re-checks the amount server-side.
+    const { data, error } = await supabase.rpc('mint_coupon_batch', {
+      p_center: genCenter.id,
+      p_count: genCount,
+      p_value: genRateNum,
+      p_type: 'discount',
+    })
     setGenSaving(false)
+
+    if (error) {
+      const missing = /mint_coupon_batch|PGRST202|42883|schema cache/i.test(error.message || '')
+      alert(missing
+        ? 'Coupon minting needs a database update — nothing was created.\n\nPlease run add_mint_coupon_batch.sql in Supabase.'
+        : 'Nothing was created:\n\n' + error.message)
+      await fetchData()
+      return
+    }
+
+    const r = Array.isArray(data) ? data[0] : data
     setGenCenter(null)
     setGenRate('')
     setGenQty('')
     await fetchData()
-    if (madeCount === 0) {
-      alert('The insert ran but returned 0 coupons — RLS may be blocking SELECT/INSERT on the coupons table. Please check.')
-    } else {
-      alert(`${madeCount} coupons created (₹${genRateNum} each).`)
-    }
+    alert(
+      `${r?.minted ?? genCount} coupons created at ₹${genRateNum.toLocaleString('en-IN')} each.\n` +
+      `₹${Math.round(Number(r?.wallet_after ?? 0)).toLocaleString('en-IN')} left in the coupon wallet.`
+    )
   }
 
   return (
@@ -633,20 +648,22 @@ export default function CouponManagement() {
               </div>
             </div>
 
-            <div className={`rounded-xl border px-4 py-3 ${genOverBudget ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
-              <p className={`text-[11px] font-bold uppercase ${genOverBudget ? 'text-red-700' : 'text-emerald-700'}`}>
-                {genOverBudget ? 'More than the wallet holds' : 'Total to mint'}
+            <div className={`rounded-xl border px-4 py-3 ${(genOverBudget || genOverRows) ? 'border-red-200 bg-red-50' : 'border-emerald-100 bg-emerald-50'}`}>
+              <p className={`text-[11px] font-bold uppercase ${(genOverBudget || genOverRows) ? 'text-red-700' : 'text-emerald-700'}`}>
+                {genOverRows ? 'Too many coupons' : genOverBudget ? 'More than the wallet holds' : 'Total to mint'}
               </p>
               {genRateNum > 0 && genCount > 0 ? (
                 <>
-                  <p className={`text-sm mt-0.5 ${genOverBudget ? 'text-red-800' : 'text-emerald-800'}`}>
+                  <p className={`text-sm mt-0.5 ${(genOverBudget || genOverRows) ? 'text-red-800' : 'text-emerald-800'}`}>
                     {genCount} × ₹{genRateNum.toLocaleString('en-IN')} ={' '}
                     <span className="text-xl font-black">₹{genMinted.toLocaleString('en-IN')}</span>
                   </p>
-                  <p className={`text-[11px] mt-1 ${genOverBudget ? 'text-red-600/90' : 'text-emerald-600/80'}`}>
-                    {genOverBudget
-                      ? `The coupon wallet has only ₹${genBalance.toLocaleString('en-IN')} — reduce the count or the value.`
-                      : `₹${genRemaining.toLocaleString('en-IN')} stays in the wallet.`}
+                  <p className={`text-[11px] mt-1 ${(genOverBudget || genOverRows) ? 'text-red-600/90' : 'text-emerald-600/80'}`}>
+                    {genOverRows
+                      ? `A batch is limited to ${GEN_MAX_ROWS.toLocaleString('en-IN')} coupons — split it into smaller batches.`
+                      : genOverBudget
+                        ? `The coupon wallet has only ₹${genBalance.toLocaleString('en-IN')} — reduce the count or the value.`
+                        : `₹${genRemaining.toLocaleString('en-IN')} stays in the wallet.`}
                   </p>
                 </>
               ) : (
@@ -657,7 +674,7 @@ export default function CouponManagement() {
             <div className="flex gap-3">
               <Button
                 onClick={generateCoupons}
-                disabled={genSaving || genCount < 1 || genRateNum < 1 || genOverBudget}
+                disabled={genSaving || genCount < 1 || genRateNum < 1 || genOverBudget || genOverRows}
                 className="flex-1 justify-center"
               >
                 <Sparkles size={14} /> {genSaving ? 'Generating...'
