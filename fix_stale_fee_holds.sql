@@ -22,10 +22,20 @@
 -- HOW TO RUN: paste into Supabase -> SQL Editor. Run STEP 1 first and read the
 -- preview. Only if it looks right, run STEP 2.
 
+-- NO PERMANENT VIEW IS LEFT BEHIND. This script first shipped with a plain
+-- CREATE VIEW, and a Postgres view runs with its OWNER's rights unless told
+-- otherwise — so it served students and centres to anon over the REST API and
+-- quietly undid the RLS that security_hardening.sql and student_auth.sql put
+-- there. The DROP clears any copy that version left; TEMP keeps the new one
+-- inside this session, where PostgREST cannot reach it at all.
+DROP VIEW IF EXISTS v_fee_hold_shortfall;
+
 -- ------------------------------------------------------------------
 -- The shared calculation. Both steps below select from this.
+-- Being TEMP it lives only for this session, so STEP 1 and STEP 2 must be run
+-- in the SAME SQL editor session.
 -- ------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_fee_hold_shortfall AS
+CREATE OR REPLACE TEMP VIEW v_fee_hold_shortfall AS
 WITH totals AS (
   SELECT fs.program_id, fs.session_id,
     COALESCE(SUM(fi.amount) FILTER (WHERE fi.category = 'entry'),     0) AS entry_t,
