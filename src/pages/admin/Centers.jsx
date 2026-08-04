@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, supabaseAdmin } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight, Lock } from 'lucide-react'
@@ -232,6 +233,29 @@ export default function Centers() {
             ))}
           </select>
         </div>
+        {/* The parent super centre shows as a chip inside the name column here,
+            so it gets a column of its own in the export. The generated password
+            is left out on purpose — see Super Centers. */}
+        <ExportButtons className="ml-auto" title="Centers" rows={filtered}
+          filename={`centers${statusFilter !== 'all' ? '_' + statusFilter : ''}`}
+          meta={[
+            ...(search ? [`Search: ${search}`] : []),
+            ...(statusFilter !== 'all' ? [`Showing: ${statusFilter === 'verified' ? 'Verified' : 'Not Verified'}`] : []),
+          ]}
+          columns={[
+            { header: 'Center Name', value: c => c.center_name || '' },
+            { header: 'Code', value: c => c.center_code || '' },
+            { header: 'Super Center', value: c => superNameById[c.super_center_id] || '' },
+            { header: 'Application No', value: c => c.application_no || '' },
+            { header: 'Login ID', value: c => c.email || '' },
+            { header: 'Contact Person', value: c => c.contact_person || '' },
+            { header: 'Phone', value: c => c.phone || c.contact_mobile || '' },
+            { header: 'State', value: c => c.states?.state_name || '' },
+            { header: 'Wallet Balance', value: c => Number(c.virtual_balance || 0),
+              pdfValue: c => `₹${Number(c.virtual_balance || 0).toLocaleString('en-IN')}` },
+            { header: 'Approval', value: c => c.approval_status || 'Pending' },
+            { header: 'Status', value: c => c.status || 'Pending' },
+          ]} />
       </div>
 
       {loading ? (

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search, X } from 'lucide-react'
@@ -130,6 +131,36 @@ export default function Programs() {
             <X size={14} /> Clear
           </button>
         )}
+        <ExportButtons className="ml-auto" title="Programs" rows={filtered}
+          filename={`programs${anyFilter ? '_filtered' : ''}`}
+          meta={[
+            ...(search ? [`Search: ${search}`] : []),
+            ...(deptFilter !== 'all' ? [`Department: ${deptOptions.find(d => d.id === deptFilter)?.name || ''}`] : []),
+            ...(typeFilter !== 'all' ? [`Type: ${typeOptions.find(t => t.id === typeFilter)?.programme_type_name || ''}`] : []),
+            ...(modeFilter !== 'all' ? [`Mode: ${modeOptions.find(m => m.id === modeFilter)?.mode_name || ''}`] : []),
+          ]}
+          columns={[
+            { header: 'Program Name', value: p => p.program_name || '' },
+            { header: 'Course Code', value: p => p.course_code || '' },
+            { header: 'Enrollment Code', value: p => p.enrollment_code || '' },
+            { header: 'Short Name', value: p => p.short_name || '' },
+            { header: 'Specialisation', value: p => p.stream || '' },
+            { header: 'University', value: p => p.universities?.university_name || '' },
+            { header: 'Department', value: p => p.departments?.name || '' },
+            { header: 'Program Type', value: p => p.programme_types?.programme_type_name || '' },
+            { header: 'Mode', value: p => stripOnline(p.study_modes?.mode_name) },
+            { header: 'Mode of Study', value: p => stripOnline(p.modes_of_study?.mode_name) },
+            { header: 'Duration', value: p => p.complete_duration || (p.duration ? `${p.duration} Sem` : '') },
+            { header: 'Sem / Year', value: p => calcSemesters(p) },
+            { header: 'Seats', value: p => p.seats_limit || '' },
+            // Bare numbers for Excel so the columns can be summed.
+            { header: 'Fees/Year', value: p => Number(p.fees_per_year || 0),
+              pdfValue: p => (p.fees_per_year ? `₹${Number(p.fees_per_year).toLocaleString('en-IN')}` : '—') },
+            { header: 'Fees/Sem', value: p => Number(p.fees_per_semester || 0),
+              pdfValue: p => (p.fees_per_semester ? `₹${Number(p.fees_per_semester).toLocaleString('en-IN')}` : '—') },
+            { header: 'Eligibility', value: p => p.eligibility || '' },
+            { header: 'Status', value: p => p.status || 'Active' },
+          ]} />
       </div>
 
       {loading ? (

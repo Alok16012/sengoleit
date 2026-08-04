@@ -1,6 +1,7 @@
 import { useEffect, useState, Fragment } from 'react'
 import { supabase, supabaseAdmin } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
@@ -458,6 +459,20 @@ export default function CouponManagement() {
           </button>
         )}
         <span className="text-xs text-gray-400">{filtered.length} coupons</span>
+        <ExportButtons className="ml-auto" title="All Coupons" rows={filtered} filename="coupons"
+          meta={[`${filtered.length} coupons`]}
+          columns={[
+            { header: 'Coupon Code', value: c => c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '' },
+            { header: 'Center', value: c => c.centers?.center_name || '' },
+            { header: 'Center Code', value: c => c.centers?.center_code || '' },
+            { header: 'Type', value: c => (c.centers?.center_type === 'super_center' ? 'Super Center' : 'Center') },
+            { header: 'Kind', value: c => (c.coupon_type === 'approval' ? 'Approval Code' : 'Discount') },
+            { header: 'Face Value', value: c => Number(c.face_value || 0),
+              pdfValue: c => `₹${Number(c.face_value || 0).toLocaleString('en-IN')}` },
+            { header: 'Generated On', value: c => (c.created_at ? formatDate(c.created_at) : '') },
+            { header: 'Used On', value: c => (c.used_at ? formatDate(c.used_at) : '') },
+            { header: 'Status', value: c => ((c.is_used || c.used_at) ? 'Used' : 'Available') },
+          ]} />
       </div>
 
       {loading ? (
@@ -656,7 +671,34 @@ export default function CouponManagement() {
                       </button>
                     ))}
                   </div>
-                  <Button onClick={() => { setGenMode(true); setDirectResult(null); setDirectCenterId(''); setDirectAmount('') }} className="ml-auto">
+                  {/* Exports the panel exactly as filtered — the coupon kind,
+                      the status pill and the panel search all already apply. */}
+                  <ExportButtons className="ml-auto"
+                    title={directType === 'approval' ? `Approval Codes — ${viewStatus}` : `Discount Coupons — ${viewStatus}`}
+                    filename={`${directType === 'approval' ? 'approval-codes' : 'discount-coupons'}_${String(viewStatus).toLowerCase()}`}
+                    rows={panelList}
+                    meta={[`Status: ${viewStatus}`, ...(panelQ ? [`Search: ${panelQ}`] : [])]}
+                    columns={[
+                      { header: 'Coupon Code', value: c => c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '' },
+                      { header: 'Center', value: c => (c.centers?.center_type === 'super_center' ? '' : c.centers?.center_name || '') },
+                      { header: 'Center Code', value: c => c.centers?.center_code || '' },
+                      { header: 'Super Center', value: c => (c.centers?.center_type === 'super_center'
+                        ? c.centers?.center_name || '' : c.centers?.super_center?.center_name || '') },
+                      { header: 'Type', value: c => (c.centers?.center_type === 'super_center' ? 'Super Center' : 'Center') },
+                      { header: 'Amount', value: c => Number(c.face_value || 0),
+                        pdfValue: c => `₹${Number(c.face_value || 0).toLocaleString('en-IN')}` },
+                      { header: 'Transaction ID', value: c => c.payment_txn_id || '' },
+                      { header: showPanelPaymentDate ? 'Payment Date' : 'Generated On',
+                        value: c => showPanelPaymentDate ? approvalPaymentDate(c) : (c.created_at ? formatDate(c.created_at) : '') },
+                      { header: 'Status', value: c => {
+                        const used = !!(c.is_used || c.used_at)
+                        if (used) return 'Used'
+                        if (c.is_rejected) return 'Rejected'
+                        if (c.payment_txn_id && !c.is_activated) return 'Awaiting Accounts'
+                        return c.is_activated ? 'Activated' : 'Unused'
+                      } },
+                    ]} />
+                  <Button onClick={() => { setGenMode(true); setDirectResult(null); setDirectCenterId(''); setDirectAmount('') }}>
                     <Sparkles size={14} /> Generate New
                   </Button>
                 </div>

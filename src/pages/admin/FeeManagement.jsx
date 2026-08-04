@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2, Check } from 'lucide-react'
 import { generateFeePDF } from '../../utils/generateFeePDF'
@@ -517,7 +518,8 @@ export default function FeeManagement() {
               return (
             <>
             {/* Status sub-tabs: Done = fee created, Pending = no fee yet */}
-            <div className="flex gap-1 mb-3 bg-gray-100 p-1 rounded-xl w-fit">
+            <div className="flex items-center gap-3 flex-wrap mb-3">
+            <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
               {[
                 { key: 'all', label: 'All', count: feeRows.length + programRows.length },
                 { key: 'done', label: 'Done', count: feeRows.length },
@@ -531,6 +533,32 @@ export default function FeeManagement() {
                   </span>
                 </button>
               ))}
+            </div>
+            {/* Rows come from allRows, so the export matches the sub-tab, the
+                search and every filter exactly as the table shows them. A row
+                with no fee exports blank money columns rather than a dash. */}
+            <ExportButtons className="ml-auto" title="Fee Master" rows={allRows}
+              filename={`fee-master${masterStatus !== 'all' ? '_' + masterStatus : ''}`}
+              meta={[
+                ...(masterSearch ? [`Search: ${masterSearch}`] : []),
+                ...(masterStatus !== 'all' ? [`Showing: ${masterStatus === 'done' ? 'with fee' : 'without fee'}`] : []),
+                `${allRows.length} courses (${feeRows.length} with fee, ${programRows.length} without)`,
+              ]}
+              columns={[
+                { header: 'Program', value: r => r.programs?.program_name || '' },
+                { header: 'Department', value: r => deptMap[progMap[r.program_id]?.department_id] || '' },
+                { header: 'Session', value: r => r.__programOnly ? 'All Sessions'
+                  : (r.__sessions || [r]).map(x => x.academic_sessions?.session_name || 'All Sessions').join(', ') },
+                { header: 'Semesters', value: r => r.total_semesters || '' },
+                { header: 'Fee Components', value: r => r.__programOnly ? 0 : (r.fee_items?.length || 0) },
+                { header: 'Entry Fees', value: r => r.__programOnly ? '' : calcTotals(r.fee_items, r.total_semesters).entryTotal,
+                  pdfValue: r => r.__programOnly ? '—' : `₹${fmt(calcTotals(r.fee_items, r.total_semesters).entryTotal)}` },
+                { header: 'Per Sem', value: r => r.__programOnly ? '' : calcTotals(r.fee_items, r.total_semesters).perSem,
+                  pdfValue: r => r.__programOnly ? '—' : `₹${fmt(calcTotals(r.fee_items, r.total_semesters).perSem)}` },
+                { header: 'Grand Total', value: r => r.__programOnly ? '' : calcTotals(r.fee_items, r.total_semesters).grandTotal,
+                  pdfValue: r => r.__programOnly ? '—' : `₹${fmt(calcTotals(r.fee_items, r.total_semesters).grandTotal)}` },
+                { header: 'Fee Status', value: r => r.__programOnly ? 'No fee yet' : 'Fee set' },
+              ]} />
             </div>
             {picked.size > 0 && (
               <div className="flex items-center justify-between gap-3 flex-wrap mb-3 bg-[#933d18]/8 border border-[#933d18]/20 rounded-xl px-4 py-2.5">

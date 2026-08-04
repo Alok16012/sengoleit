@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
+import { formatDate } from '../../utils/formatDate'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Plus, Edit, Trash2, Star } from 'lucide-react'
@@ -40,6 +42,20 @@ export default function Sessions() {
         subtitle={`${data.length} sessions`}
         action={{ label: <><Plus size={15} /> Add Session</>, onClick: () => navigate('/admin/sessions/new') }}
       />
+
+      <div className="flex justify-end mb-4">
+        <ExportButtons title="Academic Sessions" filename="academic-sessions" rows={data}
+          meta={[`${data.length} sessions`]}
+          columns={[
+            { header: 'Session Name', value: s => s.session_name || '' },
+            { header: 'Period', value: s => s.session_period || '' },
+            { header: 'Academic Year', value: s => s.academic_year || '' },
+            { header: 'Start Date', value: s => (s.start_date ? formatDate(s.start_date) : '') },
+            { header: 'End Date', value: s => (s.end_date ? formatDate(s.end_date) : '') },
+            { header: 'Current', value: s => (s.is_current ? 'Yes' : '') },
+            { header: 'Status', value: s => s.status || 'Active' },
+          ]} />
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>

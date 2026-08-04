@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase, supabaseAdmin } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight } from 'lucide-react'
@@ -163,7 +164,8 @@ export default function SuperCenters() {
         ))}
       </div>
 
-      <div className="mb-4 relative max-w-sm">
+      <div className="mb-4 flex items-center gap-3 flex-wrap">
+      <div className="relative max-w-sm flex-1 min-w-[220px]">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
@@ -171,6 +173,28 @@ export default function SuperCenters() {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
+      </div>
+        {/* The login e-mail goes out; the generated password deliberately does
+            not — an exported file is passed around far more freely than this
+            screen, and nothing here needs the password to be readable. */}
+        <ExportButtons className="ml-auto" title="Super Centers" rows={filtered}
+          filename={`super-centers${statusFilter !== 'all' ? '_' + statusFilter : ''}`}
+          meta={[
+            ...(search ? [`Search: ${search}`] : []),
+            ...(statusFilter !== 'all' ? [`Showing: ${statusFilter === 'verified' ? 'Verified' : 'Not Verified'}`] : []),
+          ]}
+          columns={[
+            { header: 'Super Center Name', value: c => c.center_name || '' },
+            { header: 'Code', value: c => c.center_code || '' },
+            { header: 'Login ID', value: c => c.email || '' },
+            { header: 'Contact Person', value: c => c.contact_person || '' },
+            { header: 'Phone', value: c => c.phone || c.contact_mobile || '' },
+            { header: 'State', value: c => c.states?.state_name || '' },
+            { header: 'Wallet Balance', value: c => Number(c.virtual_balance || 0),
+              pdfValue: c => `₹${Number(c.virtual_balance || 0).toLocaleString('en-IN')}` },
+            { header: 'Approval', value: c => c.approval_status || 'Pending' },
+            { header: 'Status', value: c => c.status || 'Pending' },
+          ]} />
       </div>
 
       {loading ? (

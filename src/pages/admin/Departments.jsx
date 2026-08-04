@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
@@ -118,6 +119,16 @@ export default function Departments() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        {/* The column set follows the tab: only Departments carry a university. */}
+        <ExportButtons className="ml-auto" title={currentTab?.label || 'List'} rows={rows}
+          filename={`${(currentTab?.label || 'list').toLowerCase().replace(/\W+/g, '-')}${search ? '_' + search.replace(/\W+/g, '-') : ''}`}
+          meta={search ? [`Search: ${search}`] : []}
+          columns={[
+            { header: 'Name', value: r => r[currentTab.nameField] || '' },
+            ...(currentTab?.hasUniversity
+              ? [{ header: 'University', value: r => r.universities?.university_name || '' }] : []),
+            { header: 'Status', value: r => r.status || 'Active' },
+          ]} />
       </div>
 
       {loading ? (

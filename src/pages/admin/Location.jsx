@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Input, { Select } from '../../components/ui/Input'
@@ -84,6 +85,24 @@ export default function Location() {
   const filteredDistricts = districts.filter(d => !q || `${d.district_name} ${d.states?.state_name || ''}`.toLowerCase().includes(q))
   const filteredCountries = countries.filter(c => !q || `${c.country_name} ${c.country_code || ''}`.toLowerCase().includes(q))
 
+  // Export whatever the open tab is showing, already searched.
+  const exportRows = tab === 'states' ? filteredStates : tab === 'districts' ? filteredDistricts : filteredCountries
+  const exportColumns =
+    tab === 'states' ? [
+      { header: 'State Name', value: s => s.state_name || '' },
+      { header: 'Code', value: s => s.state_code || '' },
+      { header: 'Country', value: s => s.countries?.country_name || '' },
+      { header: 'Status', value: s => s.status || 'Active' },
+    ] : tab === 'districts' ? [
+      { header: 'District Name', value: d => d.district_name || '' },
+      { header: 'State', value: d => d.states?.state_name || '' },
+      { header: 'Status', value: d => d.status || 'Active' },
+    ] : [
+      { header: 'Country Name', value: c => c.country_name || '' },
+      { header: 'Code', value: c => c.country_code || '' },
+      { header: 'Status', value: c => c.status || 'Active' },
+    ]
+
   return (
     <div className="p-6">
       <PageHeader
@@ -115,6 +134,9 @@ export default function Location() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        <ExportButtons className="ml-auto" title={currentLabel} rows={exportRows} columns={exportColumns}
+          filename={`${currentLabel.toLowerCase()}${search ? '_' + search.replace(/\W+/g, '-') : ''}`}
+          meta={search ? [`Search: ${search}`] : []} />
       </div>
 
       {loading ? (

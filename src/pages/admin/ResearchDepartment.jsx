@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard } from 'lucide-react'
 import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard } from '../../utils/generateStudentCards'
@@ -444,10 +445,49 @@ export default function ResearchDepartment() {
           <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={filtered.filter(s => !s.exam_forwarded_at).length} />
         </div>
         {tab !== 'master' && (
-          <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name / application no / stream..."
-              className="pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-72" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name / application no / stream..."
+                className="pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-72" />
+            </div>
+            {/* Both tabs list the same candidates; the columns differ. */}
+            <ExportButtons
+              title={tab === 'exam' ? 'Forward to Exam' : 'Ph.D Candidates'}
+              filename={tab === 'exam' ? 'phd-forward-to-exam' : 'phd-candidates'}
+              rows={filtered}
+              meta={q ? [`Search: ${q}`] : []}
+              columns={tab === 'exam' ? [
+                { header: 'Student', value: s => s.student_name || '' },
+                { header: 'Mobile', value: s => s.mobile_no || '' },
+                { header: 'Application No', value: s => s.admission_number || '' },
+                { header: 'Stream', value: s => s.stream || '' },
+                { header: 'Programme', value: s => s.programs?.program_name || '' },
+                { header: 'Fee Status', value: s => (s.status === 'Approved' ? 'Approved' : s.status || 'Pending') },
+                { header: 'Enrollment No', value: s => s.enrollment_no || '' },
+                { header: 'Forwarded', value: s => (s.exam_forwarded_at ? 'Forwarded' : 'Pending') },
+              ] : [
+                { header: 'Student', value: s => s.student_name || '' },
+                { header: 'Mobile', value: s => s.mobile_no || '' },
+                { header: 'Application No', value: s => s.admission_number || '' },
+                { header: 'Stream', value: s => s.stream || '' },
+                { header: 'Programme', value: s => s.programs?.program_name || '' },
+                { header: 'Specialization', value: s => s.specialization || '' },
+                { header: 'Session', value: s => s.academic_sessions?.session_name || s.academic_year || '' },
+                // The reference numbers the office copies carry.
+                ...letterNames.map(name => ({
+                  header: `${name} Ref`,
+                  value: s => {
+                    const num = assigned[name]?.[s.id]
+                    if (num == null) return ''
+                    return `${entryFor(s.session_id, name)?.prefix || ''}${refSerial(num)}`
+                  },
+                })),
+                { header: 'Hall Ticket', value: s => (s.hall_ticket_active ? 'Active' : 'Inactive') },
+                { header: 'Offer Letter', value: s => (s.offer_letter_active ? 'Active' : 'Inactive') },
+                { header: 'Entrance Certificate', value: s => (s.entrance_letter_active ? 'Active' : 'Inactive') },
+                { header: 'Enrollment No', value: s => s.enrollment_no || '' },
+              ]} />
           </div>
         )}
       </div>

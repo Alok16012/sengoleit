@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
+import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import { Edit, Trash2, Plus, Check, X, Search } from 'lucide-react'
 
@@ -86,7 +87,8 @@ export default function Boards() {
         }}
       />
 
-      <div className="mb-4 relative w-72">
+      <div className="mb-4 flex items-center gap-3 flex-wrap">
+      <div className="relative w-72">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
@@ -94,6 +96,14 @@ export default function Boards() {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
+      </div>
+        <ExportButtons className="ml-auto" title="Boards & Universities" rows={filteredBoards}
+          filename={search ? `boards_${search.replace(/\W+/g, '-')}` : 'boards-universities'}
+          meta={search ? [`Search: ${search}`] : []}
+          columns={[
+            { header: 'Board / University Name', value: b => b.name || '' },
+            { header: 'Applies To', value: b => (b.type === 'All' ? 'All Levels' : b.type || '') },
+          ]} />
       </div>
 
       {loading ? (

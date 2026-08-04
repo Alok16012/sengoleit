@@ -7,6 +7,7 @@ import Badge from '../../components/ui/Badge'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import VerifyRow from '../../components/ui/VerifyRow'
+import ExportButtons from '../../components/ExportButtons'
 import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, Clock, ExternalLink, ChevronDown, ChevronRight, Hash, Copy, Wallet, Send } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -970,6 +971,106 @@ export default function AccountDepartment() {
   const holdCount = studentStatusCounts.pending
   const pendingCenterApps = centerApps.length
 
+  // ---- Excel / PDF: whichever tab is open, exactly the rows it is showing ----
+  const money = n => `₹${Number(n || 0).toLocaleString('en-IN')}`
+  const centreType = c => (c?.center_type === 'super_center' ? 'Super Center' : 'Center')
+  const EXPORTS = {
+    students: {
+      title: 'Student Applications', rows: studentsList,
+      columns: [
+        { header: 'Student Name', value: s => s.student_name || '' },
+        { header: 'Gender', value: s => s.gender || '' },
+        { header: 'Mobile', value: s => s.mobile_no || '' },
+        { header: 'Program', value: s => s.programs?.program_name || '' },
+        { header: 'Session', value: s => s.academic_sessions?.session_name || '' },
+        { header: 'Center', value: s => s.centers?.center_name || '' },
+        { header: 'Center Code', value: s => s.centers?.center_code || '' },
+        { header: 'Center Wallet', value: s => Number(s.centers?.virtual_balance || 0), pdfValue: s => money(s.centers?.virtual_balance) },
+        { header: 'Application No', value: s => s.admission_number || '' },
+        { header: 'Doc Verified On', value: s => (s.doc_verified_at ? formatDate(s.doc_verified_at) : '') },
+        { header: 'Remarks', value: s => s.remarks || '' },
+        { header: 'Status', value: s => s.status === 'Approved' ? 'Enrolled'
+          : s.status === 'Rejected' ? 'Rejected'
+          : s.doc_verified_at ? 'Under Process for Enrollment' : 'Sent back for correction' },
+      ],
+    },
+    approvals: {
+      title: tab === 'super_approvals' ? 'Super Center Applications' : 'Center Applications',
+      rows: approvalsList,
+      columns: [
+        { header: tab === 'super_approvals' ? 'Super Center' : 'Center', value: c => c.center_name || '' },
+        { header: 'Organization', value: c => c.organization_name || '' },
+        { header: 'Type', value: c => centreType(c) },
+        { header: 'Under Super Center', value: c => c.super_center?.center_name || 'Direct (Admin)' },
+        { header: 'Contact Person', value: c => c.contact_person || '' },
+        { header: 'Phone', value: c => c.phone || '' },
+        { header: 'Email', value: c => c.email || '' },
+        { header: 'City', value: c => c.city || '' },
+        { header: 'Amount Paid', value: c => Number(c.amount_paid || 0), pdfValue: c => money(c.amount_paid) },
+        { header: 'UTR Number', value: c => c.utr_number || '' },
+        { header: 'Payment Date', value: c => (c.payment_date ? formatDate(c.payment_date) : '') },
+        { header: 'Doc Remarks', value: c => c.approval_notes || '' },
+        { header: 'Submitted', value: c => (c.created_at ? formatDate(c.created_at) : '') },
+        { header: 'Approval', value: c => c.approval_status || 'Pending' },
+      ],
+    },
+    center_apps: {
+      title: 'Sub-Center Applications', rows: centerApps,
+      columns: [
+        { header: 'Organization', value: a => a.organization_name || '' },
+        { header: 'Applicant', value: a => a.full_name || '' },
+        { header: 'Phone', value: a => a.phone || '' },
+        { header: 'Email', value: a => a.email || '' },
+        { header: 'Amount Paid', value: a => Number(a.amount_paid || 0), pdfValue: a => money(a.amount_paid) },
+        { header: 'University Fee', value: a => Number(a.university_fee || 0), pdfValue: a => money(a.university_fee) },
+        { header: 'Super Center Fee', value: a => Number(a.super_center_fee || 0), pdfValue: a => money(a.super_center_fee) },
+        { header: 'SC Remarks', value: a => a.sc_remarks || '' },
+        { header: 'Doc Remarks', value: a => a.doc_remarks || '' },
+        { header: 'Submitted', value: a => (a.created_at ? formatDate(a.created_at) : '') },
+      ],
+    },
+    recharges: {
+      title: 'Recharge Requests', rows: rechargesList,
+      columns: [
+        { header: 'Center', value: r => r.centers?.center_name || '' },
+        { header: 'Center Code', value: r => r.centers?.center_code || '' },
+        { header: 'Super Center', value: r => r.centers?.super_center?.center_name || '' },
+        { header: 'Type', value: r => centreType(r.centers) },
+        { header: 'Amount', value: r => Number(r.amount || 0), pdfValue: r => money(r.amount) },
+        { header: 'Transaction ID', value: r => r.payment_txn_id || '' },
+        { header: 'UTR Number', value: r => r.utr_number || '' },
+        { header: 'Notes', value: r => r.notes || '' },
+        { header: 'Date', value: r => (r.created_at ? formatDate(r.created_at) : '') },
+        { header: 'Status', value: r => r.status || 'Pending' },
+        { header: 'Remarks', value: r => r.admin_remarks || '' },
+      ],
+    },
+    approval_codes: {
+      title: 'Approval Code Requests', rows: approvalReqsList,
+      columns: [
+        { header: 'Center', value: r => r.centers?.center_name || '' },
+        { header: 'Center Code', value: r => r.centers?.center_code || '' },
+        { header: 'Super Center', value: r => r.centers?.super_center?.center_name || '' },
+        { header: 'Type', value: r => centreType(r.centers) },
+        { header: 'Amount', value: r => Number(r.face_value || 0), pdfValue: r => money(r.face_value) },
+        { header: 'Coupon Code', value: r => r.coupon_code || r.id?.slice(0, 8).toUpperCase() || '' },
+        { header: 'Transaction ID', value: r => r.payment_txn_id || '' },
+        { header: showAcPaymentDate ? 'Payment Date' : 'Generated On',
+          value: r => showAcPaymentDate ? approvalPaymentDate(r) : (r.created_at ? formatDate(r.created_at) : '') },
+        { header: 'Status', value: r => r.is_rejected ? 'Rejected' : (r.is_activated || r.is_used) ? 'Approved' : 'To Verify' },
+      ],
+    },
+  }
+  const exportSpec = EXPORTS[tab === 'super_approvals' ? 'approvals' : tab]
+  const exportMeta = () => {
+    const m = []
+    if (tab === 'students' && studentStatusFilter !== 'all') m.push(`Status: ${studentStatusFilter}`)
+    if ((tab === 'approvals' || tab === 'super_approvals') && appStatusFilter !== 'all') m.push(`Status: ${appStatusFilter}`)
+    if (tab === 'recharges' && rechargeStatusFilter !== 'all') m.push(`Status: ${rechargeStatusFilter}`)
+    if (tab === 'approval_codes' && approvalReqStatusFilter !== 'all') m.push(`Status: ${approvalReqStatusFilter}`)
+    return m
+  }
+
   return (
     <div className="p-6">
       <PageHeader title="Account Department" subtitle="Approvals, Recharges & Center Management" />
@@ -1499,6 +1600,16 @@ export default function AccountDepartment() {
             </Table>
           )}
 
+        {exportSpec && (
+          <div className="flex items-center justify-between gap-3 flex-wrap mt-4">
+            <p className="text-xs text-gray-500">
+              Showing <span className="font-bold text-gray-700">{exportSpec.rows?.length || 0}</span> {exportSpec.title.toLowerCase()}
+            </p>
+            <ExportButtons title={exportSpec.title} rows={exportSpec.rows} columns={exportSpec.columns}
+              meta={exportMeta()}
+              filename={exportSpec.title.toLowerCase().replace(/\W+/g, '-')} />
+          </div>
+        )}
         </>
       )}
 
