@@ -83,16 +83,28 @@ export async function deleteLetterSetting(sessionKey, name) {
   return { error }
 }
 
-// All assigned reference numbers, as { [letterName]: { [studentId]: num } }.
+// Returns { refs, sittings }, each keyed [letterName][studentId] — the assigned
+// reference number, and the sitting it was issued under.
+// The sittings ride along so a RE-print can reuse the recorded date instead of
+// asking again — asking again lets a second choice silently move the exam date
+// on a letter the candidate already holds.
 export async function loadAssignedRefs() {
-  const { data, error } = await supabase.from('letter_refs').select('letter_name, student_id, num')
+  // `sitting` arrives with add_second_sitting.sql — retry without it so an
+  // older database still returns the numbers.
+  let { data, error } = await supabase.from('letter_refs').select('letter_name, student_id, num, sitting')
+  if (error) ({ data, error } = await supabase.from('letter_refs').select('letter_name, student_id, num'))
   if (error) return null
-  const map = {}
+  const refs = {}
+  const sittings = {}
   for (const r of data || []) {
-    if (!map[r.letter_name]) map[r.letter_name] = {}
-    map[r.letter_name][r.student_id] = r.num
+    if (!refs[r.letter_name]) refs[r.letter_name] = {}
+    refs[r.letter_name][r.student_id] = r.num
+    if (r.sitting) {
+      if (!sittings[r.letter_name]) sittings[r.letter_name] = {}
+      sittings[r.letter_name][r.student_id] = r.sitting
+    }
   }
-  return map
+  return { refs, sittings }
 }
 
 // Claim a number for a candidate. ignoreDuplicates keeps the first assignment,

@@ -51,6 +51,8 @@ export default function ResearchDepartment() {
   // out of a plain dropdown gets slow.
   const [sessionSearch, setSessionSearch] = useState('')
   const [assigned, setAssigned] = useState({}) // { [letterName]: { [studentId]: num } }
+  // Which exam sitting each issued letter was given, so a re-print reuses it.
+  const [sittings, setSittings] = useState({}) // { [letterName]: { [studentId]: 1|2 } }
   const [saved, setSaved] = useState(false)
   // Whether the shared letter_settings/letter_refs tables exist, and whether the
   // series still has to be pushed there once (table present but empty).
@@ -97,7 +99,7 @@ export default function ResearchDepartment() {
       const [dbLetters, dbAssigned] = await Promise.all([loadLetterSettings(), loadAssignedRefs()])
       if (dbLetters?.length) setLetters(dbLetters.map(migratePrefix))
       else if (dbLetters) setSettingsNeedSeed(true)   // table exists but is empty
-      if (dbAssigned) setAssigned(dbAssigned)
+      if (dbAssigned) { setAssigned(dbAssigned.refs); setSittings(dbAssigned.sittings || {}) }
       setSettingsInDb(dbLetters != null)
     })()
   }, [])
@@ -259,10 +261,20 @@ export default function ResearchDepartment() {
     const letter = entryFor(student.session_id, letterName)
     const cur = `${letter?.prefix || ''}${refSerial(assigned[letterName]?.[student.id])}`
     if (!confirm(`Withdraw ${student.student_name}'s ${letterName} (${cur})?\n\nIt disappears from the student portal, and pressing Generate again issues the NEXT number of the current series — not this one.`)) return
-    if (field && student[field]) {
+    // Always write, never trust the on-screen copy. `rows` is loaded once and
+    // never refetched, so a letter another admin published after this page
+    // opened still reads as inactive here — gating on that would skip the
+    // update, drop the number anyway, and leave the letter live with no record.
+    // A missing column means the portal columns were never migrated, so there is
+    // nothing published to take down and the withdrawal can go ahead.
+    if (field) {
       const { error } = await supabase.from('students').update({ [field]: false }).eq('id', student.id)
-      if (error) { alert('Could not hide it from the student portal:\n\n' + error.message); return }
-      setRows(rs => rs.map(r => r.id === student.id ? { ...r, [field]: false } : r))
+      const notMigrated = error && /column|schema cache|PGRST204|42703/i.test(error.message || '')
+      if (error && !notMigrated) {
+        alert('Could not hide it from the student portal, so nothing was withdrawn:\n\n' + error.message)
+        return
+      }
+      if (!error) setRows(rs => rs.map(r => r.id === student.id ? { ...r, [field]: false } : r))
     }
     const map = { ...(assigned[letterName] || {}) }
     delete map[student.id]
@@ -284,12 +296,23 @@ export default function ResearchDepartment() {
 
   // Issue a letter: pick the sitting, record it against the candidate so their
   // own copy prints the same date, then hand the options to the generator.
+  //
+  // A RE-print reuses the sitting already on record rather than asking again.
+  // Asking again would let a second, different answer rewrite letter_refs.sitting
+  // — moving the exam date on a letter the candidate is already holding, while
+  // the button promises the same document back.
   async function issue(student, letterName, generate) {
     const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
-    const sitting = await askSitting(letter)
+    const alreadyIssued = assigned[letterName]?.[student.id] != null
+    const recorded = sittings[letterName]?.[student.id]
+    const sitting = alreadyIssued ? (recorded || 1) : await askSitting(letter)
     if (!sitting) return                       // cancelled
     const opts = docOptsFor(student, letterName, sitting)
-    if (settingsInDb && letter.testDate2) await setSitting(letterName, student.id, sitting)
+    // Only record on a first issue; a re-print must not rewrite what is stored.
+    if (!alreadyIssued && settingsInDb && letter.testDate2) {
+      await setSitting(letterName, student.id, sitting)
+      setSittings(prev => ({ ...prev, [letterName]: { ...(prev[letterName] || {}), [student.id]: sitting } }))
+    }
     await generate(opts)
   }
 
@@ -499,9 +522,9 @@ export default function ResearchDepartment() {
                     return `${entryFor(s.session_id, name)?.prefix || ''}${refSerial(num)}`
                   },
                 })),
-                { header: 'Hall Ticket', value: s => (s.hall_ticket_active ? 'Active' : 'Inactive') },
-                { header: 'Offer Letter', value: s => (s.offer_letter_active ? 'Active' : 'Inactive') },
-                { header: 'Entrance Certificate', value: s => (s.entrance_letter_active ? 'Active' : 'Inactive') },
+                { header: 'Hall Ticket', value: s => (s.hall_ticket_active ? 'Visible' : 'Hidden') },
+                { header: 'Offer Letter', value: s => (s.offer_letter_active ? 'Visible' : 'Hidden') },
+                { header: 'Entrance Certificate', value: s => (s.entrance_letter_active ? 'Visible' : 'Hidden') },
                 { header: 'Enrollment No', value: s => s.enrollment_no || '' },
               ]} />
           </div>
@@ -967,29 +990,36 @@ export default function ResearchDepartment() {
 // switches to Print (the same number again), Hide/Show, and withdraw.
 function LetterCell({ student, field, busy, issued, refNo, onGenerate, onToggle, onWithdraw, icon: Icon, label }) {
   const active = !!student[field]
-  if (!issued) {
-    return (
-      <Td>
-        <Button size="sm" variant="secondary" onClick={onGenerate} title={`Generate ${label}`} className="w-fit">
-          <Icon size={13} /> Generate
-        </Button>
-      </Td>
-    )
-  }
+  const working = busy === `${student.id}-${field}`
+  // Only the top row swaps. The Hide/Show toggle stays in BOTH states: it is
+  // the only control over `students.*_active`, and that column lives in a
+  // different place from the reference number — a letter can be visible to the
+  // student with no number against it (no series prefix set yet, or letter_refs
+  // not migrated on this machine). Hiding the toggle there left such a letter
+  // published with no way to take it down.
   return (
     <Td>
       <div className="flex flex-col gap-1.5">
-        {refNo && <p className="text-[10px] font-mono text-gray-400 leading-none">{refNo}</p>}
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="secondary" onClick={onGenerate} title={`Print ${label} again with the same number`} className="w-fit">
-            <Icon size={13} /> Print
+        {issued ? (
+          <>
+            {refNo && <p className="text-[10px] font-mono text-gray-400 leading-none">{refNo}</p>}
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="secondary" disabled={working} onClick={onGenerate}
+                title={`Print ${label} again with the same number`} className="w-fit">
+                <Icon size={13} /> Print
+              </Button>
+              <button onClick={onWithdraw} disabled={working} title={`Withdraw this ${label}`}
+                className="inline-flex items-center p-1.5 rounded text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </>
+        ) : (
+          <Button size="sm" variant="secondary" onClick={onGenerate} title={`Generate ${label}`} className="w-fit">
+            <Icon size={13} /> Generate
           </Button>
-          <button onClick={onWithdraw} title={`Withdraw this ${label}`}
-            className="inline-flex items-center p-1.5 rounded text-red-500 hover:bg-red-50 transition-colors">
-            <Trash2 size={13} />
-          </button>
-        </div>
-        <button onClick={onToggle} disabled={busy === `${student.id}-${field}`}
+        )}
+        <button onClick={onToggle} disabled={working}
           title={active ? 'Visible — student & center can download' : 'Hidden from student & center'}
           className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit transition-colors ${active ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-gray-500 bg-gray-100 hover:bg-gray-200'}`}>
           {active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
