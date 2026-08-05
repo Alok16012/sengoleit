@@ -240,14 +240,30 @@ export default function ResearchDepartment() {
       examCentre: letter.examCentre || undefined,
     }
   }
+  // The reference this candidate already holds for a letter, or null if the
+  // letter has not been issued to them yet.
+  function issuedRef(student, letterName) {
+    const num = assigned[letterName]?.[student.id]
+    if (num == null) return null
+    return `${entryFor(student.session_id, letterName)?.prefix || ''}${refSerial(num)}`
+  }
+
   // Let go of a candidate's issued number so the next Generate claims a fresh
   // one from the CURRENT series. Numbers lock on first issue (so reopening a
   // letter never renumbers it), but that also locks in numbers claimed under an
   // old series — like a certificate issued before the session's series existed.
-  async function clearRef(student, letterName) {
+  // `field` is the *_active column, so withdrawing also takes the letter off the
+  // student portal — leaving it downloadable after the number is gone would show
+  // the candidate a letter the office no longer has a record of.
+  async function clearRef(student, letterName, field) {
     const letter = entryFor(student.session_id, letterName)
     const cur = `${letter?.prefix || ''}${refSerial(assigned[letterName]?.[student.id])}`
-    if (!confirm(`Clear ${student.student_name}'s ${letterName} number ${cur}?\n\nTheir copy falls back to the application number until you press Generate again, which issues the next number of the current series.`)) return
+    if (!confirm(`Withdraw ${student.student_name}'s ${letterName} (${cur})?\n\nIt disappears from the student portal, and pressing Generate again issues the NEXT number of the current series — not this one.`)) return
+    if (field && student[field]) {
+      const { error } = await supabase.from('students').update({ [field]: false }).eq('id', student.id)
+      if (error) { alert('Could not hide it from the student portal:\n\n' + error.message); return }
+      setRows(rs => rs.map(r => r.id === student.id ? { ...r, [field]: false } : r))
+    }
     const map = { ...(assigned[letterName] || {}) }
     delete map[student.id]
     const nextAssigned = { ...assigned, [letterName]: map }
@@ -793,9 +809,6 @@ export default function ResearchDepartment() {
                     return (
                       <div key={name} className="text-[10px] text-gray-400 font-normal mt-0.5">
                         {name}: {letter?.prefix}{refSerial(num)}
-                        <button type="button" onClick={() => clearRef(s, name)}
-                          title={`Clear this number — the next Generate issues a fresh one from the current ${name} series`}
-                          className="ml-1 text-gray-300 hover:text-red-500 font-bold align-middle">×</button>
                       </div>
                     )
                   })}
@@ -805,14 +818,23 @@ export default function ResearchDepartment() {
                 <Td className="text-sm">{s.specialization || '—'}</Td>
                 <Td className="text-sm">{s.academic_sessions?.session_name || s.academic_year || '—'}</Td>
                 <LetterCell student={s} field="hall_ticket_active" busy={busy}
+                  issued={assigned['Hall Ticket']?.[s.id] != null}
+                  refNo={issuedRef(s, 'Hall Ticket')}
+                  onWithdraw={() => clearRef(s, 'Hall Ticket', 'hall_ticket_active')}
                   onGenerate={() => hallTicketFor(s)}
                   onToggle={() => toggleLetter(s, 'hall_ticket_active')}
                   icon={Ticket} label="Hall Ticket" />
                 <LetterCell student={s} field="offer_letter_active" busy={busy}
+                  issued={assigned['Offer Letter']?.[s.id] != null}
+                  refNo={issuedRef(s, 'Offer Letter')}
+                  onWithdraw={() => clearRef(s, 'Offer Letter', 'offer_letter_active')}
                   onGenerate={() => issue(s, 'Offer Letter', opts => generateOfferLetter(s, opts))}
                   onToggle={() => toggleLetter(s, 'offer_letter_active')}
                   icon={FileCheck2} label="Offer Letter" />
                 <LetterCell student={s} field="entrance_letter_active" busy={busy}
+                  issued={assigned['Entrance Certificate']?.[s.id] != null}
+                  refNo={issuedRef(s, 'Entrance Certificate')}
+                  onWithdraw={() => clearRef(s, 'Entrance Certificate', 'entrance_letter_active')}
                   onGenerate={() => issue(s, 'Entrance Certificate', opts => generateEntranceClearance(s, opts))}
                   onToggle={() => toggleLetter(s, 'entrance_letter_active')}
                   icon={ShieldCheck} label="Entrance Letter" />
@@ -940,19 +962,38 @@ export default function ResearchDepartment() {
 
 // One letter column: generate the PDF, and publish it to the Centre / Student
 // panels with the Active toggle.
-function LetterCell({ student, field, busy, onGenerate, onToggle, icon: Icon, label }) {
+// Before a letter is issued the cell offers Generate. Once it has a reference
+// number it is a real document the candidate may already hold, so the cell
+// switches to Print (the same number again), Hide/Show, and withdraw.
+function LetterCell({ student, field, busy, issued, refNo, onGenerate, onToggle, onWithdraw, icon: Icon, label }) {
   const active = !!student[field]
-  return (
-    <Td>
-      <div className="flex flex-col gap-1.5">
+  if (!issued) {
+    return (
+      <Td>
         <Button size="sm" variant="secondary" onClick={onGenerate} title={`Generate ${label}`} className="w-fit">
           <Icon size={13} /> Generate
         </Button>
+      </Td>
+    )
+  }
+  return (
+    <Td>
+      <div className="flex flex-col gap-1.5">
+        {refNo && <p className="text-[10px] font-mono text-gray-400 leading-none">{refNo}</p>}
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="secondary" onClick={onGenerate} title={`Print ${label} again with the same number`} className="w-fit">
+            <Icon size={13} /> Print
+          </Button>
+          <button onClick={onWithdraw} title={`Withdraw this ${label}`}
+            className="inline-flex items-center p-1.5 rounded text-red-500 hover:bg-red-50 transition-colors">
+            <Trash2 size={13} />
+          </button>
+        </div>
         <button onClick={onToggle} disabled={busy === `${student.id}-${field}`}
-          title={active ? 'Active — student & center can download' : 'Inactive — hidden from student & center'}
+          title={active ? 'Visible — student & center can download' : 'Hidden from student & center'}
           className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit transition-colors ${active ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-gray-500 bg-gray-100 hover:bg-gray-200'}`}>
           {active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
-          {active ? 'Active' : 'Inactive'}
+          {active ? 'Visible' : 'Hidden'}
         </button>
       </div>
     </Td>
