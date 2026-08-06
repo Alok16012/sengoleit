@@ -105,8 +105,14 @@ const baseStyle = `
     /* margin:0 so the browser omits its own header/footer (page title + URL) */
     @page { margin:0; }
     @media print {
-      body { background:#fff; padding:8mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      /* Less at the top than the sides: the sheet was starting a long way down
+         the page. 8mm all round PLUS the wrapper's 24px on-screen margin below
+         put the border roughly 14mm in. */
+      body { background:#fff; padding:4mm 8mm 8mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
       .no-print { display:none !important; }
+      /* The wrapper's breathing room is dead space on paper. It is set inline,
+         so this needs !important to win. */
+      body > div { margin-top:0 !important; }
     }
     table { border-collapse:collapse; }
   </style>`
