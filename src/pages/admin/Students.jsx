@@ -9,7 +9,8 @@ import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, Ale
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
-import { fetchExamSettingsMeta } from '../../utils/examSettings'
+import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
+import { issuedAdmitCard } from '../../utils/semesterAdmitCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, localDay } from '../../utils/formatDate'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
@@ -321,9 +322,12 @@ export default function Students() {
       if (type === 'reg') generateRegistrationCertificate(resolved)
       else if (type === 'id') generateIDCard(resolved)
       else if (type === 'admit') {
-        const subjects = await fetchAdmitCardSubjects(resolved)
+        // Same card the Exam Section issued, not a fresh syllabus lookup.
+        const card = await issuedAdmitCard(resolved)
+        const subjects = card ? card.subjects : await fetchAdmitCardSubjects(resolved)
         const meta = await fetchExamSettingsMeta(resolved)
-        generateAdmitCard(resolved, subjects, meta)
+        const dates = await fetchExamDates(resolved, card?.semester)
+        generateAdmitCard(resolved, subjects, { ...meta, ...dates, ...(card ? { semester: card.semester } : {}) })
       }
     }
     setDownloading(null)

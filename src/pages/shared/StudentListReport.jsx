@@ -11,6 +11,7 @@ import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, generateHallTicket, isPhdProgram } from '../../utils/generateStudentCards'
 import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
 import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
+import { issuedAdmitCard } from '../../utils/semesterAdmitCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
@@ -200,10 +201,14 @@ export default function StudentListReport({ status }) {
       else if (type === 'offer') generateOfferLetter(resolved, await letterOptsFor(studentId, 'Offer Letter', resolved.session_id))
       else if (type === 'entrance') generateEntranceClearance(resolved, await letterOptsFor(studentId, 'Entrance Certificate', resolved.session_id))
       else if (type === 'admit') {
-        const subjects = await fetchAdmitCardSubjects(resolved)
+        // Print the card the Exam Section issued — its papers and its semester.
+        // Re-deriving the papers from the syllabus printed a different set here
+        // from the one on the card the university had actually approved.
+        const card = await issuedAdmitCard(resolved)
+        const subjects = card ? card.subjects : await fetchAdmitCardSubjects(resolved)
         const meta = await fetchExamSettingsMeta(resolved)
-        const dates = await fetchExamDates(resolved)
-        generateAdmitCard(resolved, subjects, { ...meta, ...dates })
+        const dates = await fetchExamDates(resolved, card?.semester)
+        generateAdmitCard(resolved, subjects, { ...meta, ...dates, ...(card ? { semester: card.semester } : {}) })
       }
     }
     setDownloading(null)
