@@ -260,7 +260,7 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
     // Middle tier: everything except result_released_at, which needs
     // add_phd_portal_flow.sql. Without this tier a missing release column would
     // knock the whole result block down to MIN and hide declared results.
@@ -268,7 +268,7 @@ export default function ExamSection() {
     // Minimal fallback used when the exam-result / admit-card columns have not
     // been created yet (run_all_migrations.sql not applied). The forwarded
     // students still appear; only the result/release features stay inactive.
-    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
+    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
 
     let { data, error } = await supabase
       .from('students')
@@ -319,6 +319,58 @@ export default function ExamSection() {
     setAdmitModal({ student, loading: false, ...status, issued: issued || {}, issuedMissing: issued === null })
   }
 
+  // Take the part of a semester's fee that is still outstanding out of the
+  // centre's wallet. Admission and re-registration each collect only half the
+  // fee, so a semester is always short when its admit card comes due; this is
+  // where the rest is finally collected. The money moves BEFORE the student row
+  // is credited — a failed wallet write must not look like a payment.
+  async function collectShortfall(student, shortfall) {
+    const centerId = student.centers?.id
+    if (!centerId) return { error: { message: 'No centre is on record for this student, so the fee cannot be collected.' } }
+
+    const { data: ctr, error: cErr } = await supabase
+      .from('centers').select('virtual_balance').eq('id', centerId).maybeSingle()
+    if (cErr) return { error: cErr }
+    const balance = Number(ctr?.virtual_balance || 0)
+    if (balance < shortfall) {
+      return { error: { message:
+        `The centre's wallet has ₹${balance.toLocaleString('en-IN')} — ₹${shortfall.toLocaleString('en-IN')} is needed.\n\n` +
+        `Ask the centre to recharge before issuing this admit card.` } }
+    }
+    const { error: wErr } = await supabase.from('centers')
+      .update({ virtual_balance: balance - shortfall }).eq('id', centerId)
+    if (wErr) return { error: wErr }
+
+    // Re-read rather than trusting the list row, which may be minutes stale.
+    const { data: st } = await supabase
+      .from('students').select('fee_collected').eq('id', student.id).maybeSingle()
+    const collected = Number(st?.fee_collected || 0) + shortfall
+    const { error: sErr } = await supabase.from('students')
+      .update({ fee_collected: collected }).eq('id', student.id)
+    if (sErr) {
+      return { error: { message:
+        `₹${shortfall.toLocaleString('en-IN')} was taken from the centre's wallet but could not be recorded against the student:\n\n` +
+        sErr.message + '\n\nPlease correct this before issuing the card.' } }
+    }
+    return { collected }
+  }
+
+  // Collect a semester's outstanding fee, then reopen the picker so the
+  // semester shows as cleared and its papers can be selected.
+  async function collectAndReopen(student, sem, shortfall) {
+    if (!confirm(
+      `Collect ₹${shortfall.toLocaleString('en-IN')} for Semester ${sem} from ${student.centers?.center_name || 'the centre'}'s wallet?\n\n` +
+      `This is the part of the semester's fee that has not been paid yet. The admit card can be issued once it is collected.`
+    )) return
+    setBusy(`${student.id}-collect-${sem}`)
+    const { error, collected } = await collectShortfall(student, shortfall)
+    setBusy(null)
+    if (error) { alert(error.message); return }
+    // Keep the list in step so reopening the picker doesn't re-read a stale fee.
+    setData(rows => rows.map(r => (r.id === student.id ? { ...r, fee_collected: collected } : r)))
+    await openAdmitModal({ ...student, fee_collected: collected })
+  }
+
   // Re-read the issued cards after any change, keeping the modal open so the
   // admin sees the semester's new state instead of being thrown out.
   async function refreshIssued(student) {
@@ -346,7 +398,7 @@ export default function ExamSection() {
     setBusy(`${student.id}-${sem}`)
     const { data: s } = await supabase
       .from('students')
-      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code), departments(name), study_modes(mode_name)')
       .eq('id', student.id)
       .single()
     if (s) {
@@ -746,11 +798,12 @@ export default function ExamSection() {
                       Run <span className="font-mono">add_semester_admit_cards.sql</span> in Supabase to keep a record of each semester's admit card.
                     </div>
                   )}
-                  <p className="text-[11px] text-gray-400 mb-3">Fee collected: <span className="font-bold text-gray-700">₹{Number(admitModal.collected).toLocaleString('en-IN')}</span>. A semester unlocks once the university's share of its fee is in.</p>
+                  <p className="text-[11px] text-gray-400 mb-3">Fee collected: <span className="font-bold text-gray-700">₹{Number(admitModal.collected).toLocaleString('en-IN')}</span>. A semester's card is issued only once its fee is collected in full.</p>
                   <div className="space-y-2">
-                    {admitModal.sems.map(({ sem, cumFee, dueFee, cleared }) => {
+                    {admitModal.sems.map(({ sem, dueFee, cleared }) => {
                       const card = admitModal.issued?.[sem]
                       const visible = !!card?.released_at
+                      const shortfall = Math.max(Number(dueFee) - Number(admitModal.collected), 0)
                       return (
                       <div key={sem} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-2.5 ${cleared ? 'border-gray-200' : 'border-gray-100 bg-gray-50'}`}>
                         <div className="min-w-0">
@@ -761,23 +814,25 @@ export default function ExamSection() {
                               <span className={visible ? 'text-emerald-600 font-semibold' : 'text-gray-400 font-semibold'}>
                                 {visible ? 'visible to student' : 'hidden'}
                               </span>
+                              {/* Cards issued before the fee gate was corrected
+                                  carry a debt — say so instead of hiding it. */}
+                              {shortfall > 0 && <> · <span className="font-semibold text-amber-700">₹{shortfall.toLocaleString('en-IN')} still due</span></>}
                             </p>
                           ) : (
-                            // Both numbers, so the admin can answer the centre's
-                            // "but we paid ₹X" without opening Fee Management.
+                            // Naming the shortfall answers the centre's "but we
+                            // already paid ₹X" without opening Fee Management.
                             <p className="text-[11px] text-gray-400">
-                              Course fee upto: ₹{Number(cumFee).toLocaleString('en-IN')} · to collect: ₹{Number(dueFee).toLocaleString('en-IN')}
+                              Fee upto: ₹{Number(dueFee).toLocaleString('en-IN')}
+                              {shortfall > 0 && <> · <span className="font-semibold text-amber-700">₹{shortfall.toLocaleString('en-IN')} still due</span></>}
                             </p>
                           )}
                         </div>
-                        {!cleared ? (
-                          // Naming the shortfall saves a round of "why is it locked?".
-                          <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 shrink-0" title="Raise a Re-Registration from the Students page to collect this">
-                            <Lock size={12} /> ₹{Math.max(Number(dueFee) - Number(admitModal.collected), 0).toLocaleString('en-IN')} pending
-                          </span>
-                        ) : card ? (
+                        {card ? (
                           // Already issued — re-print it, hide it from the
-                          // student, or withdraw it altogether.
+                          // student, or withdraw it altogether. These stay
+                          // available even while the fee is short: the card is
+                          // already with the student, and locking the controls
+                          // would leave no way to pull it back.
                           <div className="flex items-center gap-1.5 shrink-0">
                             <Button size="sm" variant="secondary" disabled={busy === `${admitModal.student.id}-${sem}`}
                               title="Print this card again with the same papers"
@@ -794,6 +849,18 @@ export default function ExamSection() {
                               <Trash2 size={13} />
                             </Button>
                           </div>
+                        ) : !cleared ? (
+                          // The rest of the fee is collected here rather than
+                          // leaving the semester locked with nowhere to pay it.
+                          // Deliberately a separate step from issuing the card,
+                          // so money never moves on an unrelated click.
+                          <Button size="sm" variant="secondary" className="shrink-0"
+                            disabled={busy === `${admitModal.student.id}-collect-${sem}`}
+                            title={`Take the outstanding ₹${shortfall.toLocaleString('en-IN')} from the centre's wallet`}
+                            onClick={() => collectAndReopen(admitModal.student, sem, shortfall)}>
+                            <Lock size={13} />
+                            {busy === `${admitModal.student.id}-collect-${sem}` ? '…' : `Collect ₹${shortfall.toLocaleString('en-IN')}`}
+                          </Button>
                         ) : (
                           <Button size="sm" variant="primary" onClick={() => chooseSem(admitModal.student, sem)}>
                             <ClipboardList size={13} /> Select Papers

@@ -140,17 +140,17 @@ export function holdAmount(courseFee, discount) {
 
 // Per-semester cumulative course fee + which semesters are "cleared".
 //
-// `fee_collected` is the UNIVERSITY's share, not the whole course fee: the
-// centre keeps half and remits the rest, so every deduction — admission
-// (holdAmount) and re-registration alike — is 50% of the fee less any coupon.
-// The gate therefore compares what was collected against that same half
-// (`dueFee`), never against the full `cumFee`. Comparing it to the full fee
-// meant the gate could not be cleared by any flow the app has: a paid-up
-// student stayed locked out of their admit card, result and registration card.
+// A semester is cleared only once its fee has been collected IN FULL —
+// `dueFee`, the cumulative course fee less any coupon.
+//
+// Nothing collects that much on its own: admission (holdAmount) and each
+// re-registration take half the fee apiece, so a semester sits short by
+// design. The Exam Section collects the remainder from the centre's wallet at
+// the moment the admit card is issued, which is what finally clears it.
 //
 // Drives the per-semester admit-card gate in the Exam Section.
 // Returns { totalSems, collected, sems: [{ sem, cumFee, dueFee, cleared }] },
-// where cumFee is the full course fee and dueFee is the share to collect.
+// where cumFee is the course fee and dueFee is that fee less the coupon.
 export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected, coupon_discount }) {
   const totalSems = Number(duration) || 1
   const { data: structures } = await supabase
@@ -174,9 +174,8 @@ export async function computeSemesterFeeStatus({ programme_id, session_id, durat
   const sems = []
   for (let n = 1; n <= totalSems; n++) {
     const fee = cumFee(n)
-    // Exactly what the wallet was charged for this semester — holdAmount() at
-    // admission, then the same half again at each re-registration.
-    const due = holdAmount(fee, coupon_discount)
+    // The coupon is a discount on the fee itself, so it is never collected.
+    const due = Math.max(Math.round(fee) - (Number(coupon_discount) || 0), 0)
     sems.push({ sem: n, cumFee: Math.round(fee), dueFee: due, cleared: collected + 1 >= due })   // +1 = rounding tolerance
   }
   return { totalSems, collected: Math.round(collected), sems }
