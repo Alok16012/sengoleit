@@ -147,7 +147,7 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                             {r.released_at ? ' · sent to student' : ''}
                           </p>
                         ) : (
-                          <p className="text-[11px] text-gray-400">{row.cleared ? 'Not entered yet' : `Fee upto ₹${Number(row.cumFee).toLocaleString('en-IN')}`}</p>
+                          <p className="text-[11px] text-gray-400">{row.cleared ? 'Not entered yet' : `To collect ₹${Number(row.dueFee).toLocaleString('en-IN')}`}</p>
                         )}
                       </div>
                       {!row.cleared ? (

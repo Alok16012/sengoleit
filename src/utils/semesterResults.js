@@ -13,6 +13,7 @@ export async function semesterResults(student) {
     session_id: student.session_id,
     duration: student.programs?.duration,
     fee_collected: student.fee_collected,
+    coupon_discount: student.coupon_discount,
   })
   const { data, error } = await supabase
     .from('student_results')

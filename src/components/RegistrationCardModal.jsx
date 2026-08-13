@@ -54,7 +54,7 @@ export default function RegistrationCardModal({ student, onClose }) {
             <>
               <p className="text-[11px] text-gray-400 mb-3">
                 Fee collected: <span className="font-bold text-gray-700">₹{Number(student.fee_collected || 0).toLocaleString('en-IN')}</span>.
-                A year unlocks once the fee up to its first semester is cleared.
+                A year unlocks once the university's share of its first semester's fee is in.
               </p>
               <div className="space-y-2">
                 {years.map(y => (
@@ -63,7 +63,7 @@ export default function RegistrationCardModal({ student, onClose }) {
                     <div>
                       <p className={`text-sm font-bold ${y.cleared ? 'text-gray-900' : 'text-gray-400'}`}>Year {y.year}</p>
                       <p className="text-[11px] text-gray-400">
-                        Semester {y.fromSem}{y.toSem !== y.fromSem ? `–${y.toSem}` : ''} · fee upto ₹{Number(y.cumFee).toLocaleString('en-IN')}
+                        Semester {y.fromSem}{y.toSem !== y.fromSem ? `–${y.toSem}` : ''} · to collect ₹{Number(y.dueFee).toLocaleString('en-IN')}
                       </p>
                     </div>
                     {y.cleared ? (

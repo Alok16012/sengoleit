@@ -331,11 +331,11 @@ export default function Students() {
 
   async function fetchData() {
     setLoading(true)
-    const FULL = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const FULL = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
     // Fallback for DBs where the exam-result / admit-card columns are not yet
     // created (run_all_migrations.sql not applied) — students still list; only
     // the admit-card / result actions stay inactive.
-    const MIN = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const MIN = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
 
     let { data, error } = await supabase
       .from('students')

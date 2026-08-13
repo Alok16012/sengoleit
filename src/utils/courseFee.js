@@ -138,11 +138,20 @@ export function holdAmount(courseFee, discount) {
   return Math.max(Math.ceil(Number(courseFee || 0) * 0.5) - Number(discount || 0), 0)
 }
 
-// Per-semester cumulative course fee + which semesters are "cleared" — i.e. the
-// student's fee_collected covers that semester's cumulative fee. Drives the
-// per-semester admit-card gate in the Exam Section.
-// Returns { totalSems, collected, sems: [{ sem, cumFee, cleared }] }.
-export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected }) {
+// Per-semester cumulative course fee + which semesters are "cleared".
+//
+// `fee_collected` is the UNIVERSITY's share, not the whole course fee: the
+// centre keeps half and remits the rest, so every deduction — admission
+// (holdAmount) and re-registration alike — is 50% of the fee less any coupon.
+// The gate therefore compares what was collected against that same half
+// (`dueFee`), never against the full `cumFee`. Comparing it to the full fee
+// meant the gate could not be cleared by any flow the app has: a paid-up
+// student stayed locked out of their admit card, result and registration card.
+//
+// Drives the per-semester admit-card gate in the Exam Section.
+// Returns { totalSems, collected, sems: [{ sem, cumFee, dueFee, cleared }] },
+// where cumFee is the full course fee and dueFee is the share to collect.
+export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected, coupon_discount }) {
   const totalSems = Number(duration) || 1
   const { data: structures } = await supabase
     .from('fee_structures').select('id, session_id').eq('program_id', programme_id)
@@ -165,7 +174,10 @@ export async function computeSemesterFeeStatus({ programme_id, session_id, durat
   const sems = []
   for (let n = 1; n <= totalSems; n++) {
     const fee = cumFee(n)
-    sems.push({ sem: n, cumFee: Math.round(fee), cleared: collected + 1 >= fee })   // +1 = rounding tolerance
+    // Exactly what the wallet was charged for this semester — holdAmount() at
+    // admission, then the same half again at each re-registration.
+    const due = holdAmount(fee, coupon_discount)
+    sems.push({ sem: n, cumFee: Math.round(fee), dueFee: due, cleared: collected + 1 >= due })   // +1 = rounding tolerance
   }
   return { totalSems, collected: Math.round(collected), sems }
 }

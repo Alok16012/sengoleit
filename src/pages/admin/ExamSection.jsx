@@ -260,7 +260,7 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
     // Middle tier: everything except result_released_at, which needs
     // add_phd_portal_flow.sql. Without this tier a missing release column would
     // knock the whole result block down to MIN and hide declared results.
@@ -268,7 +268,7 @@ export default function ExamSection() {
     // Minimal fallback used when the exam-result / admit-card columns have not
     // been created yet (run_all_migrations.sql not applied). The forwarded
     // students still appear; only the result/release features stay inactive.
-    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
+    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code)'
 
     let { data, error } = await supabase
       .from('students')
@@ -310,6 +310,7 @@ export default function ExamSection() {
         session_id: student.session_id,
         duration: student.programs?.duration,
         fee_collected: student.fee_collected,
+        coupon_discount: student.coupon_discount,
       }),
       admitCardsFor(student.id),
     ])
@@ -745,9 +746,9 @@ export default function ExamSection() {
                       Run <span className="font-mono">add_semester_admit_cards.sql</span> in Supabase to keep a record of each semester's admit card.
                     </div>
                   )}
-                  <p className="text-[11px] text-gray-400 mb-3">Fee collected: <span className="font-bold text-gray-700">₹{Number(admitModal.collected).toLocaleString('en-IN')}</span>. A semester unlocks once its cumulative fee is cleared.</p>
+                  <p className="text-[11px] text-gray-400 mb-3">Fee collected: <span className="font-bold text-gray-700">₹{Number(admitModal.collected).toLocaleString('en-IN')}</span>. A semester unlocks once the university's share of its fee is in.</p>
                   <div className="space-y-2">
-                    {admitModal.sems.map(({ sem, cumFee, cleared }) => {
+                    {admitModal.sems.map(({ sem, cumFee, dueFee, cleared }) => {
                       const card = admitModal.issued?.[sem]
                       const visible = !!card?.released_at
                       return (
@@ -762,11 +763,18 @@ export default function ExamSection() {
                               </span>
                             </p>
                           ) : (
-                            <p className="text-[11px] text-gray-400">Fee upto: ₹{Number(cumFee).toLocaleString('en-IN')}</p>
+                            // Both numbers, so the admin can answer the centre's
+                            // "but we paid ₹X" without opening Fee Management.
+                            <p className="text-[11px] text-gray-400">
+                              Course fee upto: ₹{Number(cumFee).toLocaleString('en-IN')} · to collect: ₹{Number(dueFee).toLocaleString('en-IN')}
+                            </p>
                           )}
                         </div>
                         {!cleared ? (
-                          <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 shrink-0"><Lock size={12} /> Fee pending</span>
+                          // Naming the shortfall saves a round of "why is it locked?".
+                          <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 shrink-0" title="Raise a Re-Registration from the Students page to collect this">
+                            <Lock size={12} /> ₹{Math.max(Number(dueFee) - Number(admitModal.collected), 0).toLocaleString('en-IN')} pending
+                          </span>
                         ) : card ? (
                           // Already issued — re-print it, hide it from the
                           // student, or withdraw it altogether.

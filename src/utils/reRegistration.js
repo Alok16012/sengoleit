@@ -55,7 +55,7 @@ export async function reRegistrationFee(student) {
 // 6-semester course has three, starting at Semester 1, 3 and 5. A year opens
 // once the fee up to its FIRST semester is cleared — the same rule the
 // semester-wise admit card uses, applied to the year's opening semester.
-// Returns [{ year, fromSem, toSem, cumFee, cleared }].
+// Returns [{ year, fromSem, toSem, cumFee, dueFee, cleared }].
 export async function registrationYears(student) {
   const totalSems = Number(student?.programs?.duration) || 0
   if (!totalSems) return []
@@ -64,13 +64,14 @@ export async function registrationYears(student) {
     session_id: student.session_id,
     duration: totalSems,
     fee_collected: student.fee_collected,
+    coupon_discount: student.coupon_discount,
   })
   const years = []
   for (let y = 1; (y - 1) * 2 + 1 <= totalSems; y++) {
     const fromSem = (y - 1) * 2 + 1
     const toSem = Math.min(fromSem + 1, totalSems)
     const gate = sems.find(x => x.sem === fromSem)
-    years.push({ year: y, fromSem, toSem, cumFee: gate?.cumFee ?? 0, cleared: !!gate?.cleared })
+    years.push({ year: y, fromSem, toSem, cumFee: gate?.cumFee ?? 0, dueFee: gate?.dueFee ?? 0, cleared: !!gate?.cleared })
   }
   return years
 }
