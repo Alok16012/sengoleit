@@ -11,7 +11,7 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
 import { fetchExamDates } from '../../utils/examSettings'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
-import { admitCardsFor, saveAdmitCard, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
+import { admitCardsFor, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
 import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 import SemesterResultModal from '../../components/SemesterResultModal'
@@ -385,6 +385,18 @@ export default function ExamSection() {
     const rows = await fetchSemesterSubjectRows(student, sem)
     setAdmitModal(m => m && { ...m, pick: { sem, loading: false, rows, selected: new Set(rows.map(r => r.id)) } })
   }
+
+  // Edit an issued card: the same paper picker, but pre-ticked with the papers
+  // the card was issued with, and saving keeps the card's visibility as it is.
+  // A card issued with no saved papers ("as per curriculum") starts all-ticked,
+  // since there is no saved selection to restore.
+  async function editAdmitCard(student, sem, savedIds) {
+    setAdmitModal(m => m && { ...m, pick: { sem, editing: true, loading: true, rows: [], selected: new Set() } })
+    const rows = await fetchSemesterSubjectRows(student, sem)
+    const saved = new Set(savedIds || [])
+    const selected = saved.size ? new Set(rows.filter(r => saved.has(r.id)).map(r => r.id)) : new Set(rows.map(r => r.id))
+    setAdmitModal(m => m && { ...m, pick: { sem, editing: true, loading: false, rows, selected } })
+  }
   const toggleSubject = (id) => setAdmitModal(m => {
     if (!m?.pick) return m
     const selected = new Set(m.pick.selected)
@@ -393,8 +405,9 @@ export default function ExamSection() {
   })
 
   // Admit card is generated ONLY here — for a specific semester, using the
-  // papers the admin selected.
-  async function handleAdmitCard(student, sem, rows, selected, { record = true } = {}) {
+  // papers the admin selected. `edit` re-issues an existing card with new
+  // papers, which must not touch its visibility the way a fresh issue does.
+  async function handleAdmitCard(student, sem, rows, selected, { record = true, edit = false } = {}) {
     setBusy(`${student.id}-${sem}`)
     const { data: s } = await supabase
       .from('students')
@@ -421,7 +434,9 @@ export default function ExamSection() {
     // record:false so it does not reset when the card was first issued.
     if (record) {
       const ids = (rows && selected) ? rows.filter(r => selected.has(r.id)).map(r => r.id) : []
-      const { error } = await saveAdmitCard(student.id, sem, ids)
+      const { error } = edit
+        ? await updateAdmitCardSubjects(student.id, sem, ids)
+        : await saveAdmitCard(student.id, sem, ids)
       if (error) {
         alert('The admit card printed, but it could not be recorded:\n\n' + error.message +
               '\n\nRun add_semester_admit_cards.sql in Supabase.')
@@ -750,7 +765,7 @@ export default function ExamSection() {
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="font-black text-gray-900">Generate Admit Card</h3>
-                <p className="text-xs text-gray-400 mt-0.5">{admitModal.student.student_name} · {admitModal.pick ? `Semester ${admitModal.pick.sem} — select papers` : 'pick a semester'}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{admitModal.student.student_name} · {admitModal.pick ? `Semester ${admitModal.pick.sem} — ${admitModal.pick.editing ? 'edit papers' : 'select papers'}` : 'pick a semester'}</p>
               </div>
               <button onClick={() => setAdmitModal(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
             </div>
@@ -784,8 +799,8 @@ export default function ExamSection() {
                     )}
                     <Button variant="primary" className="w-full justify-center"
                       disabled={busy === `${admitModal.student.id}-${admitModal.pick.sem}` || (admitModal.pick.rows.length > 0 && admitModal.pick.selected.size === 0)}
-                      onClick={() => handleAdmitCard(admitModal.student, admitModal.pick.sem, admitModal.pick.rows, admitModal.pick.selected)}>
-                      <ClipboardList size={14} /> {busy === `${admitModal.student.id}-${admitModal.pick.sem}` ? '…' : 'Generate Admit Card'}
+                      onClick={() => handleAdmitCard(admitModal.student, admitModal.pick.sem, admitModal.pick.rows, admitModal.pick.selected, { edit: !!admitModal.pick.editing })}>
+                      <ClipboardList size={14} /> {busy === `${admitModal.student.id}-${admitModal.pick.sem}` ? '…' : admitModal.pick.editing ? 'Save & Print Admit Card' : 'Generate Admit Card'}
                     </Button>
                   </>
                 )
@@ -838,6 +853,11 @@ export default function ExamSection() {
                               title="Print this card again with the same papers"
                               onClick={() => reprintAdmitCard(admitModal.student, sem, card.subject_ids)}>
                               <ClipboardList size={13} /> {busy === `${admitModal.student.id}-${sem}` ? '…' : 'Print'}
+                            </Button>
+                            <Button size="sm" variant="secondary"
+                              title="Change the papers on this card and re-issue it"
+                              onClick={() => editAdmitCard(admitModal.student, sem, card.subject_ids)}>
+                              <FileEdit size={13} /> Edit
                             </Button>
                             <Button size="sm" variant="secondary"
                               title={visible ? 'Hide from the student portal' : 'Show in the student portal'}

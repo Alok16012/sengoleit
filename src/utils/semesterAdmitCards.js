@@ -31,6 +31,17 @@ export async function saveAdmitCard(studentId, semester, subjectIds) {
   return { error }
 }
 
+// Change the papers on an already-issued card WITHOUT touching released_at —
+// editing a hidden card must not quietly publish it back to the student, and
+// saveAdmitCard's upsert would do exactly that. generated_at does move: the
+// card the student now sees is the one issued today, not the original.
+export async function updateAdmitCardSubjects(studentId, semester, subjectIds) {
+  const { error } = await supabase.from('student_admit_cards')
+    .update({ subject_ids: subjectIds || [], generated_at: new Date().toISOString() })
+    .eq('student_id', studentId).eq('semester', semester)
+  return { error }
+}
+
 // Hide from / show to the student, without losing the record of what was on it.
 export async function setAdmitCardVisible(studentId, semester, visible) {
   const { error } = await supabase.from('student_admit_cards')
