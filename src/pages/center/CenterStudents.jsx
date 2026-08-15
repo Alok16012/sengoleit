@@ -7,7 +7,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import { Plus, Search, Download, Send, RefreshCw } from 'lucide-react'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
-import { fetchReRegistrations } from '../../utils/reRegistration'
+import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -215,19 +215,23 @@ export default function CenterStudents() {
                         <span className="text-xs ml-1 text-[#933d18]">Forward</span>
                       </Button>
                     )}
-                    {/* Re-Registration — only for an enrolled student, and only
-                        one open request at a time. */}
+                    {/* Re-Registration — only for an enrolled student, only one
+                        open request at a time, and only while there is a next
+                        term to register into. A 1-year (2-semester) course
+                        with both semesters already re-registered has nothing
+                        left, and offering the button just to have the modal
+                        say so is noise the centre has no use for. */}
                     {s.status === 'Approved' && reReg !== null && (
                       reReg[s.id]?.status === 'Pending' ? (
                         <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded whitespace-nowrap">
                           Re-Reg pending
                         </span>
-                      ) : (
+                      ) : !nextTerm(s).atEnd ? (
                         <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)} title="Request Re-Registration">
                           <RefreshCw size={13} className="text-[#933d18]" />
                           <span className="text-xs ml-1 text-[#933d18]">Re-Reg</span>
                         </Button>
-                      )
+                      ) : null
                     )}
                   </div>
                 </Td>
