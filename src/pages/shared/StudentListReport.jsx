@@ -8,14 +8,13 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X, Award } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
-import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, generateHallTicket, isPhdProgram } from '../../utils/generateStudentCards'
-import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
-import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
-import { issuedAdmitCard } from '../../utils/semesterAdmitCards'
+import { generateIDCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, generateHallTicket, isPhdProgram } from '../../utils/generateStudentCards'
+import { admitCardsForMany } from '../../utils/semesterAdmitCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
 import { letterOptsFor } from '../../utils/letterSettings'
+import AdmitCardListModal from '../../components/AdmitCardListModal'
 
 const STATUS_META = {
   Pending:    { color: 'amber',   label: 'Pending Students',    desc: 'Forms submitted — not yet forwarded to the Document Dept.' },
@@ -38,6 +37,11 @@ export default function StudentListReport({ status }) {
   const [forwardModal, setForwardModal] = useState(null) // { student, courseFee, discount, net, balance, loading, staging, targetId }
   const [forwarding, setForwarding] = useState(false)
   const [resultStudent, setResultStudent] = useState(null)
+  // Every issued (and, for a centre, released) semester card, keyed by
+  // student id — lets the Admit Card action open a picker instead of always
+  // downloading just the latest semester.
+  const [admitCards, setAdmitCards] = useState({})
+  const [admitListStudent, setAdmitListStudent] = useState(null)
   // Target centers for a Staging-center transfer (super center → center cascade).
   const [allCenters, setAllCenters] = useState([])
   const [superCentersList, setSuperCentersList] = useState([])
@@ -140,6 +144,10 @@ export default function StudentListReport({ status }) {
     setData(rows)
     setLoading(false)
     loadHoldsDue(rows)
+    // null = add_semester_admit_cards.sql not run yet. RLS already limits a
+    // centre to its students' RELEASED cards, so no extra filtering is needed
+    // here — an unreleased (hidden) semester simply never comes back.
+    setAdmitCards(await admitCardsForMany(rows.map(r => r.id)))
   }
 
   // Recompute today's required hold for every student whose fee is still held.
@@ -200,16 +208,6 @@ export default function StudentListReport({ status }) {
       else if (type === 'hall') generateHallTicket(resolved, await letterOptsFor(studentId, 'Hall Ticket', resolved.session_id))
       else if (type === 'offer') generateOfferLetter(resolved, await letterOptsFor(studentId, 'Offer Letter', resolved.session_id))
       else if (type === 'entrance') generateEntranceClearance(resolved, await letterOptsFor(studentId, 'Entrance Certificate', resolved.session_id))
-      else if (type === 'admit') {
-        // Print the card the Exam Section issued — its papers and its semester.
-        // Re-deriving the papers from the syllabus printed a different set here
-        // from the one on the card the university had actually approved.
-        const card = await issuedAdmitCard(resolved)
-        const subjects = card ? card.subjects : await fetchAdmitCardSubjects(resolved)
-        const meta = await fetchExamSettingsMeta(resolved)
-        const dates = await fetchExamDates(resolved, card?.semester)
-        generateAdmitCard(resolved, subjects, { ...meta, ...dates, ...(card ? { semester: card.semester } : {}) })
-      }
     }
     setDownloading(null)
   }
@@ -542,15 +540,19 @@ export default function StudentListReport({ status }) {
                             </Button>
                           </>
                         )}
+                        {/* admit_card_released_at is the old single-flag release
+                            and stays untouched by the per-semester flow, so a
+                            student with released semester cards but no flag
+                            would otherwise show no button at all — check both. */}
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleCard(s.id, 'admit')}
-                          disabled={!s.admit_card_released_at || downloading === `${s.id}-admit`}
-                          title={s.admit_card_released_at ? 'Download Admit Card' : 'Admit card not released by the Exam Section yet'}
+                          onClick={() => setAdmitListStudent(s)}
+                          disabled={!s.admit_card_released_at && !(admitCards?.[s.id]?.length > 0)}
+                          title={s.admit_card_released_at || admitCards?.[s.id]?.length > 0 ? 'Admit Card — all issued semesters' : 'Admit card not released by the Exam Section yet'}
                         >
-                          <ClipboardList size={14} className={downloading === `${s.id}-admit` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
-                          <span className="text-xs ml-1 text-[#933d18]">{downloading === `${s.id}-admit` ? '...' : 'Admit Card'}</span>
+                          <ClipboardList size={14} className="text-[#933d18]" />
+                          <span className="text-xs ml-1 text-[#933d18]">Admit Card</span>
                         </Button>
                         {(() => {
                           const hasResult = s.exam_result_status && s.exam_result_status !== 'Pending' && !!s.result_released_at
@@ -677,6 +679,10 @@ export default function StudentListReport({ status }) {
 
       {resultStudent && (
         <ResultViewModal student={resultStudent} onClose={() => setResultStudent(null)} />
+      )}
+
+      {admitListStudent && (
+        <AdmitCardListModal student={admitListStudent} onClose={() => setAdmitListStudent(null)} />
       )}
     </div>
   )
