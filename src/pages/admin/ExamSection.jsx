@@ -801,7 +801,7 @@ export default function ExamSection() {
 
       {admitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAdmitModal(null)}>
-          <div className={`bg-white rounded-2xl shadow-xl w-full ${admitModal.pick ? 'max-w-3xl max-h-[92vh]' : 'max-w-md max-h-[85vh]'} overflow-hidden flex flex-col`} onClick={e => e.stopPropagation()}>
+          <div className={`bg-white rounded-2xl shadow-xl w-full ${admitModal.pick ? 'max-w-5xl max-h-[94vh]' : 'max-w-md max-h-[85vh]'} overflow-hidden flex flex-col`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="font-black text-gray-900">Generate Admit Card</h3>
@@ -846,7 +846,7 @@ export default function ExamSection() {
                           <span>One subject per paper goes on the card</span>
                           <span>{admitModal.pick.selected.size}/{paperGroups(admitModal.pick.rows).length} papers selected</span>
                         </div>
-                        <div className="grid sm:grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-1">
+                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto pr-1">
                           {paperGroups(admitModal.pick.rows).map(g => (
                             <div key={g.key} className="rounded-xl border border-gray-100 p-2">
                               {g.label && <p className="text-[10px] font-black text-[#933d18] uppercase tracking-wide px-1 pb-1">{g.label}</p>}
