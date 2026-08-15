@@ -24,33 +24,39 @@ export async function fetchExamDates(student, sem) {
     const typeName = student?.programs?.programme_types?.programme_type_name || ''
     const isPhd = /ph\.?\s*d|doctor of philosophy|doctoral/i.test(progName) || /doctorate|ph\.?\s*d|doctoral/i.test(typeName)
     const offset = isPhd ? 100 : 0
-    const { data } = await supabase
-      .from('exam_calendar')
-      .select('semester, start_date, end_date')
+    // exam_held needs add_exam_calendar_held.sql — retry without it so cards
+    // keep printing on an unmigrated database.
+    const build = (cols) => supabase.from('exam_calendar').select(cols)
       .eq('session_id', sid).gt('semester', offset).lte('semester', offset + 12)
-    const rows = (data || []).filter(r => r.start_date || r.end_date)
+    let { data, error } = await build('semester, start_date, end_date, exam_held')
+    if (error) ({ data } = await build('semester, start_date, end_date'))
+    // A row may carry only the typed "Exam. Held" label, with no dates yet.
+    const rows = (data || []).filter(r => r.start_date || r.end_date || r.exam_held)
     if (!rows.length) return { examDates: '', examTerm: '' }
     const key = r => new Date(r.start_date || r.end_date).getTime()
     const today = Date.now()
-    // Prefer the requested term; else the current/nearest-upcoming period.
+    // Prefer the requested term; else the current/nearest-upcoming DATED period
+    // (an undated label can't be ranked against today).
     let row = sem ? rows.find(r => r.semester === offset + Number(sem)) : null
     if (!row) {
-      const upcoming = rows.filter(r => r.end_date && new Date(r.end_date).getTime() >= today).sort((a, b) => key(a) - key(b))
-      row = upcoming[0] || [...rows].sort((a, b) => key(b) - key(a))[0]
+      const dated = rows.filter(r => r.start_date || r.end_date)
+      const upcoming = dated.filter(r => r.end_date && new Date(r.end_date).getTime() >= today).sort((a, b) => key(a) - key(b))
+      row = upcoming[0] || [...dated].sort((a, b) => key(b) - key(a))[0]
     }
     if (!row) return { examDates: '', examTerm: '' }
     const fmt = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
-    // The month the exams sit in ("January 2026") — the card prints this as the
-    // examination session so Semester 2's card stops carrying the ADMISSION
-    // session. Only trustworthy when the row is the requested term's own; the
+    // The examination session printed on the card ("January 2026"), so Semester
+    // 2's card stops carrying the ADMISSION session. The admin's typed
+    // "Exam. Held" label wins; the exam start date's month is the fallback.
+    // Only trustworthy when the row is the requested term's own; the
     // nearest-upcoming fallback may belong to a different semester.
     const semMatch = !sem || row.semester === offset + Number(sem)
     return {
-      examDates: `${fmt(row.start_date)} to ${fmt(row.end_date)}`,
+      examDates: (row.start_date || row.end_date) ? `${fmt(row.start_date)} to ${fmt(row.end_date)}` : '',
       examTerm: `${isPhd ? 'Year' : 'Semester'} ${row.semester - offset}`,
-      examSession: semMatch && row.start_date
-        ? new Date(row.start_date).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
-        : '',
+      examSession: !semMatch ? ''
+        : (String(row.exam_held || '').trim()
+          || (row.start_date ? new Date(row.start_date).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '')),
     }
   } catch {
     return { examDates: '', examTerm: '' }
