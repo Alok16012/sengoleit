@@ -801,7 +801,7 @@ export default function ExamSection() {
 
       {admitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAdmitModal(null)}>
-          <div className={`bg-white rounded-2xl shadow-xl w-full ${admitModal.pick ? 'max-w-5xl max-h-[94vh]' : 'max-w-md max-h-[85vh]'} overflow-hidden flex flex-col`} onClick={e => e.stopPropagation()}>
+          <div className={`bg-white rounded-2xl shadow-xl w-full ${admitModal.pick ? 'max-w-6xl max-h-[96vh]' : 'max-w-md max-h-[85vh]'} overflow-hidden flex flex-col`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="font-black text-gray-900">Generate Admit Card</h3>
@@ -820,22 +820,22 @@ export default function ExamSection() {
                   <>
                     <button onClick={() => setAdmitModal(m => m && { ...m, pick: null })} className="text-xs font-semibold text-gray-500 hover:text-[#933d18] mb-3">← Back to semesters</button>
                     {/* Who this card is for — saves cross-checking the row behind the modal. */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-50 rounded-xl px-4 py-3 mb-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 bg-gray-50 rounded-xl px-5 py-4 mb-4">
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Student</p>
-                        <p className="text-xs font-bold text-gray-800 truncate" title={admitModal.student.student_name}>{admitModal.student.student_name}</p>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Student</p>
+                        <p className="text-sm font-bold text-gray-800 truncate" title={admitModal.student.student_name}>{admitModal.student.student_name}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Course</p>
-                        <p className="text-xs font-bold text-gray-800 truncate">{admitModal.student.programs?.program_name || '—'}</p>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Course</p>
+                        <p className="text-sm font-bold text-gray-800 truncate">{admitModal.student.programs?.program_name || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Specialization</p>
-                        <p className="text-xs font-bold text-gray-800 truncate">{admitModal.student.specialization || '—'}</p>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Specialization</p>
+                        <p className="text-sm font-bold text-gray-800 truncate">{admitModal.student.specialization || '—'}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Session</p>
-                        <p className="text-xs font-bold text-gray-800 truncate">{admitModal.student.academic_sessions?.session_name || '—'}</p>
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Session</p>
+                        <p className="text-sm font-bold text-gray-800 truncate">{admitModal.student.academic_sessions?.session_name || '—'}</p>
                       </div>
                     </div>
                     {!admitModal.pick.rows.length ? (
@@ -846,15 +846,15 @@ export default function ExamSection() {
                           <span>One subject per paper goes on the card</span>
                           <span>{admitModal.pick.selected.size}/{paperGroups(admitModal.pick.rows).length} papers selected</span>
                         </div>
-                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto pr-1">
+                        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[68vh] overflow-y-auto pr-1">
                           {paperGroups(admitModal.pick.rows).map(g => (
-                            <div key={g.key} className="rounded-xl border border-gray-100 p-2">
-                              {g.label && <p className="text-[10px] font-black text-[#933d18] uppercase tracking-wide px-1 pb-1">{g.label}</p>}
-                              <div className="space-y-1">
+                            <div key={g.key} className="rounded-xl border border-gray-100 p-3">
+                              {g.label && <p className="text-[11px] font-black text-[#933d18] uppercase tracking-wide px-1 pb-1.5">{g.label}</p>}
+                              <div className="space-y-1.5">
                                 {g.rows.map(r => (
-                                  <label key={r.id} className={`flex items-start gap-2 rounded-lg px-2 py-1.5 cursor-pointer ${admitModal.pick.selected.has(r.id) ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}`}>
+                                  <label key={r.id} className={`flex items-start gap-2 rounded-lg px-2.5 py-2 cursor-pointer ${admitModal.pick.selected.has(r.id) ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}`}>
                                     <input type="checkbox" checked={admitModal.pick.selected.has(r.id)} onChange={() => toggleSubject(r.id)} className="mt-0.5 accent-[#933d18]" />
-                                    <span className="text-xs text-gray-800">
+                                    <span className="text-[13px] text-gray-800">
                                       {g.label
                                         ? `${r.subject_code ? r.subject_code + ' ' : ''}${r.subject_name || 'Untitled paper'}`
                                         : (formatSubjectRow(r) || 'Untitled paper')}
