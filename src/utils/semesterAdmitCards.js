@@ -50,6 +50,24 @@ export async function setAdmitCardVisible(studentId, semester, visible) {
   return { error }
 }
 
+// Issued cards for many students at once, keyed by student id (each an array
+// of { semester, released_at } sorted ascending) — used to list a student's
+// cards without one query per row, and to know whether the "Admit Card"
+// action has anything to show at all. Returns null when the migration hasn't
+// been run, same convention as admitCardsFor.
+export async function admitCardsForMany(studentIds) {
+  if (!studentIds?.length) return {}
+  const { data, error } = await supabase
+    .from('student_admit_cards')
+    .select('student_id, semester, released_at')
+    .in('student_id', studentIds)
+  if (error) return null
+  const byStudent = {}
+  for (const r of data || []) (byStudent[r.student_id] ||= []).push(r)
+  for (const id in byStudent) byStudent[id].sort((a, b) => a.semester - b.semester)
+  return byStudent
+}
+
 // Withdraw the card entirely — the semester goes back to "Select Papers".
 export async function deleteAdmitCard(studentId, semester) {
   const { error } = await supabase.from('student_admit_cards')
@@ -57,22 +75,29 @@ export async function deleteAdmitCard(studentId, semester) {
   return { error }
 }
 
-// The card the Exam Section last issued for a student, with exactly the papers
-// it was issued with. Every download outside the Exam Section — the centre's
+// The card the Exam Section issued for a student, with exactly the papers it
+// was issued with. Every download outside the Exam Section — the centre's
 // list, the admin's Students page — used to re-derive the papers from the
 // syllabus instead, so the card a centre printed carried a different set of
 // papers from the one the Exam Section had ticked.
 //
-// Returns null when no card has been issued (or the migration has not been
-// run), so callers fall back to their old syllabus-derived behaviour. Centres
-// only ever see released cards; RLS, not this function, enforces that.
-// An issued card with no subject_ids prints "as per university curriculum".
-export async function issuedAdmitCard(student) {
+// With no `semester`, picks the latest issued one — the exam coming up, the
+// same one the student portal shows. Pass a semester to get that one
+// specifically (a student with several issued cards has more than one).
+//
+// Returns null when no matching card has been issued (or the migration has
+// not been run), so callers fall back to their old syllabus-derived
+// behaviour. Centres only ever see released cards; RLS, not this function,
+// enforces that. A card with no subject_ids prints "as per university
+// curriculum".
+export async function issuedAdmitCard(student, semester) {
   const bySem = await admitCardsFor(student.id)
   const cards = Object.values(bySem || {})
   if (!cards.length) return null
-  // Latest semester = the exam coming up, the same one the student portal shows.
-  const card = cards.reduce((a, b) => (Number(b.semester) > Number(a.semester) ? b : a))
+  const card = semester != null
+    ? cards.find(c => Number(c.semester) === Number(semester))
+    : cards.reduce((a, b) => (Number(b.semester) > Number(a.semester) ? b : a))
+  if (!card) return null
   const ids = new Set(card.subject_ids || [])
   if (!ids.size) return { semester: card.semester, subjects: [] }
   const rows = await fetchSemesterSubjectRows(student, card.semester)

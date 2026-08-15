@@ -7,18 +7,17 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award, FileSpreadsheet, FolderDown } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
-import { generateIDCard, generateAdmitCard, generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
-import { fetchAdmitCardSubjects } from '../../utils/fetchSyllabus'
-import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
-import { issuedAdmitCard } from '../../utils/semesterAdmitCards'
+import { generateIDCard, generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
+import { admitCardsForMany } from '../../utils/semesterAdmitCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, localDay } from '../../utils/formatDate'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { matchesSearch } from '../../utils/studentSearch'
 import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
-import { fetchReRegistrations } from '../../utils/reRegistration'
+import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
+import AdmitCardListModal from '../../components/AdmitCardListModal'
 
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
 
@@ -211,6 +210,10 @@ export default function Students() {
   // Re-Registration: latest request per student ({} = none, null = table missing)
   const [reReg, setReReg] = useState({})
   const [reRegStudent, setReRegStudent] = useState(null)
+  // Every issued semester card, keyed by student id — lets the Admit Card
+  // icon open a picker instead of only ever downloading the latest semester.
+  const [admitCards, setAdmitCards] = useState({})
+  const [admitListStudent, setAdmitListStudent] = useState(null)
   // Registration Certificate is issued per YEAR — a picker gates each year on fee.
   const [regCardStudent, setRegCardStudent] = useState(null)
   const [downloading, setDownloading] = useState(null)
@@ -321,14 +324,6 @@ export default function Students() {
       const resolved = await resolveStudentDocUrls(s)
       if (type === 'reg') generateRegistrationCertificate(resolved)
       else if (type === 'id') generateIDCard(resolved)
-      else if (type === 'admit') {
-        // Same card the Exam Section issued, not a fresh syllabus lookup.
-        const card = await issuedAdmitCard(resolved)
-        const subjects = card ? card.subjects : await fetchAdmitCardSubjects(resolved)
-        const meta = await fetchExamSettingsMeta(resolved)
-        const dates = await fetchExamDates(resolved, card?.semester)
-        generateAdmitCard(resolved, subjects, { ...meta, ...dates, ...(card ? { semester: card.semester } : {}) })
-      }
     }
     setDownloading(null)
   }
@@ -356,6 +351,9 @@ export default function Students() {
     setData(data || [])
     // null = add_re_registration.sql not run yet, so the feature stays hidden.
     setReReg(await fetchReRegistrations((data || []).map(s => s.id)))
+    // null = add_semester_admit_cards.sql not run yet — admit_card_released_at
+    // (the old single-flag) is the fallback for whether the icon shows at all.
+    setAdmitCards(await admitCardsForMany((data || []).map(s => s.id)))
     setLoading(false)
   }
 
@@ -595,8 +593,13 @@ export default function Students() {
                       <FolderDown size={14} className={downloading === `${s.id}-docs` ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
                     </Button>
                     {/* Re-Registration — a pending request from the centre is
-                        highlighted so it can be decided from this list. */}
-                    {s.status === 'Approved' && reReg !== null && (
+                        highlighted so it can be decided from this list. Once
+                        the student is in the course's final term with nothing
+                        pending, there is no next term to raise one for, so the
+                        button (which would just open the modal to say so) is
+                        dropped instead of left as a dead click. */}
+                    {s.status === 'Approved' && reReg !== null &&
+                     (reReg[s.id]?.status === 'Pending' || !nextTerm(s).atEnd) && (
                       <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)}
                         title={reReg[s.id]?.status === 'Pending'
                           ? `Re-Registration requested: ${reReg[s.id].from_term} → ${reReg[s.id].to_term}`
@@ -635,9 +638,13 @@ export default function Students() {
                         <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'id')} disabled={!s.enrollment_no || downloading === `${s.id}-id`} title={s.enrollment_no ? 'Download ID Card' : 'ID card is issued after the Enrollment Number is generated'}>
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                         </Button>
-                        {s.admit_card_released_at && (
-                          <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'admit')} disabled={downloading === `${s.id}-admit`} title="Download Admit Card">
-                            <ClipboardList size={14} className={downloading === `${s.id}-admit` ? 'animate-pulse text-[#933d18]' : 'text-[#933d18]'} />
+                        {/* admit_card_released_at is the old single-flag release
+                            and stays untouched by the per-semester flow, so a
+                            student with issued semester cards but no flag would
+                            otherwise show no button at all — check both. */}
+                        {(s.admit_card_released_at || admitCards?.[s.id]?.length > 0) && (
+                          <Button size="sm" variant="ghost" onClick={() => setAdmitListStudent(s)} title="Admit Card — all issued semesters">
+                            <ClipboardList size={14} className="text-[#933d18]" />
                           </Button>
                         )}
                         {s.exam_result_status && s.exam_result_status !== 'Pending' && (
@@ -695,6 +702,10 @@ export default function Students() {
 
       {regCardStudent && (
         <RegistrationCardModal student={regCardStudent} onClose={() => setRegCardStudent(null)} />
+      )}
+
+      {admitListStudent && (
+        <AdmitCardListModal student={admitListStudent} onClose={() => setAdmitListStudent(null)} />
       )}
 
       {credStudentId && (
