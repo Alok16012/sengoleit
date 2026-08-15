@@ -865,8 +865,15 @@ export default function AccountDepartment() {
 
   // Forward an enrolled student to the Exam Section. The admit card is NOT
   // generated here — it is issued only inside the Exam Section after this.
+  // Ph.D candidates never leave from here: the Research Dept's forward mints
+  // their enrollment number, so this path would land them in the Exam Section
+  // without one.
   async function forwardToExam(student) {
     if (student.exam_forwarded_at) return
+    if (isPhdStudent(student)) {
+      alert('Ph.D candidates are forwarded by the Research Dept., which issues the Enrollment Number with the forward.')
+      return
+    }
     const { error } = await supabase.from('students')
       .update({ exam_forwarded_at: new Date().toISOString() })
       .eq('id', student.id)
@@ -1212,6 +1219,12 @@ export default function AccountDepartment() {
                         s.exam_forwarded_at ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap bg-blue-50 text-blue-700">
                             <CheckCircle size={11} /> Sent to Exam Section
+                          </span>
+                        ) : isPhdStudent(s) ? (
+                          // The Research Dept's forward issues the enrollment
+                          // number — this button once sent a Ph.D without one.
+                          <span className="text-[11px] font-semibold text-gray-400 whitespace-nowrap" title="Ph.D candidates are forwarded by the Research Dept., which issues the Enrollment Number">
+                            Forwarded by Research Dept.
                           </span>
                         ) : (
                           <Button size="sm" variant="primary" onClick={() => forwardToExam(s)} title="Forward this enrolled student to the Exam Section">
