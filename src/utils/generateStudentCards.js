@@ -261,6 +261,26 @@ export function generateIDCard(s) {
 /* ───────────────────────────────────────────────────
    2. ADMIT CARD
 ─────────────────────────────────────────────────── */
+
+// The session printed on an admit card is the EXAMINATION session, not the
+// admission batch: a July 2025 admission sits Semester 2's exams in January
+// 2026. Sessions are named "<Month> <Year>" and a semester is six months, so
+// shift the admission session by six months per completed semester. Anything
+// unparseable comes back unchanged. Used only when the Examination Calendar
+// has no dates for the term (meta.examSession) — the calendar, when set, is
+// the authority on when the exams actually sit.
+const MONTHS = ['january','february','march','april','may','june','july','august','september','october','november','december']
+export function examSessionLabel(sessionName, sem) {
+  const n = Number(sem)
+  const m = String(sessionName || '').trim().match(/^([A-Za-z]+)[\s,-]+(\d{4})$/)
+  if (!n || n <= 1 || !m) return sessionName
+  const idx = MONTHS.indexOf(m[1].toLowerCase())
+  if (idx < 0) return sessionName
+  const total = idx + (n - 1) * 6
+  const name = MONTHS[total % 12]
+  return `${name[0].toUpperCase()}${name.slice(1)} ${Number(m[2]) + Math.floor(total / 12)}`
+}
+
 export function generateAdmitCard(s, subjects = [], meta = {}) {
   // Hard gate: admit card cannot be generated before the configured date/time.
   if (meta.admitCardAt) {
@@ -271,7 +291,10 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
     }
   }
   const prog = s.programs?.program_name || s.program_name || '—'
-  const sess = s.academic_sessions?.session_name || s.session_name || '—'
+  // Examination session: the calendar's month when set, the shifted admission
+  // session otherwise. Semester 1's shift is a no-op, so its card is unchanged.
+  const rawSess = s.academic_sessions?.session_name || s.session_name || '—'
+  const sess = meta.examSession || examSessionLabel(rawSess, meta.semester)
   const deptCode = s.centers?.center_code || s.center_code || (s.departments?.name ? s.departments.name.substring(0,6).toUpperCase() : '—')
   const isPhd = isPhdProgram(prog)
   const defaultSubjects = subjects.length ? subjects : []

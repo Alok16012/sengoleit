@@ -40,9 +40,17 @@ export async function fetchExamDates(student, sem) {
     }
     if (!row) return { examDates: '', examTerm: '' }
     const fmt = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+    // The month the exams sit in ("January 2026") — the card prints this as the
+    // examination session so Semester 2's card stops carrying the ADMISSION
+    // session. Only trustworthy when the row is the requested term's own; the
+    // nearest-upcoming fallback may belong to a different semester.
+    const semMatch = !sem || row.semester === offset + Number(sem)
     return {
       examDates: `${fmt(row.start_date)} to ${fmt(row.end_date)}`,
       examTerm: `${isPhd ? 'Year' : 'Semester'} ${row.semester - offset}`,
+      examSession: semMatch && row.start_date
+        ? new Date(row.start_date).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+        : '',
     }
   } catch {
     return { examDates: '', examTerm: '' }
