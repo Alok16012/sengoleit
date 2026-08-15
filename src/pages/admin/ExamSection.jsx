@@ -148,6 +148,34 @@ function ResultModal({ isOpen, onClose, student, onSaved }) {
   )
 }
 
+// The syllabus lists ALTERNATIVES under one paper number (Paper 2: MS-ACCESS
+// or MS-SQL) — a student sits one subject per paper, so the picker offers each
+// paper as a group and lets exactly one of its subjects be ticked.
+const paperKeyOf = (r) => {
+  const pno = String(r.paper_no || '').trim().replace(/^paper\s*/i, '')
+  return pno || `solo-${r.id}`   // no paper number → a group of its own
+}
+function paperGroups(rows) {
+  const map = new Map()
+  for (const r of rows) {
+    const key = paperKeyOf(r)
+    if (!map.has(key)) map.set(key, { key, label: key.startsWith('solo-') ? '' : `Paper ${key}`, rows: [] })
+    map.get(key).rows.push(r)
+  }
+  return [...map.values()]
+}
+// First subject of every paper — or, given preferIds (an edit), the first
+// SAVED subject of every paper, leaving papers the card never had unticked.
+function onePerPaper(rows, preferIds) {
+  const selected = new Set(), seen = new Set()
+  for (const r of rows) {
+    const key = paperKeyOf(r)
+    if (seen.has(key)) continue
+    if (!preferIds || preferIds.has(r.id)) { selected.add(r.id); seen.add(key) }
+  }
+  return selected
+}
+
 // Format a datetime-local / ISO value for display on screen & the admit card.
 function fmtDT(val) {
   if (!val) return ''
@@ -260,7 +288,7 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
     // Middle tier: everything except result_released_at, which needs
     // add_phd_portal_flow.sql. Without this tier a missing release column would
     // knock the whole result block down to MIN and hide declared results.
@@ -268,7 +296,7 @@ export default function ExamSection() {
     // Minimal fallback used when the exam-result / admit-card columns have not
     // been created yet (run_all_migrations.sql not applied). The forwarded
     // students still appear; only the result/release features stay inactive.
-    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
+    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
 
     let { data, error } = await supabase
       .from('students')
@@ -379,11 +407,12 @@ export default function ExamSection() {
   }
 
   // Step 2: after picking a fee-cleared semester, load its papers so the admin
-  // can choose which ones appear on the admit card (all selected by default).
+  // can choose which ones appear on the admit card — one subject per paper,
+  // the first of each pre-ticked.
   async function chooseSem(student, sem) {
     setAdmitModal(m => m && { ...m, pick: { sem, loading: true, rows: [], selected: new Set() } })
     const rows = await fetchSemesterSubjectRows(student, sem)
-    setAdmitModal(m => m && { ...m, pick: { sem, loading: false, rows, selected: new Set(rows.map(r => r.id)) } })
+    setAdmitModal(m => m && { ...m, pick: { sem, loading: false, rows, selected: onePerPaper(rows) } })
   }
 
   // Edit an issued card: the same paper picker, but pre-ticked with the papers
@@ -394,13 +423,24 @@ export default function ExamSection() {
     setAdmitModal(m => m && { ...m, pick: { sem, editing: true, loading: true, rows: [], selected: new Set() } })
     const rows = await fetchSemesterSubjectRows(student, sem)
     const saved = new Set(savedIds || [])
-    const selected = saved.size ? new Set(rows.filter(r => saved.has(r.id)).map(r => r.id)) : new Set(rows.map(r => r.id))
+    // Cards issued before the one-per-paper rule may carry several subjects of
+    // the same paper — keep the first saved one of each, same rule as a click.
+    const selected = saved.size ? onePerPaper(rows, saved) : onePerPaper(rows)
     setAdmitModal(m => m && { ...m, pick: { sem, editing: true, loading: false, rows, selected } })
   }
+  // Radio-like within a paper: ticking a subject unticks its alternatives.
+  // Ticking the already-ticked one clears the paper (it stays off the card).
   const toggleSubject = (id) => setAdmitModal(m => {
     if (!m?.pick) return m
     const selected = new Set(m.pick.selected)
-    selected.has(id) ? selected.delete(id) : selected.add(id)
+    if (selected.has(id)) {
+      selected.delete(id)
+    } else {
+      const row = m.pick.rows.find(r => r.id === id)
+      const key = row ? paperKeyOf(row) : null
+      m.pick.rows.forEach(r => { if (paperKeyOf(r) === key) selected.delete(r.id) })
+      selected.add(id)
+    }
     return { ...m, pick: { ...m.pick, selected } }
   })
 
@@ -761,7 +801,7 @@ export default function ExamSection() {
 
       {admitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAdmitModal(null)}>
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className={`bg-white rounded-2xl shadow-xl w-full ${admitModal.pick ? 'max-w-3xl max-h-[92vh]' : 'max-w-md max-h-[85vh]'} overflow-hidden flex flex-col`} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
               <div>
                 <h3 className="font-black text-gray-900">Generate Admit Card</h3>
@@ -779,20 +819,50 @@ export default function ExamSection() {
                 ) : (
                   <>
                     <button onClick={() => setAdmitModal(m => m && { ...m, pick: null })} className="text-xs font-semibold text-gray-500 hover:text-[#933d18] mb-3">← Back to semesters</button>
+                    {/* Who this card is for — saves cross-checking the row behind the modal. */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-50 rounded-xl px-4 py-3 mb-4">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Student</p>
+                        <p className="text-xs font-bold text-gray-800 truncate" title={admitModal.student.student_name}>{admitModal.student.student_name}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Course</p>
+                        <p className="text-xs font-bold text-gray-800 truncate">{admitModal.student.programs?.program_name || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Specialization</p>
+                        <p className="text-xs font-bold text-gray-800 truncate">{admitModal.student.specialization || '—'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Session</p>
+                        <p className="text-xs font-bold text-gray-800 truncate">{admitModal.student.academic_sessions?.session_name || '—'}</p>
+                      </div>
+                    </div>
                     {!admitModal.pick.rows.length ? (
                       <p className="text-[12px] text-gray-500 mb-4">No papers found in the syllabus for Semester {admitModal.pick.sem}. The admit card will print “as per university curriculum”.</p>
                     ) : (
                       <div className="mb-4">
                         <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
-                          <span>Select the papers to print</span>
-                          <span>{admitModal.pick.selected.size}/{admitModal.pick.rows.length} selected</span>
+                          <span>One subject per paper goes on the card</span>
+                          <span>{admitModal.pick.selected.size}/{paperGroups(admitModal.pick.rows).length} papers selected</span>
                         </div>
-                        <div className="space-y-1.5 max-h-[45vh] overflow-y-auto">
-                          {admitModal.pick.rows.map(r => (
-                            <label key={r.id} className="flex items-start gap-2 rounded-lg border border-gray-100 px-3 py-2 cursor-pointer hover:bg-gray-50">
-                              <input type="checkbox" checked={admitModal.pick.selected.has(r.id)} onChange={() => toggleSubject(r.id)} className="mt-0.5 accent-[#933d18]" />
-                              <span className="text-xs text-gray-800">{formatSubjectRow(r) || 'Untitled paper'}</span>
-                            </label>
+                        <div className="grid sm:grid-cols-2 gap-2 max-h-[52vh] overflow-y-auto pr-1">
+                          {paperGroups(admitModal.pick.rows).map(g => (
+                            <div key={g.key} className="rounded-xl border border-gray-100 p-2">
+                              {g.label && <p className="text-[10px] font-black text-[#933d18] uppercase tracking-wide px-1 pb-1">{g.label}</p>}
+                              <div className="space-y-1">
+                                {g.rows.map(r => (
+                                  <label key={r.id} className={`flex items-start gap-2 rounded-lg px-2 py-1.5 cursor-pointer ${admitModal.pick.selected.has(r.id) ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}`}>
+                                    <input type="checkbox" checked={admitModal.pick.selected.has(r.id)} onChange={() => toggleSubject(r.id)} className="mt-0.5 accent-[#933d18]" />
+                                    <span className="text-xs text-gray-800">
+                                      {g.label
+                                        ? `${r.subject_code ? r.subject_code + ' ' : ''}${r.subject_name || 'Untitled paper'}`
+                                        : (formatSubjectRow(r) || 'Untitled paper')}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>
