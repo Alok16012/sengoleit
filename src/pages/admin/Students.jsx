@@ -592,23 +592,23 @@ export default function Students() {
                       disabled={downloading === `${s.id}-docs`} title="Download ALL uploaded documents (one per page)">
                       <FolderDown size={14} className={downloading === `${s.id}-docs` ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
                     </Button>
-                    {/* Re-Registration — a pending request from the centre is
-                        highlighted so it can be decided from this list. Once
-                        the student is in the course's final term with nothing
-                        pending, there is no next term to raise one for, so the
-                        button (which would just open the modal to say so) is
-                        dropped instead of left as a dead click. */}
-                    {s.status === 'Approved' && reReg !== null &&
-                     (reReg[s.id]?.status === 'Pending' || !nextTerm(s).atEnd) && (
-                      <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)}
-                        title={reReg[s.id]?.status === 'Pending'
-                          ? `Re-Registration requested: ${reReg[s.id].from_term} → ${reReg[s.id].to_term}`
-                          : 'Re-Registration'}>
-                        <RefreshCw size={14} className={reReg[s.id]?.status === 'Pending' ? 'text-amber-600' : 'text-gray-500'} />
-                        {reReg[s.id]?.status === 'Pending' && (
-                          <span className="text-[10px] ml-1 font-bold text-amber-700">Re-Reg</span>
-                        )}
-                      </Button>
+                    {/* Re-Registration — VERIFYING a pending request belongs to
+                        the Account Dept's Re-Registrations queue (the money
+                        step), so a pending one here is only a signpost, not a
+                        decision point. Raising one on the centre's behalf still
+                        works from here while there is a next term to raise it
+                        for. */}
+                    {s.status === 'Approved' && reReg !== null && (
+                      reReg[s.id]?.status === 'Pending' ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg whitespace-nowrap"
+                          title={`Re-Registration requested: ${reReg[s.id].from_term} → ${reReg[s.id].to_term} — verify it in Account Dept → Re-Registrations`}>
+                          <RefreshCw size={11} /> Re-Reg pending
+                        </span>
+                      ) : !nextTerm(s).atEnd ? (
+                        <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)} title="Re-Registration">
+                          <RefreshCw size={14} className="text-gray-500" />
+                        </Button>
+                      ) : null
                     )}
                     <Button size="sm" variant="ghost" onClick={() => setCredStudentId(s.id)} title="Login Credentials">
                       <KeyRound size={14} className="text-gray-500" />
@@ -690,11 +690,13 @@ export default function Students() {
         </div>
       </div>
 
+      {/* Raise-only: a pending request is decided in the Account Dept queue,
+          so this modal never opens in review mode from this page any more. */}
       {reRegStudent && (
         <ReRegistrationModal
           student={reRegStudent}
-          request={reReg?.[reRegStudent.id]?.status === 'Pending' ? reReg[reRegStudent.id] : null}
-          mode={reReg?.[reRegStudent.id]?.status === 'Pending' ? 'review' : 'request'}
+          request={null}
+          mode="request"
           onClose={() => setReRegStudent(null)}
           onDone={() => { setReRegStudent(null); fetchData() }}
         />

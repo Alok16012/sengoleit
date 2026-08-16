@@ -13,6 +13,7 @@ import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, formatDateTime, approvalPaymentDate } from '../../utils/formatDate'
 import { isPhdStudent } from '../../utils/isPhdStudent'
+import ReRegistrationModal from '../../components/ReRegistrationModal'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
@@ -24,6 +25,10 @@ const TABS = [
   { key: 'center_apps', label: 'Sub-Center Applications' },
   { key: 'super_approvals', label: 'Super Center Applications' },
   { key: 'recharges', label: 'Recharge Requests' },
+  // The centre's request to move a student into the next term. Verifying it
+  // here is the money step — approval holds the fee and advances the term —
+  // and it happens BEFORE the Exam Section may touch that semester.
+  { key: 're_registrations', label: 'Re-Registrations' },
   { key: 'approval_codes', label: 'Approval Code Requests' },
 ]
 
@@ -44,6 +49,12 @@ export default function AccountDepartment() {
   const [recharges, setRecharges] = useState([])
   const [centers, setCenters] = useState([])
   const [holdStudents, setHoldStudents] = useState([])
+  // Re-Registration requests, with the student embedded — the review modal
+  // needs the student's fee fields to work out the charge. null = the
+  // add_re_registration.sql migration hasn't been run, so the tab shows a hint.
+  const [reRegs, setReRegs] = useState([])
+  const [reRegStatusFilter, setReRegStatusFilter] = useState('pending')
+  const [reRegModal, setReRegModal] = useState(null)   // one row of reRegs
   const [loading, setLoading] = useState(true)
   const [rejectModal, setRejectModal] = useState(null)
   const [rejectNotes, setRejectNotes] = useState('')
@@ -183,16 +194,19 @@ export default function AccountDepartment() {
     setLoading(true)
     // Pending Approvals: centers forwarded by doc dept ('doc_verified') OR held by THIS dept ('account_hold').
     // 'account_hold' is distinct from doc dept's 'hold' so held centers stay inside Account Dept, not Doc Dept.
-    const [docVerified, rech, ctr, holdStu, acReq] = await Promise.all([
+    const [docVerified, rech, ctr, holdStu, acReq, rr] = await Promise.all([
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
       supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, exam_forwarded_at, fee_held, coupon_discount, coupon_code, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year, programme_types(programme_type_name)), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
       supabase.from('coupons').select('*, centers(center_name, center_code, center_type, payment_date, super_center:super_center_id(center_name, center_code))').eq('coupon_type', 'approval').order('created_at', { ascending: false }),
+      supabase.from('re_registrations').select('id, student_id, center_id, from_term, to_term, fee_amount, status, remarks, requested_at, decided_at, students(id, student_name, enrollment_no, admission_number, mobile_no, semester_year, fee_collected, coupon_discount, programme_id, session_id, programs(program_name, duration, semester_year), academic_sessions(session_name)), centers(center_name, center_code)').order('requested_at', { ascending: false }),
     ])
     setApprovals(docVerified.data || [])
     setCenters(ctr.data || [])
     setHoldStudents(holdStu.data || [])
+    // error = the re_registrations table (add_re_registration.sql) isn't there.
+    setReRegs(rr.error ? null : (rr.data || []))
 
     // Recharge requests need the center name. If the embedded join failed
     // (e.g. no declared FK), fall back to looking the names up by center_id.
@@ -916,6 +930,8 @@ export default function AccountDepartment() {
   const pendingCount = approvals.filter(c => c.center_type !== 'super_center' && c.approval_status === 'doc_verified').length
   const pendingSuperApprovals = approvals.filter(c => c.center_type === 'super_center' && c.approval_status === 'doc_verified').length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
+  const pendingReRegs = (reRegs || []).filter(r => r.status === 'Pending').length
+  const reRegsList = (reRegs || []).filter(r => reRegStatusFilter === 'pending' ? r.status === 'Pending' : r.status !== 'Pending')
   // Recharge status sub-filter (To Verify / Hold / Approved / Rejected)
   const RECHARGE_STATUS_MATCH = {
     pending:  r => r.status === 'pending',
@@ -1107,6 +1123,9 @@ export default function AccountDepartment() {
             )}
             {t.key === 'recharges' && pendingRecharges > 0 && (
               <span className="ml-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingRecharges}</span>
+            )}
+            {t.key === 're_registrations' && pendingReRegs > 0 && (
+              <span className="ml-2 bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingReRegs}</span>
             )}
             {t.key === 'approval_codes' && pendingApprovalReqs > 0 && (
               <span className="ml-2 bg-emerald-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingApprovalReqs}</span>
@@ -1455,6 +1474,82 @@ export default function AccountDepartment() {
               </Tbody>
             </Table>
             </>
+          )}
+
+          {/* RE-REGISTRATIONS TAB — the centre's request to move a student to
+              the next term is verified HERE (the money step), before the Exam
+              Section may touch that semester. */}
+          {tab === 're_registrations' && (
+            reRegs === null ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+                Run <code className="font-mono">add_re_registration.sql</code> once in Supabase → SQL Editor to enable Re-Registrations.
+              </div>
+            ) : (
+            <>
+            <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
+              {[
+                { key: 'pending', label: 'To Verify', count: pendingReRegs },
+                { key: 'decided', label: 'Decided', count: (reRegs || []).length - pendingReRegs },
+              ].map(f => (
+                <button key={f.key} onClick={() => setReRegStatusFilter(f.key)}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    reRegStatusFilter === f.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+                  }`}>
+                  {f.label}{f.count > 0 && <span className="ml-1.5 text-xs text-gray-400">({f.count})</span>}
+                </button>
+              ))}
+            </div>
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>Student</Th>
+                  <Th>Enrollment No</Th>
+                  <Th>Center</Th>
+                  <Th>Program</Th>
+                  <Th>Re-Registering Into</Th>
+                  <Th>Fee</Th>
+                  <Th>Requested On</Th>
+                  <Th>Status</Th>
+                  <Th>Action</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {reRegsList.length === 0 ? (
+                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">
+                    {reRegStatusFilter === 'pending' ? 'No re-registrations waiting for verification' : 'No decided re-registrations yet'}
+                  </Td></Tr>
+                ) : reRegsList.map((r, i) => (
+                  <Tr key={r.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td>
+                      <p className="font-semibold text-gray-900">{r.students?.student_name || '—'}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{r.students?.mobile_no || ''}</p>
+                    </Td>
+                    <Td className="text-gray-500 font-mono text-xs">{r.students?.enrollment_no || '—'}</Td>
+                    <Td className="text-gray-500 text-xs">{r.centers?.center_name || '—'}</Td>
+                    <Td className="text-gray-500 text-xs">{r.students?.programs?.program_name || '—'}</Td>
+                    <Td className="text-gray-700 text-xs font-semibold whitespace-nowrap">{r.from_term} → {r.to_term}</Td>
+                    <Td className="text-gray-700 text-sm font-bold">₹{Number(r.fee_amount || 0).toLocaleString('en-IN')}</Td>
+                    <Td className="text-gray-500 text-xs whitespace-nowrap">{formatDate(r.requested_at)}</Td>
+                    <Td>
+                      <Badge status={r.status === 'Pending' ? 'pending' : r.status === 'Approved' ? 'approved' : 'rejected'}>{r.status}</Badge>
+                    </Td>
+                    <Td>
+                      {r.status === 'Pending' && r.students ? (
+                        <Button size="sm" variant="primary" onClick={() => setReRegModal(r)}>
+                          <CheckCircle size={13} /> Verify
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-gray-300">{r.decided_at ? formatDate(r.decided_at) : '—'}</span>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+            </>
+            )
           )}
 
           {/* APPROVAL CODE REQUESTS TAB */}
@@ -2707,6 +2802,18 @@ export default function AccountDepartment() {
           </div>
         )}
       </Modal>
+
+      {/* Re-Registration verification — the same review modal the Students
+          page used, driven from this department's queue instead. */}
+      {reRegModal && reRegModal.students && (
+        <ReRegistrationModal
+          student={reRegModal.students}
+          request={reRegModal}
+          mode="review"
+          onClose={() => setReRegModal(null)}
+          onDone={() => { setReRegModal(null); fetchAll() }}
+        />
+      )}
 
     </div>
   )
