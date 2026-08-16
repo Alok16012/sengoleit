@@ -901,12 +901,20 @@ export default function ExamSection() {
                       Run <span className="font-mono">add_semester_admit_cards.sql</span> in Supabase to keep a record of each semester's admit card.
                     </div>
                   )}
-                  <p className="text-[11px] text-gray-400 mb-3">Fee collected: <span className="font-bold text-gray-700">₹{Number(admitModal.collected).toLocaleString('en-IN')}</span>. A semester's card is issued only once its fee is collected in full.</p>
+                  <p className="text-[11px] text-gray-400 mb-3">Fee collected: <span className="font-bold text-gray-700">₹{Number(admitModal.collected).toLocaleString('en-IN')}</span>. A semester's card needs its Re-Registration done and its fee collected in full.</p>
                   <div className="space-y-2">
                     {admitModal.sems.map(({ sem, dueFee, cleared }) => {
                       const card = admitModal.issued?.[sem]
                       const visible = !!card?.released_at
                       const shortfall = Math.max(Number(dueFee) - Number(admitModal.collected), 0)
+                      // The student's term decides how far the Exam Section may
+                      // go: a semester beyond it needs its Re-Registration
+                      // (centre raises → university approves) BEFORE anything
+                      // here — Collect must not become a way to skip that. The
+                      // recorded term covers two semesters for a Year course.
+                      const curTermN = parseInt(String(admitModal.student.semester_year || ''), 10) || 1
+                      const registeredUpTo = /year/i.test(String(admitModal.student.semester_year || admitModal.student.programs?.semester_year || '')) ? curTermN * 2 : curTermN
+                      const needsReReg = sem > registeredUpTo && !card
                       return (
                       <div key={sem} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-2.5 ${cleared ? 'border-gray-200' : 'border-gray-100 bg-gray-50'}`}>
                         <div className="min-w-0">
@@ -957,11 +965,20 @@ export default function ExamSection() {
                               <Trash2 size={13} />
                             </Button>
                           </div>
+                        ) : needsReReg ? (
+                          // Not registered this far yet — the centre must raise
+                          // the Re-Registration and the university approve it
+                          // first. No Collect here: money for an unregistered
+                          // term belongs to that flow, not this one.
+                          <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 shrink-0"
+                            title="The centre raises the Re-Registration and the university approves it; this semester unlocks here after that.">
+                            <Lock size={12} /> Re-Registration required
+                          </span>
                         ) : !cleared ? (
-                          // The rest of the fee is collected here rather than
-                          // leaving the semester locked with nowhere to pay it.
-                          // Deliberately a separate step from issuing the card,
-                          // so money never moves on an unrelated click.
+                          // The rest of a REGISTERED semester's fee is collected
+                          // here rather than leaving it locked with nowhere to
+                          // pay. Deliberately a separate step from issuing the
+                          // card, so money never moves on an unrelated click.
                           <Button size="sm" variant="secondary" className="shrink-0"
                             disabled={busy === `${admitModal.student.id}-collect-${sem}`}
                             title={`Take the outstanding ₹${shortfall.toLocaleString('en-IN')} from the centre's wallet`}
