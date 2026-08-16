@@ -14,6 +14,7 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, formatDateTime, approvalPaymentDate } from '../../utils/formatDate'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
+import { recordFeeDeduction } from '../../utils/feeLedger'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
@@ -856,6 +857,17 @@ export default function AccountDepartment() {
         // Hold is now consumed — clear it.
         fee_held: null,
       }).eq('id', student.id)
+      // Itemise it for the Payment Summary. Best-effort: the money has already
+      // moved and fee_collected is authoritative, so a missing ledger table
+      // must not undo an approval.
+      await recordFeeDeduction({
+        studentId: student.id,
+        centerId: student.centers?.id,
+        amount: net,
+        kind: 'admission',
+        term: student.semester_year,
+        note: 'Admission approved by the Account Dept.',
+      })
     } else {
       // Reject: return the hold to the center first. student_release_hold does
       // the refund and clears fee_held together, so rejecting twice cannot pay

@@ -5,6 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import { Search, Wallet, IndianRupee, Users } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
+import { fetchFeeLedger, LEDGER_KIND_LABEL } from '../../utils/feeLedger'
 
 function StatCard({ label, value, sub, color = 'gray', icon: Icon }) {
   const colors = {
@@ -33,6 +34,8 @@ export default function PaymentSummary() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [myCenterId, setMyCenterId] = useState(null)
+  // Deductions keyed by student id ({} = none, null = migration not run).
+  const [ledger, setLedger] = useState({})
 
   useEffect(() => {
     if (!user) return
@@ -60,6 +63,9 @@ export default function PaymentSummary() {
       .eq('status', 'Approved')
       .order('created_at', { ascending: false })
     setData(students || [])
+    // null = add_student_fee_ledger.sql not run — the page then falls back to
+    // the old one-total-per-student view instead of an empty statement.
+    setLedger(await fetchFeeLedger((students || []).map(s => s.id)))
     setLoading(false)
   }
 
@@ -70,9 +76,26 @@ export default function PaymentSummary() {
   const totalCollected = data.reduce((sum, s) => sum + Number(s.fee_collected || 0), 0)
   const fmt = n => `₹${Number(n || 0).toLocaleString('en-IN')}`
 
+  // One line per deduction, newest first — admission, each re-registration and
+  // each exam balance stand on their own instead of being merged into one
+  // figure. `itemised` is false when the ledger migration hasn't been run, and
+  // the table falls back to the running total it always showed.
+  const itemised = ledger !== null
+  const byId = Object.fromEntries(filtered.map(s => [s.id, s]))
+  const entries = itemised
+    ? filtered
+      .flatMap(s => (ledger[s.id] || []).map(e => ({ ...e, student: byId[e.student_id] || s })))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    : []
+  // Anything collected before the ledger existed is backfilled as one
+  // 'opening' line, so this still reconciles with fee_collected.
+  const entriesTotal = entries.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+
   return (
     <div className="p-6">
-      <PageHeader title="Payment Summary" subtitle="Fee deducted from your wallet for each enrolled student" />
+      <PageHeader title="Payment Summary" subtitle={itemised
+        ? 'Every fee deduction from your wallet, itemised'
+        : 'Fee deducted from your wallet for each enrolled student'} />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4 mb-6">
         <StatCard label="Total Fee Deducted" value={fmt(totalCollected)} sub={`${data.length} enrolled student${data.length === 1 ? '' : 's'}`} color="green" icon={IndianRupee} />
@@ -92,6 +115,63 @@ export default function PaymentSummary() {
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
+      ) : itemised ? (
+        <Table>
+          <Thead>
+            <tr>
+              <Th>#</Th>
+              <Th>Date</Th>
+              <Th>Student Name</Th>
+              <Th>Enrollment No</Th>
+              <Th>Program</Th>
+              {role === 'super_center' && <Th>Center</Th>}
+              <Th>Deducted For</Th>
+              <Th>Amount</Th>
+            </tr>
+          </Thead>
+          <Tbody>
+            {entries.length === 0 ? (
+              <Tr><Td colSpan={role === 'super_center' ? 8 : 7} className="text-center text-gray-400 py-12">
+                {search ? 'No results found' : 'No fee has been deducted yet.'}
+              </Td></Tr>
+            ) : (
+              <>
+                {entries.map((e, i) => (
+                  <Tr key={e.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td className="text-gray-500 text-xs whitespace-nowrap">{formatDate(e.created_at)}</Td>
+                    <Td>
+                      <p className="font-semibold text-gray-900">{e.student?.student_name || '—'}</p>
+                      {e.student?.admission_number && (
+                        <p className="font-mono text-[10px] text-[#933d18] mt-0.5">{e.student.admission_number}</p>
+                      )}
+                    </Td>
+                    <Td>
+                      {e.student?.enrollment_no
+                        ? <span className="font-mono text-xs font-bold text-emerald-700">{e.student.enrollment_no}</span>
+                        : <span className="text-xs text-gray-300">—</span>}
+                    </Td>
+                    <Td className="text-gray-500 text-xs min-w-[150px] whitespace-normal break-words">{e.student?.programs?.program_name || '—'}</Td>
+                    {role === 'super_center' && (
+                      <Td className="text-xs font-medium text-gray-700">{e.student?.centers?.center_name || '—'}</Td>
+                    )}
+                    <Td>
+                      <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-gray-100 text-gray-700 whitespace-nowrap">
+                        {LEDGER_KIND_LABEL[e.kind] || e.kind}
+                      </span>
+                      {e.term && <span className="text-[11px] text-gray-500 ml-1.5">{e.term}</span>}
+                    </Td>
+                    <Td><span className="text-sm font-black text-red-600">− {fmt(e.amount)}</span></Td>
+                  </Tr>
+                ))}
+                <Tr>
+                  <Td colSpan={role === 'super_center' ? 7 : 6} className="text-right font-bold text-gray-700">Total Deducted</Td>
+                  <Td><span className="text-sm font-black text-red-700">− {fmt(entriesTotal)}</span></Td>
+                </Tr>
+              </>
+            )}
+          </Tbody>
+        </Table>
       ) : (
         <Table>
           <Thead>

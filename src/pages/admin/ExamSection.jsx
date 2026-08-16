@@ -13,6 +13,7 @@ import { fetchExamDates } from '../../utils/examSettings'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
 import { admitCardsFor, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
 import { termForSemester } from '../../utils/reRegistration'
+import { recordFeeDeduction } from '../../utils/feeLedger'
 import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 import SemesterResultModal from '../../components/SemesterResultModal'
@@ -353,7 +354,7 @@ export default function ExamSection() {
   // fee, so a semester is always short when its admit card comes due; this is
   // where the rest is finally collected. The money moves BEFORE the student row
   // is credited — a failed wallet write must not look like a payment.
-  async function collectShortfall(student, shortfall) {
+  async function collectShortfall(student, sem, shortfall) {
     const centerId = student.centers?.id
     if (!centerId) return { error: { message: 'No centre is on record for this student, so the fee cannot be collected.' } }
 
@@ -381,6 +382,16 @@ export default function ExamSection() {
         `₹${shortfall.toLocaleString('en-IN')} was taken from the centre's wallet but could not be recorded against the student:\n\n` +
         sErr.message + '\n\nPlease correct this before issuing the card.' } }
     }
+    // Itemise it — this collection used to leave no trace anywhere but the
+    // student's running total, so the Payment Summary could not explain it.
+    await recordFeeDeduction({
+      studentId: student.id,
+      centerId,
+      amount: shortfall,
+      kind: 'exam_balance',
+      term: `Semester ${sem}`,
+      note: 'Semester balance collected by the Exam Section',
+    })
     return { collected }
   }
 
@@ -392,7 +403,7 @@ export default function ExamSection() {
       `This is the part of the semester's fee that has not been paid yet. The admit card can be issued once it is collected.`
     )) return
     setBusy(`${student.id}-collect-${sem}`)
-    const { error, collected } = await collectShortfall(student, shortfall)
+    const { error, collected } = await collectShortfall(student, sem, shortfall)
     setBusy(null)
     if (error) { alert(error.message); return }
     // Keep the list in step so reopening the picker doesn't re-read a stale fee.

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { computeSemesterFeeStatus } from './courseFee'
+import { recordFeeDeduction } from './feeLedger'
 
 // Re-Registration — moving a student into their next semester / year.
 // The centre raises the request; the admin approves it, which holds the fee
@@ -170,6 +171,17 @@ export async function approveReRegistration(req) {
   const { error: sErr } = await supabase.from('students')
     .update({ ...advance, fee_collected: collectedNow + charge }).eq('id', req.student_id)
   if (sErr) return { error: sErr }
+
+  // Itemise the charge for the Payment Summary (best-effort — the money has
+  // already moved and fee_collected is authoritative).
+  await recordFeeDeduction({
+    studentId: req.student_id,
+    centerId: req.center_id,
+    amount: charge,
+    kind: 're_registration',
+    term: req.to_term,
+    note: `Re-Registration ${req.from_term} → ${req.to_term}`,
+  })
 
   const { error } = await supabase.from('re_registrations')
     .update({ status: 'Approved', decided_at: new Date().toISOString() })
