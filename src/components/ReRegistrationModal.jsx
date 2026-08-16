@@ -26,8 +26,14 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
     return () => { alive = false }
   }, [student])
 
-  // A pending request carries the amount agreed when it was raised.
-  const holdAmount = request ? Number(request.fee_amount || 0) : (info?.hold ?? 0)
+  // A pending request carries the amount agreed when it was raised — capped at
+  // what the target term still lacks TODAY, mirroring the approval: the Exam
+  // Section may have collected the term's fee since (its admit-card Collect
+  // flow), and the admin should see the ₹0 that will actually be taken, not
+  // the stale figure.
+  const holdAmount = request
+    ? Math.min(Number(request.fee_amount || 0), info?.outstanding ?? Number(request.fee_amount || 0))
+    : (info?.hold ?? 0)
 
   async function submit() {
     setBusy(true); setErr('')

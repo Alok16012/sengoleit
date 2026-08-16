@@ -12,6 +12,7 @@ import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } fr
 import { fetchExamDates } from '../../utils/examSettings'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
 import { admitCardsFor, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
+import { termForSemester } from '../../utils/reRegistration'
 import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 import SemesterResultModal from '../../components/SemesterResultModal'
@@ -480,6 +481,23 @@ export default function ExamSection() {
       if (error) {
         alert('The admit card printed, but it could not be recorded:\n\n' + error.message +
               '\n\nRun add_semester_admit_cards.sql in Supabase.')
+      } else if (!edit) {
+        // Issuing Semester N's card means the student IS in term N — its fee
+        // was collected in full to get here. Recording that keeps the centre's
+        // Re-Registration flow honest: without it the student's term stayed
+        // behind, the centre was still offered a re-registration into a term
+        // whose fee the Exam Section had already collected, and approving it
+        // would have looked like the term was still unpaid. Only ever forward.
+        const t = termForSemester(student, sem)
+        const cur = parseInt(String(student.semester_year || ''), 10) || 1
+        if (t.n > cur) {
+          const { error: tErr } = await supabase.from('students')
+            .update({ semester_year: t.label }).eq('id', student.id)
+          if (!tErr) {
+            setData(rowsPrev => rowsPrev.map(r => (r.id === student.id ? { ...r, semester_year: t.label } : r)))
+            setAdmitModal(m => m && { ...m, student: { ...m.student, semester_year: t.label } })
+          }
+        }
       }
     }
     setBusy(null)

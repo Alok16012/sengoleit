@@ -94,7 +94,7 @@ export default function CenterStudents() {
     setLoading(true)
     const { data } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, doc_verified_at, forwarded_at, semester_year, center_id, programme_id, session_id, programs(program_name, duration, semester_year), academic_sessions(session_name)')
+      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, remarks, doc_verified_at, forwarded_at, semester_year, fee_collected, coupon_discount, center_id, programme_id, session_id, programs(program_name, duration, semester_year), academic_sessions(session_name)')
       .eq('center_id', centerId)
       .order('created_at', { ascending: false })
     setData(data || [])
