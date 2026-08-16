@@ -291,10 +291,13 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
     }
   }
   const prog = s.programs?.program_name || s.program_name || '—'
-  // Examination session: the calendar's month when set, the shifted admission
-  // session otherwise. Semester 1's shift is a no-op, so its card is unchanged.
-  const rawSess = s.academic_sessions?.session_name || s.session_name || '—'
-  const sess = meta.examSession || examSessionLabel(rawSess, meta.semester)
+  // Two different sessions live on the card and must not be conflated:
+  // the "Session" row is the student's ADMISSION batch (July 2025 stays July
+  // 2025 on every semester's card), while the title's examination line carries
+  // the EXAM sitting — the calendar's "Exam. Held" label when set, else the
+  // admission session shifted six months per semester.
+  const sess = s.academic_sessions?.session_name || s.session_name || '—'
+  const examSess = meta.examSession || examSessionLabel(sess, meta.semester)
   const deptCode = s.centers?.center_code || s.center_code || (s.departments?.name ? s.departments.name.substring(0,6).toUpperCase() : '—')
   const isPhd = isPhdProgram(prog)
   const defaultSubjects = subjects.length ? subjects : []
@@ -326,7 +329,7 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
     <!-- ADMIT CARD title -->
     <div style="text-align:center;padding:8px;border-bottom:2px solid #333;background:#fafafa;">
       <span style="font-size:20px;font-weight:900;color:${BRAND};letter-spacing:0.12em;">ADMIT CARD</span>
-      <div style="font-size:9px;color:#666;margin-top:2px;">${prog} &nbsp;—&nbsp; ${meta.semester ? `Semester ${meta.semester} ` : ''}Examination &nbsp;·&nbsp; ${sess}</div>
+      <div style="font-size:9px;color:#666;margin-top:2px;">${prog} &nbsp;—&nbsp; ${meta.semester ? `Semester ${meta.semester} ` : ''}Examination &nbsp;·&nbsp; ${examSess}</div>
       ${admitCardTime ? `<div style="font-size:8.5px;color:#888;margin-top:2px;">Issued: ${admitCardTime}</div>` : ''}
     </div>
 
