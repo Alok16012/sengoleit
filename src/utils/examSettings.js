@@ -63,6 +63,35 @@ export async function fetchExamDates(student, sem) {
   }
 }
 
+// Examination END dates for a set of sessions, keyed `${session_id}:${semester}`
+// (Ph.D years keep their 101+ offset, as stored). The centre may raise a
+// student's next re-registration only once their current term's exams are
+// over, so this is what decides when a student turns up in that queue.
+// Returns {} on any error — an unreadable calendar must not freeze the queue.
+export async function fetchExamEndDates(sessionIds) {
+  const ids = [...new Set((sessionIds || []).filter(Boolean))]
+  if (!ids.length) return {}
+  const { data, error } = await supabase
+    .from('exam_calendar')
+    .select('session_id, semester, end_date')
+    .in('session_id', ids)
+  if (error) return {}
+  const map = {}
+  for (const r of data || []) if (r.end_date) map[`${r.session_id}:${r.semester}`] = r.end_date
+  return map
+}
+
+// The exam end date for the term a student is currently in, or null when the
+// calendar has none. Ph.D terms are years, stored at the 100+ offset.
+export function examEndDateFor(student, endDates) {
+  const sid = student?.session_id
+  if (!sid || !endDates) return null
+  const term = Math.max(parseInt(String(student.semester_year || ''), 10) || 1, 1)
+  const progName = student?.programs?.program_name || ''
+  const isPhd = /ph\.?\s*d|doctor of philosophy|doctoral/i.test(progName)
+  return endDates[`${sid}:${isPhd ? 100 + term : term}`] || null
+}
+
 export async function fetchExamSettingsMeta(student) {
   try {
     const pid = student?.programme_id || student?.program_id

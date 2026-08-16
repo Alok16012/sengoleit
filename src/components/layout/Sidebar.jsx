@@ -9,7 +9,7 @@ import {
   UserPlus, FileText, Truck, FileCheck, UserCheck,
   Clock, CheckCircle, XCircle, ClipboardList, CreditCard, Send,
   GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag,
-  ChevronDown, ChevronRight, ShieldCheck, IndianRupee, FlaskConical
+  ChevronDown, ChevronRight, ShieldCheck, IndianRupee, FlaskConical, RefreshCw
 } from 'lucide-react'
 
 const adminLinks = [
@@ -93,6 +93,9 @@ const centerNavGroups = [
     items: [
       { to: '/center/students/new', icon: UserPlus, label: 'Student Entry', end: true },
       { to: '/center/students', icon: Users, label: 'Student Status List', end: true },
+      // Raising the next term's re-registration is a routine, recurring job —
+      // it needed its own screen, not one button buried in a student's row.
+      { to: '/center/re-registration', icon: RefreshCw, label: 'Re-Registration' },
       { to: '/center/balance', icon: Wallet, label: 'Wallet Summary' },
       // Courier Entry / Answersheet / Supplementary are unbuilt "Coming Soon"
       // shells — hidden until the features exist.

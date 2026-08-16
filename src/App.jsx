@@ -45,6 +45,7 @@ import SuperCenterProfile from './pages/super-center/SuperCenterProfile'
 // Center portal
 import CenterDashboard from './pages/center/CenterDashboard'
 import CenterStudents from './pages/center/CenterStudents'
+import CenterReRegistration from './pages/center/CenterReRegistration'
 import CenterSettings from './pages/center/CenterSettings'
 import CenterProfile from './pages/center/CenterProfile'
 
@@ -220,6 +221,7 @@ export default function App() {
             <Route path="/center/students" element={<CenterStudents />} />
             <Route path="/center/students/new" element={<StudentForm />} />
             <Route path="/center/students/edit/:id" element={<StudentForm />} />
+            <Route path="/center/re-registration" element={<CenterReRegistration />} />
             <Route path="/center/programs" element={<ProgramsView />} />
             <Route path="/center/balance" element={<BalanceView />} />
             <Route path="/center/settings" element={<CenterSettings />} />
