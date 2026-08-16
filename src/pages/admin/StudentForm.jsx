@@ -1579,17 +1579,20 @@ export default function StudentForm() {
                   placeholder="From the programme" readOnly
                   className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed" />
               </div>
-              {/* Specialization — PhD (Doctorate) programmes only. */}
-              {isPhd && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Specialization is open to every programme (optional outside
+                  Ph.D — validateStep only enforces it for Ph.D, where it is
+                  required along with the Ph.D-only Stream). */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {isPhd && (
                   <Input label="Stream (Ph.D) *" placeholder="e.g. Science, Commerce, Arts"
                     value={form.stream} onChange={set('stream')}
                     readOnly={isReadOnly || isLocked('stream')} />
-                  <Input label="Specialization (Ph.D) *" placeholder="e.g. Organic Chemistry, Machine Learning"
-                    value={form.specialization} onChange={set('specialization')}
-                    readOnly={isReadOnly || isLocked('specialization')} />
-                </div>
-              )}
+                )}
+                <Input label={isPhd ? 'Specialization *' : 'Specialization'}
+                  placeholder="e.g. Mathematics, Physical Science, Machine Learning"
+                  value={form.specialization} onChange={set('specialization')}
+                  readOnly={isReadOnly || isLocked('specialization')} />
+              </div>
               {/* Only the Application Number is issued at the admission step.
                   Enrollment No (and Registration No) are assigned later by the
                   Account Dept after account verification, so they are not shown
