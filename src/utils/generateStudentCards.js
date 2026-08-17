@@ -900,10 +900,25 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
     <div style="text-align:right;font-size:9.5px;font-weight:700;margin-bottom:4px;">
       Dmc No. : ${v(meta.dmcNo)}
     </div>
-    ${uniHeader()}
-    <div style="text-align:center;font-size:8.5px;color:#555;margin-top:4px;">
-      Established by state Government of Sikkim by Act 14 of 2025, under Section 2(f) of UGC Act 1956 Government of India.
-    </div>
+    <!-- The DMC has its own header rather than the shared uniHeader(): one
+         logo, and only the establishment line the university's own sheet
+         carries — no postal address, no second Act line. -->
+    <table style="width:100%;border-collapse:collapse;">
+      <tr>
+        <td style="width:78px;vertical-align:middle;text-align:center;">
+          <img src="${LOGO_URL}" width="66" height="66"
+            style="border-radius:50%;border:2px solid ${BRAND};padding:2px;object-fit:contain;background:#fff;"
+            onerror="this.style.display='none'" />
+        </td>
+        <td style="text-align:center;vertical-align:middle;padding:0 10px;">
+          <div style="font-size:22px;font-weight:900;color:${BRAND};letter-spacing:0.04em;">${UNI_NAME.toUpperCase()}</div>
+          <div style="font-size:8.5px;color:#555;margin-top:4px;">
+            Established by state Government of Sikkim by Act 14 of 2025, under Section 2(f) of UGC Act 1956 Government of India.
+          </div>
+        </td>
+        <td style="width:78px;"></td>
+      </tr>
+    </table>
     <div style="text-align:center;margin:12px 0 10px;">
       <span style="font-size:15px;font-weight:900;color:${BRAND};letter-spacing:0.14em;">STATEMENT OF MARKS</span>
     </div>
