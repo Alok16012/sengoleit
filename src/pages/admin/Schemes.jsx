@@ -18,13 +18,14 @@ import { paperKeyOf } from '../../utils/fetchSyllabus'
 // re-inserts every row, so anything keyed to an id would be wiped whenever a
 // subject name was corrected.
 const calcSemesters = (p) => (p ? Number(p.duration) || 0 : 0)
-const MARK_FIELDS = [
+// Credit stands on its own; the other three sit under a "Maximum Marks"
+// heading, the way the university writes its scheme.
+const MAX_MARK_FIELDS = [
   { key: 'internal_marks', label: 'Internal' },
-  { key: 'external_marks', label: 'External' },
+  { key: 'theory_marks',   label: 'Theory' },
   { key: 'total_marks',    label: 'Total' },
-  { key: 'passing_marks',  label: 'Passing' },
-  { key: 'credits',        label: 'Credits' },
 ]
+const MARK_FIELDS = [{ key: 'credits', label: 'Credit' }, ...MAX_MARK_FIELDS]
 
 export default function Schemes() {
   const [programs, setPrograms]       = useState([])
@@ -104,12 +105,12 @@ export default function Schemes() {
     // The syllabus is stored per course (session_id null), same as the Syllabus
     // page writes it.
     const { data: subs } = await supabase.from('syllabus_subjects')
-      .select('id, semester, paper_no, subject_code, subject_name, sort_order')
+      .select('id, semester, paper_no, subject_code, subject_name, criteria, sort_order')
       .eq('program_id', p.id).is('session_id', null)
       .order('sort_order', { ascending: true })
 
     const { data: marks } = await supabase.from('scheme_papers')
-      .select('semester, paper_key, internal_marks, external_marks, total_marks, passing_marks, credits')
+      .select('semester, paper_key, internal_marks, theory_marks, total_marks, credits')
       .eq('program_id', p.id).is('session_id', null)
 
     const byKey = {}
@@ -119,11 +120,10 @@ export default function Schemes() {
       const m = byKey[`${s.semester}__${paperKeyOf(s)}`] || {}
       return {
         ...s,
-        internal_marks: m.internal_marks ?? '',
-        external_marks: m.external_marks ?? '',
-        total_marks:    m.total_marks ?? '',
-        passing_marks:  m.passing_marks ?? '',
         credits:        m.credits ?? '',
+        internal_marks: m.internal_marks ?? '',
+        theory_marks:   m.theory_marks ?? '',
+        total_marks:    m.total_marks ?? '',
       }
     }))
     setEditorLoading(false)
@@ -132,13 +132,13 @@ export default function Schemes() {
   const setMark = (id, field, val) => setPapers(prev =>
     prev.map(r => (r.id === id ? { ...r, [field]: val } : r)))
 
-  // Internal + External is what a paper is out of, so filling those fills the
+  // Internal + Theory is what a paper is out of, so filling those fills the
   // total — overwritten freely if the university states a different one.
   const autoTotal = (id) => setPapers(prev => prev.map(r => {
     if (r.id !== id) return r
-    const i = Number(r.internal_marks), e = Number(r.external_marks)
-    if (r.total_marks !== '' || (!i && !e)) return r
-    return { ...r, total_marks: String((i || 0) + (e || 0)) }
+    const i = Number(r.internal_marks), t = Number(r.theory_marks)
+    if (r.total_marks !== '' || (!i && !t)) return r
+    return { ...r, total_marks: String((i || 0) + (t || 0)) }
   }))
 
   async function save() {
@@ -152,11 +152,10 @@ export default function Schemes() {
         session_id: null,
         semester: Number(r.semester) || null,
         paper_key: paperKeyOf(r),
-        internal_marks: num(r.internal_marks),
-        external_marks: num(r.external_marks),
-        total_marks:    num(r.total_marks),
-        passing_marks:  num(r.passing_marks),
         credits:        num(r.credits),
+        internal_marks: num(r.internal_marks),
+        theory_marks:   num(r.theory_marks),
+        total_marks:    num(r.total_marks),
         updated_at: new Date().toISOString(),
       }))
 
@@ -227,28 +226,39 @@ export default function Schemes() {
         ) : (
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
+              {/* Internal / Theory / Total sit under one "Maximum Marks"
+                  heading, the way the university writes its scheme; the
+                  syllabus columns beside them span both header rows. */}
               <thead>
                 <tr className="bg-gray-50 text-gray-500 text-[11px] uppercase tracking-wider">
-                  <th className="text-left font-semibold px-4 py-2.5">Paper</th>
-                  <th className="text-left font-semibold px-4 py-2.5">Code</th>
-                  <th className="text-left font-semibold px-4 py-2.5">Subject</th>
-                  {MARK_FIELDS.map(f => (
-                    <th key={f.key} className="text-left font-semibold px-3 py-2.5 w-24">{f.label}</th>
+                  <th rowSpan={2} className="text-left font-semibold px-4 py-2.5 w-12 border-r border-gray-100">S.No</th>
+                  <th rowSpan={2} className="text-left font-semibold px-4 py-2.5 w-28 border-r border-gray-100">Paper No</th>
+                  <th rowSpan={2} className="text-left font-semibold px-4 py-2.5 w-32 border-r border-gray-100">Subject Code</th>
+                  <th rowSpan={2} className="text-left font-semibold px-4 py-2.5 border-r border-gray-100">Subject Name</th>
+                  <th rowSpan={2} className="text-left font-semibold px-4 py-2.5 w-40 border-r border-gray-100">Criteria</th>
+                  <th rowSpan={2} className="text-left font-semibold px-3 py-2.5 w-24 border-r border-gray-100">Credit</th>
+                  <th colSpan={MAX_MARK_FIELDS.length} className="text-center font-semibold px-3 py-2 border-b border-gray-100">Maximum Marks</th>
+                </tr>
+                <tr className="bg-gray-50 text-gray-500 text-[11px] uppercase tracking-wider">
+                  {MAX_MARK_FIELDS.map(f => (
+                    <th key={f.key} className="text-left font-semibold px-3 py-2 w-24">{f.label}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {visible.map(r => (
+                {visible.map((r, i) => (
                   <tr key={r.id} className="border-t border-gray-50">
+                    <td className="px-4 py-2 text-gray-400 text-xs">{i + 1}</td>
                     <td className="px-4 py-2 text-gray-600 text-xs whitespace-nowrap">{r.paper_no || '—'}</td>
                     <td className="px-4 py-2 font-mono text-xs text-gray-600">{r.subject_code || '—'}</td>
                     <td className="px-4 py-2 font-semibold text-gray-800 text-xs min-w-[200px]">{r.subject_name || '—'}</td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">{r.criteria || '—'}</td>
                     {MARK_FIELDS.map(f => (
                       <td key={f.key} className="px-3 py-2">
                         <input type="number" min="0" step="any"
                           value={r[f.key]}
                           onChange={e => setMark(r.id, f.key, e.target.value)}
-                          onBlur={() => (f.key === 'internal_marks' || f.key === 'external_marks') && autoTotal(r.id)}
+                          onBlur={() => (f.key === 'internal_marks' || f.key === 'theory_marks') && autoTotal(r.id)}
                           className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18]/20" />
                       </td>
                     ))}
@@ -259,7 +269,7 @@ export default function Schemes() {
           </div>
         )}
         <p className="text-[11px] text-gray-400 mt-3">
-          Papers come from this course's syllabus and can't be edited here — change them on the Syllabus page. Filling Internal and External fills Total; type over it if the university states a different one.
+          Paper No, Subject Code, Subject Name and Criteria come from this course's syllabus and can't be edited here — change them on the Syllabus page. Filling Internal and Theory fills Total; type over it if the university states a different one.
         </p>
       </div>
     )

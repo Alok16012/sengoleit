@@ -24,13 +24,29 @@ CREATE TABLE IF NOT EXISTS scheme_papers (
   -- The paper's stable identity within the course: its subject code when it
   -- has one, else 'paper_no|subject_name'. Built by paperKeyOf() in the app.
   paper_key      text NOT NULL,
+  -- Maximum marks: internal + theory make up the total.
   internal_marks numeric,
-  external_marks numeric,
+  theory_marks   numeric,
   total_marks    numeric,
-  passing_marks  numeric,
   credits        numeric,
   updated_at     timestamptz NOT NULL DEFAULT now()
 );
+
+-- An earlier draft of this file shipped external_marks / passing_marks. Bring
+-- such a table into line rather than leaving two shapes in the wild.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'scheme_papers'
+               AND column_name = 'external_marks') THEN
+    ALTER TABLE scheme_papers RENAME COLUMN external_marks TO theory_marks;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = 'scheme_papers'
+               AND column_name = 'passing_marks') THEN
+    ALTER TABLE scheme_papers DROP COLUMN passing_marks;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_scheme_papers_program ON scheme_papers(program_id);
 
