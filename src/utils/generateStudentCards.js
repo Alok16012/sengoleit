@@ -894,31 +894,29 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
   <title>Statement of Marks — ${v(s.student_name)}</title>${baseStyle}</head>
 <body>
 <div style="max-width:760px;margin:24px auto;">
-  ${printBtn()}
+  <!-- Two copies of one sheet. The office copy carries the DMC number and the
+       signature blocks; the student's copy does not, so publishing cannot hand
+       out a signed-looking statement. The office-only class is what separates
+       them — both print through the same page, the buttons set the mode. -->
+  <div class="no-print" style="text-align:center;padding:12px 0 18px;display:flex;gap:10px;justify-content:center;">
+    <button onclick="setMode(false)" style="background:${BRAND};color:#fff;border:none;padding:10px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">🖨 Print (Office Copy)</button>
+    <button onclick="setMode(true)" style="background:#fff;color:${BRAND};border:2px solid ${BRAND};padding:8px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">📤 Publish (Student Copy)</button>
+  </div>
+  <div class="no-print" id="modeNote" style="text-align:center;font-size:11px;color:#666;margin:-10px 0 14px;"></div>
+
   <div style="border:2.5px solid #333;background:#fff;padding:16px 18px;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
 
-    <div style="text-align:right;font-size:9.5px;font-weight:700;margin-bottom:4px;">
+    <div class="office-only" style="text-align:right;font-size:9.5px;font-weight:700;margin-bottom:4px;">
       Dmc No. : ${v(meta.dmcNo)}
     </div>
-    <!-- The DMC has its own header rather than the shared uniHeader(): one
-         logo, and only the establishment line the university's own sheet
-         carries — no postal address, no second Act line. -->
-    <table style="width:100%;border-collapse:collapse;">
-      <tr>
-        <td style="width:78px;vertical-align:middle;text-align:center;">
-          <img src="${LOGO_URL}" width="66" height="66"
-            style="border-radius:50%;border:2px solid ${BRAND};padding:2px;object-fit:contain;background:#fff;"
-            onerror="this.style.display='none'" />
-        </td>
-        <td style="text-align:center;vertical-align:middle;padding:0 10px;">
-          <div style="font-size:22px;font-weight:900;color:${BRAND};letter-spacing:0.04em;">${UNI_NAME.toUpperCase()}</div>
-          <div style="font-size:8.5px;color:#555;margin-top:4px;">
-            Established by state Government of Sikkim by Act 14 of 2025, under Section 2(f) of UGC Act 1956 Government of India.
-          </div>
-        </td>
-        <td style="width:78px;"></td>
-      </tr>
-    </table>
+    <!-- No logo on this sheet — the university's own statement carries only
+         its name and the establishment line. -->
+    <div style="text-align:center;">
+      <div style="font-size:22px;font-weight:900;color:${BRAND};letter-spacing:0.04em;">${UNI_NAME.toUpperCase()}</div>
+      <div style="font-size:8.5px;color:#555;margin-top:4px;">
+        Established by state Government of Sikkim by Act 14 of 2025, under Section 2(f) of UGC Act 1956 Government of India.
+      </div>
+    </div>
     <div style="text-align:center;margin:12px 0 10px;">
       <span style="font-size:15px;font-weight:900;color:${BRAND};letter-spacing:0.14em;">STATEMENT OF MARKS</span>
     </div>
@@ -1000,7 +998,7 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
       </div>
     </div>
 
-    <table style="width:100%;border-collapse:collapse;margin-top:26px;">
+    <table class="office-only" style="width:100%;border-collapse:collapse;margin-top:26px;">
       <tr>
         <td style="text-align:center;font-size:9.5px;font-weight:700;border-top:1px solid #000;padding-top:4px;">CHECKED BY</td>
         <td style="width:8%;"></td>
@@ -1012,6 +1010,20 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
 
   </div>
 </div>
+<style>
+  /* The student's copy simply hides what only the office copy carries, so
+     both are the same sheet and cannot drift apart. */
+  body.student-copy .office-only { display:none !important; }
+</style>
+<script>
+  function setMode(student) {
+    document.body.classList.toggle('student-copy', student)
+    document.getElementById('modeNote').textContent = student
+      ? 'Student copy — no DMC number and no signature blocks.'
+      : 'Office copy — with DMC number and signature blocks.'
+    window.print()
+  }
+</script>
 </body></html>`
   openWindow(html, 'Statement of Marks')
 }
