@@ -133,3 +133,146 @@ export function generateSyllabusPDF(meta = {}, subjects = []) {
   win.document.close()
   win.focus()
 }
+
+// Per-semester examination-scheme PDF — the same sheet the Schemes editor
+// fills in: the syllabus columns, the credit, and the maximum marks split
+// Internal / Theory / Total.
+//   meta:   { programName, session, semester }
+//   papers: [{ paper_no, subject_code, subject_name, criteria, credits,
+//              internal_marks, theory_marks, total_marks }]
+export function generateSchemePDF(meta = {}, papers = []) {
+  if (!papers.length) { alert('No papers in this semester to export.'); return }
+
+  const n = (x) => (x == null || x === '' ? '—' : x)
+  const sum = (k) => papers.reduce((a, r) => a + (Number(r[k]) || 0), 0) || '—'
+  const cell = 'padding:6px 8px;font-size:9.5px;'
+
+  const bodyRows = papers.map((r, i) => `
+    <tr style="${i % 2 ? 'background:#f9fafb;' : 'background:#ffffff;'}border-bottom:1px solid #f3f4f6;">
+      <td style="${cell}color:#9ca3af;">${i + 1}</td>
+      <td style="${cell}color:#111;">${esc(r.paper_no) || '—'}</td>
+      <td style="${cell}color:#555;">${esc(r.subject_code) || '—'}</td>
+      <td style="${cell}font-weight:700;color:#111;">${esc(r.subject_name) || '—'}</td>
+      <td style="${cell}color:#555;">${esc(r.criteria) || '—'}</td>
+      <td style="${cell}text-align:center;color:#111;">${n(r.credits)}</td>
+      <td style="${cell}text-align:center;color:#111;">${n(r.internal_marks)}</td>
+      <td style="${cell}text-align:center;color:#111;">${n(r.theory_marks)}</td>
+      <td style="${cell}text-align:center;font-weight:700;color:#111;">${n(r.total_marks)}</td>
+    </tr>`).join('')
+
+  const metaPairs = [
+    ['Program', meta.programName],
+    ['Session', meta.session],
+    ['Semester', meta.semester],
+  ].filter(([, v]) => v)
+  const metaCells = metaPairs.map(([k, v]) =>
+    `<td style="font-size:10px;color:#555;padding:2px 14px 2px 0;">
+       <strong style="color:#933d18;">${esc(k)}:</strong>&nbsp;<strong style="color:#111;">${esc(v)}</strong>
+     </td>`).join('')
+
+  const th = 'padding:7px 8px;font-size:9px;color:#fff;font-weight:700;'
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Examination Scheme${meta.programName ? ' — ' + esc(meta.programName) : ''}${meta.semester ? ' (' + esc(meta.semester) + ')' : ''}</title>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:"Times New Roman", Times, Georgia, serif; background:#fff; color:#111; font-size:10px; }
+    @page { size:A4 portrait; margin:12mm; }
+    @media print {
+      body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .no-print { display:none !important; }
+    }
+    .page { max-width:760px; margin:0 auto; }
+    table { border-collapse:collapse; width:100%; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <div class="no-print" style="text-align:center;padding:12px 0 18px;">
+    <button onclick="window.print()" style="background:#933d18;color:#fff;border:none;padding:10px 32px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">⬇ Download / Print PDF</button>
+  </div>
+
+  <div style="border:2px solid #933d18;border-radius:6px;overflow:hidden;margin-bottom:14px;">
+    <div style="background:#933d18;padding:10px 16px;">
+      <table>
+        <tr>
+          <td style="width:62px;vertical-align:middle;">
+            <img src="${LOGO_URL}" width="54" height="54" style="border-radius:50%;background:#fff;padding:3px;object-fit:contain;" onerror="this.style.display='none'"/>
+          </td>
+          <td style="text-align:center;vertical-align:middle;padding:0 12px;">
+            <div style="color:#fff;font-size:19px;font-weight:900;letter-spacing:0.03em;">${UNI_NAME.toUpperCase()}</div>
+            <div style="color:rgba(255,255,255,0.85);font-size:10px;margin-top:2px;font-style:italic;">${UNI_TAGLINE}</div>
+            <div style="color:rgba(255,255,255,0.6);font-size:7.5px;margin-top:3px;">${UNI_ACT}</div>
+          </td>
+          <td style="width:62px;vertical-align:middle;text-align:right;">
+            <img src="${LOGO_URL}" width="54" height="54" style="border-radius:50%;background:#fff;padding:3px;object-fit:contain;" onerror="this.style.display='none'"/>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <div style="background:#fef9f6;padding:4px 16px;text-align:center;border-top:1px solid #f0ebe7;">
+      <span style="font-size:8px;color:#666;">${UNI_ADDRESS} &nbsp;|&nbsp; ${UNI_PHONE} &nbsp;|&nbsp; ${UNI_EMAIL}</span>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-bottom:12px;">
+    <div style="display:inline-block;background:#933d18;color:#fff;padding:5px 30px;border-radius:4px;">
+      <span style="font-size:13px;font-weight:900;letter-spacing:0.1em;">EXAMINATION SCHEME — ${esc((meta.semester || '').toString().toUpperCase())}</span>
+    </div>
+  </div>
+
+  ${metaPairs.length ? `
+  <div style="border:1px solid #e5e7eb;border-radius:5px;padding:8px 14px;margin-bottom:14px;background:#f9fafb;">
+    <table><tr>${metaCells}</tr></table>
+  </div>` : ''}
+
+  <div style="margin-bottom:14px;border-radius:5px;overflow:hidden;border:1px solid #e5e7eb;">
+    <table>
+      <thead>
+        <tr style="background:#933d18;">
+          <th rowspan="2" style="${th}text-align:left;">S.No</th>
+          <th rowspan="2" style="${th}text-align:left;">Paper No</th>
+          <th rowspan="2" style="${th}text-align:left;">Subject Code</th>
+          <th rowspan="2" style="${th}text-align:left;">Subject Name</th>
+          <th rowspan="2" style="${th}text-align:left;">Criteria</th>
+          <th rowspan="2" style="${th}text-align:center;">Credit</th>
+          <th colspan="3" style="${th}text-align:center;border-bottom:1px solid rgba(255,255,255,0.3);">Maximum Marks</th>
+        </tr>
+        <tr style="background:#933d18;">
+          <th style="${th}text-align:center;">Internal</th>
+          <th style="${th}text-align:center;">Theory</th>
+          <th style="${th}text-align:center;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bodyRows}
+        <tr style="background:#fef9f6;border-top:2px solid #933d18;">
+          <td colspan="5" style="${cell}text-align:right;font-weight:700;color:#933d18;">Total</td>
+          <td style="${cell}text-align:center;font-weight:700;">${sum('credits')}</td>
+          <td style="${cell}text-align:center;font-weight:700;">${sum('internal_marks')}</td>
+          <td style="${cell}text-align:center;font-weight:700;">${sum('theory_marks')}</td>
+          <td style="${cell}text-align:center;font-weight:700;">${sum('total_marks')}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="border-top:2px solid #933d18;margin-top:14px;padding-top:5px;text-align:center;">
+    <p style="font-size:8px;color:#555;">${UNI_NAME} &nbsp;•&nbsp; ${UNI_WEB}</p>
+    <p style="font-size:7px;color:#bbb;margin-top:2px;">${UNI_ACT} &nbsp;•&nbsp; Generated: ${formatDate(new Date())}</p>
+  </div>
+
+</div>
+</body>
+</html>`
+
+  const win = window.open('', '_blank', 'width=900,height=760')
+  if (!win) { alert('Popup blocked. Please allow popups.'); return }
+  win.document.write(html)
+  win.document.close()
+  win.focus()
+}

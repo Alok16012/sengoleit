@@ -4,8 +4,9 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import { SearchableSelect } from '../../components/ui/SearchSelect'
-import { Search, X, Plus, Pencil, Save, ArrowLeft, Award } from 'lucide-react'
+import { Search, X, Plus, Pencil, Save, ArrowLeft, Award, Layers, Eye, Download } from 'lucide-react'
 import { paperKeyOf } from '../../utils/fetchSyllabus'
+import { generateSchemePDF } from '../../utils/generateSyllabusPDF'
 
 // Examination Scheme — what each paper of a course is worth.
 //
@@ -55,6 +56,12 @@ export default function Schemes() {
   const [editorLoading, setEditorLoading] = useState(false)
   const [saving, setSaving]   = useState(false)
   const [saved, setSaved]     = useState(false)
+
+  // Per-semester View / Download modal, mirroring the Syllabus page's.
+  const [semModal, setSemModal]     = useState(null)   // the course being viewed
+  const [semPapers, setSemPapers]   = useState([])
+  const [semLoading, setSemLoading] = useState(false)
+  const [openSemView, setOpenSemView] = useState(null)
 
   // Runs once on mount, and `loading` already starts true — so there is
   // nothing to set before the fetch.
@@ -137,6 +144,30 @@ export default function Schemes() {
 
   const setMark = (id, field, val) => setPapers(prev =>
     prev.map(r => (r.id === id ? { ...r, [field]: val } : r)))
+
+  // Open the per-semester View / Download modal: the syllabus papers joined to
+  // whatever the scheme says about each, so a semester with no marks set still
+  // lists its papers instead of looking empty.
+  async function openSemesters(p) {
+    setSemModal(p); setOpenSemView(null); setSemLoading(true); setSemPapers([])
+    const [subs, marks] = await Promise.all([
+      supabase.from('syllabus_subjects')
+        .select('semester, paper_no, subject_code, subject_name, criteria, sort_order')
+        .eq('program_id', p.id).is('session_id', null)
+        .order('sort_order', { ascending: true }),
+      supabase.from('scheme_papers')
+        .select('semester, paper_key, internal_marks, theory_marks, total_marks, credits')
+        .eq('program_id', p.id).is('session_id', null),
+    ])
+    const byKey = Object.fromEntries((marks.data || []).map(m => [`${m.semester}__${m.paper_key}`, m]))
+    setSemPapers((subs.data || []).map(s => ({ ...s, ...(byKey[`${s.semester}__${paperKeyOf(s)}`] || {}) })))
+    setSemLoading(false)
+  }
+
+  const downloadSemester = (p, semNo, rows) => generateSchemePDF(
+    { programName: p.program_name, session: 'All Sessions', semester: `Semester ${semNo}` },
+    rows,
+  )
 
   async function save() {
     if (!active || saving) return
@@ -364,15 +395,110 @@ export default function Schemes() {
                 <Td className="text-gray-500 text-xs">{syllabusCount[p.id] || 0}</Td>
                 <Td className="text-gray-500 text-xs">{schemeCount[p.id] || 0}</Td>
                 <Td>
-                  {/* Icon follows the label, same as the Syllabus list. */}
-                  <Button size="sm" variant={isDone(p) ? 'secondary' : 'primary'} onClick={() => openCourse(p)}>
-                    {isDone(p) ? <><Pencil size={13} /> Edit Scheme</> : <><Plus size={13} /> Add Scheme</>}
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    {/* Icon follows the label, same as the Syllabus list. */}
+                    <Button size="sm" variant={isDone(p) ? 'secondary' : 'primary'} onClick={() => openCourse(p)}>
+                      {isDone(p) ? <><Pencil size={13} /> Edit Scheme</> : <><Plus size={13} /> Add Scheme</>}
+                    </Button>
+                    <button onClick={() => openSemesters(p)} title="View / download each semester"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
+                      <Layers size={13} /> Semesters
+                    </button>
+                  </div>
                 </Td>
               </Tr>
             ))}
           </Tbody>
         </Table>
+      )}
+
+      {/* ── Per-semester View / Download modal ── */}
+      {semModal && (
+        <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 p-4 pt-10" onClick={() => setSemModal(null)}>
+          <div className="w-full max-w-5xl bg-white rounded-2xl shadow-xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+              <div className="min-w-0">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2 truncate">
+                  <Layers size={16} className="text-[#933d18] shrink-0" /> {semModal.program_name}
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">Examination scheme · {calcSemesters(semModal) || 0} Semesters</p>
+              </div>
+              <button onClick={() => setSemModal(null)} className="text-gray-400 hover:text-gray-700 shrink-0"><X size={18} /></button>
+            </div>
+            <div className="max-h-[82vh] overflow-y-auto p-4">
+              {semLoading ? (
+                <div className="py-12 text-center text-sm text-gray-400">Loading...</div>
+              ) : (
+                Array.from({ length: calcSemesters(semModal) || 0 }, (_, n) => n + 1).map(semNo => {
+                  const rows = semPapers.filter(r => Number(r.semester) === semNo)
+                  const withMarks = rows.filter(r => r.total_marks != null && r.total_marks !== '').length
+                  const expanded = openSemView === semNo
+                  return (
+                    <div key={semNo} className="mb-2 border border-gray-100 rounded-xl overflow-hidden">
+                      <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-gray-50/70">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-gray-800 text-sm">Semester {semNo}</span>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${withMarks ? 'bg-emerald-50 text-emerald-700' : rows.length ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {!rows.length ? 'No papers' : withMarks ? `${withMarks} of ${rows.length} set` : 'Scheme not set'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => setOpenSemView(expanded ? null : semNo)} disabled={!rows.length}
+                            title="View this semester's scheme"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            <Eye size={12} /> View
+                          </button>
+                          <button onClick={() => downloadSemester(semModal, semNo, rows)} disabled={!rows.length}
+                            title="Download this semester's scheme as a PDF"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                            <Download size={12} /> Download
+                          </button>
+                        </div>
+                      </div>
+                      {expanded && rows.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-white border-b border-gray-100 text-gray-400">
+                                <th rowSpan={2} className="text-left font-semibold px-4 py-2 w-10">#</th>
+                                <th rowSpan={2} className="text-left font-semibold px-3 py-2">Paper</th>
+                                <th rowSpan={2} className="text-left font-semibold px-3 py-2">Code</th>
+                                <th rowSpan={2} className="text-left font-semibold px-3 py-2">Subject Name</th>
+                                <th rowSpan={2} className="text-left font-semibold px-3 py-2">Criteria</th>
+                                <th rowSpan={2} className="text-center font-semibold px-3 py-2">Credit</th>
+                                <th colSpan={3} className="text-center font-semibold px-3 py-1.5 border-b border-gray-100">Maximum Marks</th>
+                              </tr>
+                              <tr className="bg-white border-b border-gray-100 text-gray-400">
+                                <th className="text-center font-semibold px-3 py-1.5">Internal</th>
+                                <th className="text-center font-semibold px-3 py-1.5">Theory</th>
+                                <th className="text-center font-semibold px-3 py-1.5">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {rows.map((r, i) => (
+                                <tr key={i} className={`border-b border-gray-50 ${i % 2 ? 'bg-gray-50/40' : ''}`}>
+                                  <td className="px-4 py-2 text-gray-400">{i + 1}</td>
+                                  <td className="px-3 py-2 text-gray-700">{r.paper_no || '—'}</td>
+                                  <td className="px-3 py-2 text-gray-500 font-mono">{r.subject_code || '—'}</td>
+                                  <td className="px-3 py-2 font-semibold text-gray-900">{r.subject_name || '—'}</td>
+                                  <td className="px-3 py-2 text-gray-500">{r.criteria || '—'}</td>
+                                  <td className="px-3 py-2 text-center text-gray-700">{r.credits ?? '—'}</td>
+                                  <td className="px-3 py-2 text-center text-gray-700">{r.internal_marks ?? '—'}</td>
+                                  <td className="px-3 py-2 text-center text-gray-700">{r.theory_marks ?? '—'}</td>
+                                  <td className="px-3 py-2 text-center font-bold text-gray-800">{r.total_marks ?? '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
