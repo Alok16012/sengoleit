@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
-import { X, Award, Lock, Send, BadgeCheck } from 'lucide-react'
+import { X, Award, Lock, Send, BadgeCheck, FileText } from 'lucide-react'
 import Button from './ui/Button'
+import { supabase } from '../lib/supabase'
 import { semesterResults, saveSemesterResult, releaseSemesterResult } from '../utils/semesterResults'
+import { fetchPaperMarks, savePaperMarks } from '../utils/paperMarks'
+import { generateMarksStatement } from '../utils/generateStudentCards'
+import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
+import { fetchExamDates } from '../utils/examSettings'
 
 const pct = (o, t) => {
   const a = parseFloat(o), b = parseFloat(t)
@@ -16,6 +21,11 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
   const [pick, setPick] = useState(null)     // the semester being edited
   const [form, setForm] = useState({ status: 'Pending', obtained_marks: '', total_marks: '', remarks: '', marksheet_url: '', declared_at: '' })
   const [busy, setBusy] = useState(false)
+  // Paper-wise marks for the semester being edited — what the Statement of
+  // Marks prints. null while loading, [] when the course has no syllabus for
+  // that semester.
+  const [papers, setPapers] = useState(null)
+  const [printing, setPrinting] = useState(null)
 
   async function load() {
     const r = await semesterResults(student)
@@ -25,6 +35,8 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
 
   function edit(row) {
     setPick(row)
+    setPapers(null)
+    fetchPaperMarks(student, row.sem).then(setPapers).catch(() => setPapers([]))
     const r = row.result
     setForm({
       status: r?.status || 'Pending',
@@ -37,8 +49,42 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
     })
   }
 
+  const setPaper = (key, field, val) => setPapers(prev =>
+    (prev || []).map(p => (p.paper_key === key ? { ...p, [field]: val } : p)))
+
+  // Print the university's Statement of Marks for one semester. Reads the
+  // paper marks fresh so a card printed from the list is never a stale copy of
+  // what is on screen.
+  async function printStatement(row) {
+    setPrinting(row.sem)
+    const { data: full } = await supabase.from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
+      .eq('id', student.id).single()
+    const resolved = full ? await resolveStudentDocUrls(full) : student
+    const rowsForSem = await fetchPaperMarks(student, row.sem)
+    const dates = await fetchExamDates(resolved, row.sem)
+    generateMarksStatement(resolved, rowsForSem, {
+      dmcNo: resolved.enrollment_no ? `${resolved.enrollment_no}/S${row.sem}` : '',
+      semester: `Semester ${row.sem}`,
+      examHeld: dates.examSession || '',
+      resultStatus: row.result?.status === 'Fail' ? 'Failed' : 'Passed',
+      dateOfIssue: new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    })
+    setPrinting(null)
+  }
+
   async function save() {
     setBusy(true)
+    // Paper marks first: the semester row is what the list reflects, so it
+    // should not claim saved while the detail behind it failed.
+    if (papers?.length) {
+      const { error: pErr } = await savePaperMarks(student.id, pick.sem, papers)
+      if (pErr) {
+        setBusy(false)
+        alert('Could not save the paper-wise marks (run add_student_paper_marks.sql in Supabase):\n\n' + pErr.message)
+        return
+      }
+    }
     const { error } = await saveSemesterResult(student.id, pick.sem, {
       status: form.status,
       obtained_marks: form.obtained_marks || null,
@@ -118,6 +164,58 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                 <label className="block text-[11px] font-semibold text-gray-500 mb-1">Remarks (optional)</label>
                 <input value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} className={input} />
               </div>
+              {/* Paper-wise marks — what the Statement of Marks prints. The
+                  maximums and credits beside each paper come from the course's
+                  scheme and are shown only for reference. */}
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Paper-wise Marks</p>
+                {papers == null ? (
+                  <p className="text-xs text-gray-400 py-3">Loading papers…</p>
+                ) : !papers.length ? (
+                  <p className="text-xs text-gray-400 py-3">
+                    No papers in the syllabus for Semester {pick.sem}. Add them on the Syllabus page, then set the marks on the Schemes page.
+                  </p>
+                ) : (
+                  <div className="border border-gray-100 rounded-xl overflow-hidden">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="bg-gray-50 text-gray-500 text-[10px] uppercase tracking-wider">
+                          <th className="text-left font-semibold px-3 py-2">Subject</th>
+                          <th className="text-center font-semibold px-2 py-2 w-20">Max<br/>Th / Int</th>
+                          <th className="text-center font-semibold px-2 py-2 w-20">Theory</th>
+                          <th className="text-center font-semibold px-2 py-2 w-20">Internal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {papers.map(p => (
+                          <tr key={p.paper_key} className="border-t border-gray-50">
+                            <td className="px-3 py-1.5">
+                              <p className="font-semibold text-gray-800">{p.subject_name || '—'}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">{p.subject_code || p.paper_no || ''}</p>
+                            </td>
+                            <td className="px-2 py-1.5 text-center text-gray-400">
+                              {p.theory_marks || '—'} / {p.internal_marks || '—'}
+                            </td>
+                            {['theory_obtained', 'internal_obtained'].map(f => (
+                              <td key={f} className="px-2 py-1.5">
+                                <input type="number" min="0" step="any" value={p[f]}
+                                  onChange={e => setPaper(p.paper_key, f, e.target.value)}
+                                  className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-[#933d18]" />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {papers?.length > 0 && !papers.some(p => p.total_marks) && (
+                  <p className="text-[11px] text-amber-700 mt-2">
+                    This course has no examination scheme yet, so the statement will print without maximum marks or credits. Set it on the Schemes page.
+                  </p>
+                )}
+              </div>
+
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="secondary" size="md" onClick={() => setPick(null)}>Back</Button>
                 <Button variant="primary" size="md" onClick={save} disabled={busy}>
@@ -157,6 +255,13 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                           <Button size="sm" variant="secondary" onClick={() => edit(row)}>
                             {r && r.status !== 'Pending' ? 'Edit' : 'Enter'}
                           </Button>
+                          {r && r.status !== 'Pending' && (
+                            <Button size="sm" variant="secondary" disabled={printing === row.sem}
+                              title="Print the Statement of Marks for this semester"
+                              onClick={() => printStatement(row)}>
+                              <FileText size={12} /> {printing === row.sem ? '…' : 'Marks Statement'}
+                            </Button>
+                          )}
                           {r && r.status !== 'Pending' && (
                             r.released_at ? (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
