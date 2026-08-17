@@ -775,8 +775,15 @@ export default function AccountDepartment() {
 
   // Registration number is issued only here — after account verification, at the
   // moment the student is approved/enrolled (NOT at admission-form submission).
-  async function generateRegistrationNumber() {
-    const yy = String(new Date().getFullYear()).slice(-2)
+  // The year in SIU<yy>R belongs to the student's SESSION, not to whenever the
+  // Account Dept happens to approve them — a July 2025 student approved in
+  // 2026 was being numbered SIU26R…, out of step with their own enrollment
+  // number (EN25…), which has always read the session. Falls back to the
+  // current year only when the session carries no year at all.
+  async function generateRegistrationNumber(student) {
+    const sessName  = student?.academic_sessions?.session_name || ''
+    const yearMatch = sessName.match(/(\d{4})/)
+    const yy = yearMatch ? yearMatch[1].slice(-2) : String(new Date().getFullYear()).slice(-2)
     const prefix = `SIU${yy}R`
     const { count } = await supabase
       .from('students')
@@ -845,7 +852,7 @@ export default function AccountDepartment() {
       }
       const isPhd = isPhdStudent(student)
       const enrollNo = isPhd ? null : await generateEnrollmentNumber(student)
-      const regNo = isPhd ? null : (student.registration_no || await generateRegistrationNumber())
+      const regNo = isPhd ? null : (student.registration_no || await generateRegistrationNumber(student))
       await supabase.from('students').update({
         status: 'Approved',
         enrollment_no: enrollNo,
