@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen, Upload, FileText, Eye, ChevronDown, Check, Download, Layers } from 'lucide-react'
+import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen, Upload, FileText, Eye, ChevronDown, Check, Download, Layers, Pencil } from 'lucide-react'
 import { generateSyllabusPDF } from '../../utils/generateSyllabusPDF'
 
 let _k = 0
@@ -684,9 +684,12 @@ export default function Syllabus() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
+                        {/* The icon follows the label: a plus only while there
+                            is nothing to edit yet. It used to stay a plus on
+                            done courses, so "Edit" read as another Add. */}
                         <button onClick={() => openCourse(s)}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
-                          <Plus size={13} /> {cnt > 0 ? 'Edit' : 'Add'}
+                          {cnt > 0 ? <><Pencil size={13} /> Edit</> : <><Plus size={13} /> Add</>}
                         </button>
                         {cnt > 0 && (
                           <button onClick={() => openSemesters(s)} title="View / download each semester"

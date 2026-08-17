@@ -4,7 +4,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import { SearchableSelect } from '../../components/ui/SearchSelect'
-import { Search, X, ClipboardList, Save, ArrowLeft, Award } from 'lucide-react'
+import { Search, X, Plus, Pencil, Save, ArrowLeft, Award } from 'lucide-react'
 import { paperKeyOf } from '../../utils/fetchSyllabus'
 
 // Examination Scheme — what each paper of a course is worth.
@@ -352,8 +352,9 @@ export default function Schemes() {
                 <Td className="text-gray-500 text-xs">{syllabusCount[p.id] || 0}</Td>
                 <Td className="text-gray-500 text-xs">{schemeCount[p.id] || 0}</Td>
                 <Td>
+                  {/* Icon follows the label, same as the Syllabus list. */}
                   <Button size="sm" variant={isDone(p) ? 'secondary' : 'primary'} onClick={() => openCourse(p)}>
-                    <ClipboardList size={13} /> {isDone(p) ? 'Edit Scheme' : 'Set Scheme'}
+                    {isDone(p) ? <><Pencil size={13} /> Edit Scheme</> : <><Plus size={13} /> Add Scheme</>}
                   </Button>
                 </Td>
               </Tr>
