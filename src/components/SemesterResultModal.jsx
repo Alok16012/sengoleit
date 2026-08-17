@@ -111,7 +111,9 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+      {/* The semester list is a short column; entering marks is a wide table,
+          so the sheet grows for it rather than making every paper wrap. */}
+      <div className={`bg-white rounded-2xl shadow-2xl w-full ${pick ? 'max-w-4xl' : 'max-w-lg'} max-h-[92vh] overflow-auto`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white">
           <div className="flex items-center gap-2">
             <Award size={17} className="text-[#933d18]" />
@@ -180,22 +182,37 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="bg-gray-50 text-gray-500 text-[10px] uppercase tracking-wider">
-                          <th className="text-left font-semibold px-3 py-2">Subject</th>
-                          <th className="text-center font-semibold px-2 py-2 w-20">Max<br/>Th / Int</th>
-                          <th className="text-center font-semibold px-2 py-2 w-20">Theory</th>
-                          <th className="text-center font-semibold px-2 py-2 w-20">Internal</th>
+                          <th rowSpan={2} className="text-left font-semibold px-3 py-2">Subject</th>
+                          <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-24">Credit</th>
+                          <th colSpan={3} className="text-center font-semibold px-2 py-1.5 border-b border-gray-100">Maximum</th>
+                          <th colSpan={3} className="text-center font-semibold px-2 py-1.5 border-b border-gray-100">Obtained</th>
+                        </tr>
+                        <tr className="bg-gray-50 text-gray-500 text-[10px] uppercase tracking-wider">
+                          <th className="text-center font-semibold px-2 py-1.5 w-16">Theory</th>
+                          <th className="text-center font-semibold px-2 py-1.5 w-16">Internal</th>
+                          <th className="text-center font-semibold px-2 py-1.5 w-16">Total</th>
+                          <th className="text-center font-semibold px-2 py-1.5 w-20">Theory</th>
+                          <th className="text-center font-semibold px-2 py-1.5 w-20">Internal</th>
+                          <th className="text-center font-semibold px-2 py-1.5 w-16">Total</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {papers.map(p => (
+                        {papers.map(p => {
+                          // Same rule as the scheme: a total is never typed, it
+                          // is the two beside it added up.
+                          const got = (p.theory_obtained !== '' || p.internal_obtained !== '')
+                            ? (Number(p.theory_obtained) || 0) + (Number(p.internal_obtained) || 0)
+                            : ''
+                          return (
                           <tr key={p.paper_key} className="border-t border-gray-50">
                             <td className="px-3 py-1.5">
                               <p className="font-semibold text-gray-800">{p.subject_name || '—'}</p>
                               <p className="text-[10px] text-gray-400 font-mono">{p.subject_code || p.paper_no || ''}</p>
                             </td>
-                            <td className="px-2 py-1.5 text-center text-gray-400">
-                              {p.theory_marks || '—'} / {p.internal_marks || '—'}
-                            </td>
+                            <td className="px-2 py-1.5 text-center text-gray-500">{p.credits || '—'}</td>
+                            <td className="px-2 py-1.5 text-center text-gray-400">{p.theory_marks || '—'}</td>
+                            <td className="px-2 py-1.5 text-center text-gray-400">{p.internal_marks || '—'}</td>
+                            <td className="px-2 py-1.5 text-center font-semibold text-gray-600">{p.total_marks || '—'}</td>
                             {['theory_obtained', 'internal_obtained'].map(f => (
                               <td key={f} className="px-2 py-1.5">
                                 <input type="number" min="0" step="any" value={p[f]}
@@ -203,8 +220,9 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                                   className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-[#933d18]" />
                               </td>
                             ))}
+                            <td className="px-2 py-1.5 text-center font-bold text-gray-700">{got === '' ? '—' : got}</td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>
