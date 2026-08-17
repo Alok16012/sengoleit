@@ -12,6 +12,7 @@ import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { isPhdStudent } from '../../utils/isPhdStudent'
+import { findFreeNumber, countIssued } from '../../utils/uniqueNumbers'
 
 const STATUS_FILTERS = ['Pending', 'Hold', 'Approved', 'Rejected']
 const CENTER_STATUS_FILTERS = ['Pending', 'Hold', 'Forwarded', 'Approved', 'Rejected']
@@ -457,22 +458,20 @@ export default function DocumentDepartment() {
     setLoading(false)
   }
 
-  async function generateAdmissionNumber() {
-    const { count } = await supabase
-      .from('students')
-      .select('*', { count: 'exact', head: true })
-      .not('admission_number', 'is', null)
-      .neq('admission_number', '')
-    const year = new Date().getFullYear()
-    const num = String((count || 0) + 1).padStart(5, '0')
-    return `ADM-${year}-${num}`
+  // Fallback for older records that reached this desk without an application
+  // number. Same collision-safe path as the form's own generator.
+  async function generateAdmissionNumber(student) {
+    const sess = student?.academic_sessions?.session_name || ''
+    const year = (sess.match(/(\d{4})/) || [])[1] || new Date().getFullYear()
+    const start = (await countIssued('admission_number')) + 1
+    return findFreeNumber('admission_number', n => `ADM-${year}-${String(n).padStart(5, '0')}`, start)
   }
 
   async function handleVerify() {
     setSaving(true)
     // Admission number is assigned at form submission. Only generate one here as
     // a fallback for older records that don't have it yet.
-    const admNo = verifyModal.admission_number || await generateAdmissionNumber()
+    const admNo = verifyModal.admission_number || await generateAdmissionNumber(verifyModal)
     const now = new Date().toISOString()
     const updates = {
       status: 'Hold',

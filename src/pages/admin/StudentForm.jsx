@@ -10,6 +10,7 @@ import FormSection from '../../components/ui/FormSection'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee } from '../../utils/courseFee'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { findFreeNumber, countIssued } from '../../utils/uniqueNumbers'
 import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, EyeOff,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft,
@@ -1018,14 +1019,13 @@ export default function StudentForm() {
   }
 
   async function generateAdmissionNumber() {
-    const { count } = await supabase
-      .from('students')
-      .select('*', { count: 'exact', head: true })
-      .not('admission_number', 'is', null)
-      .neq('admission_number', '')
     const year = sessionYear(sessions.find(s => s.id === form.session_id))
-    const num = String((count || 0) + 1).padStart(5, '0')
-    return `ADM-${year}-${num}`
+    // Counting gives the starting serial; findFreeNumber steps past any that is
+    // already taken. Plain count+1 handed out live numbers whenever the count
+    // and the highest serial disagreed — two submissions at once, or a deleted
+    // student — which is how students ended up sharing an application number.
+    const start = (await countIssued('admission_number')) + 1
+    return findFreeNumber('admission_number', n => `ADM-${year}-${String(n).padStart(5, '0')}`, start)
   }
 
   async function runWalletCheck() {
