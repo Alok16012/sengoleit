@@ -11,7 +11,7 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
 import { fetchExamDates } from '../../utils/examSettings'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
-import { admitCardsFor, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
+import { admitCardsFor, admitCardsForMany, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
 import { termForSemester } from '../../utils/reRegistration'
 import { recordFeeDeduction } from '../../utils/feeLedger'
 import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
@@ -203,6 +203,12 @@ export default function ExamSection() {
   const [fDept, setFDept] = useState('all')
   const [fType, setFType] = useState('all')
   const [fSession, setFSession] = useState([])   // multi-select; [] = all
+  // Which students still need THIS semester's admit card. After a
+  // re-registration is verified the student moves into a new term with no card
+  // yet, and the list gave no way to tell who was waiting.
+  const [admitTab, setAdmitTab] = useState('pending')
+  // Issued cards for every listed student, keyed by student id.
+  const [admitCards, setAdmitCards] = useState({})
   // Courses that have a syllabus added — the source for the Exam Schedules list.
   const [syllabusCourses, setSyllabusCourses] = useState([])
 
@@ -324,6 +330,9 @@ export default function ExamSection() {
       }
     }
     setData(data || [])
+    // null = add_semester_admit_cards.sql not run; every student then counts as
+    // pending, which is the safer way round for a queue.
+    setAdmitCards(await admitCardsForMany((data || []).map(s => s.id)) || {})
     setLoading(false)
   }
 
@@ -416,6 +425,12 @@ export default function ExamSection() {
   async function refreshIssued(student) {
     const issued = await admitCardsFor(student.id)
     setAdmitModal(m => m && { ...m, issued: issued || {}, pick: undefined })
+    // Keep the row behind the modal in step, so issuing a card moves the
+    // student out of the Pending tab without a page reload.
+    setAdmitCards(prev => ({
+      ...prev,
+      [student.id]: Object.values(issued || {}).sort((a, b) => a.semester - b.semester),
+    }))
   }
 
   // Step 2: after picking a fee-cleared semester, load its papers so the admin
@@ -584,7 +599,22 @@ export default function ExamSection() {
     return !isNaN(d.getTime()) && Date.now() < d.getTime()
   }
 
-  const filtered = data.filter(s => {
+  // The semester a student is IN — what the Exam Section owes them a card for.
+  // A Year-based term covers two semesters, so its closing one is the current.
+  const currentSemOf = (s) => {
+    const n = Math.max(parseInt(String(s.semester_year || ''), 10) || 1, 1)
+    const isYear = /year/i.test(String(s.semester_year || s.programs?.semester_year || ''))
+    const total = Number(s.programs?.duration) || 0
+    return total ? Math.min(isYear ? n * 2 : n, total) : (isYear ? n * 2 : n)
+  }
+  // Has THIS semester's card been issued? Cards for earlier semesters do not
+  // count — the whole point is to spot who is waiting after a re-registration.
+  const currentCardDone = (s) =>
+    (admitCards?.[s.id] || []).some(c => Number(c.semester) === currentSemOf(s))
+
+  // Department / type / session / search, but NOT the admit-card tab — the tab
+  // counts are taken from this, so they stay put as the tab is switched.
+  const byFilters = data.filter(s => {
     if (fDept !== 'all' && s.programs?.department_id !== fDept) return false
     if (fType !== 'all' && s.programs?.programme_type_id !== fType) return false
     if (fSession.length > 0 && (!s.session_id || !fSession.includes(s.session_id))) return false
@@ -595,6 +625,11 @@ export default function ExamSection() {
     ].filter(Boolean).join(' ').toLowerCase()
     return haystack.includes(search.toLowerCase())
   })
+
+  const filtered = byFilters.filter(s =>
+    admitTab === 'pending' ? !currentCardDone(s)
+      : admitTab === 'done' ? currentCardDone(s)
+        : true)
 
   const filterActive = !!search || fDept !== 'all' || fType !== 'all' || fSession.length > 0
   const clearFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSession([]) }
@@ -664,6 +699,27 @@ export default function ExamSection() {
         )}
       </div>
 
+      {/* Whose CURRENT semester still has no admit card — the queue a verified
+          re-registration lands a student in. Counts come from byFilters, so
+          switching tabs never changes what they say. */}
+      <div className="flex gap-2 mb-4">
+        {[
+          { key: 'pending', label: 'Admit Card Pending', on: 'bg-amber-500 text-white',   off: 'bg-amber-50 text-amber-700' },
+          { key: 'done',    label: 'Issued',             on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
+          { key: 'all',     label: 'All',                on: 'bg-gray-700 text-white',    off: 'bg-gray-100 text-gray-600' },
+        ].map(t => {
+          const count = t.key === 'all' ? byFilters.length
+            : byFilters.filter(s => (t.key === 'done' ? currentCardDone(s) : !currentCardDone(s))).length
+          return (
+            <button key={t.key} onClick={() => setAdmitTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${admitTab === t.key ? t.on : t.off}`}>
+              {t.label}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${admitTab === t.key ? 'bg-white/25' : 'bg-white/70'}`}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
@@ -717,18 +773,30 @@ export default function ExamSection() {
                     )}
                     {(() => {
                       const locked = isAdmitLocked(s)
+                      const sem = currentSemOf(s)
+                      const done = currentCardDone(s)
                       return (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => openAdmitModal(s)}
-                          disabled={locked}
-                          title={locked ? `Locked until ${fmtDT(admitCardTimeOf(s))}` : 'Generate semester-wise Admit Card'}
-                          className="w-fit"
-                        >
-                          <ClipboardList size={14} className={locked ? 'text-gray-400' : 'text-amber-600'} />
-                          <span className={`text-xs ml-1 ${locked ? 'text-gray-400' : 'text-amber-600'}`}>{locked ? 'Locked' : 'Generate'}</span>
-                        </Button>
+                        <>
+                          {/* Which semester is owed, and whether it is done —
+                              without this the button says "Generate" whether
+                              the student needs a card or already has one. */}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded w-fit ${
+                            done ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                          }`}>
+                            Sem {sem} · {done ? 'issued' : 'pending'}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openAdmitModal(s)}
+                            disabled={locked}
+                            title={locked ? `Locked until ${fmtDT(admitCardTimeOf(s))}` : `Generate the Semester ${sem} admit card`}
+                            className="w-fit"
+                          >
+                            <ClipboardList size={14} className={locked ? 'text-gray-400' : 'text-amber-600'} />
+                            <span className={`text-xs ml-1 ${locked ? 'text-gray-400' : 'text-amber-600'}`}>{locked ? 'Locked' : 'Generate'}</span>
+                          </Button>
+                        </>
                       )
                     })()}
                   </div>
