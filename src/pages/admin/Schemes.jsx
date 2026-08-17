@@ -19,13 +19,20 @@ import { paperKeyOf } from '../../utils/fetchSyllabus'
 // subject name was corrected.
 const calcSemesters = (p) => (p ? Number(p.duration) || 0 : 0)
 // Credit stands on its own; the other three sit under a "Maximum Marks"
-// heading, the way the university writes its scheme.
-const MAX_MARK_FIELDS = [
+// heading, the way the university writes its scheme. Total is not typed — it
+// IS internal + theory, so it is computed and shown read-only. It used to be
+// an ordinary field filled only when blank, which left it stale at whatever
+// the first of the two entries made it.
+const ENTRY_FIELDS = [
+  { key: 'credits',        label: 'Credit' },
   { key: 'internal_marks', label: 'Internal' },
   { key: 'theory_marks',   label: 'Theory' },
-  { key: 'total_marks',    label: 'Total' },
 ]
-const MARK_FIELDS = [{ key: 'credits', label: 'Credit' }, ...MAX_MARK_FIELDS]
+const totalOf = (r) => {
+  const i = Number(r.internal_marks), t = Number(r.theory_marks)
+  const has = r.internal_marks !== '' || r.theory_marks !== ''
+  return has ? (i || 0) + (t || 0) : ''
+}
 
 export default function Schemes() {
   const [programs, setPrograms]       = useState([])
@@ -123,7 +130,6 @@ export default function Schemes() {
         credits:        m.credits ?? '',
         internal_marks: m.internal_marks ?? '',
         theory_marks:   m.theory_marks ?? '',
-        total_marks:    m.total_marks ?? '',
       }
     }))
     setEditorLoading(false)
@@ -132,21 +138,12 @@ export default function Schemes() {
   const setMark = (id, field, val) => setPapers(prev =>
     prev.map(r => (r.id === id ? { ...r, [field]: val } : r)))
 
-  // Internal + Theory is what a paper is out of, so filling those fills the
-  // total — overwritten freely if the university states a different one.
-  const autoTotal = (id) => setPapers(prev => prev.map(r => {
-    if (r.id !== id) return r
-    const i = Number(r.internal_marks), t = Number(r.theory_marks)
-    if (r.total_marks !== '' || (!i && !t)) return r
-    return { ...r, total_marks: String((i || 0) + (t || 0)) }
-  }))
-
   async function save() {
     if (!active || saving) return
     setSaving(true); setSaved(false)
     const num = v => (v === '' || v == null ? null : Number(v))
     const rows = papers
-      .filter(r => MARK_FIELDS.some(f => r[f.key] !== '' && r[f.key] != null))
+      .filter(r => ENTRY_FIELDS.some(f => r[f.key] !== '' && r[f.key] != null))
       .map(r => ({
         program_id: active.id,
         session_id: null,
@@ -155,7 +152,7 @@ export default function Schemes() {
         credits:        num(r.credits),
         internal_marks: num(r.internal_marks),
         theory_marks:   num(r.theory_marks),
-        total_marks:    num(r.total_marks),
+        total_marks:    num(totalOf(r)),
         updated_at: new Date().toISOString(),
       }))
 
@@ -184,7 +181,7 @@ export default function Schemes() {
     const semList = semsWithPapers.length ? semsWithPapers : [1]
     const visible = papers.filter(p => (Number(p.semester) || 1) === activeSem)
     const filledIn = n => papers.filter(p => (Number(p.semester) || 1) === n
-      && MARK_FIELDS.some(f => p[f.key] !== '' && p[f.key] != null)).length
+      && ENTRY_FIELDS.some(f => p[f.key] !== '' && p[f.key] != null)).length
 
     return (
       <div className="p-6">
@@ -237,12 +234,12 @@ export default function Schemes() {
                   <th rowSpan={2} className="text-left font-semibold px-4 py-2.5 border-r border-gray-100">Subject Name</th>
                   <th rowSpan={2} className="text-left font-semibold px-4 py-2.5 w-40 border-r border-gray-100">Criteria</th>
                   <th rowSpan={2} className="text-left font-semibold px-3 py-2.5 w-24 border-r border-gray-100">Credit</th>
-                  <th colSpan={MAX_MARK_FIELDS.length} className="text-center font-semibold px-3 py-2 border-b border-gray-100">Maximum Marks</th>
+                  <th colSpan={3} className="text-center font-semibold px-3 py-2 border-b border-gray-100">Maximum Marks</th>
                 </tr>
                 <tr className="bg-gray-50 text-gray-500 text-[11px] uppercase tracking-wider">
-                  {MAX_MARK_FIELDS.map(f => (
-                    <th key={f.key} className="text-left font-semibold px-3 py-2 w-24">{f.label}</th>
-                  ))}
+                  <th className="text-left font-semibold px-3 py-2 w-24">Internal</th>
+                  <th className="text-left font-semibold px-3 py-2 w-24">Theory</th>
+                  <th className="text-left font-semibold px-3 py-2 w-24">Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -253,15 +250,20 @@ export default function Schemes() {
                     <td className="px-4 py-2 font-mono text-xs text-gray-600">{r.subject_code || '—'}</td>
                     <td className="px-4 py-2 font-semibold text-gray-800 text-xs min-w-[200px]">{r.subject_name || '—'}</td>
                     <td className="px-4 py-2 text-gray-500 text-xs">{r.criteria || '—'}</td>
-                    {MARK_FIELDS.map(f => (
+                    {ENTRY_FIELDS.map(f => (
                       <td key={f.key} className="px-3 py-2">
                         <input type="number" min="0" step="any"
                           value={r[f.key]}
                           onChange={e => setMark(r.id, f.key, e.target.value)}
-                          onBlur={() => (f.key === 'internal_marks' || f.key === 'theory_marks') && autoTotal(r.id)}
                           className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18]/20" />
                       </td>
                     ))}
+                    {/* Internal + Theory — computed, so it can never drift. */}
+                    <td className="px-3 py-2">
+                      <span className="inline-block w-20 px-2 py-1.5 rounded-lg text-xs font-bold text-gray-700 bg-gray-50 border border-gray-100">
+                        {totalOf(r) === '' ? '—' : totalOf(r)}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -269,7 +271,7 @@ export default function Schemes() {
           </div>
         )}
         <p className="text-[11px] text-gray-400 mt-3">
-          Paper No, Subject Code, Subject Name and Criteria come from this course's syllabus and can't be edited here — change them on the Syllabus page. Filling Internal and Theory fills Total; type over it if the university states a different one.
+          Paper No, Subject Code, Subject Name and Criteria come from this course's syllabus and can't be edited here — change them on the Syllabus page. Total is Internal + Theory and is worked out for you.
         </p>
       </div>
     )
