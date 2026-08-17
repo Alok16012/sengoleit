@@ -49,3 +49,16 @@ export async function fetchMyResults(token) {
   if (error) return []
   return Array.isArray(data) ? data : []
 }
+
+// Declared results for many students at once, keyed `${student_id}__${semester}`
+// — so a list can show each student's standing without a query per row.
+// Returns null when add_semester_results.sql hasn't been run.
+export async function fetchResultsForMany(studentIds) {
+  if (!studentIds?.length) return {}
+  const { data, error } = await supabase
+    .from('student_results')
+    .select('student_id, semester, status, obtained_marks, total_marks, released_at')
+    .in('student_id', studentIds)
+  if (error) return null
+  return Object.fromEntries((data || []).map(r => [`${r.student_id}__${r.semester}`, r]))
+}

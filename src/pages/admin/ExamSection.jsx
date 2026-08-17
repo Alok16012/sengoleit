@@ -9,7 +9,9 @@ import ExaminationCalendar from './ExaminationCalendar'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
-import { fetchExamDates } from '../../utils/examSettings'
+import { fetchExamDates, fetchExamEndDates, examEndDateFor } from '../../utils/examSettings'
+import { fetchResultsForMany } from '../../utils/semesterResults'
+import MasterMarksEntry from '../../components/MasterMarksEntry'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
 import { admitCardsFor, admitCardsForMany, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
 import { termForSemester } from '../../utils/reRegistration'
@@ -209,6 +211,13 @@ export default function ExamSection() {
   const [admitTab, setAdmitTab] = useState('pending')
   // Issued cards for every listed student, keyed by student id.
   const [admitCards, setAdmitCards] = useState({})
+  // Result view: master sheet vs one student at a time, and which students
+  // still owe a result.
+  const [resultTab, setResultTab] = useState('student')   // 'student' | 'master'
+  const [resTab, setResTab] = useState('pending')         // 'awaiting' | 'pending' | 'done' | 'all'
+  const [results, setResults] = useState({})              // `${id}__${sem}` -> row
+  const [examEnds, setExamEnds] = useState({})            // `${session}:${sem}` -> end date
+  const [allPrograms, setAllPrograms] = useState([])
   // Courses that have a syllabus added — the source for the Exam Schedules list.
   const [syllabusCourses, setSyllabusCourses] = useState([])
 
@@ -333,6 +342,10 @@ export default function ExamSection() {
     // null = add_semester_admit_cards.sql not run; every student then counts as
     // pending, which is the safer way round for a queue.
     setAdmitCards(await admitCardsForMany((data || []).map(s => s.id)) || {})
+    setResults(await fetchResultsForMany((data || []).map(s => s.id)) || {})
+    setExamEnds(await fetchExamEndDates((data || []).map(s => s.session_id)))
+    const { data: progs } = await supabase.from('programs').select('id, program_name, duration, semester_year')
+    setAllPrograms(progs || [])
     setLoading(false)
   }
 
@@ -631,6 +644,19 @@ export default function ExamSection() {
       : admitTab === 'done' ? currentCardDone(s)
         : true)
 
+  // Where a student stands on THIS semester's result:
+  //   done     — declared (Pass / Fail)
+  //   awaiting — the semester's exams have not finished yet, so nothing is due
+  //   pending  — exams over (or no date set) and no result entered
+  const resultStateOf = (s) => {
+    const r = results[`${s.id}__${currentSemOf(s)}`]
+    if (r && r.status && r.status !== 'Pending') return 'done'
+    const end = examEndDateFor(s, examEnds)
+    if (end && new Date(end) > new Date()) return 'awaiting'
+    return 'pending'
+  }
+  const resultList = byFilters.filter(s => resTab === 'all' || resultStateOf(s) === resTab)
+
   const filterActive = !!search || fDept !== 'all' || fType !== 'all' || fSession.length > 0
   const clearFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSession([]) }
 
@@ -816,6 +842,27 @@ export default function ExamSection() {
       </>)}
 
       {view === 'result' && (<>
+      {/* Master sheet for a whole course, or one student at a time. */}
+      <div className="flex items-center gap-1 flex-wrap bg-gray-100 p-1 rounded-xl w-fit mb-4">
+        {[
+          { key: 'student', label: 'Student Entry', icon: Users },
+          { key: 'master',  label: 'Master Entry',  icon: ClipboardList },
+        ].map(t => {
+          const Icon = t.icon
+          return (
+            <button key={t.key} type="button" onClick={() => setResultTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                resultTab === t.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              <Icon size={14} /> {t.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {resultTab === 'master' ? (
+        <MasterMarksEntry students={data} programs={allPrograms} />
+      ) : (<>
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div className="relative max-w-sm flex-1 min-w-[220px]">
           <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
@@ -844,6 +891,26 @@ export default function ExamSection() {
         )}
       </div>
 
+      {/* Awaiting = the semester's exams are not over, so no result is due yet;
+          Pending = they are over and none is entered; Done = declared. */}
+      <div className="flex gap-2 mb-4">
+        {[
+          { key: 'pending',  label: 'Pending',  on: 'bg-amber-500 text-white',   off: 'bg-amber-50 text-amber-700' },
+          { key: 'awaiting', label: 'Awaiting', on: 'bg-blue-500 text-white',    off: 'bg-blue-50 text-blue-700' },
+          { key: 'done',     label: 'Done',     on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
+          { key: 'all',      label: 'All',      on: 'bg-gray-700 text-white',    off: 'bg-gray-100 text-gray-600' },
+        ].map(t => {
+          const count = t.key === 'all' ? byFilters.length : byFilters.filter(s => resultStateOf(s) === t.key).length
+          return (
+            <button key={t.key} onClick={() => setResTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${resTab === t.key ? t.on : t.off}`}>
+              {t.label}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${resTab === t.key ? 'bg-white/25' : 'bg-white/70'}`}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
@@ -856,15 +923,16 @@ export default function ExamSection() {
               <Th>Session</Th>
               <Th>Enrollment No</Th>
               <Th>Registration / Application No</Th>
+              <Th>Status</Th>
               <Th>Result</Th>
             </tr>
           </Thead>
           <Tbody>
-            {filtered.length === 0 ? (
-              <Tr><Td colSpan={7} className="text-center text-gray-400 py-12">
-                {search ? 'No students match your search.' : 'No students have been forwarded to the Exam Section yet.'}
+            {resultList.length === 0 ? (
+              <Tr><Td colSpan={8} className="text-center text-gray-400 py-12">
+                {search ? 'No students match your search.' : 'No students here.'}
               </Td></Tr>
-            ) : filtered.map((s, i) => (
+            ) : resultList.map((s, i) => (
               <Tr key={s.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td>
@@ -875,6 +943,22 @@ export default function ExamSection() {
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td className="font-mono text-xs font-bold text-emerald-700">{s.enrollment_no || '—'}</Td>
                 <Td className="font-mono text-xs text-[#933d18] font-bold">{s.registration_no || s.admission_number || '—'}</Td>
+                {/* Which semester the result is owed for, and where it stands. */}
+                <Td>
+                  {(() => {
+                    const st = resultStateOf(s)
+                    const style = st === 'done' ? 'bg-emerald-50 text-emerald-700'
+                      : st === 'awaiting' ? 'bg-blue-50 text-blue-700'
+                        : 'bg-amber-50 text-amber-700'
+                    const end = examEndDateFor(s, examEnds)
+                    return (
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap ${style}`}
+                        title={st === 'awaiting' && end ? `Examinations end ${formatDate(end)}` : ''}>
+                        Sem {currentSemOf(s)} · {st === 'done' ? 'declared' : st}
+                      </span>
+                    )
+                  })()}
+                </Td>
                 {/* Results are entered per semester — the same semesters the
                     admit card is issued for. */}
                 <Td>
@@ -887,6 +971,7 @@ export default function ExamSection() {
           </Tbody>
         </Table>
       )}
+      </>)}
       </>)}
 
       {resultModalStudent && (
