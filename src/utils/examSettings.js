@@ -28,7 +28,7 @@ export async function fetchExamDates(student, sem) {
     // keep printing on an unmigrated database.
     const build = (cols) => supabase.from('exam_calendar').select(cols)
       .eq('session_id', sid).gt('semester', offset).lte('semester', offset + 12)
-    let { data, error } = await build('semester, start_date, end_date, exam_held')
+    let { data, error } = await build('semester, start_date, end_date, exam_held, result_published')
     if (error) ({ data } = await build('semester, start_date, end_date'))
     // A row may carry only the typed "Exam. Held" label, with no dates yet.
     const rows = (data || []).filter(r => r.start_date || r.end_date || r.exam_held)
@@ -57,6 +57,12 @@ export async function fetchExamDates(student, sem) {
       examSession: !semMatch ? ''
         : (String(row.exam_held || '').trim()
           || (row.start_date ? new Date(row.start_date).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '')),
+      // When the result was published — the marksheet's Date of Issue, so every
+      // copy of a semester's statement carries the same date rather than
+      // whichever day it happened to be printed. Same term-match rule as above.
+      resultPublished: semMatch && row.result_published
+        ? new Date(row.result_published).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        : '',
     }
   } catch {
     return { examDates: '', examTerm: '' }
