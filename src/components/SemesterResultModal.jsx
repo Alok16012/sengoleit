@@ -8,9 +8,6 @@ import { generateMarksStatement, gradeFor } from '../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
 
-// Internal marks follow the university's own convention rather than the flat
-// percentage: 20 out of 30 at 65%, 25 at 70%, 28 at 90% — expressed as a
-// fraction so it scales to a paper whose internal is out of 50 or 20.
 // Internal is marked within its own band, not as a flat share of the paper:
 // 20 to 25 out of 30, as a fraction so a paper marked out of 50 or 20 scales.
 const INTERNAL_BAND = { lo: 20 / 30, hi: 25 / 30 }
@@ -68,11 +65,9 @@ export default function SemesterResultModal({ student, special = false, onClose,
   const setPaper = (key, field, val) => setPapers(prev =>
     (prev || []).map(p => (p.paper_key === key ? { ...p, [field]: val } : p)))
 
-  // Fill every paper at one percentage — the marks a result of that standing
-  // works out to. Theory and internal are each taken to that share of their own
-  // maximum, so a paper out of 70+30 and one out of 50+50 both land on it.
-  // A paper whose scheme has no maximum is skipped: there is nothing to take a
-  // percentage OF, and writing 0 there would read as a fail.
+  // Fill the whole semester at one percentage. A paper whose scheme sets no
+  // maximum is skipped: there is nothing to take a percentage OF, and a 0
+  // there would read as a fail.
   function applyFill() {
     const pct = Number(fillPct)
     if (!fillPct || isNaN(pct)) { alert('Enter a percentage first.'); return }
@@ -100,26 +95,36 @@ export default function SemesterResultModal({ student, special = false, onClose,
 
       const rand = (lo, hi) => lo + Math.random() * (hi - lo)
       const draw = fillable.map(x => {
-        // Internal keeps to the university's band — 20 to 25 out of 30 — as a
-        // fraction, so a paper marked out of 50 or 20 scales with it.
+        // A few points either side of the figure asked for, so papers differ.
+        const want = Math.round(x.max * (pct + rand(-PAPER_SPREAD, PAPER_SPREAD)) / 100)
+        // A paper with no theory (a project marked wholly internally) has
+        // nothing to split: its internal IS the paper, so it takes the target
+        // rather than the internal band, which would float it well above the
+        // percentage asked for.
+        if (!x.maxT) return { ...x, t: 0, i: Math.min(Math.max(want, 0), x.maxI) }
+        // Otherwise internal keeps to the university's band — 20 to 25 out of
+        // 30 — as a fraction, so an internal out of 50 or 20 scales with it.
         const i = x.maxI
           ? Math.min(Math.round(x.maxI * rand(INTERNAL_BAND.lo, INTERNAL_BAND.hi)), x.maxI)
           : 0
-        // A few points either side of the figure asked for, so the papers differ.
-        const paperPct = pct + rand(-PAPER_SPREAD, PAPER_SPREAD)
-        const want = Math.round(x.max * paperPct / 100)
-        const t = Math.min(Math.max(want - i, 0), x.maxT)
-        return { ...x, t, i: Math.min(i, x.max) }
+        return { ...x, t: Math.min(Math.max(want - i, 0), x.maxT), i: Math.min(i, x.max) }
       })
 
-      // Nudge theory a mark at a time until the semester lands on the target.
+      // Nudge a mark at a time until the semester lands on the target. Papers
+      // that have theory are corrected THERE, which is what keeps internal
+      // inside its band; a theory-less paper is corrected on its internal,
+      // where no band applies.
+      const canStep = (x, step) => (x.maxT
+        ? (step > 0 ? x.t < x.maxT : x.t > 0)
+        : (step > 0 ? x.i < x.maxI : x.i > 0))
       const target = Math.round(draw.reduce((a, x) => a + x.max, 0) * pct / 100)
       let diff = target - draw.reduce((a, x) => a + x.t + x.i, 0)
-      for (let guard = 0; diff !== 0 && guard < 500; guard++) {
+      for (let guard = 0; diff !== 0 && guard < 2000; guard++) {
         const step = diff > 0 ? 1 : -1
-        const room = draw.filter(x => (step > 0 ? x.t < x.maxT : x.t > 0))
+        const room = draw.filter(x => canStep(x, step))
         if (!room.length) break
-        room[guard % room.length].t += step
+        const x = room[guard % room.length]
+        if (x.maxT) x.t += step; else x.i += step
         diff -= step
       }
 
