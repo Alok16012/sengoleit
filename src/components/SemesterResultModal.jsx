@@ -62,8 +62,16 @@ export default function SemesterResultModal({ student, special = false, onClose,
     })
   }
 
-  const setPaper = (key, field, val) => setPapers(prev =>
-    (prev || []).map(p => (p.paper_key === key ? { ...p, [field]: val } : p)))
+  // A paper cannot be scored above what it is out of. Typing 80 into a theory
+  // marked out of 70 produced a 110/100 paper graded O; the cell is held to
+  // its own maximum instead.
+  const setPaper = (key, field, val) => setPapers(prev => (prev || []).map(p => {
+    if (p.paper_key !== key) return p
+    const max = Number(field === 'theory_obtained' ? p.theory_marks : p.internal_marks) || 0
+    const v = (val === '' || !max) ? val
+      : String(Math.min(Math.max(Number(val) || 0, 0), max))
+    return { ...p, [field]: v }
+  }))
 
   // Fill the whole semester at one percentage. A paper whose scheme sets no
   // maximum is skipped: there is nothing to take a percentage OF, and a 0
@@ -159,6 +167,10 @@ export default function SemesterResultModal({ student, special = false, onClose,
       ? { got: acc.got + r.got, max: acc.max + r.max, any: true }
       : acc
   }, { got: 0, max: 0, any: false })
+  const summaryPct = summary.any && summary.max ? (summary.got / summary.max) * 100 : null
+  // The tab states a ceiling; marks typed by hand must respect it too, or the
+  // auto-fill's band means nothing the moment anyone edits a cell.
+  const overBand = summaryPct != null && summaryPct > BAND.max + 0.05
 
   // Print the university's Statement of Marks for one semester. Reads the
   // paper marks fresh so a card printed from the list is never a stale copy of
@@ -186,6 +198,15 @@ export default function SemesterResultModal({ student, special = false, onClose,
   }
 
   async function save() {
+    if (overBand) {
+      alert(
+        `This result works out to ${summaryPct.toFixed(1)}%, above the ${BAND.max}% this tab allows.\n\n` +
+        (special
+          ? 'Lower the marks to bring it within 90%.'
+          : 'Lower the marks to bring it within 70%, or declare it from the Special Result tab.')
+      )
+      return
+    }
     setBusy(true)
     // Paper marks first: the semester row is what the list reflects, so it
     // should not claim saved while the detail behind it failed.
@@ -299,7 +320,14 @@ export default function SemesterResultModal({ student, special = false, onClose,
                   )}
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">Total</label>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">
+                    Total
+                    {summaryPct != null && (
+                      <span className={`ml-2 font-bold ${overBand ? 'text-red-600' : 'text-gray-600'}`}>
+                        {summaryPct.toFixed(1)}%
+                      </span>
+                    )}
+                  </label>
                   {papers?.length ? (
                     <div className={`${input} bg-gray-50 font-bold text-gray-700`}>{summary.any ? summary.max : '—'}</div>
                   ) : (
@@ -307,6 +335,12 @@ export default function SemesterResultModal({ student, special = false, onClose,
                   )}
                 </div>
               </div>
+              {overBand && (
+                <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-700">
+                  This result works out to <strong>{summaryPct.toFixed(1)}%</strong>, above the {BAND.max}% this tab allows.{' '}
+                  {special ? 'Lower the marks to save it.' : 'Lower the marks, or declare it from the Special Result tab.'}
+                </div>
+              )}
               {/* Paper-wise marks — what the Statement of Marks prints. The
                   maximums and credits beside each paper come from the course's
                   scheme and are shown only for reference. */}
@@ -374,7 +408,9 @@ export default function SemesterResultModal({ student, special = false, onClose,
                             <td className="px-2 py-1.5 text-center font-semibold text-gray-600">{p.total_marks || '—'}</td>
                             {['theory_obtained', 'internal_obtained'].map(f => (
                               <td key={f} className="px-2 py-1.5">
-                                <input type="number" min="0" step="any" value={p[f]}
+                                <input type="number" min="0" step="any"
+                                  max={Number(f === 'theory_obtained' ? p.theory_marks : p.internal_marks) || undefined}
+                                  value={p[f]}
                                   onChange={e => setPaper(p.paper_key, f, e.target.value)}
                                   className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-[#933d18]" />
                               </td>
