@@ -1,8 +1,43 @@
 // Single source of truth for date display across the app.
 // Every date is shown as dd/mm/yyyy (day first, Indian style).
 
+// A date-only value — a DB `date` column, 'YYYY-MM-DD' — carries no time and no
+// zone. Passing it through `new Date()` reads it as UTC midnight and then
+// converts to the viewer's zone, so anywhere west of UTC it lands on the
+// previous day: a result published on the 17th printed as the 16th. These
+// helpers read the parts as written; timestamps still convert, as they should.
+const dateOnlyParts = (value) => String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June',
+  'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December']
+
+// "17 Aug 2026" — for dates printed on a document.
+export function formatDayMonthYear(value, fallback = '') {
+  if (!value) return fallback
+  const p = dateOnlyParts(value)
+  if (p) return `${p[3]} ${MONTHS_SHORT[+p[2] - 1]} ${p[1]}`
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? fallback
+    : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// "January 2026" — the examination session a semester's exams sit in.
+export function formatMonthYear(value, fallback = '') {
+  if (!value) return fallback
+  const p = dateOnlyParts(value)
+  if (p) return `${MONTHS_LONG[+p[2] - 1]} ${p[1]}`
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? fallback
+    : d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+}
+
 export function formatDate(value, fallback = '—') {
   if (!value) return fallback
+  const p = dateOnlyParts(value)
+  if (p) return `${p[3]}/${p[2]}/${p[1]}`
   const d = new Date(value)
   if (isNaN(d.getTime())) return fallback
   const dd = String(d.getDate()).padStart(2, '0')
@@ -25,8 +60,6 @@ export function localDay(ts) {
 // "15-June-2026" — month names for dates that read inside a sentence on a
 // printed letter (e.g. "Entrance Test conducted on 15-June-2026"). Long names
 // abbreviate (August → Aug); already-short ones print in full (June, July).
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'June',
-  'July', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export function formatDateLong(value, fallback = '—') {
   if (!value) return fallback

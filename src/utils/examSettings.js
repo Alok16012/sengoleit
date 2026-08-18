@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { formatDayMonthYear, formatMonthYear } from './formatDate'
 
 function fmtDT(val) {
   if (!val) return ''
@@ -44,7 +45,7 @@ export async function fetchExamDates(student, sem) {
       row = upcoming[0] || [...dated].sort((a, b) => key(b) - key(a))[0]
     }
     if (!row) return { examDates: '', examTerm: '' }
-    const fmt = d => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+    const fmt = d => (d ? formatDayMonthYear(d, '—') : '—')
     // The examination session printed on the card ("January 2026"), so Semester
     // 2's card stops carrying the ADMISSION session. The admin's typed
     // "Exam. Held" label wins; the exam start date's month is the fallback.
@@ -55,14 +56,11 @@ export async function fetchExamDates(student, sem) {
       examDates: (row.start_date || row.end_date) ? `${fmt(row.start_date)} to ${fmt(row.end_date)}` : '',
       examTerm: `${isPhd ? 'Year' : 'Semester'} ${row.semester - offset}`,
       examSession: !semMatch ? ''
-        : (String(row.exam_held || '').trim()
-          || (row.start_date ? new Date(row.start_date).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }) : '')),
+        : (String(row.exam_held || '').trim() || formatMonthYear(row.start_date)),
       // When the result was published — the marksheet's Date of Issue, so every
       // copy of a semester's statement carries the same date rather than
       // whichever day it happened to be printed. Same term-match rule as above.
-      resultPublished: semMatch && row.result_published
-        ? new Date(row.result_published).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-        : '',
+      resultPublished: semMatch ? formatDayMonthYear(row.result_published) : '',
     }
   } catch {
     return { examDates: '', examTerm: '' }
