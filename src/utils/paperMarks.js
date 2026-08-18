@@ -112,6 +112,21 @@ export async function fetchPaperMarksUpto(student, upto) {
   })
 }
 
+// The student portal's own marksheet. It has no Supabase Auth session, and
+// scheme_papers / student_paper_marks / exam_calendar are all open only TO
+// authenticated — so reading them directly returned nothing and the sheet
+// printed a dash in every column. One SECURITY DEFINER function assembles it
+// instead, the same way the portal already reads its results and admit cards.
+// Returns null when the migration has not been run.
+export async function fetchMyMarksheet(token, semester) {
+  if (!token || !semester) return null
+  const { data, error } = await supabase.rpc('student_marksheet_self', {
+    p_token: token, p_semester: semester,
+  })
+  if (error || !data || !data.papers) return null
+  return data
+}
+
 // Replace a semester's marks for one student. Papers left blank are removed
 // rather than stored as zero — a blank cell means "not entered", and the
 // statement prints a dash for it.

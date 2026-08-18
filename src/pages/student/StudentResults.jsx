@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
-import { formatDate } from '../../utils/formatDate'
+import { formatDate, formatDayMonthYear, formatMonthYear } from '../../utils/formatDate'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { studentSession } from '../../utils/studentSelf'
 import { fetchMyResults } from '../../utils/semesterResults'
-import { fetchPaperMarks, fetchPaperMarksUpto } from '../../utils/paperMarks'
+import { fetchMyMarksheet } from '../../utils/paperMarks'
 import { generateMarksStatement, sgpaOf } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
-import { fetchExamDates } from '../../utils/examSettings'
 import { GraduationCap, Award, FileText } from 'lucide-react'
 
 function Field({ label, value }) {
@@ -56,19 +55,22 @@ export default function StudentResults() {
     if (!data) return
     setPrinting(r.semester)
     const resolved = await resolveStudentDocUrls(data)
-    const rows = await fetchPaperMarks(data, r.semester)
-    const dates = await fetchExamDates(resolved, r.semester)
-    // CGPA spans every semester up to this one, not just this one.
-    const cgpa = sgpaOf(await fetchPaperMarksUpto(student, r.semester))
-    generateMarksStatement(resolved, rows, {
+    // Everything comes through the portal's own function: the tables behind a
+    // marksheet are open only TO authenticated, and this portal is not.
+    const sheet = await fetchMyMarksheet(studentSession()?.token, r.semester)
+    setPrinting(null)
+    if (!sheet) {
+      alert('This marksheet is not available yet. Please contact your centre.')
+      return
+    }
+    generateMarksStatement(resolved, sheet.papers, {
       semester: `Semester ${r.semester}`,
-      examHeld: dates.examSession || '',
+      examHeld: String(sheet.exam_held || '').trim() || formatMonthYear(sheet.exam_start),
       resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
-      dateOfIssue: dates.resultPublished || '',
-      cgpa,
+      dateOfIssue: formatDayMonthYear(sheet.result_published),
+      cgpa: sgpaOf(sheet.upto || []),
       studentCopy: true,
     })
-    setPrinting(null)
   }
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
