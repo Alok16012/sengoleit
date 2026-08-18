@@ -850,8 +850,10 @@ export default function ExamSection() {
       {/* Master sheet for a whole course, or one student at a time. */}
       <div className="flex items-center gap-1 flex-wrap bg-gray-100 p-1 rounded-xl w-fit mb-4">
         {[
-          { key: 'student', label: 'Student Entry', icon: Users },
-          { key: 'master',  label: 'Master Entry',  icon: ClipboardList },
+          { key: 'student', label: 'Student Entry',  icon: Users },
+          { key: 'master',  label: 'Master Entry',   icon: ClipboardList },
+          // Same list; what changes is the band the marks auto-fill within.
+          { key: 'special', label: 'Special Result', icon: Award },
         ].map(t => {
           const Icon = t.icon
           return (
@@ -982,6 +984,7 @@ export default function ExamSection() {
       {resultModalStudent && (
         <SemesterResultModal
           student={resultModalStudent}
+          special={resultTab === 'special'}
           onClose={() => setResultModalStudent(null)}
         />
       )}

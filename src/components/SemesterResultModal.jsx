@@ -15,7 +15,10 @@ const pct = (o, t) => {
 
 // Results are entered per SEMESTER, for the same semesters the admit card is
 // issued for — a semester whose fee isn't cleared has no exam, so no result.
-export default function SemesterResultModal({ student, onClose, onSaved }) {
+// `special` widens the band the auto-fill accepts: an ordinary result is
+// filled between 65% and 70%, a special one between 70% and 90%.
+export default function SemesterResultModal({ student, special = false, onClose, onSaved }) {
+  const BAND = special ? { min: 70, max: 90 } : { min: 65, max: 70 }
   const [rows, setRows] = useState(null)     // null = loading, [] = none
   const [missing, setMissing] = useState(false)
   const [pick, setPick] = useState(null)     // the semester being edited
@@ -29,6 +32,7 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
   // Full-page view — a semester with a dozen papers does not fit a sheet, and
   // the same toggle the app's shared Modal offers is what people expect.
   const [maximized, setMaximized] = useState(false)
+  const [fillPct, setFillPct] = useState('')
 
   async function load() {
     const r = await semesterResults(student)
@@ -54,6 +58,42 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
 
   const setPaper = (key, field, val) => setPapers(prev =>
     (prev || []).map(p => (p.paper_key === key ? { ...p, [field]: val } : p)))
+
+  // Fill every paper at one percentage — the marks a result of that standing
+  // works out to. Theory and internal are each taken to that share of their own
+  // maximum, so a paper out of 70+30 and one out of 50+50 both land on it.
+  // A paper whose scheme has no maximum is skipped: there is nothing to take a
+  // percentage OF, and writing 0 there would read as a fail.
+  function applyFill() {
+    const pct = Number(fillPct)
+    if (!fillPct || isNaN(pct)) { alert('Enter a percentage first.'); return }
+    if (pct < BAND.min || pct > BAND.max) {
+      alert(`This tab fills between ${BAND.min}% and ${BAND.max}%.\n\n` +
+        (special
+          ? 'For a lower result, use Student Entry.'
+          : 'For anything above 70%, use the Special Result tab.'))
+      return
+    }
+    setPapers(prev => (prev || []).map(p => {
+      const maxT = Number(p.theory_marks) || 0
+      const maxI = Number(p.internal_marks) || 0
+      if (!maxT && !maxI) return p
+      // Take the percentage of the PAPER, then split it — rounding theory and
+      // internal separately drifted the paper above the figure asked for
+      // (85% of 70+30 rounded to 60+26 = 86%).
+      const target = Math.round((Number(p.total_marks) || maxT + maxI) * pct / 100)
+      let t = Math.min(Math.round(maxT * pct / 100), maxT)
+      let i = Math.min(target - t, maxI)
+      // If internal cannot absorb the remainder, theory takes it back.
+      if (i < 0) { i = 0; t = Math.min(target, maxT) }
+      else if (t + i < target) t = Math.min(t + (target - t - i), maxT)
+      return {
+        ...p,
+        theory_obtained: maxT ? String(t) : '',
+        internal_obtained: maxI ? String(i) : '',
+      }
+    }))
+  }
 
   // What one paper is worth once its marks are in: the obtained total, the
   // grade off its percentage, and the credit it earns (none if it fails).
@@ -225,7 +265,24 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                   maximums and credits beside each paper come from the course's
                   scheme and are shown only for reference. */}
               <div className="pt-2 border-t border-gray-100">
-                <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Paper-wise Marks</p>
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400">
+                    Paper-wise Marks{special && <span className="ml-2 text-[#933d18]">· Special Result</span>}
+                  </p>
+                  {/* Fill the whole semester at one percentage, then correct any
+                      paper by hand. The band is what the tab allows. */}
+                  {papers?.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-semibold text-gray-500">Auto-fill at</label>
+                      <input type="number" min={BAND.min} max={BAND.max} step="0.5"
+                        value={fillPct} onChange={e => setFillPct(e.target.value)}
+                        placeholder={`${BAND.min}–${BAND.max}`}
+                        className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-[#933d18]" />
+                      <span className="text-[11px] text-gray-400">%</span>
+                      <Button size="sm" variant="secondary" onClick={applyFill}>Fill</Button>
+                    </div>
+                  )}
+                </div>
                 {papers == null ? (
                   <p className="text-xs text-gray-400 py-3">Loading papers…</p>
                 ) : !papers.length ? (
@@ -284,6 +341,12 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                       </tbody>
                     </table>
                   </div>
+                )}
+                {papers?.length > 0 && (
+                  <p className="text-[11px] text-gray-400 mt-2">
+                    Auto-fill accepts {BAND.min}%–{BAND.max}% in this tab
+                    {special ? '.' : ' — use the Special Result tab for anything above 70%.'} Every paper is set to that share of its own maximum; correct any of them by hand afterwards.
+                  </p>
                 )}
                 {papers?.length > 0 && !papers.some(p => p.total_marks) && (
                   <p className="text-[11px] text-amber-700 mt-2">
