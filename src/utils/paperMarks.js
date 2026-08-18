@@ -1,6 +1,23 @@
 import { supabase } from '../lib/supabase'
 import { paperKeyOf } from './fetchSyllabus'
 
+// A semester lists ALTERNATIVES — PGDCA's Semester 2 offers MS-ACCESS or
+// MS-SQL, PYTHON or C++ — and a student sits one of each. The admit card
+// records which, so marks are entered against those papers only; the rest were
+// never taken and a mark there would be nonsense.
+//
+// The card stores syllabus row ids, and saving the syllabus re-creates every
+// row with new ids. So when NONE of the stored ids still match, the filter
+// steps aside and every paper is offered — an empty sheet would be worse than
+// a long one.
+function keepAdmitCardPapers(subs, cards) {
+  const chosen = new Set()
+  for (const c of cards || []) for (const id of c.subject_ids || []) chosen.add(id)
+  if (!chosen.size) return subs
+  const kept = subs.filter(s => chosen.has(s.id))
+  return kept.length ? kept : subs
+}
+
 // A semester's papers with their scheme (maximums, credits) and the marks the
 // student obtained — everything the Statement of Marks prints.
 //
@@ -11,7 +28,7 @@ export async function fetchPaperMarks(student, semester) {
   const pid = student?.programme_id || student?.program_id
   if (!pid || !semester) return []
 
-  const [subs, scheme, marks] = await Promise.all([
+  const [subs, scheme, marks, cards] = await Promise.all([
     supabase.from('syllabus_subjects')
       .select('id, semester, paper_no, subject_code, subject_name, sort_order')
       .eq('program_id', pid).is('session_id', null).eq('semester', semester)
@@ -22,12 +39,15 @@ export async function fetchPaperMarks(student, semester) {
     supabase.from('student_paper_marks')
       .select('semester, paper_key, theory_obtained, internal_obtained')
       .eq('student_id', student.id).eq('semester', semester),
+    supabase.from('student_admit_cards')
+      .select('semester, subject_ids')
+      .eq('student_id', student.id).eq('semester', semester),
   ])
 
   const byScheme = Object.fromEntries((scheme.data || []).map(r => [r.paper_key, r]))
   const byMark   = Object.fromEntries((marks.data || []).map(r => [r.paper_key, r]))
 
-  return (subs.data || []).map(s => {
+  return keepAdmitCardPapers(subs.data || [], cards.data).map(s => {
     const key = paperKeyOf(s)
     const sc = byScheme[key] || {}
     const mk = byMark[key] || {}
@@ -53,9 +73,9 @@ export async function fetchPaperMarksUpto(student, upto) {
   const pid = student?.programme_id || student?.program_id
   if (!pid || !upto) return []
 
-  const [subs, scheme, marks] = await Promise.all([
+  const [subs, scheme, marks, cards] = await Promise.all([
     supabase.from('syllabus_subjects')
-      .select('semester, paper_no, subject_code, subject_name')
+      .select('id, semester, paper_no, subject_code, subject_name')
       .eq('program_id', pid).is('session_id', null).lte('semester', upto),
     supabase.from('scheme_papers')
       .select('semester, paper_key, internal_marks, theory_marks, total_marks, credits')
@@ -63,13 +83,22 @@ export async function fetchPaperMarksUpto(student, upto) {
     supabase.from('student_paper_marks')
       .select('semester, paper_key, theory_obtained, internal_obtained')
       .eq('student_id', student.id).lte('semester', upto),
+    supabase.from('student_admit_cards')
+      .select('semester, subject_ids')
+      .eq('student_id', student.id).lte('semester', upto),
   ])
 
   const key = (sem, k) => `${sem}__${k}`
   const byScheme = Object.fromEntries((scheme.data || []).map(r => [key(r.semester, r.paper_key), r]))
   const byMark   = Object.fromEntries((marks.data || []).map(r => [key(r.semester, r.paper_key), r]))
 
-  return (subs.data || []).map(s => {
+  // Filter per semester: a card only speaks for its own.
+  const bySem = {}
+  for (const s of subs.data || []) (bySem[s.semester] ||= []).push(s)
+  const kept = Object.entries(bySem).flatMap(([sem, list]) =>
+    keepAdmitCardPapers(list, (cards.data || []).filter(c => String(c.semester) === String(sem))))
+
+  return kept.map(s => {
     const k = key(s.semester, paperKeyOf(s))
     const sc = byScheme[k] || {}
     const mk = byMark[k] || {}

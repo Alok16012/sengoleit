@@ -876,7 +876,13 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
   const num = (x) => (x == null || x === '' ? '' : Number(x))
   const show = (x) => (x == null || x === '' ? '—' : String(x))
 
-  const marked = rows.map(r => {
+  // A statement of marks lists the papers the student SAT. A semester offers
+  // alternatives — MS-ACCESS or MS-SQL — and the ones not taken have no marks,
+  // so they do not belong on the sheet. If nothing at all has been entered the
+  // full list stands, so a blank pro-forma still prints something.
+  const entered = rows.filter(r => r.theory_obtained !== '' && r.theory_obtained != null
+    || r.internal_obtained !== '' && r.internal_obtained != null)
+  const marked = (entered.length ? entered : rows).map(r => {
     const maxT = num(r.theory_marks) || 0
     const maxI = num(r.internal_marks) || 0
     const maxTot = num(r.total_marks) || (maxT + maxI)
