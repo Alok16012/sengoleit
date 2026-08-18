@@ -16,6 +16,7 @@ import { computeSemesterFeeStatus } from '../../utils/courseFee'
 import { admitCardsFor, admitCardsForMany, pickCardRows, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
 import { termForSemester } from '../../utils/reRegistration'
 import { paperKeyOf } from '../../utils/fetchSyllabus'
+import { isPhdStudent } from '../../utils/isPhdStudent'
 import { recordFeeDeduction } from '../../utils/feeLedger'
 import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
@@ -344,12 +345,18 @@ export default function ExamSection() {
         if (error) console.error('ExamSection fetch error (minimal select):', error)
       }
     }
-    setData(data || [])
+    // A Ph.D candidate's enrollment number is minted by the Research Dept's
+    // forward. One sitting here WITHOUT it never came through that flow — it
+    // came through the Account Dept's old button — and belongs back in the
+    // Research Dept, not in a list of students sitting examinations.
+    const forwarded = (data || []).filter(s =>
+      !(isPhdStudent(s) && !String(s.enrollment_no || '').trim()))
+    setData(forwarded)
     // null = add_semester_admit_cards.sql not run; every student then counts as
     // pending, which is the safer way round for a queue.
-    setAdmitCards(await admitCardsForMany((data || []).map(s => s.id)) || {})
-    setResults(await fetchResultsForMany((data || []).map(s => s.id)) || {})
-    setExamEnds(await fetchExamEndDates((data || []).map(s => s.session_id)))
+    setAdmitCards(await admitCardsForMany(forwarded.map(s => s.id)) || {})
+    setResults(await fetchResultsForMany(forwarded.map(s => s.id)) || {})
+    setExamEnds(await fetchExamEndDates(forwarded.map(s => s.session_id)))
     const { data: progs } = await supabase.from('programs').select('id, program_name, duration, semester_year')
     setAllPrograms(progs || [])
     setLoading(false)
