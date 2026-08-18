@@ -829,6 +829,12 @@ export function generateEntranceClearance(s, opts = {}) {
 // place so the letter, the point and the SGPA all agree.
 // Semesters are written in Roman on a grade card — I, II, III … — so the
 // number the rest of the app works in is converted only for printing.
+// A grade card runs its table down the sheet whether or not the semester
+// fills it — the university's own card carries blank rows under four courses.
+// Without them a six-paper statement stopped halfway down the page and left
+// the rest of the paper empty.
+const MIN_MARK_ROWS = 12
+
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 export const romanSemester = (label) => {
   const n = parseInt(String(label || '').match(/\d+/)?.[0] || '', 10)
@@ -993,6 +999,13 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
             <td style="${cell}">${r.entered ? r.gotTot : '—'}</td>
             <td style="${cell}font-weight:700;">${r.g.letter}</td>
             <td style="${cell}">${r.earned || '—'}</td>
+          </tr>`).join('')}
+        ${Array.from({ length: Math.max(MIN_MARK_ROWS - marked.length, 0) }, () => `
+          <tr>
+            <td style="${cell}">&nbsp;</td><td style="${cell}"></td><td style="${cell}"></td>
+            <td style="${cell}"></td><td style="${cell}"></td><td style="${cell}"></td>
+            <td style="${cell}"></td><td style="${cell}"></td><td style="${cell}"></td>
+            <td style="${cell}"></td><td style="${cell}"></td>
           </tr>`).join('')}
         <tr>
           <td style="${cell}"></td>
