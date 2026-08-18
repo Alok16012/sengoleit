@@ -5,7 +5,7 @@ import { fetchStudentSelf } from '../../utils/studentSelf'
 import { generateAdmitCard, isPhdProgram, UNI_NAME, UNI_ADDRESS, UNI_ACT, BRAND } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
-import { fetchMyAdmitCards } from '../../utils/semesterAdmitCards'
+import { fetchMyAdmitCards, pickCardRows } from '../../utils/semesterAdmitCards'
 import { studentSession } from '../../utils/studentSelf'
 import { fetchExamSettingsMeta, fetchExamDates } from '../../utils/examSettings'
 import { BadgeCheck, Download } from 'lucide-react'
@@ -49,10 +49,8 @@ export default function StudentAdmitCard() {
   // subject_ids list means the card was issued without a syllabus, and prints
   // "as per university curriculum".
   async function subjectsForCard(s, card) {
-    const ids = new Set(card.subject_ids || [])
-    if (!ids.size) return []
     const rows = await fetchSemesterSubjectRows(s, card.semester)
-    return rows.filter(r => ids.has(r.id)).map(formatSubjectRow).filter(Boolean)
+    return pickCardRows(rows, card).map(formatSubjectRow).filter(Boolean)
   }
 
   async function pickSemester(card) {

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import { fetchSemesterSubjectRows, formatSubjectRow } from './fetchSyllabus'
+import { fetchSemesterSubjectRows, formatSubjectRow, paperKeyOf } from './fetchSyllabus'
 
 // Semester-wise admit cards (student_admit_cards). A record exists for each
 // semester whose card has been issued; it remembers the papers that were on it
@@ -12,7 +12,7 @@ import { fetchSemesterSubjectRows, formatSubjectRow } from './fetchSyllabus'
 export async function admitCardsFor(studentId) {
   const { data, error } = await supabase
     .from('student_admit_cards')
-    .select('id, semester, subject_ids, generated_at, released_at')
+    .select('id, semester, subject_ids, subject_keys, generated_at, released_at')
     .eq('student_id', studentId)
   if (error) return null
   return Object.fromEntries((data || []).map(r => [r.semester, r]))
@@ -20,14 +20,22 @@ export async function admitCardsFor(studentId) {
 
 // Record a card as issued. Visible to the student straight away — the admin
 // asked for a Hide button, which only makes sense if it starts shown.
-export async function saveAdmitCard(studentId, semester, subjectIds) {
-  const { error } = await supabase.from('student_admit_cards').upsert({
+export async function saveAdmitCard(studentId, semester, subjectIds, subjectKeys) {
+  const row = {
     student_id: studentId,
     semester,
     subject_ids: subjectIds || [],
     generated_at: new Date().toISOString(),
     released_at: new Date().toISOString(),
-  }, { onConflict: 'student_id,semester' })
+  }
+  let { error } = await supabase.from('student_admit_cards')
+    .upsert({ ...row, subject_keys: subjectKeys || [] }, { onConflict: 'student_id,semester' })
+  // subject_keys needs add_admit_card_subject_keys.sql — issue the card anyway
+  // rather than blocking on a column that only makes it more durable.
+  if (error && /subject_keys/.test(error.message || '')) {
+    ;({ error } = await supabase.from('student_admit_cards')
+      .upsert(row, { onConflict: 'student_id,semester' }))
+  }
   return { error }
 }
 
@@ -35,10 +43,15 @@ export async function saveAdmitCard(studentId, semester, subjectIds) {
 // editing a hidden card must not quietly publish it back to the student, and
 // saveAdmitCard's upsert would do exactly that. generated_at does move: the
 // card the student now sees is the one issued today, not the original.
-export async function updateAdmitCardSubjects(studentId, semester, subjectIds) {
-  const { error } = await supabase.from('student_admit_cards')
-    .update({ subject_ids: subjectIds || [], generated_at: new Date().toISOString() })
+export async function updateAdmitCardSubjects(studentId, semester, subjectIds, subjectKeys) {
+  const patch = { subject_ids: subjectIds || [], generated_at: new Date().toISOString() }
+  let { error } = await supabase.from('student_admit_cards')
+    .update({ ...patch, subject_keys: subjectKeys || [] })
     .eq('student_id', studentId).eq('semester', semester)
+  if (error && /subject_keys/.test(error.message || '')) {
+    ;({ error } = await supabase.from('student_admit_cards')
+      .update(patch).eq('student_id', studentId).eq('semester', semester))
+  }
   return { error }
 }
 
@@ -98,13 +111,22 @@ export async function issuedAdmitCard(student, semester) {
     ? cards.find(c => Number(c.semester) === Number(semester))
     : cards.reduce((a, b) => (Number(b.semester) > Number(a.semester) ? b : a))
   if (!card) return null
-  const ids = new Set(card.subject_ids || [])
-  if (!ids.size) return { semester: card.semester, subjects: [] }
   const rows = await fetchSemesterSubjectRows(student, card.semester)
-  return {
-    semester: card.semester,
-    subjects: rows.filter(r => ids.has(r.id)).map(formatSubjectRow).filter(Boolean),
+  const picked = pickCardRows(rows, card)
+  return { semester: card.semester, subjects: picked.map(formatSubjectRow).filter(Boolean) }
+}
+
+// The syllabus rows a card was issued with. Keys first — they survive a
+// syllabus edit; row ids do not, and a card resolved by stale ids came out
+// with no papers on it at all.
+export function pickCardRows(rows, card) {
+  const keys = new Set(card?.subject_keys || [])
+  if (keys.size) {
+    const byKey = rows.filter(r => keys.has(paperKeyOf(r)))
+    if (byKey.length) return byKey
   }
+  const ids = new Set(card?.subject_ids || [])
+  return ids.size ? rows.filter(r => ids.has(r.id)) : []
 }
 
 // The signed-in student's own visible admit cards (student portal, anon session).

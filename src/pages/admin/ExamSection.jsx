@@ -13,8 +13,9 @@ import { fetchExamDates, fetchExamEndDates, examEndDateFor } from '../../utils/e
 import { fetchResultsForMany } from '../../utils/semesterResults'
 import MasterMarksEntry from '../../components/MasterMarksEntry'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
-import { admitCardsFor, admitCardsForMany, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
+import { admitCardsFor, admitCardsForMany, pickCardRows, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
 import { termForSemester } from '../../utils/reRegistration'
+import { paperKeyOf } from '../../utils/fetchSyllabus'
 import { recordFeeDeduction } from '../../utils/feeLedger'
 import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
@@ -464,10 +465,10 @@ export default function ExamSection() {
   // the card was issued with, and saving keeps the card's visibility as it is.
   // A card issued with no saved papers ("as per curriculum") starts all-ticked,
   // since there is no saved selection to restore.
-  async function editAdmitCard(student, sem, savedIds) {
+  async function editAdmitCard(student, sem, card) {
     setAdmitModal(m => m && { ...m, pick: { sem, editing: true, loading: true, rows: [], selected: new Set() } })
     const rows = await fetchSemesterSubjectRows(student, sem)
-    const saved = new Set(savedIds || [])
+    const saved = new Set(pickCardRows(rows, card).map(r => r.id))
     // Cards issued before the one-per-paper rule may carry several subjects of
     // the same paper — keep the first saved one of each, same rule as a click.
     const selected = saved.size ? onePerPaper(rows, saved) : onePerPaper(rows)
@@ -518,10 +519,14 @@ export default function ExamSection() {
     // it, so it can be re-printed, hidden or withdrawn later. A re-print passes
     // record:false so it does not reset when the card was first issued.
     if (record) {
-      const ids = (rows && selected) ? rows.filter(r => selected.has(r.id)).map(r => r.id) : []
+      const chosen = (rows && selected) ? rows.filter(r => selected.has(r.id)) : []
+      const ids = chosen.map(r => r.id)
+      // Store the papers' own identity too: row ids do not survive a syllabus
+      // edit, and the student's copy was resolving from them.
+      const keys = chosen.map(paperKeyOf)
       const { error } = edit
-        ? await updateAdmitCardSubjects(student.id, sem, ids)
-        : await saveAdmitCard(student.id, sem, ids)
+        ? await updateAdmitCardSubjects(student.id, sem, ids, keys)
+        : await saveAdmitCard(student.id, sem, ids, keys)
       if (error) {
         alert('The admit card printed, but it could not be recorded:\n\n' + error.message +
               '\n\nRun add_semester_admit_cards.sql in Supabase.')
@@ -549,10 +554,11 @@ export default function ExamSection() {
   }
 
   // Re-print an issued card with exactly the papers it carried.
-  async function reprintAdmitCard(student, sem, savedIds) {
+  async function reprintAdmitCard(student, sem, card) {
     setBusy(`${student.id}-${sem}`)
     const rows = await fetchSemesterSubjectRows(student, sem)
-    await handleAdmitCard(student, sem, rows, new Set(savedIds || []), { record: false })
+    const picked = pickCardRows(rows, card)
+    await handleAdmitCard(student, sem, rows, new Set(picked.map(r => r.id)), { record: false })
   }
 
   async function toggleAdmitVisible(student, sem, visible) {
@@ -1119,12 +1125,12 @@ export default function ExamSection() {
                           <div className="flex items-center gap-1.5 shrink-0">
                             <Button size="sm" variant="secondary" disabled={busy === `${admitModal.student.id}-${sem}`}
                               title="Print this card again with the same papers"
-                              onClick={() => reprintAdmitCard(admitModal.student, sem, card.subject_ids)}>
+                              onClick={() => reprintAdmitCard(admitModal.student, sem, card)}>
                               <ClipboardList size={13} /> {busy === `${admitModal.student.id}-${sem}` ? '…' : 'Print'}
                             </Button>
                             <Button size="sm" variant="secondary"
                               title="Change the papers on this card and re-issue it"
-                              onClick={() => editAdmitCard(admitModal.student, sem, card.subject_ids)}>
+                              onClick={() => editAdmitCard(admitModal.student, sem, card)}>
                               <FileEdit size={13} /> Edit
                             </Button>
                             <Button size="sm" variant="secondary"
