@@ -4,7 +4,7 @@ import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
 import { semesterResults, saveSemesterResult, releaseSemesterResult, deleteSemesterResult } from '../utils/semesterResults'
 import { fetchPaperMarks, savePaperMarks } from '../utils/paperMarks'
-import { generateMarksStatement } from '../utils/generateStudentCards'
+import { generateMarksStatement, gradeFor } from '../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
 
@@ -55,6 +55,25 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
   const setPaper = (key, field, val) => setPapers(prev =>
     (prev || []).map(p => (p.paper_key === key ? { ...p, [field]: val } : p)))
 
+  // What one paper is worth once its marks are in: the obtained total, the
+  // grade off its percentage, and the credit it earns (none if it fails).
+  const paperRow = (p) => {
+    const entered = p.theory_obtained !== '' || p.internal_obtained !== ''
+    const got = entered ? (Number(p.theory_obtained) || 0) + (Number(p.internal_obtained) || 0) : ''
+    const max = Number(p.total_marks) || 0
+    const g = entered && max ? gradeFor((got / max) * 100) : { letter: '—', point: 0 }
+    return { entered, got, max, g, earned: g.point > 0 ? (Number(p.credits) || 0) : 0 }
+  }
+
+  // The semester's obtained / total, added up from the papers that have marks
+  // — so the figures at the top always agree with the sheet below them.
+  const summary = (papers || []).reduce((acc, p) => {
+    const r = paperRow(p)
+    return r.entered
+      ? { got: acc.got + r.got, max: acc.max + r.max, any: true }
+      : acc
+  }, { got: 0, max: 0, any: false })
+
   // Print the university's Statement of Marks for one semester. Reads the
   // paper marks fresh so a card printed from the list is never a stale copy of
   // what is on screen.
@@ -92,13 +111,14 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
         return
       }
     }
+    // With papers on the sheet the totals come from them; without any (a course
+    // with no syllabus) whatever was typed still stands. `declared_at` is
+    // stamped here rather than asked for — it is when the result was declared.
     const { error } = await saveSemesterResult(student.id, pick.sem, {
       status: form.status,
-      obtained_marks: form.obtained_marks || null,
-      total_marks: form.total_marks || null,
-      remarks: form.remarks || null,
-      marksheet_url: form.marksheet_url || null,
-      declared_at: form.declared_at ? new Date(form.declared_at).toISOString() : null,
+      obtained_marks: papers?.length ? (summary.any ? summary.got : null) : (form.obtained_marks || null),
+      total_marks:    papers?.length ? (summary.any ? summary.max : null) : (form.total_marks || null),
+      declared_at: new Date().toISOString(),
     })
     setBusy(false)
     if (error) { alert('Could not save: ' + error.message); return }
@@ -180,26 +200,26 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                     <option>Pending</option><option>Pass</option><option>Fail</option>
                   </select>
                 </div>
+                {/* Obtained and Total are the paper marks added up — typed
+                    figures could disagree with the sheet below them. A course
+                    with no papers in its syllabus keeps them editable, since
+                    there is nothing to add up. */}
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Obtained</label>
-                  <input value={form.obtained_marks} onChange={e => setForm(f => ({ ...f, obtained_marks: e.target.value }))} className={input} />
+                  {papers?.length ? (
+                    <div className={`${input} bg-gray-50 font-bold text-gray-700`}>{summary.any ? summary.got : '—'}</div>
+                  ) : (
+                    <input value={form.obtained_marks} onChange={e => setForm(f => ({ ...f, obtained_marks: e.target.value }))} className={input} />
+                  )}
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Total</label>
-                  <input value={form.total_marks} onChange={e => setForm(f => ({ ...f, total_marks: e.target.value }))} className={input} />
+                  {papers?.length ? (
+                    <div className={`${input} bg-gray-50 font-bold text-gray-700`}>{summary.any ? summary.max : '—'}</div>
+                  ) : (
+                    <input value={form.total_marks} onChange={e => setForm(f => ({ ...f, total_marks: e.target.value }))} className={input} />
+                  )}
                 </div>
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Declared On</label>
-                <input type="datetime-local" value={form.declared_at} onChange={e => setForm(f => ({ ...f, declared_at: e.target.value }))} className={input} />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Marksheet URL (optional)</label>
-                <input value={form.marksheet_url} onChange={e => setForm(f => ({ ...f, marksheet_url: e.target.value }))} className={input} placeholder="https://…" />
-              </div>
-              <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Remarks (optional)</label>
-                <input value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} className={input} />
               </div>
               {/* Paper-wise marks — what the Statement of Marks prints. The
                   maximums and credits beside each paper come from the course's
@@ -221,6 +241,8 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                           <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-24">Credit</th>
                           <th colSpan={3} className="text-center font-semibold px-2 py-1.5 border-b border-gray-100">Maximum</th>
                           <th colSpan={3} className="text-center font-semibold px-2 py-1.5 border-b border-gray-100">Obtained</th>
+                          <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-16">Grade</th>
+                          <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-20">Earned<br/>Credit</th>
                         </tr>
                         <tr className="bg-gray-50 text-gray-500 text-[10px] uppercase tracking-wider">
                           <th className="text-center font-semibold px-2 py-1.5 w-16">Theory</th>
@@ -234,10 +256,9 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                       <tbody>
                         {papers.map(p => {
                           // Same rule as the scheme: a total is never typed, it
-                          // is the two beside it added up.
-                          const got = (p.theory_obtained !== '' || p.internal_obtained !== '')
-                            ? (Number(p.theory_obtained) || 0) + (Number(p.internal_obtained) || 0)
-                            : ''
+                          // is the two beside it added up — and the grade and
+                          // earned credit follow from it.
+                          const { entered, got, g, earned } = paperRow(p)
                           return (
                           <tr key={p.paper_key} className="border-t border-gray-50">
                             <td className="px-3 py-1.5">
@@ -255,7 +276,9 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                                   className="w-16 px-2 py-1 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:border-[#933d18]" />
                               </td>
                             ))}
-                            <td className="px-2 py-1.5 text-center font-bold text-gray-700">{got === '' ? '—' : got}</td>
+                            <td className="px-2 py-1.5 text-center font-bold text-gray-700">{entered ? got : '—'}</td>
+                            <td className={`px-2 py-1.5 text-center font-bold ${g.letter === 'F' ? 'text-red-600' : 'text-gray-700'}`}>{g.letter}</td>
+                            <td className="px-2 py-1.5 text-center text-gray-600">{entered ? earned : '—'}</td>
                           </tr>
                         )})}
                       </tbody>
