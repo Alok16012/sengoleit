@@ -8,6 +8,16 @@ import { generateMarksStatement, gradeFor } from '../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
 
+// Internal marks follow the university's own convention rather than the flat
+// percentage: 20 out of 30 at 65%, 25 at 70%, 28 at 90% — expressed as a
+// fraction so it scales to a paper whose internal is out of 50 or 20.
+const INTERNAL_SHARE = (pct) => {
+  const p = Math.max(Number(pct) || 0, 65)
+  return p <= 70
+    ? (20 + (p - 65)) / 30           // 65% → 20/30 … 70% → 25/30
+    : (25 + (p - 70) * 0.15) / 30    // 70% → 25/30 … 90% → 28/30
+}
+
 const pct = (o, t) => {
   const a = parseFloat(o), b = parseFloat(t)
   return a && b ? `${((a / b) * 100).toFixed(1)}%` : '—'
@@ -78,15 +88,18 @@ export default function SemesterResultModal({ student, special = false, onClose,
       const maxT = Number(p.theory_marks) || 0
       const maxI = Number(p.internal_marks) || 0
       if (!maxT && !maxI) return p
-      // Take the percentage of the PAPER, then split it — rounding theory and
-      // internal separately drifted the paper above the figure asked for
-      // (85% of 70+30 rounded to 60+26 = 86%).
+      // The paper lands on the percentage asked for; internal and theory split
+      // it by the university's convention rather than each taking a flat share
+      // (rounding them separately also drifted the paper past the figure —
+      // 85% of 70+30 rounded to 60+26, i.e. 86%).
       const target = Math.round((Number(p.total_marks) || maxT + maxI) * pct / 100)
-      let t = Math.min(Math.round(maxT * pct / 100), maxT)
-      let i = Math.min(target - t, maxI)
-      // If internal cannot absorb the remainder, theory takes it back.
-      if (i < 0) { i = 0; t = Math.min(target, maxT) }
-      else if (t + i < target) t = Math.min(t + (target - t - i), maxT)
+      // Internal is marked generously: 20 of 30 at 65%, rising to 25 at 70%
+      // and on to 28 at 90% — scaled to whatever this paper's own internal
+      // maximum is, and never more than the paper's target.
+      let i = maxI ? Math.min(Math.round(maxI * INTERNAL_SHARE(pct)), maxI, target) : 0
+      let t = Math.min(Math.max(target - i, 0), maxT)
+      // Where theory cannot cover the rest, internal makes it up.
+      if (t + i < target) i = Math.min(i + (target - t - i), maxI)
       return {
         ...p,
         theory_obtained: maxT ? String(t) : '',
