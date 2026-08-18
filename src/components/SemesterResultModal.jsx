@@ -11,12 +11,11 @@ import { fetchExamDates } from '../utils/examSettings'
 // Internal marks follow the university's own convention rather than the flat
 // percentage: 20 out of 30 at 65%, 25 at 70%, 28 at 90% — expressed as a
 // fraction so it scales to a paper whose internal is out of 50 or 20.
-const INTERNAL_SHARE = (pct) => {
-  const p = Math.max(Number(pct) || 0, 65)
-  return p <= 70
-    ? (20 + (p - 65)) / 30           // 65% → 20/30 … 70% → 25/30
-    : (25 + (p - 70) * 0.15) / 30    // 70% → 25/30 … 90% → 28/30
-}
+// Internal is marked within its own band, not as a flat share of the paper:
+// 20 to 25 out of 30, as a fraction so a paper marked out of 50 or 20 scales.
+const INTERNAL_BAND = { lo: 20 / 30, hi: 25 / 30 }
+// How far a single paper may sit either side of the percentage asked for.
+const PAPER_SPREAD = 4
 
 const pct = (o, t) => {
   const a = parseFloat(o), b = parseFloat(t)
@@ -84,28 +83,57 @@ export default function SemesterResultModal({ student, special = false, onClose,
           : 'For anything above 70%, use the Special Result tab.'))
       return
     }
-    setPapers(prev => (prev || []).map(p => {
-      const maxT = Number(p.theory_marks) || 0
-      const maxI = Number(p.internal_marks) || 0
-      if (!maxT && !maxI) return p
-      // The paper lands on the percentage asked for; internal and theory split
-      // it by the university's convention rather than each taking a flat share
-      // (rounding them separately also drifted the paper past the figure —
-      // 85% of 70+30 rounded to 60+26, i.e. 86%).
-      const target = Math.round((Number(p.total_marks) || maxT + maxI) * pct / 100)
-      // Internal is marked generously: 20 of 30 at 65%, rising to 25 at 70%
-      // and on to 28 at 90% — scaled to whatever this paper's own internal
-      // maximum is, and never more than the paper's target.
-      let i = maxI ? Math.min(Math.round(maxI * INTERNAL_SHARE(pct)), maxI, target) : 0
-      let t = Math.min(Math.max(target - i, 0), maxT)
-      // Where theory cannot cover the rest, internal makes it up.
-      if (t + i < target) i = Math.min(i + (target - t - i), maxI)
-      return {
-        ...p,
-        theory_obtained: maxT ? String(t) : '',
-        internal_obtained: maxI ? String(i) : '',
+    setPapers(prev => {
+      const list = prev || []
+      // Marks must not come out identical on every paper — a marksheet where
+      // each subject scores exactly alike is obviously machine-made. Each
+      // paper is drawn around the percentage asked for, then the set is
+      // corrected so the SEMESTER still totals it exactly.
+      const sized = list.map(p => ({
+        p,
+        maxT: Number(p.theory_marks) || 0,
+        maxI: Number(p.internal_marks) || 0,
+        max: (Number(p.total_marks) || (Number(p.theory_marks) || 0) + (Number(p.internal_marks) || 0)),
+      }))
+      const fillable = sized.filter(x => x.maxT || x.maxI)
+      if (!fillable.length) return list
+
+      const rand = (lo, hi) => lo + Math.random() * (hi - lo)
+      const draw = fillable.map(x => {
+        // Internal keeps to the university's band — 20 to 25 out of 30 — as a
+        // fraction, so a paper marked out of 50 or 20 scales with it.
+        const i = x.maxI
+          ? Math.min(Math.round(x.maxI * rand(INTERNAL_BAND.lo, INTERNAL_BAND.hi)), x.maxI)
+          : 0
+        // A few points either side of the figure asked for, so the papers differ.
+        const paperPct = pct + rand(-PAPER_SPREAD, PAPER_SPREAD)
+        const want = Math.round(x.max * paperPct / 100)
+        const t = Math.min(Math.max(want - i, 0), x.maxT)
+        return { ...x, t, i: Math.min(i, x.max) }
+      })
+
+      // Nudge theory a mark at a time until the semester lands on the target.
+      const target = Math.round(draw.reduce((a, x) => a + x.max, 0) * pct / 100)
+      let diff = target - draw.reduce((a, x) => a + x.t + x.i, 0)
+      for (let guard = 0; diff !== 0 && guard < 500; guard++) {
+        const step = diff > 0 ? 1 : -1
+        const room = draw.filter(x => (step > 0 ? x.t < x.maxT : x.t > 0))
+        if (!room.length) break
+        room[guard % room.length].t += step
+        diff -= step
       }
-    }))
+
+      const byKey = Object.fromEntries(draw.map(x => [x.p.paper_key, x]))
+      return list.map(p => {
+        const d = byKey[p.paper_key]
+        if (!d) return p
+        return {
+          ...p,
+          theory_obtained: d.maxT ? String(d.t) : '',
+          internal_obtained: d.maxI ? String(d.i) : '',
+        }
+      })
+    })
   }
 
   // What one paper is worth once its marks are in: the obtained total, the
