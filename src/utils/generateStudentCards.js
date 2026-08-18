@@ -896,6 +896,10 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
              earned: g.point > 0 ? credit : 0 }
   })
 
+  // A CGPA is a running average, so there is nothing to average in the first
+  // semester — its SGPA IS the whole record, and the university's own grade
+  // card leaves the CGPA off that sheet entirely.
+  const semNo = parseInt(String(meta.semester || '').match(/\d+/)?.[0] || '', 10)
   const sum = (k) => marked.reduce((a, r) => a + (Number(r[k]) || 0), 0)
   const sgpa = sgpaOf(marked.map(r => ({ ...r, theory_obtained: r.gotT, internal_obtained: r.gotI })))
   const cell = 'border:1px solid #000;padding:4px 6px;font-size:9.5px;text-align:center;'
@@ -998,7 +1002,7 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
           <td colspan="11" style="${cell}font-weight:700;padding:6px;">
             SGPA – ${sgpa == null ? '—' : sgpa.toFixed(2)}
             &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
-            CGPA – ${meta.cgpa ? Number(meta.cgpa).toFixed(2) : (sgpa == null ? '—' : sgpa.toFixed(2))}
+            CGPA – ${semNo === 1 ? '—' : (meta.cgpa ? Number(meta.cgpa).toFixed(2) : (sgpa == null ? '—' : sgpa.toFixed(2)))}
           </td>
         </tr>
       </tbody>
