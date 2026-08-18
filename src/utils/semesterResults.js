@@ -62,3 +62,13 @@ export async function fetchResultsForMany(studentIds) {
   if (error) return null
   return Object.fromEntries((data || []).map(r => [`${r.student_id}__${r.semester}`, r]))
 }
+
+// Remove a semester's declared result. The paper-wise marks are left alone —
+// they are what was typed in, and an admin deleting a wrongly-declared result
+// should not have to key every paper again to re-declare it. Deleting the row
+// also takes released_at with it, so the student stops seeing the result.
+export async function deleteSemesterResult(studentId, semester) {
+  const { error } = await supabase.from('student_results')
+    .delete().eq('student_id', studentId).eq('semester', semester)
+  return { error }
+}

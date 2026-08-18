@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { X, Award, Lock, Send, BadgeCheck, FileText } from 'lucide-react'
+import { X, Award, Lock, Send, BadgeCheck, FileText, Trash2 } from 'lucide-react'
 import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
-import { semesterResults, saveSemesterResult, releaseSemesterResult } from '../utils/semesterResults'
+import { semesterResults, saveSemesterResult, releaseSemesterResult, deleteSemesterResult } from '../utils/semesterResults'
 import { fetchPaperMarks, savePaperMarks } from '../utils/paperMarks'
 import { generateMarksStatement } from '../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
@@ -96,6 +96,22 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
     setBusy(false)
     if (error) { alert('Could not save: ' + error.message); return }
     setPick(null); await load(); onSaved?.()
+  }
+
+  // Withdraw a declared result. The paper-wise marks stay, so a result deleted
+  // by mistake — or one being re-declared — does not mean keying every paper
+  // again; the confirm says so rather than leaving it a surprise.
+  async function removeResult(row) {
+    if (!confirm(
+      `Delete Semester ${row.sem}'s result for ${student.student_name}?\n\n` +
+      `It disappears from the student portal and the semester goes back to "Not entered yet".\n\n` +
+      `The paper-wise marks you entered are kept, so it can be declared again without retyping them.`
+    )) return
+    setBusy(true)
+    const { error } = await deleteSemesterResult(student.id, row.sem)
+    setBusy(false)
+    if (error) { alert('Could not delete: ' + error.message); return }
+    await load(); onSaved?.()
   }
 
   async function release(row) {
@@ -290,6 +306,12 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
                                 <Send size={12} /> Send
                               </Button>
                             )
+                          )}
+                          {r && r.status !== 'Pending' && (
+                            <Button size="sm" variant="danger" disabled={busy}
+                              title="Delete this semester's result" onClick={() => removeResult(row)}>
+                              <Trash2 size={12} />
+                            </Button>
                           )}
                         </div>
                       )}
