@@ -108,11 +108,12 @@ const baseStyle = `
       /* Less at the top than the sides: the sheet was starting a long way down
          the page. 8mm all round PLUS the wrapper's 24px on-screen margin below
          put the border roughly 14mm in. */
-      body { background:#fff; padding:4mm 8mm 8mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      body { background:#fff; padding:4mm 8mm 3mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
       .no-print { display:none !important; }
-      /* The wrapper's breathing room is dead space on paper. It is set inline,
-         so this needs !important to win. */
-      body > div { margin-top:0 !important; }
+      /* The wrapper's breathing room is dead space on paper — top AND bottom.
+         Only the top was cleared, so every sheet carried 24px of empty page
+         under it. Set inline, so this needs !important to win. */
+      body > div { margin-top:0 !important; margin-bottom:0 !important; }
     }
     table { border-collapse:collapse; }
   </style>`
@@ -826,6 +827,14 @@ export function generateEntranceClearance(s, opts = {}) {
 
 // Ten-point grade for a paper, from the percentage it scored. Kept in one
 // place so the letter, the point and the SGPA all agree.
+// Semesters are written in Roman on a grade card — I, II, III … — so the
+// number the rest of the app works in is converted only for printing.
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
+export const romanSemester = (label) => {
+  const n = parseInt(String(label || '').match(/\d+/)?.[0] || '', 10)
+  return n && ROMAN[n] ? ROMAN[n] : (label || '')
+}
+
 // The university's grading scale. Bands are on the PERCENTAGE a paper scored,
 // not its marks, so a paper out of 150 grades the same as one out of 100.
 export const GRADE_SCALE = [
@@ -946,7 +955,7 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
     <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
       <tr>${info('Name Of Student:', s.student_name)}${info('Enrollment No:', s.enrollment_no)}</tr>
       <tr>${info("Father's Name :", s.fathers_name)}${info('Reg no:', s.registration_no)}</tr>
-      <tr>${info("Mother's Name:", s.mothers_name)}${info('Semester:', meta.semester)}</tr>
+      <tr>${info("Mother's Name:", s.mothers_name)}${info('Semester:', romanSemester(meta.semester))}</tr>
       <tr>${info('Session :', sess)}${info('Examination held:', meta.examHeld)}</tr>
       <tr>
         <td style="border:1px solid #000;padding:5px 8px;font-size:10px;font-weight:700;white-space:nowrap;">Program :</td>
@@ -957,7 +966,7 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
     <table style="width:100%;border-collapse:collapse;">
       <thead>
         <tr>
-          <th rowspan="2" style="${hd}">Subject<br/>Code</th>
+          <th rowspan="2" style="${hd}white-space:nowrap;">Subject Code</th>
           <th rowspan="2" style="${hd}text-align:left;">Subject Name</th>
           <th rowspan="2" style="${hd}">Total<br/>Credit</th>
           <th colspan="3" style="${hd}">Maximum Marks</th>
@@ -973,7 +982,7 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
       <tbody>
         ${marked.map(r => `
           <tr>
-            <td style="${cell}">${v(r.subject_code)}</td>
+            <td style="${cell}white-space:nowrap;">${v(r.subject_code)}</td>
             <td style="${cell}text-align:left;">${v(r.subject_name)}</td>
             <td style="${cell}">${r.credit || '—'}</td>
             <td style="${cell}">${r.maxT || '—'}</td>
@@ -1001,7 +1010,7 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
         <tr>
           <td colspan="11" style="${cell}font-weight:700;padding:6px;">
             SGPA – ${sgpa == null ? '—' : sgpa.toFixed(2)}
-            &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+            <span style="display:inline-block;width:46px;"></span>|<span style="display:inline-block;width:46px;"></span>
             CGPA – ${semNo === 1 ? '—' : (meta.cgpa ? Number(meta.cgpa).toFixed(2) : (sgpa == null ? '—' : sgpa.toFixed(2)))}
           </td>
         </tr>
