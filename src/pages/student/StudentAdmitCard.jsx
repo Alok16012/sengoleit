@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
-import { generateAdmitCard, isPhdProgram, UNI_NAME, UNI_ADDRESS, UNI_ACT, BRAND } from '../../utils/generateStudentCards'
+import { generateAdmitCard, isPhdProgram, UNI_NAME, UNI_ADDRESS, UNI_ESTD, BRAND } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
 import { fetchMyAdmitCards, pickCardRows } from '../../utils/semesterAdmitCards'
@@ -142,7 +142,7 @@ export default function StudentAdmitCard() {
           <div className="text-center">
             <p className="text-lg font-black tracking-wide" style={{ color: BRAND }}>{UNI_NAME.toUpperCase()}</p>
             <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{UNI_ADDRESS}</p>
-            <p className="text-[9px] italic text-gray-400 mt-0.5">{UNI_ACT}</p>
+            <p className="text-[9px] text-gray-400 mt-0.5">{UNI_ESTD}</p>
           </div>
         </div>
 

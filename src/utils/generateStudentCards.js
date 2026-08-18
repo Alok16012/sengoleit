@@ -24,7 +24,11 @@ const UNI_PHONE = '+91-9205299887'
 const UNI_EMAIL = 'info@sengolinternationaluniversity.edu.in'
 const UNI_WEB = 'www.sengolinternationaluniversity.edu.in'
 export const UNI_ACT = 'Established under Act No. 14 of 2025, Sikkim State Legislative Assembly'
-const UNI_UGC = 'Estb. by the Act of State Govt. & Under Section 2(f) of UGC Act 1956. Govt. of India'
+// The university's establishment line, in the wording it uses officially. One
+// constant so the admit card, ID card, registration certificate and marks
+// statement all carry it identically — they each used to carry a different
+// abbreviation of the same fact.
+export const UNI_ESTD = 'Established by state Government of Sikkim by Act 14 of 2025, under Section 2(f) of UGC Act 1956 Government of India.'
 export const BRAND = '#933d18'
 const GOLD = '#d9a441'
 
@@ -81,7 +85,7 @@ function uniHeader() {
         <td style="text-align:center;vertical-align:middle;padding:0 10px;">
           <div style="font-size:22px;font-weight:900;color:${BRAND};letter-spacing:0.04em;">${UNI_NAME.toUpperCase()}</div>
           <div style="font-size:9px;color:#555;margin-top:3px;font-weight:600;">${UNI_ADDRESS}</div>
-          <div style="font-size:8.5px;color:#888;margin-top:2px;font-style:italic;">${UNI_ACT}</div>
+          <div style="font-size:8px;color:#888;margin-top:2px;">${UNI_ESTD}</div>
         </td>
         <td style="width:72px;vertical-align:middle;text-align:center;">
           <img src="${LOGO_URL}" width="62" height="62"
@@ -193,7 +197,7 @@ export function generateIDCard(s) {
         onerror="this.style.display='none'"/>
       <div style="line-height:1.15;">
         <div style="color:#fff;font-size:17px;font-weight:900;letter-spacing:0.06em;">SENGOL INTERNATIONAL UNIVERSITY</div>
-        <div style="color:rgba(255,255,255,0.82);font-size:8px;font-weight:600;margin-top:3px;">${UNI_UGC}</div>
+        <div style="color:rgba(255,255,255,0.82);font-size:7px;font-weight:600;margin-top:3px;line-height:1.3;">${UNI_ESTD}</div>
       </div>
     </div>
 
