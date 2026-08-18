@@ -10,6 +10,8 @@ import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Sen
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, generateHallTicket, isPhdProgram } from '../../utils/generateStudentCards'
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
+import { fetchResultsForMany } from '../../utils/semesterResults'
+import SemesterResultViewModal from '../../components/SemesterResultViewModal'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
@@ -42,6 +44,10 @@ export default function StudentListReport({ status }) {
   // downloading just the latest semester.
   const [admitCards, setAdmitCards] = useState({})
   const [admitListStudent, setAdmitListStudent] = useState(null)
+  // Released semester results, keyed `${student}__${semester}`. RLS already
+  // limits a centre to its own students' released rows.
+  const [semResults, setSemResults] = useState({})
+  const [semResultStudent, setSemResultStudent] = useState(null)
   // Target centers for a Staging-center transfer (super center → center cascade).
   const [allCenters, setAllCenters] = useState([])
   const [superCentersList, setSuperCentersList] = useState([])
@@ -148,6 +154,7 @@ export default function StudentListReport({ status }) {
     // centre to its students' RELEASED cards, so no extra filtering is needed
     // here — an unreleased (hidden) semester simply never comes back.
     setAdmitCards(await admitCardsForMany(rows.map(r => r.id)))
+    setSemResults(await fetchResultsForMany(rows.map(r => r.id)) || {})
   }
 
   // Recompute today's required hold for every student whose fee is still held.
@@ -555,13 +562,21 @@ export default function StudentListReport({ status }) {
                           <span className="text-xs ml-1 text-[#933d18]">Admit Card</span>
                         </Button>
                         {(() => {
-                          const hasResult = s.exam_result_status && s.exam_result_status !== 'Pending' && !!s.result_released_at
-                          const clr = !hasResult ? 'text-gray-400' : s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'
+                          // Semester-wise results first — the flow the Exam
+                          // Section actually uses. exam_result_status is the
+                          // old single-result column, which that flow never
+                          // touches, so reading only it left the centre
+                          // looking at a permanently greyed-out button.
+                          const mine = Object.values(semResults).filter(r => r.student_id === s.id)
+                          const legacy = s.exam_result_status && s.exam_result_status !== 'Pending' && !!s.result_released_at
+                          const hasResult = mine.length > 0 || legacy
+                          const failed = mine.length ? mine.some(r => r.status === 'Fail') : s.exam_result_status === 'Fail'
+                          const clr = !hasResult ? 'text-gray-400' : failed ? 'text-red-500' : 'text-emerald-600'
                           return (
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => setResultStudent(s)}
+                              onClick={() => (mine.length ? setSemResultStudent(s) : setResultStudent(s))}
                               disabled={!hasResult}
                               title={hasResult ? 'View Result' : 'Result not declared yet'}
                             >
@@ -679,6 +694,10 @@ export default function StudentListReport({ status }) {
 
       {resultStudent && (
         <ResultViewModal student={resultStudent} onClose={() => setResultStudent(null)} />
+      )}
+
+      {semResultStudent && (
+        <SemesterResultViewModal student={semResultStudent} onClose={() => setSemResultStudent(null)} />
       )}
 
       {admitListStudent && (

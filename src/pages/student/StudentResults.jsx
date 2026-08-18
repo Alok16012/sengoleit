@@ -3,7 +3,11 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { studentSession } from '../../utils/studentSelf'
 import { fetchMyResults } from '../../utils/semesterResults'
-import { GraduationCap, Award } from 'lucide-react'
+import { fetchPaperMarks, fetchPaperMarksUpto } from '../../utils/paperMarks'
+import { generateMarksStatement, sgpaOf } from '../../utils/generateStudentCards'
+import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { fetchExamDates } from '../../utils/examSettings'
+import { GraduationCap, Award, FileText } from 'lucide-react'
 
 function Field({ label, value }) {
   return (
@@ -29,6 +33,7 @@ export default function StudentResults() {
   const [loading, setLoading] = useState(true)
 
   const [semResults, setSemResults] = useState([])
+  const [printing, setPrinting] = useState(null)
 
   useEffect(() => {
     if (!student?.id) return
@@ -43,6 +48,27 @@ export default function StudentResults() {
     }
     load()
   }, [student?.id])
+
+  // The student's own Statement of Marks — always the student copy: no DMC
+  // number and no signature blocks, which belong to the university's copy.
+  async function printStatement(r) {
+    if (!data) return
+    setPrinting(r.semester)
+    const resolved = await resolveStudentDocUrls(data)
+    const rows = await fetchPaperMarks(data, r.semester)
+    const dates = await fetchExamDates(resolved, r.semester)
+    // CGPA spans every semester up to this one, not just this one.
+    const cgpa = sgpaOf(await fetchPaperMarksUpto(student, r.semester))
+    generateMarksStatement(resolved, rows, {
+      semester: `Semester ${r.semester}`,
+      examHeld: dates.examSession || '',
+      resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
+      dateOfIssue: dates.resultPublished || '',
+      cgpa,
+      studentCopy: true,
+    })
+    setPrinting(null)
+  }
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
 
@@ -62,9 +88,15 @@ export default function StudentResults() {
                 <Award size={20} className={r.status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
                 <h3 className="font-black text-gray-900 text-lg">Semester {r.semester}</h3>
               </div>
-              <span className={`text-xs font-black px-3 py-1 rounded-lg ${r.status === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                {r.status}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-black px-3 py-1 rounded-lg ${r.status === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                  {r.status}
+                </span>
+                <button onClick={() => printStatement(r)} disabled={printing === r.semester}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                  <FileText size={13} /> {printing === r.semester ? '…' : 'Marks Statement'}
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
               <Field label="Obtained Marks" value={r.obtained_marks} />

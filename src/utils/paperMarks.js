@@ -46,6 +46,43 @@ export async function fetchPaperMarks(student, semester) {
   })
 }
 
+// Every paper the student has marks for UP TO a semester — what a CGPA is
+// averaged over. Three queries whatever the semester, rather than one set per
+// semester walked in a loop.
+export async function fetchPaperMarksUpto(student, upto) {
+  const pid = student?.programme_id || student?.program_id
+  if (!pid || !upto) return []
+
+  const [subs, scheme, marks] = await Promise.all([
+    supabase.from('syllabus_subjects')
+      .select('semester, paper_no, subject_code, subject_name')
+      .eq('program_id', pid).is('session_id', null).lte('semester', upto),
+    supabase.from('scheme_papers')
+      .select('semester, paper_key, internal_marks, theory_marks, total_marks, credits')
+      .eq('program_id', pid).is('session_id', null).lte('semester', upto),
+    supabase.from('student_paper_marks')
+      .select('semester, paper_key, theory_obtained, internal_obtained')
+      .eq('student_id', student.id).lte('semester', upto),
+  ])
+
+  const key = (sem, k) => `${sem}__${k}`
+  const byScheme = Object.fromEntries((scheme.data || []).map(r => [key(r.semester, r.paper_key), r]))
+  const byMark   = Object.fromEntries((marks.data || []).map(r => [key(r.semester, r.paper_key), r]))
+
+  return (subs.data || []).map(s => {
+    const k = key(s.semester, paperKeyOf(s))
+    const sc = byScheme[k] || {}
+    const mk = byMark[k] || {}
+    return {
+      semester: s.semester,
+      credits: sc.credits ?? '',
+      total_marks: sc.total_marks ?? '',
+      theory_obtained: mk.theory_obtained ?? '',
+      internal_obtained: mk.internal_obtained ?? '',
+    }
+  })
+}
+
 // Replace a semester's marks for one student. Papers left blank are removed
 // rather than stored as zero — a blank cell means "not entered", and the
 // statement prints a dash for it.
