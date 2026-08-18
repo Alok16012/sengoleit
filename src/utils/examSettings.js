@@ -61,6 +61,8 @@ export async function fetchExamDates(student, sem) {
       // copy of a semester's statement carries the same date rather than
       // whichever day it happened to be printed. Same term-match rule as above.
       resultPublished: semMatch ? formatDayMonthYear(row.result_published) : '',
+      // The raw 'YYYY-MM-DD', for storing rather than printing.
+      resultPublishedRaw: semMatch ? (row.result_published || '') : '',
     }
   } catch {
     return { examDates: '', examTerm: '' }

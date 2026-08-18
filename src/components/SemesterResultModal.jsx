@@ -233,11 +233,25 @@ export default function SemesterResultModal({ student, special = false, onClose,
     // With papers on the sheet the totals come from them; without any (a course
     // with no syllabus) whatever was typed still stands. `declared_at` is
     // stamped here rather than asked for — it is when the result was declared.
+    // A result is declared on the date the university published it, which the
+    // Examination Calendar holds — not on whichever day somebody pressed Save.
+    // Re-saving a correction used to move the date every time.
+    const cal = await fetchExamDates(student, pick.sem)
+    const declaredAt = cal.resultPublishedRaw
+      // Midday UTC rather than midnight: stored at midnight, the same instant
+      // reads as the previous day anywhere west of UTC, which is how a result
+      // published on the 5th showed as the 4th. Midday holds the date from
+      // UTC-11 through UTC+11, which covers India and every browser likely to
+      // open this. (declared_at is a timestamp; a date-only column would not
+      // need the trick at all.)
+      ? new Date(`${cal.resultPublishedRaw}T12:00:00Z`).toISOString()
+      : new Date().toISOString()
+
     const { error } = await saveSemesterResult(student.id, pick.sem, {
       status: papers?.length ? derivedStatus : form.status,
       obtained_marks: papers?.length ? (summary.any ? summary.got : null) : (form.obtained_marks || null),
       total_marks:    papers?.length ? (summary.any ? summary.max : null) : (form.total_marks || null),
-      declared_at: new Date().toISOString(),
+      declared_at: declaredAt,
     })
     setBusy(false)
     if (error) { alert('Could not save: ' + error.message); return }
