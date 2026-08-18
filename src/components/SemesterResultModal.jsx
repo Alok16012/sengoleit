@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Award, Lock, Send, BadgeCheck, FileText, Trash2 } from 'lucide-react'
+import { X, Award, Lock, Send, BadgeCheck, FileText, Trash2, Maximize2, Minimize2 } from 'lucide-react'
 import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
 import { semesterResults, saveSemesterResult, releaseSemesterResult, deleteSemesterResult } from '../utils/semesterResults'
@@ -26,6 +26,9 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
   // that semester.
   const [papers, setPapers] = useState(null)
   const [printing, setPrinting] = useState(null)
+  // Full-page view — a semester with a dozen papers does not fit a sheet, and
+  // the same toggle the app's shared Modal offers is what people expect.
+  const [maximized, setMaximized] = useState(false)
 
   async function load() {
     const r = await semesterResults(student)
@@ -126,11 +129,16 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
   const input = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm ${maximized ? 'p-0' : 'p-4'}`} onClick={onClose}>
       {/* The semester list is a short column; entering marks is a wide table,
-          so the sheet grows for it rather than making every paper wrap. */}
-      <div className={`bg-white rounded-2xl shadow-2xl w-full ${pick ? 'max-w-4xl' : 'max-w-lg'} max-h-[92vh] overflow-auto`} onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white">
+          so the sheet grows for it rather than making every paper wrap — and
+          maximise gives a long semester the whole page. */}
+      <div className={`bg-white shadow-2xl transition-all duration-200 overflow-auto ${
+        maximized
+          ? 'w-screen h-screen max-w-none max-h-none rounded-none'
+          : `w-full ${pick ? 'max-w-4xl' : 'max-w-lg'} max-h-[92vh] rounded-2xl`
+      }`} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2">
             <Award size={17} className="text-[#933d18]" />
             <div>
@@ -140,7 +148,14 @@ export default function SemesterResultModal({ student, onClose, onSaved }) {
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+          <div className="flex items-center gap-1">
+            <button onClick={() => setMaximized(m => !m)}
+              title={maximized ? 'Minimize' : 'Maximize — full page view'}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors">
+              {maximized ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"><X size={18} /></button>
+          </div>
         </div>
 
         <div className="p-5">
