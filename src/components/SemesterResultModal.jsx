@@ -39,6 +39,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
   // the same toggle the app's shared Modal offers is what people expect.
   const [maximized, setMaximized] = useState(false)
   const [fillPct, setFillPct] = useState('')
+  const [justSaved, setJustSaved] = useState(null)   // semester just written, for the confirmation
 
   async function load() {
     const r = await semesterResults(student)
@@ -48,6 +49,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
 
   function edit(row) {
     setPick(row)
+    setJustSaved(null)
     setPapers(null)
     fetchPaperMarks(student, row.sem).then(setPapers).catch(() => setPapers([]))
     const r = row.result
@@ -171,6 +173,13 @@ export default function SemesterResultModal({ student, special = false, onClose,
   // The tab states a ceiling; marks typed by hand must respect it too, or the
   // auto-fill's band means nothing the moment anyone edits a cell.
   const overBand = summaryPct != null && summaryPct > BAND.max + 0.05
+  // Pass or fail follows from the marks — a semester is passed when every
+  // paper with marks is passed. It used to be a dropdown that defaulted to
+  // "Pending", so a fully-entered semester saved as Pending and the list went
+  // on reading "Not entered yet", with nothing to say the save had worked.
+  const derivedStatus = !summary.any ? 'Pending'
+    : (papers || []).some(p => { const r = paperRow(p); return r.entered && r.g.letter === 'F' })
+      ? 'Fail' : 'Pass'
 
   // Print the university's Statement of Marks for one semester. Reads the
   // paper marks fresh so a card printed from the list is never a stale copy of
@@ -222,13 +231,16 @@ export default function SemesterResultModal({ student, special = false, onClose,
     // with no syllabus) whatever was typed still stands. `declared_at` is
     // stamped here rather than asked for — it is when the result was declared.
     const { error } = await saveSemesterResult(student.id, pick.sem, {
-      status: form.status,
+      status: papers?.length ? derivedStatus : form.status,
       obtained_marks: papers?.length ? (summary.any ? summary.got : null) : (form.obtained_marks || null),
       total_marks:    papers?.length ? (summary.any ? summary.max : null) : (form.total_marks || null),
       declared_at: new Date().toISOString(),
     })
     setBusy(false)
     if (error) { alert('Could not save: ' + error.message); return }
+    // Say so plainly — the list used to come back looking untouched, with no
+    // way to tell a successful save from one that had quietly done nothing.
+    setJustSaved(pick.sem)
     setPick(null); await load(); onSaved?.()
   }
 
@@ -296,6 +308,12 @@ export default function SemesterResultModal({ student, special = false, onClose,
             </div>
           )}
 
+          {justSaved != null && !pick && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs text-emerald-800 mb-3 flex items-center gap-1.5">
+              <BadgeCheck size={13} /> Semester {justSaved} saved.
+            </div>
+          )}
+
           {rows == null ? (
             <p className="text-center text-gray-400 py-8 text-sm">Loading…</p>
           ) : pick ? (
@@ -303,9 +321,18 @@ export default function SemesterResultModal({ student, special = false, onClose,
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Status</label>
-                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={`${input} bg-white`}>
-                    <option>Pending</option><option>Pass</option><option>Fail</option>
-                  </select>
+                  {papers?.length ? (
+                    <div className={`${input} bg-gray-50 font-bold ${
+                      derivedStatus === 'Pass' ? 'text-emerald-700'
+                        : derivedStatus === 'Fail' ? 'text-red-600' : 'text-gray-400'
+                    }`}>
+                      {derivedStatus === 'Pending' ? 'Enter marks below' : derivedStatus}
+                    </div>
+                  ) : (
+                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={`${input} bg-white`}>
+                      <option>Pending</option><option>Pass</option><option>Fail</option>
+                    </select>
+                  )}
                 </div>
                 {/* Obtained and Total are the paper marks added up — typed
                     figures could disagree with the sheet below them. A course
