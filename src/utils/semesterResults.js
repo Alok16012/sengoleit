@@ -34,10 +34,12 @@ export async function saveSemesterResult(studentId, semester, values) {
   return { error }
 }
 
-// Send one semester's result to the student.
-export async function releaseSemesterResult(studentId, semester) {
+// Show a semester's result to the student, or take it back — the same
+// released_at flag either way, so a result sent by mistake can be pulled
+// without deleting the marks behind it.
+export async function setSemesterResultVisible(studentId, semester, visible) {
   const { error } = await supabase.from('student_results')
-    .update({ released_at: new Date().toISOString() })
+    .update({ released_at: visible ? new Date().toISOString() : null })
     .eq('student_id', studentId).eq('semester', semester)
   return { error }
 }

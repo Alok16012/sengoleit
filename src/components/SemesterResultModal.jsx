@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { X, Award, Lock, Send, BadgeCheck, FileText, Trash2, Maximize2, Minimize2 } from 'lucide-react'
+import { X, Award, Lock, BadgeCheck, FileText, Trash2, Maximize2, Minimize2, Eye, EyeOff } from 'lucide-react'
 import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
-import { semesterResults, saveSemesterResult, releaseSemesterResult, deleteSemesterResult } from '../utils/semesterResults'
+import { semesterResults, saveSemesterResult, setSemesterResultVisible, deleteSemesterResult } from '../utils/semesterResults'
 import { fetchPaperMarks, savePaperMarks } from '../utils/paperMarks'
 import { generateMarksStatement, gradeFor } from '../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
@@ -260,12 +260,17 @@ export default function SemesterResultModal({ student, special = false, onClose,
     await load(); onSaved?.()
   }
 
-  async function release(row) {
-    if (!confirm(`Send the Semester ${row.sem} result to the student?`)) return
+  // Show the result to the student, or take it back. Deactivating leaves the
+  // marks untouched — it only stops the student seeing them.
+  async function toggleVisible(row, visible) {
+    if (!visible && !confirm(
+      `Deactivate Semester ${row.sem}'s result for ${student.student_name}?\n\n` +
+      `It disappears from the student portal. The marks are kept, so it can be activated again.`
+    )) return
     setBusy(true)
-    const { error } = await releaseSemesterResult(student.id, row.sem)
+    const { error } = await setSemesterResultVisible(student.id, row.sem, visible)
     setBusy(false)
-    if (error) { alert('Could not release: ' + error.message); return }
+    if (error) { alert('Could not change visibility: ' + error.message); return }
     await load(); onSaved?.()
   }
 
@@ -496,7 +501,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                           <p className="text-[11px] text-gray-500">
                             <span className={r.status === 'Pass' ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold'}>{r.status}</span>
                             {' · '}{r.obtained_marks || '—'}/{r.total_marks || '—'} · {pct(r.obtained_marks, r.total_marks)}
-                            {r.released_at ? ' · sent to student' : ''}
+                            {r.released_at ? ' · active for student' : ' · deactive'}
                           </p>
                         ) : (
                           <p className="text-[11px] text-gray-400">{row.cleared ? 'Not entered yet' : `To collect ₹${Number(row.dueFee).toLocaleString('en-IN')}`}</p>
@@ -516,16 +521,17 @@ export default function SemesterResultModal({ student, special = false, onClose,
                               <FileText size={12} /> {printing === row.sem ? '…' : 'Marks Statement'}
                             </Button>
                           )}
+                          {/* Reads the state, like the admit card's: Active
+                              when the student can see the result. */}
                           {r && r.status !== 'Pending' && (
-                            r.released_at ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
-                                <BadgeCheck size={12} /> Released
-                              </span>
-                            ) : (
-                              <Button size="sm" variant="primary" disabled={busy} onClick={() => release(row)}>
-                                <Send size={12} /> Send
-                              </Button>
-                            )
+                            <Button size="sm" variant="secondary" disabled={busy}
+                              title={r.released_at
+                                ? 'Deactivate — the student stops seeing this result'
+                                : 'Activate — the student sees this result'}
+                              className={r.released_at ? 'text-emerald-700' : 'text-gray-500'}
+                              onClick={() => toggleVisible(row, !r.released_at)}>
+                              {r.released_at ? <><Eye size={12} /> Active</> : <><EyeOff size={12} /> Deactive</>}
+                            </Button>
                           )}
                           {r && r.status !== 'Pending' && (
                             <Button size="sm" variant="danger" disabled={busy}
