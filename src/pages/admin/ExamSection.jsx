@@ -153,16 +153,21 @@ function ResultModal({ isOpen, onClose, student, onSaved }) {
 }
 
 // The syllabus lists ALTERNATIVES under one paper number (Paper 2: MS-ACCESS
-// or MS-SQL) — a student sits one subject per paper, so the picker offers each
-// paper as a group and lets exactly one of its subjects be ticked.
-const paperKeyOf = (r) => {
+// or MS-SQL, or B.Ed's Teaching of English / Kannada / Hindi) — a student sits
+// one subject per paper, so the picker offers each paper as a group and lets
+// exactly one of its subjects be ticked.
+//
+// Distinct from paperKeyOf in fetchSyllabus.js, which identifies a single
+// paper: this deliberately gives every alternative of a paper the SAME key so
+// they group together.
+const paperGroupKey = (r) => {
   const pno = String(r.paper_no || '').trim().replace(/^paper\s*/i, '')
   return pno || `solo-${r.id}`   // no paper number → a group of its own
 }
 function paperGroups(rows) {
   const map = new Map()
   for (const r of rows) {
-    const key = paperKeyOf(r)
+    const key = paperGroupKey(r)
     if (!map.has(key)) map.set(key, { key, label: key.startsWith('solo-') ? '' : `Paper ${key}`, rows: [] })
     map.get(key).rows.push(r)
   }
@@ -173,7 +178,7 @@ function paperGroups(rows) {
 function onePerPaper(rows, preferIds) {
   const selected = new Set(), seen = new Set()
   for (const r of rows) {
-    const key = paperKeyOf(r)
+    const key = paperGroupKey(r)
     if (seen.has(key)) continue
     if (!preferIds || preferIds.has(r.id)) { selected.add(r.id); seen.add(key) }
   }
@@ -477,8 +482,8 @@ export default function ExamSection() {
       selected.delete(id)
     } else {
       const row = m.pick.rows.find(r => r.id === id)
-      const key = row ? paperKeyOf(row) : null
-      m.pick.rows.forEach(r => { if (paperKeyOf(r) === key) selected.delete(r.id) })
+      const key = row ? paperGroupKey(row) : null
+      m.pick.rows.forEach(r => { if (paperGroupKey(r) === key) selected.delete(r.id) })
       selected.add(id)
     }
     return { ...m, pick: { ...m.pick, selected } }

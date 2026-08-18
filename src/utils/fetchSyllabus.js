@@ -8,11 +8,17 @@ const fmtExamDate = (v) => {
 }
 
 // A paper's stable identity within its course — its subject code, or its paper
-// number + name when it has no code. Saving the syllabus deletes and re-inserts
-// every row, so a paper's id changes on each edit; anything that has to outlive
-// that (the examination scheme's marks) is keyed by this instead.
+// number + name. Saving the syllabus deletes and re-inserts every row, so a
+// paper's id changes on each edit; anything that has to outlive that (the
+// examination scheme's marks, a student's marks) is keyed by this instead.
+//
+// The NAME is part of the key because a subject code is not unique within a
+// semester: B.Ed's Semester 2 carries Teaching of English, of Kannada and of
+// Hindi all as BED202 — alternatives a student picks one of. Keying on the
+// code alone gave the three of them one identity, and saving the scheme hit
+// the unique index on the second one.
 export const paperKeyOf = (r) =>
-  (r.subject_code || '').trim() || `${(r.paper_no || '').trim()}|${(r.subject_name || '').trim()}`
+  `${(r.subject_code || '').trim() || (r.paper_no || '').trim()}|${(r.subject_name || '').trim()}`
 
 // One syllabus row → the "Papers to be appeared" line printed on the Admit Card.
 export function formatSubjectRow(r) {
