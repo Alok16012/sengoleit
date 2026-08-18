@@ -1095,7 +1095,7 @@ export default function ExamSection() {
                             <p className="text-[11px] text-gray-400">
                               Issued {formatDate(card.generated_at)} ·{' '}
                               <span className={visible ? 'text-emerald-600 font-semibold' : 'text-gray-400 font-semibold'}>
-                                {visible ? 'visible to student' : 'hidden'}
+                                {visible ? 'active — student can see it' : 'deactive — student cannot see it'}
                               </span>
                               {/* Cards issued before the fee gate was corrected
                                   carry a debt — say so instead of hiding it. */}
@@ -1111,8 +1111,8 @@ export default function ExamSection() {
                           )}
                         </div>
                         {card ? (
-                          // Already issued — re-print it, hide it from the
-                          // student, or withdraw it altogether. These stay
+                          // Already issued — re-print it, deactivate it so the
+                          // student stops seeing it, or withdraw it. These stay
                           // available even while the fee is short: the card is
                           // already with the student, and locking the controls
                           // would leave no way to pull it back.
@@ -1128,9 +1128,12 @@ export default function ExamSection() {
                               <FileEdit size={13} /> Edit
                             </Button>
                             <Button size="sm" variant="secondary"
-                              title={visible ? 'Hide from the student portal' : 'Show in the student portal'}
+                              title={visible
+                                ? 'Deactivate — the student stops seeing this card'
+                                : 'Activate — the student sees this card'}
+                              className={visible ? 'text-emerald-700' : 'text-gray-500'}
                               onClick={() => toggleAdmitVisible(admitModal.student, sem, !visible)}>
-                              {visible ? <><EyeOff size={13} /> Hide</> : <><Eye size={13} /> Show</>}
+                              {visible ? <><Eye size={13} /> Active</> : <><EyeOff size={13} /> Deactive</>}
                             </Button>
                             <Button size="sm" variant="danger" title="Withdraw this admit card"
                               onClick={() => withdrawAdmitCard(admitModal.student, sem)}>

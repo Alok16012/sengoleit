@@ -71,7 +71,7 @@ export default function AdmitCardListModal({ student, onClose }) {
                     <p className="text-[11px] text-gray-400">
                       Issued {formatDate(card.generated_at)} ·{' '}
                       <span className={card.released_at ? 'text-emerald-600 font-semibold' : 'text-gray-400 font-semibold'}>
-                        {card.released_at ? 'visible to student' : 'hidden'}
+                        {card.released_at ? 'active — student can see it' : 'deactive — student cannot see it'}
                       </span>
                     </p>
                   </div>
