@@ -826,16 +826,21 @@ export function generateEntranceClearance(s, opts = {}) {
 
 // Ten-point grade for a paper, from the percentage it scored. Kept in one
 // place so the letter, the point and the SGPA all agree.
+// The university's grading scale. Bands are on the PERCENTAGE a paper scored,
+// not its marks, so a paper out of 150 grades the same as one out of 100.
+export const GRADE_SCALE = [
+  { from: 90, letter: 'A+', point: 10, description: 'Outstanding',   pass: true  },
+  { from: 80, letter: 'A',  point: 9,  description: 'Excellent',     pass: true  },
+  { from: 70, letter: 'B+', point: 8,  description: 'Very Good',     pass: true  },
+  { from: 60, letter: 'B',  point: 7,  description: 'Good',          pass: true  },
+  { from: 50, letter: 'C',  point: 6,  description: 'Above Average', pass: true  },
+  { from: 40, letter: 'D',  point: 5,  description: 'Pass',          pass: true  },
+  { from: 0,  letter: 'F',  point: 0,  description: 'Fail',          pass: false },
+]
+
 export function gradeFor(pct) {
-  if (pct == null || isNaN(pct)) return { letter: '—', point: 0 }
-  if (pct >= 90) return { letter: 'O',  point: 10 }
-  if (pct >= 80) return { letter: 'A+', point: 9 }
-  if (pct >= 70) return { letter: 'A',  point: 8 }
-  if (pct >= 60) return { letter: 'B+', point: 7 }
-  if (pct >= 50) return { letter: 'B',  point: 6 }
-  if (pct >= 45) return { letter: 'C',  point: 5 }
-  if (pct >= 40) return { letter: 'P',  point: 4 }
-  return { letter: 'F', point: 0 }
+  if (pct == null || isNaN(pct)) return { letter: '—', point: 0, description: '', pass: false }
+  return GRADE_SCALE.find(g => pct >= g.from) || GRADE_SCALE[GRADE_SCALE.length - 1]
 }
 
 // SGPA = Σ(grade point × credit) ÷ Σ(credit), over papers that carry credit.

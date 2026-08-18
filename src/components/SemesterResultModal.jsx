@@ -155,7 +155,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
     const entered = p.theory_obtained !== '' || p.internal_obtained !== ''
     const got = entered ? (Number(p.theory_obtained) || 0) + (Number(p.internal_obtained) || 0) : ''
     const max = Number(p.total_marks) || 0
-    const g = entered && max ? gradeFor((got / max) * 100) : { letter: '—', point: 0 }
+    const g = entered && max ? gradeFor((got / max) * 100) : { letter: '—', point: 0, description: '' }
     return { entered, got, max, g, earned: g.point > 0 ? (Number(p.credits) || 0) : 0 }
   }
 
@@ -416,7 +416,13 @@ export default function SemesterResultModal({ student, special = false, onClose,
                               </td>
                             ))}
                             <td className="px-2 py-1.5 text-center font-bold text-gray-700">{entered ? got : '—'}</td>
-                            <td className={`px-2 py-1.5 text-center font-bold ${g.letter === 'F' ? 'text-red-600' : 'text-gray-700'}`}>{g.letter}</td>
+                            {/* The scale's own wording, so "B+" is readable
+                                without looking the table up. */}
+                            <td className={`px-2 py-1.5 text-center font-bold ${g.letter === 'F' ? 'text-red-600' : 'text-gray-700'}`}
+                              title={g.description || ''}>
+                              {g.letter}
+                              {g.description && <span className="block text-[9px] font-normal text-gray-400">{g.description}</span>}
+                            </td>
                             <td className="px-2 py-1.5 text-center text-gray-600">{entered ? earned : '—'}</td>
                           </tr>
                         )})}
