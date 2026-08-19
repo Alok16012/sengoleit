@@ -21,7 +21,7 @@ CREATE OR REPLACE FUNCTION student_marksheet_self(p_token text, p_semester int)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
   sid uuid; pid uuid; sess uuid;
-  has_card boolean; keys text[]; ids uuid[];
+  has_card boolean; keys text[]; ids uuid[]; n_key int;
   papers jsonb; upto jsonb;
   c_held text; c_published date; c_start date;
 BEGIN
@@ -53,6 +53,30 @@ BEGIN
   has_card := coalesce(has_card, false);
   keys := coalesce(keys, '{}'::text[]);
   ids  := coalesce(ids,  '{}'::uuid[]);
+
+  -- Match by key, but fall back to the row ids the card stored when no key
+  -- matches — exactly what pickCardRows does in the app. Saving a syllabus
+  -- deletes and re-inserts every row, so a card issued before an edit can hold
+  -- keys the syllabus no longer has. The admit card falls back and still lists
+  -- the papers; this function did not, and returned none — which is why a
+  -- marksheet that opened for the centre and the Exam Section reported "no
+  -- papers are recorded" for the student.
+  IF has_card AND coalesce(array_length(keys, 1), 0) > 0 THEN
+    SELECT count(*) INTO n_key
+    FROM syllabus_subjects ss
+    WHERE ss.program_id = pid AND ss.session_id IS NULL AND ss.semester = p_semester
+      AND (coalesce(nullif(trim(coalesce(ss.subject_code, '')), ''), trim(coalesce(ss.paper_no, '')))
+           || '|' || trim(coalesce(ss.subject_name, ''))) = ANY (keys);
+    IF n_key = 0 THEN keys := '{}'::text[]; END IF;
+  END IF;
+
+  -- A card carrying neither keys nor ids was issued without a syllabus. The
+  -- admit card prints "as per university curriculum" for that; a marksheet has
+  -- to show the papers, so fall back to the whole semester rather than none.
+  IF has_card AND coalesce(array_length(keys, 1), 0) = 0
+                AND coalesce(array_length(ids, 1), 0) = 0 THEN
+    has_card := false;
+  END IF;
 
   -- One semester's papers: the syllabus, the scheme's maximums, and what the
   -- student scored — narrowed to the papers their admit card carried, since a
