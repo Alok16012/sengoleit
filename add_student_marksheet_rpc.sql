@@ -11,13 +11,19 @@
 -- This returns the same rows the Exam Section assembles, for one student and
 -- one semester, plus what a CGPA needs from the semesters before it.
 --
--- Run once in Supabase -> SQL Editor. Safe to re-run.
+-- RE-RUN THIS. The first version raised "operator does not exist: text = text[]"
+-- on every call (see the note on the admit-card lookup below), so no student
+-- could open a marksheet at all.
+--
+-- Run in Supabase -> SQL Editor. Safe to re-run.
 
 CREATE OR REPLACE FUNCTION student_marksheet_self(p_token text, p_semester int)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, extensions AS $$
 DECLARE
   sid uuid; pid uuid; sess uuid;
-  papers jsonb; upto jsonb; cal record;
+  has_card boolean; keys text[]; ids uuid[];
+  papers jsonb; upto jsonb;
+  c_held text; c_published date; c_start date;
 BEGIN
   SELECT ss.student_id INTO sid FROM student_sessions ss
   WHERE ss.token_hash = encode(digest(p_token, 'sha256'), 'hex') AND ss.expires_at > now()
@@ -33,9 +39,25 @@ BEGIN
 
   SELECT s.programme_id, s.session_id INTO pid, sess FROM students s WHERE s.id = sid;
 
+  -- The papers the student's admit card carried, read into variables first.
+  -- Written inline as `= ANY ((SELECT subject_keys FROM card))`, Postgres reads
+  -- the parenthesised SELECT as a SUBQUERY rather than as an array: it then
+  -- compares text to text[] and raises "operator does not exist: text = text[]".
+  -- That threw on every call, and the portal turned the error into "this
+  -- marksheet is not available yet" — so no student could open one. A plain
+  -- array variable is unambiguous.
+  SELECT true, ac.subject_keys, ac.subject_ids INTO has_card, keys, ids
+  FROM student_admit_cards ac
+  WHERE ac.student_id = sid AND ac.semester = p_semester
+  LIMIT 1;
+  has_card := coalesce(has_card, false);
+  keys := coalesce(keys, '{}'::text[]);
+  ids  := coalesce(ids,  '{}'::uuid[]);
+
   -- One semester's papers: the syllabus, the scheme's maximums, and what the
   -- student scored — narrowed to the papers their admit card carried, since a
-  -- semester offers alternatives and only one of each is sat.
+  -- semester offers alternatives and only one of each is sat. No card at all
+  -- (a result declared before cards were issued per semester) keeps them all.
   WITH sub AS (
     SELECT ss.id,
            coalesce(nullif(trim(coalesce(ss.subject_code, '')), ''), trim(coalesce(ss.paper_no, '')))
@@ -44,17 +66,11 @@ BEGIN
     FROM syllabus_subjects ss
     WHERE ss.program_id = pid AND ss.session_id IS NULL AND ss.semester = p_semester
   ),
-  card AS (
-    SELECT ac.subject_ids, ac.subject_keys FROM student_admit_cards ac
-    WHERE ac.student_id = sid AND ac.semester = p_semester LIMIT 1
-  ),
   kept AS (
     SELECT sub.* FROM sub
-    WHERE NOT EXISTS (SELECT 1 FROM card)
-       OR (SELECT coalesce(array_length(c.subject_keys, 1), 0) FROM card c) > 0
-          AND sub.paper_key = ANY ((SELECT c.subject_keys FROM card c))
-       OR (SELECT coalesce(array_length(c.subject_keys, 1), 0) FROM card c) = 0
-          AND sub.id = ANY ((SELECT c.subject_ids FROM card c))
+    WHERE NOT has_card
+       OR (coalesce(array_length(keys, 1), 0) > 0 AND sub.paper_key = ANY (keys))
+       OR (coalesce(array_length(keys, 1), 0) = 0 AND sub.id = ANY (ids))
   )
   SELECT coalesce(jsonb_agg(jsonb_build_object(
            'paper_key', k.paper_key,
@@ -87,8 +103,11 @@ BEGIN
    AND sp.semester = pm.semester AND sp.paper_key = pm.paper_key
   WHERE pm.student_id = sid AND pm.semester <= p_semester;
 
-  -- The examination session and the publication date for this semester.
-  SELECT ec.exam_held, ec.result_published, ec.start_date INTO cal
+  -- The examination session and the publication date for this semester. Read
+  -- into plain variables rather than a record: a record left unassigned by a
+  -- semester the calendar has no row for is a second way to throw here.
+  SELECT ec.exam_held, ec.result_published, ec.start_date
+    INTO c_held, c_published, c_start
   FROM exam_calendar ec
   WHERE ec.session_id = sess AND ec.semester IN (p_semester, 100 + p_semester)
   ORDER BY (ec.semester = p_semester) DESC LIMIT 1;
@@ -96,9 +115,9 @@ BEGIN
   RETURN jsonb_build_object(
     'papers', papers,
     'upto', upto,
-    'exam_held', cal.exam_held,
-    'exam_start', cal.start_date,
-    'result_published', cal.result_published
+    'exam_held', c_held,
+    'exam_start', c_start,
+    'result_published', c_published
   );
 END $$;
 
