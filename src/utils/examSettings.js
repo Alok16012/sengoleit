@@ -17,7 +17,13 @@ const BLANK = { examSchedule: '', admitCardTime: '', admitCardAt: '' }
 // Regular programmes use semesters 1–10; Ph.D uses the 101–106 (Year 1–6) offset.
 // When `sem` (1-based term) is given, returns THAT term's dates (used by the
 // per-semester admit card); otherwise picks the current/nearest-upcoming period.
-export async function fetchExamDates(student, sem) {
+// `token` is the student portal's own session token. exam_calendar is open only
+// TO authenticated, so the portal reading it directly got an empty list and no
+// error — and the admit card then quietly GUESSED the examination session by
+// shifting the admission batch six months per semester. Semester 1 printed
+// "July 2025", the admission batch itself. Pass the token and the same rows
+// come back through the student's own function.
+export async function fetchExamDates(student, sem, token) {
   try {
     const sid = student?.session_id || null
     if (!sid) return { examDates: '', examTerm: '' }
@@ -25,12 +31,21 @@ export async function fetchExamDates(student, sem) {
     const typeName = student?.programs?.programme_types?.programme_type_name || ''
     const isPhd = /ph\.?\s*d|doctor of philosophy|doctoral/i.test(progName) || /doctorate|ph\.?\s*d|doctoral/i.test(typeName)
     const offset = isPhd ? 100 : 0
-    // exam_held needs add_exam_calendar_held.sql — retry without it so cards
-    // keep printing on an unmigrated database.
-    const build = (cols) => supabase.from('exam_calendar').select(cols)
-      .eq('session_id', sid).gt('semester', offset).lte('semester', offset + 12)
-    let { data, error } = await build('semester, start_date, end_date, exam_held, result_published')
-    if (error) ({ data } = await build('semester, start_date, end_date'))
+    let data, error
+    if (token) {
+      const res = await supabase.rpc('student_exam_calendar_self', { p_token: token })
+      error = res.error
+      data = (Array.isArray(res.data) ? res.data : [])
+        .filter(r => r.semester > offset && r.semester <= offset + 12)
+    } else {
+      // exam_held needs add_exam_calendar_held.sql — retry without it so cards
+      // keep printing on an unmigrated database.
+      const build = (cols) => supabase.from('exam_calendar').select(cols)
+        .eq('session_id', sid).gt('semester', offset).lte('semester', offset + 12)
+      ;({ data, error } = await build('semester, start_date, end_date, exam_held, result_published'))
+      if (error) ({ data } = await build('semester, start_date, end_date'))
+    }
+    if (error && !data) return { examDates: '', examTerm: '' }
     // A row may carry only the typed "Exam. Held" label, with no dates yet.
     const rows = (data || []).filter(r => r.start_date || r.end_date || r.exam_held)
     if (!rows.length) return { examDates: '', examTerm: '' }

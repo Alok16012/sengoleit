@@ -59,10 +59,13 @@ async function subjectsForCard(s, card) {
 // examSchedule / the admitCardAt release gate, and fetchExamDates the
 // examination dates for that term. Passing only the dates left the student's
 // own download without a schedule and skipped the date gate.
+//
+// fetchExamDates gets the portal's token: exam_calendar is closed to anon, and
+// without it the card guessed the examination session instead of reading it.
 async function cardMeta(s, card) {
   const [settings, dates] = await Promise.all([
     fetchExamSettingsMeta(s),
-    fetchExamDates(s, card?.semester),
+    fetchExamDates(s, card?.semester, studentSession()?.token),
   ])
   return { ...settings, ...dates, ...(card ? { semester: card.semester } : {}) }
 }
