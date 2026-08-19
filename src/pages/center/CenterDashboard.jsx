@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
-import { Users, CheckCircle, Clock, Wallet, UserPlus, Truck, FileCheck, UserCheck, Lock } from 'lucide-react'
+import { Users, CheckCircle, Clock, Wallet, UserPlus, Truck, FileCheck, UserCheck, Lock, RefreshCw, GraduationCap } from 'lucide-react'
 
 const QUICK_ACTIONS = [
   { label: 'Student Entry', icon: UserPlus, color: 'bg-emerald-500', hover: 'hover:bg-emerald-600', to: '/center/students/new' },
+  { label: 'Re-Registration', icon: RefreshCw, color: 'bg-blue-600', hover: 'hover:bg-blue-700', to: '/center/re-registration' },
+  // The centre's exam work — admit cards and results — lives on the approved
+  // list, so that is where this goes rather than a screen of its own.
+  { label: 'Exam', icon: GraduationCap, color: 'bg-rose-500', hover: 'hover:bg-rose-600', to: '/center/reports/approved' },
   { label: 'Payment Deposit Entry', icon: Wallet, color: 'bg-[#933d18]', hover: 'hover:bg-[#7a3213]', to: '/center/balance' },
   { label: 'Courier Entry', icon: Truck, color: 'bg-teal-600', hover: 'hover:bg-teal-700', to: '/center/courier' },
   { label: 'Student Answersheet', icon: FileCheck, color: 'bg-amber-500', hover: 'hover:bg-amber-600', to: '/center/answersheet' },

@@ -105,6 +105,16 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
                         {term.nextLabel} fee: <span className="font-semibold text-gray-700">{money(info?.fee)}</span>
                       </p>
                     )}
+                    {/* A ₹0 hold is the commonest thing a centre queries — it
+                        looks like the deduction failed. Say which of the two
+                        reasons it is instead of printing a bare zero. */}
+                    {!request && info && Number(info.hold) === 0 && (
+                      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+                        {Number(info.fee) === 0
+                          ? `No fee is set for ${term.nextLabel} in this course's fee structure, so there is nothing to hold.`
+                          : `${term.nextLabel}'s fee is already collected for this student, so nothing is held — approving only moves the term forward.`}
+                      </p>
+                    )}
                     <p className="text-sm">
                       <span className="text-gray-500">
                         {!request ? 'Held from the centre\'s wallet now: '
