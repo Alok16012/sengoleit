@@ -73,7 +73,9 @@ function openWindow(html, title) {
   win.focus()
 }
 
-function uniHeader() {
+// `address: false` drops the address line — the admit card already carries it
+// in its footer band, and printing it twice on one card is just noise.
+function uniHeader({ address = true } = {}) {
   return `
     <table style="width:100%;border-collapse:collapse;">
       <tr>
@@ -84,7 +86,7 @@ function uniHeader() {
         </td>
         <td style="text-align:center;vertical-align:middle;padding:0 10px;">
           <div style="font-size:22px;font-weight:900;color:${BRAND};letter-spacing:0.04em;">${UNI_NAME.toUpperCase()}</div>
-          <div style="font-size:9px;color:#555;margin-top:3px;font-weight:600;">${UNI_ADDRESS}</div>
+          ${address ? `<div style="font-size:9px;color:#555;margin-top:3px;font-weight:600;">${UNI_ADDRESS}</div>` : ''}
           <div style="font-size:8px;color:#888;margin-top:2px;">${UNI_ESTD}</div>
         </td>
         <td style="width:72px;vertical-align:middle;text-align:center;">
@@ -286,15 +288,13 @@ export function examSessionLabel(sessionName, sem) {
   return `${name[0].toUpperCase()}${name.slice(1)} ${Number(m[2]) + Math.floor(total / 12)}`
 }
 
-export function generateAdmitCard(s, subjects = [], meta = {}) {
-  // Hard gate: admit card cannot be generated before the configured date/time.
-  if (meta.admitCardAt) {
-    const releaseAt = new Date(meta.admitCardAt)
-    if (!isNaN(releaseAt.getTime()) && Date.now() < releaseAt.getTime()) {
-      alert(`Admit card will be available from ${meta.admitCardTime || releaseAt.toLocaleString('en-IN')}. It cannot be generated before that.`)
-      return
-    }
-  }
+// The card itself — the bordered block, with no page around it. The printed
+// card and the student portal's preview both render THIS one builder. The
+// preview used to be a second copy written by hand in JSX, and had drifted
+// from the card it previews: one logo instead of two, the admission session
+// where the examination session belongs, and no Semester / Academic Year /
+// Exam Schedule rows at all.
+export function admitCardHTML(s, subjects = [], meta = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   // Two different sessions live on the card and must not be conflated:
   // the "Session" row is the student's ADMISSION batch (July 2025 stays July
@@ -311,24 +311,18 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
   const semester      = meta.semester || ''
   const acadYear      = s.academic_year || ''
 
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-  <title>Admit Card — ${v(s.student_name)}</title>${baseStyle}
-  <style>
-    .bordered { border:2px solid #333; }
-    .cell-hd { background:${BRAND};color:#fff;text-align:center;font-weight:700;font-size:10px;padding:5px 8px; }
-    .cell-val { text-align:center;font-size:11px;font-weight:700;color:#333;padding:6px 8px; }
-  </style>
-</head>
-<body>
-<div style="max-width:680px;margin:24px auto;">
-  ${printBtn()}
+  // Inline rather than classes, and the font named on the wrapper: this
+  // fragment also renders inside the portal, where the popup's <style> block
+  // and its Arial body font do not exist.
+  const HD  = `background:${BRAND};color:#fff;text-align:center;font-weight:700;font-size:10px;padding:5px 8px;`
+  const VAL = `text-align:center;font-size:11px;font-weight:700;color:#333;padding:6px 8px;`
 
-  <!-- CARD -->
-  <div style="border:2.5px solid #333;background:#fff;padding:0;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
+  return `
+  <div style="border:2.5px solid #333;background:#fff;padding:0;box-shadow:0 4px 20px rgba(0,0,0,0.12);font-family:Arial,Helvetica,sans-serif;color:#111;">
 
     <!-- University header -->
     <div style="padding:14px 18px 10px;border-bottom:2px solid #333;">
-      ${uniHeader()}
+      ${uniHeader({ address: false })}
     </div>
 
     <!-- ADMIT CARD title -->
@@ -344,24 +338,24 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
     ${isPhd ? `
     <table style="width:100%;border-collapse:collapse;border-bottom:2px solid #333;">
       <tr>
-        <td class="cell-hd" style="width:50%;border-right:2px solid #333;">Application No.</td>
-        <td class="cell-hd" style="width:50%;">University / Dept. Code</td>
+        <td style="${HD}width:50%;border-right:2px solid #333;">Application No.</td>
+        <td style="${HD}width:50%;">University / Dept. Code</td>
       </tr>
       <tr>
-        <td class="cell-val" style="border-right:2px solid #333;">${v(s.admission_number)}</td>
-        <td class="cell-val">${deptCode}</td>
+        <td style="${VAL}border-right:2px solid #333;">${v(s.admission_number)}</td>
+        <td style="${VAL}">${deptCode}</td>
       </tr>
     </table>` : `
     <table style="width:100%;border-collapse:collapse;border-bottom:2px solid #333;">
       <tr>
-        <td class="cell-hd" style="width:33%;border-right:2px solid #333;">Registration No.</td>
-        <td class="cell-hd" style="width:33%;border-right:2px solid #333;">Roll No (Enrollment)</td>
-        <td class="cell-hd" style="width:34%;">University / Dept. Code</td>
+        <td style="${HD}width:33%;border-right:2px solid #333;">Registration No.</td>
+        <td style="${HD}width:33%;border-right:2px solid #333;">Roll No (Enrollment)</td>
+        <td style="${HD}width:34%;">University / Dept. Code</td>
       </tr>
       <tr>
-        <td class="cell-val" style="border-right:2px solid #333;">${v(s.registration_no)}</td>
-        <td class="cell-val" style="border-right:2px solid #333;">${v(s.enrollment_no)}</td>
-        <td class="cell-val">${deptCode}</td>
+        <td style="${VAL}border-right:2px solid #333;">${v(s.registration_no)}</td>
+        <td style="${VAL}border-right:2px solid #333;">${v(s.enrollment_no)}</td>
+        <td style="${VAL}">${deptCode}</td>
       </tr>
     </table>`}
 
@@ -446,7 +440,25 @@ export function generateAdmitCard(s, subjects = [], meta = {}) {
     <div style="background:${BRAND};color:#fff;text-align:center;padding:5px 10px;border-top:2px solid #333;">
       <span style="font-size:8.5px;font-weight:600;">${UNI_ADDRESS}</span>
     </div>
-  </div>
+  </div>`
+}
+
+export function generateAdmitCard(s, subjects = [], meta = {}) {
+  // Hard gate: admit card cannot be generated before the configured date/time.
+  if (meta.admitCardAt) {
+    const releaseAt = new Date(meta.admitCardAt)
+    if (!isNaN(releaseAt.getTime()) && Date.now() < releaseAt.getTime()) {
+      alert(`Admit card will be available from ${meta.admitCardTime || releaseAt.toLocaleString('en-IN')}. It cannot be generated before that.`)
+      return
+    }
+  }
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+  <title>Admit Card — ${v(s.student_name)}</title>${baseStyle}
+</head>
+<body>
+<div style="max-width:680px;margin:24px auto;">
+  ${printBtn()}
+  ${admitCardHTML(s, subjects, meta)}
 </div>
 </body></html>`
   openWindow(html, 'Admit Card')
