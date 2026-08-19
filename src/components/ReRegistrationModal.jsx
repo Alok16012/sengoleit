@@ -8,8 +8,9 @@ import {
 } from '../utils/reRegistration'
 
 // Re-Registration for one student.
-//   mode="request" — the centre raises it
-//   mode="review"  — the admin approves or rejects it
+//   mode="request" — the centre raises it, and the fee leaves its wallet here
+//   mode="review"  — the admin approves (crediting the held fee to the student)
+//                    or rejects it (returning the fee to the centre)
 export default function ReRegistrationModal({ student, request, mode, onClose, onDone }) {
   const [info, setInfo] = useState(null)
   const [remarks, setRemarks] = useState('')
@@ -26,19 +27,21 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
     return () => { alive = false }
   }, [student])
 
-  // A pending request carries the amount agreed when it was raised — capped at
-  // what the target term still lacks TODAY, mirroring the approval: the Exam
-  // Section may have collected the term's fee since (its admit-card Collect
-  // flow), and the admin should see the ₹0 that will actually be taken, not
-  // the stale figure.
-  const holdAmount = request
-    ? Math.min(Number(request.fee_amount || 0), info?.outstanding ?? Number(request.fee_amount || 0))
-    : (info?.hold ?? 0)
+  // Money that is already out of the wallet is shown as it stands. Only a
+  // request still waiting to be charged — one raised before holds moved to
+  // request time — is re-capped against what the term lacks today, since the
+  // Exam Section may have collected it since (its admit-card Collect flow).
+  const alreadyHeld = !!request?.held_at
+  const holdAmount = !request
+    ? (info?.hold ?? 0)
+    : alreadyHeld
+      ? Number(request.fee_amount || 0)
+      : Math.min(Number(request.fee_amount || 0), info?.outstanding ?? Number(request.fee_amount || 0))
 
   async function submit() {
     setBusy(true); setErr('')
     let res
-    if (mode === 'request') res = await requestReRegistration({ student, feeAmount: info?.hold || 0, remarks })
+    if (mode === 'request') res = await requestReRegistration({ student, remarks })
     else res = await approveReRegistration(request)
     setBusy(false)
     if (res?.error) { setErr(res.error.message || 'Could not complete this.'); return }
@@ -103,7 +106,11 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
                       </p>
                     )}
                     <p className="text-sm">
-                      <span className="text-gray-500">Held from the centre's wallet: </span>
+                      <span className="text-gray-500">
+                        {!request ? 'Held from the centre\'s wallet now: '
+                          : alreadyHeld ? 'Already held from the centre\'s wallet: '
+                          : 'To be held from the centre\'s wallet: '}
+                      </span>
                       <span className="font-black text-[#933d18]">{money(holdAmount)}</span>
                     </p>
                   </>
@@ -128,7 +135,8 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
 
               {mode === 'request' && !request && (
                 <p className="text-[11px] text-gray-400">
-                  The university reviews this request. The fee is held only once it is approved.
+                  This amount leaves your wallet as soon as you send the request.
+                  It comes straight back if the university rejects it.
                 </p>
               )}
             </>
@@ -149,7 +157,9 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
           {!(term.atEnd && !request) && (
             <Button variant="primary" size="md" onClick={submit} disabled={busy || (mode === 'request' && info == null)}>
               <CheckCircle2 size={14} />
-              {busy ? 'Working…' : mode === 'review' ? 'Approve & Hold Fee' : 'Send Request'}
+              {busy ? 'Working…'
+                : mode !== 'review' ? 'Send Request'
+                : alreadyHeld ? 'Approve' : 'Approve & Hold Fee'}
             </Button>
           )}
         </div>

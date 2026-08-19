@@ -3,8 +3,12 @@ import { computeSemesterFeeStatus } from './courseFee'
 import { recordFeeDeduction } from './feeLedger'
 
 // Re-Registration — moving a student into their next semester / year.
-// The centre raises the request; the admin approves it, which holds the fee
-// from the centre's wallet and advances the student's term.
+// The centre raises the request, and the fee is held from its wallet there and
+// then; the admin's approval credits that money to the student and advances the
+// term, and a rejection puts it back. The hold used to wait for approval while
+// the centre's modal already said the money was held, so a centre that raised a
+// batch of requests watched its balance not move and had no way to tell whether
+// the deduction was broken or simply hadn't happened yet.
 
 const ORD = (n) => {
   const s = ['th', 'st', 'nd', 'rd'], v = n % 100
@@ -96,32 +100,81 @@ export async function registrationYears(student) {
   return years
 }
 
+// Take `amount` from a centre's wallet, or put it back with a negative amount.
+// The balance is read and written rather than incremented in place, so the write
+// is conditional on the value just read: a second request from the same centre
+// landing in between changes the balance, the update matches no row, and the
+// caller is told to retry instead of silently overwriting the other deduction.
+async function moveWallet(centerId, amount) {
+  if (!centerId || !amount) return {}
+  const { data: ctr, error } = await supabase
+    .from('centers').select('virtual_balance').eq('id', centerId).maybeSingle()
+  if (error) return { error }
+  const balance = Math.round(Number(ctr?.virtual_balance || 0))
+  if (amount > 0 && balance < amount) {
+    return { error: { message: `The centre's wallet has ₹${balance.toLocaleString('en-IN')} — ₹${amount.toLocaleString('en-IN')} is needed.` } }
+  }
+  const { data: rows, error: wErr } = await supabase.from('centers')
+    .update({ virtual_balance: balance - amount })
+    .eq('id', centerId).eq('virtual_balance', ctr?.virtual_balance ?? balance)
+    .select('id')
+  if (wErr) return { error: wErr }
+  if (!rows || !rows.length) {
+    return { error: { message: 'The centre wallet changed while this was being saved. Please try again.' } }
+  }
+  return {}
+}
+
+// Whether re_registrations carries held_at yet. Without the column there is
+// nowhere to record that the money was taken, so the old behaviour — charge at
+// approval — stays in force rather than risking a hold nothing can refund.
+async function canHoldAtRequest() {
+  const { error } = await supabase.from('re_registrations').select('held_at').limit(1)
+  return !error
+}
+
 // Centre → request. One open request per student (enforced by a unique index).
-export async function requestReRegistration({ student, feeAmount, remarks }) {
+// The amount is re-derived here rather than trusted from the caller: the modal
+// worked it out before the centre typed its remarks, and the Exam Section may
+// have collected some of the term's fee in between.
+export async function requestReRegistration({ student, remarks }) {
   const t = nextTerm(student)
+  const centerId = student.center_id || student.centers?.id || null
+  const { hold } = await reRegistrationFee(student)
+  const charge = Math.max(Math.round(Number(hold) || 0), 0)
+  const holding = charge > 0 && centerId && (await canHoldAtRequest())
+
+  if (holding) {
+    const { error } = await moveWallet(centerId, charge)
+    if (error) return { error }
+  }
+
   const { error } = await supabase.from('re_registrations').insert({
     student_id: student.id,
-    center_id: student.center_id || student.centers?.id || null,
+    center_id: centerId,
     session_id: student.session_id || null,
     from_term: t.currentLabel,
     to_term: t.nextLabel,
-    fee_amount: feeAmount,
+    fee_amount: charge,
     remarks: remarks || null,
+    ...(holding ? { held_at: new Date().toISOString() } : {}),
   })
-  return { error }
+  // The money is out but the request never landed — put it back, or the centre
+  // is short with nothing on record to explain it.
+  if (error && holding) await moveWallet(centerId, -charge)
+  return { error, held: holding ? charge : 0 }
 }
 
-// Admin → approve. Holds the fee from the centre's wallet, advances the
-// student's term, and closes the request. The wallet is written first: if that
-// fails there is nothing to undo, whereas advancing the term first could leave
-// a student re-registered without the fee being taken.
+// Admin → approve. Credits the held fee to the student, advances the term and
+// closes the request.
 //
-// The amount actually taken is re-derived at approval time, not trusted from
-// the request: the Exam Section may have collected some or all of the target
-// term's fee since the request was raised (its admit-card "Collect" flow), and
-// the same term's money must never be taken twice. The charge is the request's
-// amount capped at what the term still lacks — ₹0 when it is fully paid, in
-// which case approving only advances the term.
+// A request raised since holds moved to request time already has its money out
+// of the wallet (held_at is set) — approving must not take it a second time.
+// A request raised before that does not, and is charged here exactly as it was:
+// the request's amount capped at what the term still lacks, so the Exam
+// Section's own admit-card collection is never taken twice. The wallet is
+// written before the term advances — advancing first could leave a student
+// re-registered with the fee never taken.
 export async function approveReRegistration(req) {
   const { data: st } = await supabase
     .from('students')
@@ -133,31 +186,24 @@ export async function approveReRegistration(req) {
   // 3–4). An unparseable term (old/odd data) falls back to charging as before.
   let charge = Number(req.fee_amount || 0)
   const termN = parseInt(String(req.to_term || ''), 10)
-  if (st && termN) {
-    const toSem = /year/i.test(req.to_term) ? termN * 2 : termN
-    const { sems } = await computeSemesterFeeStatus({
-      programme_id: st.programme_id,
-      session_id: st.session_id,
-      duration: Number(st.programs?.duration) || 1,
-      fee_collected: collectedNow,
-      coupon_discount: st.coupon_discount,
-    })
-    const due = sems.find(s => s.sem === toSem)?.dueFee ?? 0
-    const outstanding = Math.max(due - collectedNow, 0)
-    charge = Math.min(charge, outstanding)
-  }
 
-  if (charge > 0 && req.center_id) {
-    const { data: ctr } = await supabase
-      .from('centers').select('virtual_balance').eq('id', req.center_id).maybeSingle()
-    const balance = Number(ctr?.virtual_balance || 0)
-    if (balance < charge) {
-      return { error: { message: `The centre's wallet has ₹${balance.toLocaleString('en-IN')} — ₹${charge.toLocaleString('en-IN')} is needed.` } }
+  if (!req.held_at) {
+    if (st && termN) {
+      const toSem = /year/i.test(req.to_term) ? termN * 2 : termN
+      const { sems } = await computeSemesterFeeStatus({
+        programme_id: st.programme_id,
+        session_id: st.session_id,
+        duration: Number(st.programs?.duration) || 1,
+        fee_collected: collectedNow,
+        coupon_discount: st.coupon_discount,
+      })
+      const due = sems.find(s => s.sem === toSem)?.dueFee ?? 0
+      charge = Math.min(charge, Math.max(due - collectedNow, 0))
     }
-    const { error: wErr } = await supabase.from('centers')
-      .update({ virtual_balance: balance - charge })
-      .eq('id', req.center_id)
-    if (wErr) return { error: wErr }
+    if (charge > 0) {
+      const { error } = await moveWallet(req.center_id, charge)
+      if (error) return { error }
+    }
   }
 
   // Credit what was taken to the student's collected fee as well as advancing
@@ -189,9 +235,21 @@ export async function approveReRegistration(req) {
   return { error }
 }
 
+// Admin → reject. Whatever was held when the centre raised this goes back to
+// its wallet; a request that never held anything just closes.
 export async function rejectReRegistration(req, remarks) {
+  const held = req.held_at ? Math.round(Number(req.fee_amount) || 0) : 0
+  if (held > 0) {
+    const { error } = await moveWallet(req.center_id, -held)
+    if (error) return { error }
+  }
   const { error } = await supabase.from('re_registrations')
-    .update({ status: 'Rejected', decided_at: new Date().toISOString(), remarks: remarks || req.remarks })
+    .update({
+      status: 'Rejected',
+      decided_at: new Date().toISOString(),
+      remarks: remarks || req.remarks,
+      ...(held > 0 ? { held_at: null } : {}),
+    })
     .eq('id', req.id)
   return { error }
 }
@@ -201,11 +259,13 @@ export async function rejectReRegistration(req, remarks) {
 // the feature instead of erroring.
 export async function fetchReRegistrations(studentIds) {
   if (!studentIds?.length) return {}
-  const { data, error } = await supabase
-    .from('re_registrations')
-    .select('id, student_id, center_id, from_term, to_term, fee_amount, status, remarks, requested_at, decided_at')
-    .in('student_id', studentIds)
-    .order('requested_at', { ascending: false })
+  const cols = 'id, student_id, center_id, from_term, to_term, fee_amount, status, remarks, requested_at, decided_at'
+  const load = (c) => supabase.from('re_registrations').select(c)
+    .in('student_id', studentIds).order('requested_at', { ascending: false })
+  // held_at arrives with add_re_registration_hold.sql — retry without it so the
+  // page keeps working on a database that has not run the migration.
+  let { data, error } = await load(`${cols}, held_at`)
+  if (error) ({ data, error } = await load(cols))
   if (error) return null
   const byStudent = {}
   for (const r of data || []) if (!byStudent[r.student_id]) byStudent[r.student_id] = r
