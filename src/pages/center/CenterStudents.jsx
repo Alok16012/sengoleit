@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Search, Download, Send, RefreshCw } from 'lucide-react'
+import { Plus, Search, Download, Send, RefreshCw, PencilLine } from 'lucide-react'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
@@ -200,6 +200,18 @@ export default function CenterStudents() {
                 </Td>
                 <Td>
                   <div className="flex gap-1 items-center">
+                    {/* Sent back for correction. The centre has to be able to
+                        act on it from here: the Hold Student List that used to
+                        carry this button is hidden from centres, which left a
+                        held student with no way back into the form at all.
+                        The form itself unlocks only the flagged fields and
+                        returns the student to Pending on save. */}
+                    {stageOf(s) === 'Hold' && (
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/center/students/edit/${s.id}`)} title="Correct and resubmit">
+                        <PencilLine size={13} className="text-[#933d18]" />
+                        <span className="text-xs ml-1 text-[#933d18]">Correct</span>
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"
