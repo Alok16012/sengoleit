@@ -117,14 +117,27 @@ export async function fetchPaperMarksUpto(student, upto) {
 // authenticated — so reading them directly returned nothing and the sheet
 // printed a dash in every column. One SECURITY DEFINER function assembles it
 // instead, the same way the portal already reads its results and admit cards.
-// Returns null when the migration has not been run.
+// Returns { sheet } on success, or { reason } saying WHY there is no sheet.
+// It used to return null for everything — a database error, an unrun
+// migration, an expired session and a genuinely undeclared result all came out
+// as the same "not available yet", which is only true of the last one.
 export async function fetchMyMarksheet(token, semester) {
-  if (!token || !semester) return null
+  if (!token) return { reason: 'Your session has expired. Please sign in again.' }
+  if (!semester) return { reason: 'No semester was selected.' }
   const { data, error } = await supabase.rpc('student_marksheet_self', {
     p_token: token, p_semester: semester,
   })
-  if (error || !data || !data.papers) return null
-  return data
+  if (error) {
+    console.error('student_marksheet_self failed', error)
+    return { reason: `Could not read the marksheet: ${error.message || error.code || 'unknown error'}` }
+  }
+  if (!data || !data.papers) {
+    return { reason: `Semester ${semester}'s result is not published for your login yet.` }
+  }
+  if (!data.papers.length) {
+    return { reason: `No papers are recorded for Semester ${semester}. The Exam Section has to enter the marks first.` }
+  }
+  return { sheet: data }
 }
 
 // Replace a semester's marks for one student. Papers left blank are removed

@@ -57,10 +57,10 @@ export default function StudentResults() {
     const resolved = await resolveStudentDocUrls(data)
     // Everything comes through the portal's own function: the tables behind a
     // marksheet are open only TO authenticated, and this portal is not.
-    const sheet = await fetchMyMarksheet(studentSession()?.token, r.semester)
+    const { sheet, reason } = await fetchMyMarksheet(studentSession()?.token, r.semester)
     setPrinting(null)
     if (!sheet) {
-      alert('This marksheet is not available yet. Please contact your centre.')
+      alert(`${reason}\n\nIf this looks wrong, please contact your centre and quote this message.`)
       return
     }
     generateMarksStatement(resolved, sheet.papers, {
