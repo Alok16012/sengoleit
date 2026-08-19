@@ -73,9 +73,27 @@ function openWindow(html, title) {
   win.focus()
 }
 
-// `address: false` drops the address line — the admit card already carries it
-// in its footer band, and printing it twice on one card is just noise.
-function uniHeader({ address = true } = {}) {
+// The university's masthead, as the ID card draws it: logo left, the name
+// filling a maroon band, the establishment line beneath. One header now for
+// the ID card, admit card, registration certificate and admission form —
+// each used to draw its own, with a different logo count and a different
+// subtitle, so the four documents did not look like one university's.
+// Sized per document: the ID card is 600px, the certificates 680, the form A4.
+export function uniBandHeader({ logo = 46, name = 17, estd = 7 } = {}) {
+  return `
+    <div style="background:${BRAND};border-bottom:2px solid ${GOLD};display:flex;align-items:center;gap:12px;padding:9px 16px;">
+      <img src="${LOGO_URL}" width="${logo}" height="${logo}"
+        style="object-fit:contain;background:#fff;border-radius:50%;padding:3px;flex-shrink:0;"
+        onerror="this.style.display='none'"/>
+      <div style="line-height:1.15;">
+        <div style="color:#fff;font-size:${name}px;font-weight:900;letter-spacing:0.06em;">${UNI_NAME.toUpperCase()}</div>
+        <div style="color:rgba(255,255,255,0.82);font-size:${estd}px;font-weight:600;margin-top:3px;line-height:1.3;">${UNI_ESTD}</div>
+      </div>
+    </div>`
+}
+
+// The hall ticket's header: two logos with the address between them.
+function uniHeader() {
   return `
     <table style="width:100%;border-collapse:collapse;">
       <tr>
@@ -86,7 +104,7 @@ function uniHeader({ address = true } = {}) {
         </td>
         <td style="text-align:center;vertical-align:middle;padding:0 10px;">
           <div style="font-size:22px;font-weight:900;color:${BRAND};letter-spacing:0.04em;">${UNI_NAME.toUpperCase()}</div>
-          ${address ? `<div style="font-size:9px;color:#555;margin-top:3px;font-weight:600;">${UNI_ADDRESS}</div>` : ''}
+          <div style="font-size:9px;color:#555;margin-top:3px;font-weight:600;">${UNI_ADDRESS}</div>
           <div style="font-size:8px;color:#888;margin-top:2px;">${UNI_ESTD}</div>
         </td>
         <td style="width:72px;vertical-align:middle;text-align:center;">
@@ -193,15 +211,7 @@ export function generateIDCard(s) {
     <!-- Header: logo left, university name filling the maroon band. The band
          used to run edge-to-edge behind a floating logo box, which left a
          wide empty maroon strip to the right of it. -->
-    <div style="background:${BRAND};border-bottom:2px solid ${GOLD};display:flex;align-items:center;gap:12px;padding:9px 16px;">
-      <img src="${LOGO_URL}" width="46" height="46"
-        style="object-fit:contain;background:#fff;border-radius:50%;padding:3px;flex-shrink:0;"
-        onerror="this.style.display='none'"/>
-      <div style="line-height:1.15;">
-        <div style="color:#fff;font-size:17px;font-weight:900;letter-spacing:0.06em;">SENGOL INTERNATIONAL UNIVERSITY</div>
-        <div style="color:rgba(255,255,255,0.82);font-size:7px;font-weight:600;margin-top:3px;line-height:1.3;">${UNI_ESTD}</div>
-      </div>
-    </div>
+    ${uniBandHeader()}
 
     <!-- IDENTITY CARD title bar -->
     <div style="background:${BRAND};text-align:center;padding:4px;margin:10px 22px 8px;border-radius:5px;border-top:1.5px solid ${GOLD};border-bottom:1.5px solid ${GOLD};">
@@ -321,9 +331,7 @@ export function admitCardHTML(s, subjects = [], meta = {}) {
   <div style="border:2.5px solid #333;background:#fff;padding:0;box-shadow:0 4px 20px rgba(0,0,0,0.12);font-family:Arial,Helvetica,sans-serif;color:#111;">
 
     <!-- University header -->
-    <div style="padding:14px 18px 10px;border-bottom:2px solid #333;">
-      ${uniHeader({ address: false })}
-    </div>
+    ${uniBandHeader({ logo: 52, name: 19, estd: 8 })}
 
     <!-- ADMIT CARD title -->
     <div style="text-align:center;padding:8px;border-bottom:2px solid #333;background:#fafafa;">
@@ -496,9 +504,7 @@ export function generateRegistrationCertificate(s, opts = {}) {
   <div style="border:2.5px solid #333;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
 
     <!-- University header -->
-    <div style="padding:14px 18px 10px;border-bottom:2px solid #333;">
-      ${uniHeader()}
-    </div>
+    ${uniBandHeader({ logo: 52, name: 19, estd: 8 })}
 
     <!-- REGISTRATION CERTIFICATE title -->
     <div style="text-align:center;padding:8px;border-bottom:2px solid #333;background:#fafafa;">
@@ -590,7 +596,7 @@ export function generateRegistrationCertificate(s, opts = {}) {
 
     <!-- Footer -->
     <div style="background:${BRAND};color:#fff;text-align:center;padding:5px 10px;border-top:2px solid #333;">
-      <span style="font-size:8px;font-weight:600;">${UNI_NAME} &nbsp;·&nbsp; ${UNI_PHONE} &nbsp;|&nbsp; ${UNI_EMAIL} &nbsp;|&nbsp; ${UNI_WEB}</span>
+      <span style="font-size:8px;font-weight:600;">${UNI_ADDRESS} &nbsp;|&nbsp; ${UNI_PHONE} &nbsp;|&nbsp; ${UNI_EMAIL} &nbsp;|&nbsp; ${UNI_WEB}</span>
     </div>
   </div>
 </div>

@@ -1,16 +1,12 @@
 import { formatDate } from './formatDate'
+import { uniBandHeader } from './generateStudentCards'
 
-// Use the app's own bundled logo (resolved to an absolute URL so it works
-// inside window.open popups whose base URL is about:blank).
-const LOGO_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/logo.png'
 const UNI_NAME = 'Sengol International University'
-const UNI_TAGLINE = 'Educate, Empower, Excel'
 const UNI_ADDRESS = 'Lower Pepthang, PO - Lingmoo, District - Namchi, Sikkim - 737134'
 const UNI_PHONE = '+91-9205299887'
 const UNI_EMAIL = 'info@sengolinternationaluniversity.edu.in'
 const UNI_WEB = 'www.sengolinternationaluniversity.edu.in'
 const UNI_ACT = 'Established under Act No. 14 of 2025, Sikkim State Legislative Assembly'
-const UNI_UGC = 'Estb. by the Act of State Govt. & Under Section 2(f) of UGC Act 1956, Govt. of India'
 
 // Every DB-supplied value is interpolated into an HTML string and rendered via
 // document.write in the admin's browser — escape it, or a student-entered name
@@ -132,24 +128,7 @@ export function generateStudentPDF(s, programName, sessionName, centerName) {
 
   <!-- HEADER -->
   <div style="border:2px solid #933d18;border-radius:5px;overflow:hidden;margin-bottom:12px;">
-    <div style="background:#933d18;padding:10px 16px;">
-      <table>
-        <tr>
-          <td style="width:68px;vertical-align:middle;">
-            <img src="${LOGO_URL}" alt="Logo" width="60" height="60" style="border-radius:50%;background:#fff;padding:3px;object-fit:contain;" onerror="this.style.display='none'"/>
-          </td>
-          <td style="text-align:center;vertical-align:middle;padding:0 10px;">
-            <div style="color:#fff;font-size:20px;font-weight:900;letter-spacing:0.03em;">${UNI_NAME.toUpperCase()}</div>
-            <div style="color:rgba(255,255,255,0.85);font-size:8.5px;margin-top:2px;">${UNI_UGC}</div>
-            <div style="color:rgba(255,255,255,0.88);font-size:11px;margin-top:2px;font-style:italic;">${UNI_TAGLINE}</div>
-            <div style="color:rgba(255,255,255,0.65);font-size:8.5px;margin-top:3px;">${UNI_ACT}</div>
-          </td>
-          <td style="width:68px;vertical-align:middle;text-align:right;">
-            <img src="${LOGO_URL}" alt="Logo" width="60" height="60" style="border-radius:50%;background:#fff;padding:3px;object-fit:contain;" onerror="this.style.display='none'"/>
-          </td>
-        </tr>
-      </table>
-    </div>
+    ${uniBandHeader({ logo: 56, name: 20, estd: 8.5 })}
     <div style="background:#fef9f6;padding:5px 16px;text-align:center;border-top:1px solid #f0ebe7;">
       <span style="font-size:9px;color:#666;">${UNI_ADDRESS} &nbsp;|&nbsp; ${UNI_PHONE} &nbsp;|&nbsp; ${UNI_EMAIL} &nbsp;|&nbsp; ${UNI_WEB}</span>
     </div>
