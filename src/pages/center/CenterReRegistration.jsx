@@ -26,6 +26,8 @@ const FILTERS = [
   { key: 'all', label: 'All Enrolled' },
 ]
 
+const money = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
+
 export default function CenterReRegistration() {
   const { user } = useAuth()
   const [data, setData] = useState([])
@@ -165,8 +167,17 @@ export default function CenterReRegistration() {
                       </Td>
                       <Td>
                         {st === 'pending' ? (
+                          // Say what happened to the money, not just that the
+                          // request is waiting: a centre watching its balance
+                          // otherwise cannot tell a hold that failed from one
+                          // that is not due until the university approves.
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-lg whitespace-nowrap">
                             <Clock size={11} /> Awaiting verification
+                            {req && (req.held_at
+                              ? ` · ${money(req.fee_amount)} held`
+                              : Number(req.fee_amount) > 0
+                                ? ` · ${money(req.fee_amount)} on approval`
+                                : ' · nothing to hold')}
                           </span>
                         ) : st === 'final' ? (
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-lg whitespace-nowrap">
