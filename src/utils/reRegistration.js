@@ -100,6 +100,23 @@ export async function registrationYears(student) {
   return years
 }
 
+// Re-read the request straight from the table. held_at decides whether the fee
+// is already out of the wallet, and a caller that did not select that column
+// looks exactly like a request that was never held — so the Account Department,
+// whose own query omitted it, charged the centre a second time at verification:
+// 50% when the centre raised the request, the other 50% when the fee was
+// verified. Reading it here means no caller has to remember.
+async function liveRequest(req) {
+  const { data, error } = await supabase
+    .from('re_registrations')
+    .select('id, student_id, center_id, from_term, to_term, fee_amount, status, held_at')
+    .eq('id', req?.id).maybeSingle()
+  // No held_at column at all — nothing is held at request time either, so the
+  // caller's own view is right.
+  if (error || !data) return req
+  return { ...req, ...data }
+}
+
 // Take `amount` from a centre's wallet, or put it back with a negative amount.
 // The balance is read and written rather than incremented in place, so the write
 // is conditional on the value just read: a second request from the same centre
@@ -176,20 +193,21 @@ export async function requestReRegistration({ student, remarks }) {
 // written before the term advances — advancing first could leave a student
 // re-registered with the fee never taken.
 export async function approveReRegistration(req) {
+  const req2 = await liveRequest(req)
   const { data: st } = await supabase
     .from('students')
     .select('fee_collected, coupon_discount, programme_id, session_id, semester_year, programs(duration, semester_year)')
-    .eq('id', req.student_id).maybeSingle()
+    .eq('id', req2.student_id).maybeSingle()
   const collectedNow = Number(st?.fee_collected || 0)
 
   // The request's target term → its closing semester ("2nd Year" covers sems
   // 3–4). An unparseable term (old/odd data) falls back to charging as before.
-  let charge = Number(req.fee_amount || 0)
-  const termN = parseInt(String(req.to_term || ''), 10)
+  let charge = Number(req2.fee_amount || 0)
+  const termN = parseInt(String(req2.to_term || ''), 10)
 
-  if (!req.held_at) {
+  if (!req2.held_at) {
     if (st && termN) {
-      const toSem = /year/i.test(req.to_term) ? termN * 2 : termN
+      const toSem = /year/i.test(req2.to_term) ? termN * 2 : termN
       const { sems } = await computeSemesterFeeStatus({
         programme_id: st.programme_id,
         session_id: st.session_id,
@@ -201,7 +219,7 @@ export async function approveReRegistration(req) {
       charge = Math.min(charge, Math.max(due - collectedNow, 0))
     }
     if (charge > 0) {
-      const { error } = await moveWallet(req.center_id, charge)
+      const { error } = await moveWallet(req2.center_id, charge)
       if (error) return { error }
     }
   }
@@ -215,32 +233,33 @@ export async function approveReRegistration(req) {
   const curN = parseInt(String(st?.semester_year || ''), 10) || 0
   const advance = termN && termN > curN ? { semester_year: req.to_term } : {}
   const { error: sErr } = await supabase.from('students')
-    .update({ ...advance, fee_collected: collectedNow + charge }).eq('id', req.student_id)
+    .update({ ...advance, fee_collected: collectedNow + charge }).eq('id', req2.student_id)
   if (sErr) return { error: sErr }
 
   // Itemise the charge for the Payment Summary (best-effort — the money has
   // already moved and fee_collected is authoritative).
   await recordFeeDeduction({
-    studentId: req.student_id,
-    centerId: req.center_id,
+    studentId: req2.student_id,
+    centerId: req2.center_id,
     amount: charge,
     kind: 're_registration',
-    term: req.to_term,
-    note: `Re-Registration ${req.from_term} → ${req.to_term}`,
+    term: req2.to_term,
+    note: `Re-Registration ${req2.from_term} → ${req2.to_term}`,
   })
 
   const { error } = await supabase.from('re_registrations')
     .update({ status: 'Approved', decided_at: new Date().toISOString() })
-    .eq('id', req.id)
+    .eq('id', req2.id)
   return { error }
 }
 
 // Admin → reject. Whatever was held when the centre raised this goes back to
 // its wallet; a request that never held anything just closes.
 export async function rejectReRegistration(req, remarks) {
-  const held = req.held_at ? Math.round(Number(req.fee_amount) || 0) : 0
+  const req2 = await liveRequest(req)
+  const held = req2.held_at ? Math.round(Number(req2.fee_amount) || 0) : 0
   if (held > 0) {
-    const { error } = await moveWallet(req.center_id, -held)
+    const { error } = await moveWallet(req2.center_id, -held)
     if (error) return { error }
   }
   const { error } = await supabase.from('re_registrations')
