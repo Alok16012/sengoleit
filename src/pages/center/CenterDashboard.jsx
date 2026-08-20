@@ -31,6 +31,17 @@ function StatCard({ label, value, sub, icon: Icon, color }) {
   )
 }
 
+const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
+
+function holdBreakdown({ holdAmount, holdCount, reRegAmount, reRegCount }) {
+  if (holdAmount == null) return null
+  const parts = []
+  if (holdCount) parts.push(`${rupees(holdAmount)} for ${holdCount} student${holdCount > 1 ? 's' : ''}`)
+  if (reRegCount) parts.push(`${rupees(reRegAmount)} for ${reRegCount} re-registration${reRegCount > 1 ? 's' : ''}`)
+  if (!parts.length) return 'no fee is locked right now'
+  return `${parts.join(' · ')} — already deducted from your wallet`
+}
+
 export default function CenterDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -51,15 +62,28 @@ export default function CenterDashboard() {
             // haven't been approved/rejected yet. Exclude Approved/Rejected so a
             // stale fee_held left on a decided student never inflates the total.
             supabase.from('students').select('fee_held').eq('center_id', data.id).not('fee_held', 'is', null).not('status', 'in', '("Approved","Rejected")'),
-          ]).then(([total, admitted, pending, held]) => {
+            // Re-Registration holds live in their own table: the fee leaves the
+            // wallet when the centre raises the request and stays out until the
+            // university verifies or rejects it. Counting only students left the
+            // centre looking at a wallet that had visibly shrunk with nothing on
+            // the page accounting for the difference.
+            supabase.from('re_registrations').select('fee_amount')
+              .eq('center_id', data.id).eq('status', 'Pending').not('held_at', 'is', null),
+          ]).then(([total, admitted, pending, held, reReg]) => {
             // A TOTAL across students, not a per-student figure — the card says
             // so, because two students holding Rs 2,000 each reads exactly like
             // one student holding Rs 4,000 otherwise.
             const holdRows = held.data || []
             const holdAmount = holdRows.reduce((sum, r) => sum + Number(r.fee_held || 0), 0)
+            // held_at arrives with add_re_registration_hold.sql. Without it
+            // nothing is held at request time either, so an error here is
+            // correctly read as "no re-registration money is locked".
+            const reRegRows = reReg.error ? [] : (reReg.data || [])
+            const reRegAmount = reRegRows.reduce((sum, r) => sum + Number(r.fee_amount || 0), 0)
             setStats({
               total: total.count, admitted: admitted.count, pending: pending.count,
               holdAmount, holdCount: holdRows.length,
+              reRegAmount, reRegCount: reRegRows.length,
             })
           })
         }
@@ -118,10 +142,12 @@ export default function CenterDashboard() {
         <StatCard label="Pending Students" value={stats.pending} icon={Clock} color="bg-amber-500" />
         <StatCard
           label="Hold Amount"
-          value={stats.holdAmount != null ? `₹${Number(stats.holdAmount).toLocaleString('en-IN')}` : '—'}
-          sub={stats.holdCount
-            ? `across ${stats.holdCount} student${stats.holdCount > 1 ? 's' : ''} · already deducted from your wallet`
-            : stats.holdAmount === 0 ? 'no fee is locked right now' : null}
+          value={stats.holdAmount != null
+            ? `₹${(Number(stats.holdAmount) + Number(stats.reRegAmount || 0)).toLocaleString('en-IN')}`
+            : '—'}
+          // The split, not one merged total: a centre chasing a shrunken wallet
+          // needs to see WHICH pending work is holding the money.
+          sub={holdBreakdown(stats)}
           icon={Lock}
           color="bg-blue-500"
         />
