@@ -1,5 +1,5 @@
 import { useEffect, useState, Fragment } from 'react'
-import { supabase, supabaseAdmin } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
@@ -88,16 +88,12 @@ export default function CouponManagement() {
     const payload = next
       ? { is_activated: true, activated_at: new Date().toISOString() }
       : { is_activated: false }
-    // Must use the admin client: anon UPDATE on `coupons` silently no-ops under
-    // RLS, so the change never reaches the DB and the center/super-center view
-    // keeps showing the old status. Verify the row actually changed via .select().
-    const db = supabaseAdmin || supabase
-    const { data, error } = await db.from('coupons').update(payload).eq('id', c.id).select('id')
+    const { error } = await supabase.rpc('admin_toggle_coupon', {
+      p_id: c.id,
+      p_is_activated: next,
+      p_activated_at: payload.activated_at || null,
+    })
     if (error) { alert('Could not update: ' + error.message); return }
-    if (!data || data.length === 0) {
-      alert('Update did not apply (row not changed). Check coupons RLS / admin key.')
-      return
-    }
     setCoupons(prev => prev.map(x => x.id === c.id ? { ...x, is_activated: next } : x))
   }
 
@@ -106,23 +102,22 @@ export default function CouponManagement() {
     const amount = Math.round(Number(editAmount) || 0)
     if (!editCode || amount < 1) { alert('Enter a valid amount (₹1 or more).'); return }
     setEditSaving(true)
-    const { error } = await supabase.from('coupons').update({ face_value: amount }).eq('id', editCode.id)
+    const { error } = await supabase.rpc('admin_update_coupon', {
+      p_id: editCode.id,
+      p_face_value: amount,
+    })
     setEditSaving(false)
     if (error) { alert('Could not update: ' + error.message); return }
     setCoupons(prev => prev.map(x => x.id === editCode.id ? { ...x, face_value: amount } : x))
     setEditCode(null); setEditAmount('')
   }
 
-  // Delete an unused approval code outright. RLS on `coupons` blocks DELETE for the
-  // anon role (UPDATE is allowed), so a plain delete returns 200 with 0 rows removed
-  // and silently fails. Use the service-role admin client (as elsewhere) and verify a
-  // row was actually deleted before updating the UI.
+  // Delete an unused approval code outright. Uses SECURITY DEFINER RPC so
+  // the delete bypasses RLS without a service-role key in the browser.
   async function deleteCode(c) {
     if (!confirm(`Delete approval code ${c.coupon_code || c.id?.slice(0, 8).toUpperCase()}? This cannot be undone.`)) return
-    const db = supabaseAdmin || supabase
-    const { data, error } = await db.from('coupons').delete().eq('id', c.id).select('id')
+    const { error } = await supabase.rpc('admin_delete_coupon', { p_id: c.id })
     if (error) { alert('Could not delete: ' + error.message); return }
-    if (!data || data.length === 0) { alert('Could not delete this code — permission denied.'); return }
     setCoupons(prev => prev.filter(x => x.id !== c.id))
   }
 
@@ -130,10 +125,13 @@ export default function CouponManagement() {
     const amount = Math.round(Number(directAmount) || 0)
     if (!directCenterId || amount < 1) return
     setDirectSaving(true)
-    const { data: inserted, error } = await supabase.from('coupons')
-      .insert({ center_id: directCenterId, face_value: amount, coupon_type: directType })
-      .select('id, coupon_code')
-      .single()
+    // Use SECURITY DEFINER RPC so the admin INSERT bypasses RLS without
+    // ever loading a service-role key into the browser.
+    const { data: inserted, error } = await supabase.rpc('admin_create_single_coupon', {
+      p_center_id: directCenterId,
+      p_face_value: amount,
+      p_coupon_type: directType,
+    })
     setDirectSaving(false)
     if (error) { alert('Error generating code: ' + error.message); return }
     const center = centers.find(c => c.id === directCenterId)
