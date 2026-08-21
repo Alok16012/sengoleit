@@ -31,10 +31,12 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
   // request still waiting to be charged — one raised before holds moved to
   // request time — is re-capped against what the term lacks today, since the
   // Exam Section may have collected it since (its admit-card Collect flow).
+  // Approved/Rejected requests show fee_amount as-is: the transaction is done.
   const alreadyHeld = !!request?.held_at
+  const isDecided = request && (request.status === 'Approved' || request.status === 'Rejected')
   const holdAmount = !request
     ? (info?.hold ?? 0)
-    : alreadyHeld
+    : alreadyHeld || isDecided
       ? Number(request.fee_amount || 0)
       : Math.min(Number(request.fee_amount || 0), info?.outstanding ?? Number(request.fee_amount || 0))
 
@@ -118,11 +120,20 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
                     <p className="text-sm">
                       <span className="text-gray-500">
                         {!request ? 'Held from the centre\'s wallet now: '
+                          : isDecided ? 'Collected at approval: '
                           : alreadyHeld ? 'Already held from the centre\'s wallet: '
                           : 'To be held from the centre\'s wallet: '}
                       </span>
                       <span className="font-black text-[#933d18]">{money(holdAmount)}</span>
                     </p>
+                    {/* Old requests (before held_at existed) that were approved with a
+                        non-zero fee_amount may show the full amount here — say so
+                        plainly so the centre doesn't think it's about to pay again. */}
+                    {isDecided && !alreadyHeld && Number(holdAmount) > 0 && (
+                      <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 mt-1">
+                        This request was approved before wallet-holds were introduced. The ₹{Number(holdAmount).toLocaleString('en-IN')} was charged at approval time from your wallet.
+                      </p>
+                    )}
                   </>
                 )}
               </div>

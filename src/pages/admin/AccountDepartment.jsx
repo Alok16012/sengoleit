@@ -1549,7 +1549,7 @@ export default function AccountDepartment() {
                     <Td className="text-gray-500 text-xs">{r.centers?.center_name || '—'}</Td>
                     <Td className="text-gray-500 text-xs">{r.students?.programs?.program_name || '—'}</Td>
                     <Td className="text-gray-700 text-xs font-semibold whitespace-nowrap">{r.from_term} → {r.to_term}</Td>
-                    <Td className="text-gray-700 text-sm font-bold">₹{Number(r.fee_amount || 0).toLocaleString('en-IN')}</Td>
+                    <Td className="text-gray-700 text-sm font-bold">₹{(r.held_at ? Number(r.fee_amount || 0) : Math.round(Number(r.fee_amount || 0) / 2)).toLocaleString('en-IN')}</Td>
                     <Td className="text-gray-500 text-xs whitespace-nowrap">{formatDate(r.requested_at)}</Td>
                     <Td>
                       <Badge status={r.status === 'Pending' ? 'pending' : r.status === 'Approved' ? 'approved' : 'rejected'}>{r.status}</Badge>
