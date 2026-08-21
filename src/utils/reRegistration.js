@@ -187,11 +187,9 @@ export async function requestReRegistration({ student, remarks }) {
 //
 // A request raised since holds moved to request time already has its money out
 // of the wallet (held_at is set) — approving must not take it a second time.
-// A request raised before that does not, and is charged here exactly as it was:
-// the request's amount capped at what the term still lacks, so the Exam
-// Section's own admit-card collection is never taken twice. The wallet is
-// written before the term advances — advancing first could leave a student
-// re-registered with the fee never taken.
+// The amount credited to the student is recalculated from scratch as the
+// target term's remaining balance after everything collected so far, so the
+// Exam Section's admit-card collection is never counted twice.
 export async function approveReRegistration(req) {
   const req2 = await liveRequest(req)
   const { data: st } = await supabase
@@ -200,48 +198,66 @@ export async function approveReRegistration(req) {
     .eq('id', req2.student_id).maybeSingle()
   const collectedNow = Number(st?.fee_collected || 0)
 
-  // The request's target term → its closing semester ("2nd Year" covers sems
-  // 3–4). An unparseable term (old/odd data) falls back to charging as before.
-  let charge = Number(req2.fee_amount || 0)
   const termN = parseInt(String(req2.to_term || ''), 10)
+  const toSem = /year/i.test(req2.to_term) ? termN * 2 : termN
+
+  // Recalculate the target term's remaining balance from scratch. This is the
+  // authoritative amount — it accounts for admission, any previous
+  // re-registration, AND any exam-shortfall collection that happened while
+  // this request was pending.
+  const { sems } = await computeSemesterFeeStatus({
+    programme_id: st.programme_id,
+    session_id: st.session_id,
+    duration: Number(st.programs?.duration) || 1,
+    fee_collected: collectedNow,
+    coupon_discount: st.coupon_discount,
+  })
+  const termDue = sems.find(s => s.sem === toSem)?.dueFee ?? 0
+  const remaining = Math.max(termDue - collectedNow, 0)
 
   if (!req2.held_at) {
-    if (st && termN) {
-      const toSem = /year/i.test(req2.to_term) ? termN * 2 : termN
-      const { sems } = await computeSemesterFeeStatus({
-        programme_id: st.programme_id,
-        session_id: st.session_id,
-        duration: Number(st.programs?.duration) || 1,
-        fee_collected: collectedNow,
-        coupon_discount: st.coupon_discount,
-      })
-      const due = sems.find(s => s.sem === toSem)?.dueFee ?? 0
-      charge = Math.min(charge, Math.max(due - collectedNow, 0))
-    }
+    // Old flow: charge at approval. Cap at what the term still lacks.
+    const charge = Math.min(Number(req2.fee_amount || 0), remaining)
     if (charge > 0) {
       const { error } = await moveWallet(req2.center_id, charge)
       if (error) return { error }
     }
+    // Credit the student.
+    if (charge > 0) {
+      const { error: sErr } = await supabase.from('students')
+        .update({ fee_collected: collectedNow + charge }).eq('id', req2.student_id)
+      if (sErr) return { error: sErr }
+    }
+  } else {
+    // New flow: money already left the wallet at request time. Credit only
+    // what the term still lacks — the Exam Section may have collected part
+    // of it from the same wallet while the request was pending.
+    const credit = Math.min(remaining, Number(req2.fee_amount || 0))
+    if (credit > 0) {
+      const { error: sErr } = await supabase.from('students')
+        .update({ fee_collected: collectedNow + credit }).eq('id', req2.student_id)
+      if (sErr) return { error: sErr }
+    }
   }
 
-  // Credit what was taken to the student's collected fee as well as advancing
-  // the term. The admit card gate reads fee_collected, so without this the
-  // centre paid for the next term and the student still could not sit its exam.
-  // The term only ever moves FORWARD: if the Exam Section has already advanced
-  // the student past this request's target, approving the stale request must
-  // not drag them back.
+  // Advance the term (only forward — Exam Section may already be ahead).
   const curN = parseInt(String(st?.semester_year || ''), 10) || 0
-  const advance = termN && termN > curN ? { semester_year: req.to_term } : {}
-  const { error: sErr } = await supabase.from('students')
-    .update({ ...advance, fee_collected: collectedNow + charge }).eq('id', req2.student_id)
-  if (sErr) return { error: sErr }
+  const advance = termN && termN > curN ? { semester_year: req2.to_term } : {}
+  if (Object.keys(advance).length) {
+    const { error: aErr } = await supabase.from('students')
+      .update(advance).eq('id', req2.student_id)
+    if (aErr) return { error: aErr }
+  }
 
   // Itemise the charge for the Payment Summary (best-effort — the money has
   // already moved and fee_collected is authoritative).
+  const finalAmount = !req2.held_at
+    ? Math.min(Number(req2.fee_amount || 0), remaining)
+    : Math.min(remaining, Number(req2.fee_amount || 0))
   await recordFeeDeduction({
     studentId: req2.student_id,
     centerId: req2.center_id,
-    amount: charge,
+    amount: finalAmount,
     kind: 're_registration',
     term: req2.to_term,
     note: `Re-Registration ${req2.from_term} → ${req2.to_term}`,
