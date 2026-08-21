@@ -14,7 +14,7 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, formatDateTime, approvalPaymentDate } from '../../utils/formatDate'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
-import { recordFeeDeduction } from '../../utils/feeLedger'
+import { recordFeeDeduction, fetchFeeLedger, LEDGER_KIND_LABEL } from '../../utils/feeLedger'
 
 const TABS = [
   { key: 'students', label: 'Student Applications' },
@@ -67,6 +67,7 @@ export default function AccountDepartment() {
   const [studentFee, setStudentFee] = useState({ loading: false, courseFee: 0, discount: 0, balance: 0, couponCode: '' })
   const [viewStudent, setViewStudent] = useState(null)
   const [viewLoading, setViewLoading] = useState(false)
+  const [viewLedger, setViewLedger] = useState(null)
   const [downloading, setDownloading] = useState(null)
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({})
@@ -666,6 +667,7 @@ export default function AccountDepartment() {
 
   async function handleViewStudent(studentId) {
     setViewLoading(true)
+    setViewLedger(null)
     const { data } = await supabase
       .from('students')
       .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name), study_modes(mode_name)')
@@ -673,6 +675,10 @@ export default function AccountDepartment() {
       .single()
     const resolved = await resolveStudentDocUrls(data)
     setViewStudent(resolved)
+    // Fetch the itemised fee ledger so the detail modal can show exactly
+    // what was deducted and when — admission, each re-registration hold,
+    // and each exam-balance collection by the Exam Section.
+    setViewLedger(await fetchFeeLedger([studentId]))
     setViewLoading(false)
   }
 
@@ -1923,6 +1929,11 @@ export default function AccountDepartment() {
               </div>
             )}
 
+            {/* Fee Breakdown — itemised from student_fee_ledger */}
+            {viewLedger !== null && (
+              <FeeBreakdown entries={viewLedger[viewStudent.id] || []} />
+            )}
+
             <div className="flex gap-3 pt-1 border-t border-gray-100 sticky bottom-0 bg-white pb-1">
               <Button variant="success" onClick={() => { setViewStudent(null); handleStudentApprove(viewStudent) }}>
                 <CheckCircle size={14} /> Approve
@@ -2834,6 +2845,53 @@ export default function AccountDepartment() {
         />
       )}
 
+    </div>
+  )
+}
+
+// ── Fee Breakdown sub-component ──────────────────────────────────────────────
+// Renders the itemised fee ledger for one student inside the detail modal.
+function FeeBreakdown({ entries }) {
+  const fmt = n => `₹${Number(n || 0).toLocaleString('en-IN')}`
+  const total = entries.reduce((s, e) => s + Number(e.amount || 0), 0)
+  if (!entries.length) return (
+    <div className="bg-white border border-gray-100 rounded-xl p-3">
+      <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-2">Fee Breakdown</p>
+      <p className="text-xs text-gray-400">No ledger entries recorded yet for this student.</p>
+    </div>
+  )
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl p-3">
+      <p className="text-xs font-bold text-[#933d18] uppercase tracking-wider mb-2">Fee Breakdown</p>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-gray-100">
+            <th className="text-left py-1 text-gray-400 font-semibold">Date</th>
+            <th className="text-left py-1 text-gray-400 font-semibold">Deducted For</th>
+            <th className="text-left py-1 text-gray-400 font-semibold">Note</th>
+            <th className="text-right py-1 text-gray-400 font-semibold">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(e => (
+            <tr key={e.id} className="border-b border-gray-50">
+              <td className="py-1.5 text-gray-500 whitespace-nowrap">{formatDate(e.created_at)}</td>
+              <td className="py-1.5">
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-700">
+                  {LEDGER_KIND_LABEL[e.kind] || e.kind}
+                </span>
+                {e.term && <span className="text-[11px] text-gray-500 ml-1">{e.term}</span>}
+              </td>
+              <td className="py-1.5 text-gray-500">{e.note || '—'}</td>
+              <td className="py-1.5 text-right font-black text-red-600">− {fmt(e.amount)}</td>
+            </tr>
+          ))}
+          <tr>
+            <td colSpan={3} className="py-1.5 text-right font-bold text-gray-700 border-t border-gray-200">Total Deducted</td>
+            <td className="py-1.5 text-right font-black text-red-700 border-t border-gray-200">− {fmt(total)}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   )
 }

@@ -26,6 +26,7 @@ const adminLinks = [
   { to: '/admin/students', icon: Users, label: 'Students' },
   { to: '/admin/document-department', icon: ShieldCheck, label: 'Document Dept.' },
   { to: '/admin/account-department', icon: Wallet, label: 'Account Dept.' },
+  { to: '/admin/payment-summary', icon: CreditCard, label: 'Payment Summary' },
   { to: '/admin/research-department', icon: FlaskConical, label: 'Research Dept.' },
   { to: '/admin/wallet-summary', icon: TrendingUp, label: 'Wallet Summary' },
   { to: '/admin/coupons', icon: Ticket, label: 'Coupon Management' },

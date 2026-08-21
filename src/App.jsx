@@ -168,6 +168,7 @@ export default function App() {
 
             <Route path="/admin/location" element={<Location />} />
             <Route path="/admin/account-department" element={<AccountDepartment />} />
+            <Route path="/admin/payment-summary" element={<PaymentSummary />} />
             <Route path="/admin/document-department" element={<DocumentDepartment />} />
             <Route path="/admin/research-department" element={<ResearchDepartment />} />
             <Route path="/admin/fee-management" element={<FeeManagement />} />

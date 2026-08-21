@@ -39,6 +39,11 @@ export default function PaymentSummary() {
 
   useEffect(() => {
     if (!user) return
+    if (role === 'admin') {
+      // Admin has no center — fetch all students directly.
+      fetchPayments(null)
+      return
+    }
     supabase.from('centers').select('id, virtual_balance').eq('email', user.email).single()
       .then(({ data: cd }) => {
         if (!cd) { setLoading(false); return }
@@ -51,11 +56,19 @@ export default function PaymentSummary() {
   async function fetchPayments(centerId) {
     setLoading(true)
     let centerIds = [centerId]
-    if (role === 'super_center') {
+    if (role === 'super_center' || role === 'admin') {
       const { data: subCenters } = await supabase
         .from('centers').select('id').eq('super_center_id', centerId)
       centerIds = [centerId, ...(subCenters || []).map(c => c.id)]
     }
+    if (role === 'admin') {
+      // Admin sees every enrolled student — no center filter.
+      centerIds = null
+    }
+    const query = supabase
+      .from('students')
+      .select('id, student_name, admission_number, enrollment_no, fee_collected, status, created_at, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code)')
+    if (centerIds) query.in('center_id', centerIds)
     const { data: students } = await supabase
       .from('students')
       .select('id, student_name, admission_number, enrollment_no, fee_collected, status, created_at, programs(program_name), academic_sessions(session_name), centers(id, center_name, center_code)')
@@ -93,14 +106,23 @@ export default function PaymentSummary() {
 
   return (
     <div className="p-6">
-      <PageHeader title="Payment Summary" subtitle={itemised
-        ? 'Every fee deduction from your wallet, itemised'
-        : 'Fee deducted from your wallet for each enrolled student'} />
+      <PageHeader title="Payment Summary" subtitle={role === 'admin'
+        ? 'Fee deductions across all centers, itemised by kind'
+        : itemised
+          ? 'Every fee deduction from your wallet, itemised'
+          : 'Fee deducted from your wallet for each enrolled student'} />
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-4 mb-6">
         <StatCard label="Total Fee Deducted" value={fmt(totalCollected)} sub={`${data.length} enrolled student${data.length === 1 ? '' : 's'}`} color="green" icon={IndianRupee} />
-        <StatCard label="Enrolled Students" value={data.length} sub="fee collected" color="blue" icon={Users} />
-        <StatCard label="Current Wallet Balance" value={fmt(balance)} sub="available to register more" color="gray" icon={Wallet} />
+        {role !== 'admin' && (
+          <>
+            <StatCard label="Enrolled Students" value={data.length} sub="fee collected" color="blue" icon={Users} />
+            <StatCard label="Current Wallet Balance" value={fmt(balance)} sub="available to register more" color="gray" icon={Wallet} />
+          </>
+        )}
+        {role === 'admin' && (
+          <StatCard label="Centres" value={`${new Set(data.map(s => s.centers?.id).filter(Boolean)).size}`} sub={`${data.length} total students`} color="blue" icon={Users} />
+        )}
       </div>
 
       <div className="mb-4 relative max-w-sm">
