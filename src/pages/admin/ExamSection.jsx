@@ -673,7 +673,13 @@ export default function ExamSection() {
     if (end && new Date(end) > new Date()) return 'awaiting'
     return 'pending'
   }
-  const resultList = byFilters.filter(s => resTab === 'all' || resultStateOf(s) === resTab)
+  // Student Entry (Result) shows only students whose current-semester admit
+  // card has been issued. A student forwarded but not yet issued a card stays
+  // in the Student List tab, not here — the centre still owes the card.
+  const resultEligible = (s) => currentCardDone(s)
+  const resultList = byFilters.filter(s =>
+    resultEligible(s) && (resTab === 'all' || resultStateOf(s) === resTab)
+  )
 
   const filterActive = !!search || fDept !== 'all' || fType !== 'all' || fSession.length > 0
   const clearFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSession([]) }
@@ -684,7 +690,7 @@ export default function ExamSection() {
         title="Exam Section"
         subtitle={
           view === 'calendar' ? 'Set examination start & end dates per session and semester' :
-          view === 'result' ? `${filtered.length} student${filtered.length === 1 ? '' : 's'} — declare or edit results` :
+          view === 'result' ? `${resultList.length} student${resultList.length === 1 ? '' : 's'} — declare or edit results` :
           `${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`
         }
       />
@@ -920,7 +926,9 @@ export default function ExamSection() {
           { key: 'done',     label: 'Done',     on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
           { key: 'all',      label: 'All',      on: 'bg-gray-700 text-white',    off: 'bg-gray-100 text-gray-600' },
         ].map(t => {
-          const count = t.key === 'all' ? byFilters.length : byFilters.filter(s => resultStateOf(s) === t.key).length
+          const count = t.key === 'all'
+            ? byFilters.filter(s => currentCardDone(s)).length
+            : byFilters.filter(s => currentCardDone(s) && resultStateOf(s) === t.key).length
           return (
             <button key={t.key} onClick={() => setResTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${resTab === t.key ? t.on : t.off}`}>
