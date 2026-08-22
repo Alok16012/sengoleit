@@ -13,6 +13,7 @@ import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, formatDateTime, approvalPaymentDate } from '../../utils/formatDate'
 import { isPhdStudent } from '../../utils/isPhdStudent'
+import { admitCardsForMany } from '../../utils/semesterAdmitCards'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { recordFeeDeduction, fetchFeeLedger, LEDGER_KIND_LABEL } from '../../utils/feeLedger'
 
@@ -54,6 +55,7 @@ export default function AccountDepartment() {
   // needs the student's fee fields to work out the charge. null = the
   // add_re_registration.sql migration hasn't been run, so the tab shows a hint.
   const [reRegs, setReRegs] = useState([])
+  const [admitCards, setAdmitCards] = useState({})   // student_id → [{semester, released_at}]
   const [reRegStatusFilter, setReRegStatusFilter] = useState('pending')
   const [reRegModal, setReRegModal] = useState(null)   // one row of reRegs
   const [loading, setLoading] = useState(true)
@@ -209,6 +211,14 @@ export default function AccountDepartment() {
     setHoldStudents(holdStu.data || [])
     // error = the re_registrations table (add_re_registration.sql) isn't there.
     setReRegs(rr.error ? null : (rr.data || []))
+
+    // Load admit-card state for every student that appears in the re-registration
+    // list so the Verify button is gated on the card being generated.
+    const rrRows = rr.error ? [] : (rr.data || [])
+    const rrStudentIds = [...new Set(rrRows.map(r => r.student_id).filter(Boolean))]
+    if (rrStudentIds.length) {
+      setAdmitCards(await admitCardsForMany(rrStudentIds) || {})
+    }
 
     // Recharge requests need the center name. If the embedded join failed
     // (e.g. no declared FK), fall back to looking the names up by center_id.
@@ -956,7 +966,18 @@ export default function AccountDepartment() {
   const pendingSuperApprovals = approvals.filter(c => c.center_type === 'super_center' && c.approval_status === 'doc_verified').length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
   const pendingReRegs = (reRegs || []).filter(r => r.status === 'Pending').length
-  const reRegsList = (reRegs || []).filter(r => reRegStatusFilter === 'pending' ? r.status === 'Pending' : r.status !== 'Pending')
+  const reRegsList = (reRegs || []).filter(r => {
+    const statusMatch = reRegStatusFilter === 'pending' ? r.status === 'Pending' : r.status !== 'Pending'
+    // A Pending re-registration only appears in the Verify list once the Exam
+    // Section has generated an admit card for this student. The admit card is
+    // the proof that the term's fee has been collected and the student is
+    // ready to move forward — verifying without it was cutting the centre's
+    // wallet for a term the student could not yet sit for.
+    if (statusMatch && r.status === 'Pending' && r.student_id) {
+      return (admitCards?.[r.student_id]?.length > 0) || false
+    }
+    return statusMatch
+  })
   // Recharge status sub-filter (To Verify / Hold / Approved / Rejected)
   const RECHARGE_STATUS_MATCH = {
     pending:  r => r.status === 'pending',
