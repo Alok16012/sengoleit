@@ -4,7 +4,7 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { supabase } from '../../lib/supabase'
 import { isPhdProgram } from '../../utils/generateStudentCards'
-import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, BadgeCheck, MonitorPlay, BookMarked, BookOpenCheck, Settings, Menu, FileCheck2, ShieldCheck, Ticket } from 'lucide-react'
+import { LayoutDashboard, User, IndianRupee, GraduationCap, LogOut, Bell, ClipboardList, Receipt, CreditCard, MonitorPlay, BookMarked, BookOpenCheck, Settings, Menu, FileCheck2, ShieldCheck, Ticket } from 'lucide-react'
 
 const baseNavItems = [
   { to: '/student/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
@@ -14,7 +14,9 @@ const baseNavItems = [
   { to: '/student/admission-form',   icon: ClipboardList,   label: 'Admission Form' },
   { to: '/student/registration-slip',icon: Receipt,         label: 'Registration Slip' },
   { to: '/student/id-card',          icon: CreditCard,      label: 'I Card' },
-  { to: '/student/admit-card',       icon: BadgeCheck,      label: 'Admit Card' },
+  // Admit Card is issued through the center, not to the student directly — it
+  // lives in the center and admin panels only. (StudentAdmitCard.jsx is kept
+  // for when it comes back; its route redirects to the dashboard for now.)
   { to: '/student/results',          icon: GraduationCap,   label: 'Results' },
   // Online Exam is an unbuilt "Coming Soon" shell — hidden from the menu
   // until it exists (its route remains for when it's ready).

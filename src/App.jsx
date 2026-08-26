@@ -83,7 +83,6 @@ import DocumentSummary from './pages/shared/DocumentSummary'
 import SyllabusReport from './pages/shared/SyllabusReport'
 import CenterCredentials from './pages/center/CenterCredentials'
 import StudentIDCard from './pages/student/StudentIDCard'
-import StudentAdmitCard from './pages/student/StudentAdmitCard'
 import StudentRegistrationSlip from './pages/student/StudentRegistrationSlip'
 
 function RoleRedirect() {
@@ -125,7 +124,9 @@ export default function App() {
             <Route path="/student/offer-letter" element={<StudentOfferLetter />} />
             <Route path="/student/entrance-clearance" element={<StudentEntranceClearance />} />
             <Route path="/student/id-card" element={<StudentIDCard />} />
-            <Route path="/student/admit-card" element={<StudentAdmitCard />} />
+            {/* Admit cards are handed out by the center, so the student portal
+                does not carry one — an old bookmark lands on the dashboard. */}
+            <Route path="/student/admit-card" element={<Navigate to="/student/dashboard" replace />} />
             <Route path="/student/online-exam" element={<ComingSoon title="Online Exam" description="Appear for your scheduled online exams" />} />
             <Route path="/student/syllabus" element={<StudentSyllabus />} />
             <Route path="/student/ebook" element={<StudentEBooks />} />
