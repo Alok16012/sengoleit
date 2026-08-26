@@ -903,11 +903,14 @@ export function sgpaOf(rows) {
 // (internal_obtained, theory_obtained). Grade and earned credit are derived
 // per paper; a paper that fails earns none.
 //
-// meta: { dmcNo, semester, examHeld, resultStatus, dateOfIssue, cgpa,
-//          studentCopy } — studentCopy renders ONLY the student's version: no
-// DMC number, no signature blocks, and no way to switch to the office copy.
-// That is what the centre and the student portal print.
-export function generateMarksStatement(s, rows = [], meta = {}) {
+// meta: { dmcNo, semester, examHeld, resultStatus, dateOfIssue, cgpa }.
+//
+// This returns the SHEET only — the bordered page, with no document around it
+// and no print buttons. generateMarksStatement wraps it for the Exam Section;
+// the centre and the student portal render it straight into the page, inside a
+// .student-copy wrapper. One markup, so what a student reads on screen and
+// what the university prints cannot drift apart.
+export function marksStatementHTML(s, rows = [], meta = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const num = (x) => (x == null || x === '' ? '' : Number(x))
@@ -945,24 +948,7 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
     <td style="border:1px solid #000;padding:5px 8px;font-size:10px;font-weight:700;width:15%;white-space:nowrap;">${label}</td>
     <td style="border:1px solid #000;padding:5px 8px;font-size:10px;">${v(val)}</td>`
 
-  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-  <title>Statement of Marks — ${v(s.student_name)}</title>${baseStyle}</head>
-<body class="${meta.studentCopy ? 'student-copy' : ''}">
-<div style="max-width:760px;margin:24px auto;">
-  <!-- Two copies of one sheet. The office copy carries the DMC number and the
-       signature blocks; the student's copy does not, so publishing cannot hand
-       out a signed-looking statement. The office-only class is what separates
-       them — both print through the same page, the buttons set the mode. -->
-  ${meta.studentCopy ? `
-  <div class="no-print" style="text-align:center;padding:12px 0 18px;">
-    <button onclick="window.print()" style="background:${BRAND};color:#fff;border:none;padding:10px 34px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.04em;">⬇ Download / Print</button>
-  </div>` : `
-  <div class="no-print" style="text-align:center;padding:12px 0 18px;display:flex;gap:10px;justify-content:center;">
-    <button onclick="setMode(false)" style="background:${BRAND};color:#fff;border:none;padding:10px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">🖨 Print (Office Copy)</button>
-    <button onclick="setMode(true)" style="background:#fff;color:${BRAND};border:2px solid ${BRAND};padding:8px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">📤 Publish (Student Copy)</button>
-  </div>
-  <div class="no-print" id="modeNote" style="text-align:center;font-size:11px;color:#666;margin:-10px 0 14px;"></div>`}
-
+  return `
   <div style="border:2.5px solid #333;background:#fff;padding:16px 18px;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
 
     <div class="office-only" style="text-align:right;font-size:9.5px;font-weight:700;margin-bottom:4px;">
@@ -1085,15 +1071,44 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
       </tr>
     </table>
 
-  </div>
-</div>
-<style>
-  /* The student's copy simply hides what only the office copy carries, so
-     both are the same sheet and cannot drift apart. */
-  body.student-copy .office-only { display:none !important; }
+  </div>`
+}
+
+// The student's copy simply hides what only the office copy carries, so both
+// are the same sheet and cannot drift apart. The selectors are class-only
+// rather than `body.student-copy`, so the rule works just as well when the
+// class sits on a wrapping div — which is how the portal renders the sheet
+// inside a page rather than as a document of its own.
+export const MARKS_STATEMENT_STYLE = `
+  .student-copy .office-only { display:none !important; }
   .student-only { display:none !important; }
-  body.student-copy .student-only { display:block !important; }
-</style>
+  .student-copy .student-only { display:block !important; }
+`
+
+// The Exam Section's printable Statement of Marks: the same sheet, wrapped in
+// a document with the buttons that choose which copy is printed.
+export function generateMarksStatement(s, rows = [], meta = {}) {
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+  <title>Statement of Marks — ${v(s.student_name)}</title>${baseStyle}</head>
+<body class="${meta.studentCopy ? 'student-copy' : ''}">
+<div style="max-width:760px;margin:24px auto;">
+  <!-- Two copies of one sheet. The office copy carries the DMC number and the
+       signature blocks; the student's copy does not, so publishing cannot hand
+       out a signed-looking statement. The office-only class is what separates
+       them — both print through the same page, the buttons set the mode. -->
+  ${meta.studentCopy ? `
+  <div class="no-print" style="text-align:center;padding:12px 0 18px;">
+    <button onclick="window.print()" style="background:${BRAND};color:#fff;border:none;padding:10px 34px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.04em;">⬇ Download / Print</button>
+  </div>` : `
+  <div class="no-print" style="text-align:center;padding:12px 0 18px;display:flex;gap:10px;justify-content:center;">
+    <button onclick="setMode(false)" style="background:${BRAND};color:#fff;border:none;padding:10px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">🖨 Print (Office Copy)</button>
+    <button onclick="setMode(true)" style="background:#fff;color:${BRAND};border:2px solid ${BRAND};padding:8px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">📤 Publish (Student Copy)</button>
+  </div>
+  <div class="no-print" id="modeNote" style="text-align:center;font-size:11px;color:#666;margin:-10px 0 14px;"></div>`}
+
+  ${marksStatementHTML(s, rows, meta)}
+</div>
+<style>${MARKS_STATEMENT_STYLE}</style>
 <script>
   function setMode(student) {
     document.body.classList.toggle('student-copy', student)

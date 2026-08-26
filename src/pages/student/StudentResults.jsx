@@ -122,7 +122,7 @@ export default function StudentResults() {
                     </p>
                   ) : (
                     <ResultSheetView student={data} semester={r.semester}
-                      papers={sheets[r.semester]?.papers || []} status={r.status} />
+                      sheet={sheets[r.semester]} status={r.status} />
                   )}
                 </div>
               )}

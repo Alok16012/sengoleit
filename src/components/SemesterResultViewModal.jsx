@@ -56,7 +56,7 @@ export default function SemesterResultViewModal({ student, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className={`bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-auto transition-all ${anyOpen ? 'max-w-2xl' : 'max-w-lg'}`}
+      <div className={`bg-white rounded-2xl shadow-2xl w-full max-h-[90vh] overflow-auto transition-all ${anyOpen ? 'max-w-4xl' : 'max-w-lg'}`}
         onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2">
@@ -106,7 +106,7 @@ export default function SemesterResultViewModal({ student, onClose }) {
                           </p>
                         ) : (
                           <ResultSheetView student={full || student} semester={r.semester}
-                            papers={sheets[r.semester]?.papers || []} status={r.status} />
+                            sheet={sheets[r.semester]} status={r.status} />
                         )}
                       </div>
                     )}
