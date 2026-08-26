@@ -917,13 +917,12 @@ const SHEET_DASH = '#9fb3b3'
 
 // Statement of Marks — the university's own DMC layout.
 //
-// `rows` are the semester's papers, each carrying its scheme (internal_marks,
-// theory_marks, total_marks) and what the student obtained (internal_obtained,
-// theory_obtained). The sheet prints each paper's full marks against the marks
-// obtained: the theory/internal split, the credits and the letter grade are all
-// in the data, but the university's marksheet does not show them.
+// `rows` are the semester's papers, each carrying its scheme (credits,
+// internal_marks, theory_marks, total_marks) and what the student obtained
+// (internal_obtained, theory_obtained). Grade and earned credit are derived
+// per paper; a paper that fails earns none.
 //
-// meta: { dmcNo, semester, examHeld, resultStatus, dateOfIssue }.
+// meta: { dmcNo, semester, examHeld, resultStatus, dateOfIssue, cgpa }.
 //
 // This returns the SHEET only — the bordered page, with no document around it
 // and no print buttons. generateMarksStatement wraps it for the Exam Section;
@@ -934,6 +933,7 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const num = (x) => (x == null || x === '' ? '' : Number(x))
+  const show = (x) => (x == null || x === '' ? '—' : String(x))
 
   // A statement of marks lists the papers the student SAT. A semester offers
   // alternatives — MS-ACCESS or MS-SQL — and the ones not taken have no marks,
@@ -949,12 +949,18 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
     const gotI = num(r.internal_obtained)
     const gotTot = (gotT === '' ? 0 : gotT) + (gotI === '' ? 0 : gotI)
     const entered = gotT !== '' || gotI !== ''
-    // The sheet shows the paper's full marks against what was obtained; the
-    // split behind each is still what those two numbers are made of.
-    return { ...r, maxTot, gotTot, entered }
+    const credit = num(r.credits) || 0
+    const g = entered && maxTot ? gradeFor((gotTot / maxTot) * 100) : { letter: '—', point: 0 }
+    return { ...r, maxT, maxI, maxTot, gotT, gotI, gotTot, entered, credit, g,
+             earned: g.point > 0 ? credit : 0 }
   })
 
+  // A CGPA is a running average, so there is nothing to average in the first
+  // semester — its SGPA IS the whole record, and the university's own grade
+  // card leaves the CGPA off that sheet entirely.
+  const semNo = parseInt(String(meta.semester || '').match(/\d+/)?.[0] || '', 10)
   const sum = (k) => marked.reduce((a, r) => a + (Number(r[k]) || 0), 0)
+  const sgpa = sgpaOf(marked.map(r => ({ ...r, theory_obtained: r.gotT, internal_obtained: r.gotI })))
   const totMax = sum('maxTot')
   const totGot = sum('gotTot')
 
@@ -968,10 +974,12 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
     : divisionFor(totMax ? (totGot / totMax) * 100 : null)
 
   const cell = `border:1px dashed ${SHEET_DASH};padding:6px 9px;font-size:10px;color:#111;`
-  const hd = `${cell}font-weight:700;background:#f7faf9;`
   const info = (label, val) => `
     <td style="${cell}white-space:nowrap;">${label}</td>
     <td style="${cell}font-weight:600;">${v(val)}</td>`
+  // Eleven columns of marks need a tighter cell than the info grid's.
+  const mc = `border:1px dashed ${SHEET_DASH};padding:4px 5px;font-size:9.5px;color:#111;text-align:center;`
+  const mh = `${mc}font-size:9px;font-weight:700;background:#f7faf9;`
   const bar = `background:${SHEET_LINE};color:#fff;padding:8px 9px;font-size:10.5px;font-weight:700;`
   // The info grid and the totals bar share one set of column widths, so the
   // bar's cells sit under the fields above them rather than cutting across.
@@ -1009,28 +1017,63 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
 
     <div style="padding:11px 12px 12px;">
       <table style="width:100%;border-collapse:collapse;">
-        <colgroup><col style="width:14%"/><col style="width:30%"/><col style="width:28%"/><col style="width:28%"/></colgroup>
         <thead>
           <tr>
-            <th style="${hd}text-align:left;">SL No</th>
-            <th style="${hd}text-align:left;">Subject Code</th>
-            <th style="${hd}text-align:left;">Full Marks</th>
-            <th style="${hd}text-align:left;">Obtain Marks</th>
+            <th rowspan="2" style="${mh}white-space:nowrap;">Subject Code</th>
+            <th rowspan="2" style="${mh}text-align:left;">Subject Name</th>
+            <th rowspan="2" style="${mh}">Total<br/>Credit</th>
+            <th colspan="3" style="${mh}">Maximum Marks</th>
+            <th colspan="3" style="${mh}">Obtained Marks</th>
+            <th rowspan="2" style="${mh}">Grade</th>
+            <th rowspan="2" style="${mh}">Earned<br/>Credit</th>
+          </tr>
+          <tr>
+            <th style="${mh}">Theory</th><th style="${mh}">Internal</th><th style="${mh}">Total</th>
+            <th style="${mh}">Theory</th><th style="${mh}">Internal</th><th style="${mh}">Total</th>
           </tr>
         </thead>
         <tbody>
-          ${marked.map((r, i) => `
+          ${marked.map(r => `
             <tr>
-              <td style="${cell}">${i + 1}</td>
-              <td style="${cell}">${v(r.subject_code)}</td>
-              <td style="${cell}">${r.maxTot || '—'}</td>
-              <td style="${cell}">${r.entered ? r.gotTot : '—'}</td>
+              <td style="${mc}white-space:nowrap;">${v(r.subject_code)}</td>
+              <td style="${mc}text-align:left;">${v(r.subject_name)}</td>
+              <td style="${mc}">${r.credit || '—'}</td>
+              <td style="${mc}">${r.maxT || '—'}</td>
+              <td style="${mc}">${r.maxI || '—'}</td>
+              <td style="${mc}">${r.maxTot || '—'}</td>
+              <td style="${mc}">${show(r.gotT)}</td>
+              <td style="${mc}">${show(r.gotI)}</td>
+              <td style="${mc}">${r.entered ? r.gotTot : '—'}</td>
+              <td style="${mc}font-weight:700;">${r.g.letter}</td>
+              <td style="${mc}">${r.earned || '—'}</td>
             </tr>`).join('')}
           ${Array.from({ length: Math.max(MIN_MARK_ROWS - marked.length, 0) }, () => `
             <tr>
-              <td style="${cell}">&nbsp;</td><td style="${cell}"></td>
-              <td style="${cell}"></td><td style="${cell}"></td>
+              <td style="${mc}">&nbsp;</td><td style="${mc}"></td><td style="${mc}"></td>
+              <td style="${mc}"></td><td style="${mc}"></td><td style="${mc}"></td>
+              <td style="${mc}"></td><td style="${mc}"></td><td style="${mc}"></td>
+              <td style="${mc}"></td><td style="${mc}"></td>
             </tr>`).join('')}
+          <tr>
+            <td style="${mc}"></td>
+            <td style="${mc}text-align:left;font-weight:700;">Total</td>
+            <td style="${mc}font-weight:700;">${sum('credit') || '—'}</td>
+            <td style="${mc}font-weight:700;">${sum('maxT') || '—'}</td>
+            <td style="${mc}font-weight:700;">${sum('maxI') || '—'}</td>
+            <td style="${mc}font-weight:700;">${totMax || '—'}</td>
+            <td style="${mc}font-weight:700;">${sum('gotT') || '—'}</td>
+            <td style="${mc}font-weight:700;">${sum('gotI') || '—'}</td>
+            <td style="${mc}font-weight:700;">${totGot || '—'}</td>
+            <td style="${mc}"></td>
+            <td style="${mc}font-weight:700;">${sum('earned') || '—'}</td>
+          </tr>
+          <tr>
+            <td colspan="11" style="${mc}font-weight:700;padding:6px;">
+              SGPA – ${sgpa == null ? '—' : sgpa.toFixed(2)}
+              <span style="display:inline-block;width:46px;"></span>|<span style="display:inline-block;width:46px;"></span>
+              CGPA – ${semNo === 1 ? '—' : (meta.cgpa ? Number(meta.cgpa).toFixed(2) : (sgpa == null ? '—' : sgpa.toFixed(2)))}
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -1045,8 +1088,9 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
       </tr>
     </table>
 
-    <div class="office-only" style="text-align:right;font-size:10px;font-weight:700;padding:8px 12px 0;">
-      Date of Issue: ${v(meta.dateOfIssue)}
+    <div style="display:flex;justify-content:space-between;padding:8px 12px 0;font-size:10px;font-weight:700;">
+      <span>Result: ${v(meta.resultStatus || 'Passed')}</span>
+      <span class="office-only">Date of Issue: ${v(meta.dateOfIssue)}</span>
     </div>
 
     <div style="margin:12px;border:1px solid ${SHEET_LINE};padding:6px 8px;">
