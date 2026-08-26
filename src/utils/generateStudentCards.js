@@ -896,14 +896,34 @@ export function sgpaOf(rows) {
   return creds ? pts / creds : null
 }
 
+// The division the sheet awards, from the percentage scored across the whole
+// semester. Below the 40% floor there is no division — the same floor gradeFor()
+// grades F at, so a paper that fails and a semester that fails agree.
+const DIVISIONS = [
+  { from: 60, label: 'First Division' },
+  { from: 50, label: 'Second Division' },
+  { from: 40, label: 'Third Division' },
+]
+export function divisionFor(pct) {
+  if (pct == null || isNaN(pct)) return '—'
+  return (DIVISIONS.find(d => pct >= d.from) || { label: 'Fail' }).label
+}
+
+// The sheet is ruled the way the university's printed marksheet is: a solid
+// dark frame with the header and the totals bar in the same colour, and a
+// dashed grid inside it.
+const SHEET_LINE = '#12514e'
+const SHEET_DASH = '#9fb3b3'
+
 // Statement of Marks — the university's own DMC layout.
 //
-// `rows` are the semester's papers, each carrying its scheme (credits,
-// internal_marks, theory_marks, total_marks) and what the student obtained
-// (internal_obtained, theory_obtained). Grade and earned credit are derived
-// per paper; a paper that fails earns none.
+// `rows` are the semester's papers, each carrying its scheme (internal_marks,
+// theory_marks, total_marks) and what the student obtained (internal_obtained,
+// theory_obtained). The sheet prints each paper's full marks against the marks
+// obtained: the theory/internal split, the credits and the letter grade are all
+// in the data, but the university's marksheet does not show them.
 //
-// meta: { dmcNo, semester, examHeld, resultStatus, dateOfIssue, cgpa }.
+// meta: { dmcNo, semester, examHeld, resultStatus, dateOfIssue }.
 //
 // This returns the SHEET only — the bordered page, with no document around it
 // and no print buttons. generateMarksStatement wraps it for the Exam Section;
@@ -914,7 +934,6 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
   const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const num = (x) => (x == null || x === '' ? '' : Number(x))
-  const show = (x) => (x == null || x === '' ? '—' : String(x))
 
   // A statement of marks lists the papers the student SAT. A semester offers
   // alternatives — MS-ACCESS or MS-SQL — and the ones not taken have no marks,
@@ -930,125 +949,107 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
     const gotI = num(r.internal_obtained)
     const gotTot = (gotT === '' ? 0 : gotT) + (gotI === '' ? 0 : gotI)
     const entered = gotT !== '' || gotI !== ''
-    const credit = num(r.credits) || 0
-    const g = entered && maxTot ? gradeFor((gotTot / maxTot) * 100) : { letter: '—', point: 0 }
-    return { ...r, maxT, maxI, maxTot, gotT, gotI, gotTot, entered, credit, g,
-             earned: g.point > 0 ? credit : 0 }
+    // The sheet shows the paper's full marks against what was obtained; the
+    // split behind each is still what those two numbers are made of.
+    return { ...r, maxTot, gotTot, entered }
   })
 
-  // A CGPA is a running average, so there is nothing to average in the first
-  // semester — its SGPA IS the whole record, and the university's own grade
-  // card leaves the CGPA off that sheet entirely.
-  const semNo = parseInt(String(meta.semester || '').match(/\d+/)?.[0] || '', 10)
   const sum = (k) => marked.reduce((a, r) => a + (Number(r[k]) || 0), 0)
-  const sgpa = sgpaOf(marked.map(r => ({ ...r, theory_obtained: r.gotT, internal_obtained: r.gotI })))
-  const cell = 'border:1px solid #000;padding:4px 6px;font-size:9.5px;text-align:center;'
-  const hd = 'border:1px solid #000;padding:4px 6px;font-size:9px;font-weight:700;text-align:center;background:#f2f2f2;'
+  const totMax = sum('maxTot')
+  const totGot = sum('gotTot')
+
+  // The division stands on the whole semester's percentage, but one paper below
+  // the pass mark fails the semester however well the rest went — and a result
+  // the Exam Section has already declared a fail overrides the arithmetic.
+  const anyMarks = marked.some(r => r.entered)
+  const failedPaper = marked.some(r => r.entered && r.maxTot && (r.gotTot / r.maxTot) * 100 < 40)
+  const division = !anyMarks ? '—'
+    : (failedPaper || /fail/i.test(String(meta.resultStatus || ''))) ? 'Fail'
+    : divisionFor(totMax ? (totGot / totMax) * 100 : null)
+
+  const cell = `border:1px dashed ${SHEET_DASH};padding:6px 9px;font-size:10px;color:#111;`
+  const hd = `${cell}font-weight:700;background:#f7faf9;`
   const info = (label, val) => `
-    <td style="border:1px solid #000;padding:5px 8px;font-size:10px;font-weight:700;width:15%;white-space:nowrap;">${label}</td>
-    <td style="border:1px solid #000;padding:5px 8px;font-size:10px;">${v(val)}</td>`
+    <td style="${cell}white-space:nowrap;">${label}</td>
+    <td style="${cell}font-weight:600;">${v(val)}</td>`
+  const bar = `background:${SHEET_LINE};color:#fff;padding:8px 9px;font-size:10.5px;font-weight:700;`
+  // The info grid and the totals bar share one set of column widths, so the
+  // bar's cells sit under the fields above them rather than cutting across.
+  const cols = `<colgroup><col style="width:26%"/><col style="width:30%"/><col style="width:20%"/><col style="width:24%"/></colgroup>`
 
   return `
-  <div style="border:2.5px solid #333;background:#fff;padding:16px 18px;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
+  <div style="border:2px solid ${SHEET_LINE};background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
 
-    <div class="office-only" style="text-align:right;font-size:9.5px;font-weight:700;margin-bottom:4px;">
+    <div class="office-only" style="text-align:right;font-size:9.5px;font-weight:700;padding:5px 10px 0;">
       Dmc No. : ${v(meta.dmcNo)}
     </div>
-    <!-- The office copy carries only the name and the establishment line, the
-         way the university's own statement is printed. The centre's and the
-         student's copy gets the logo above the name. -->
-    <div style="text-align:center;">
-      <div class="student-only" style="margin-bottom:6px;">
-        <img src="${LOGO_URL}" width="60" height="60" style="object-fit:contain;"
-          onerror="this.style.display='none'"/>
-      </div>
+    <!-- The masthead, on both copies: the logo above the name, the way the
+         university's own marksheet is printed. -->
+    <div style="text-align:center;padding:12px 14px 13px;border-bottom:2px solid ${SHEET_LINE};">
+      <img src="${LOGO_URL}" width="60" height="60" style="object-fit:contain;display:block;margin:0 auto 5px;"
+        onerror="this.style.display='none'"/>
       <div style="font-size:22px;font-weight:900;color:${BRAND};letter-spacing:0.04em;">${UNI_NAME.toUpperCase()}</div>
       <div style="font-size:8.5px;color:#555;margin-top:4px;">
-        Established by state Government of Sikkim by Act 14 of 2025, under Section 2(f) of UGC Act 1956 Government of India.
+        ${UNI_ESTD}
       </div>
-    </div>
-    <div style="text-align:center;margin:12px 0 10px;">
-      <span style="font-size:15px;font-weight:900;color:${BRAND};letter-spacing:0.14em;">STATEMENT OF MARKS</span>
+      <div style="font-size:12px;font-weight:900;color:${SHEET_LINE};letter-spacing:0.14em;margin-top:9px;">STATEMENT OF MARKS</div>
     </div>
 
-    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+    <table style="width:100%;border-collapse:collapse;">
+      ${cols}
       <tr>${info('Name Of Student:', s.student_name)}${info('Enrollment No:', s.enrollment_no)}</tr>
       <tr>${info("Father's Name :", s.fathers_name)}${info('Reg no:', s.registration_no)}</tr>
       <tr>${info("Mother's Name:", s.mothers_name)}${info('Semester:', romanSemester(meta.semester))}</tr>
       <tr>${info('Session :', sess)}${info('Examination held:', meta.examHeld)}</tr>
       <tr>
-        <td style="border:1px solid #000;padding:5px 8px;font-size:10px;font-weight:700;white-space:nowrap;">Program :</td>
-        <td colspan="3" style="border:1px solid #000;padding:5px 8px;font-size:10px;">${v(prog)}</td>
+        <td style="${cell}white-space:nowrap;">Program :</td>
+        <td colspan="3" style="${cell}font-weight:600;">${v(prog)}</td>
       </tr>
     </table>
 
-    <table style="width:100%;border-collapse:collapse;">
-      <thead>
-        <tr>
-          <th rowspan="2" style="${hd}white-space:nowrap;">Subject Code</th>
-          <th rowspan="2" style="${hd}text-align:left;">Subject Name</th>
-          <th rowspan="2" style="${hd}">Total<br/>Credit</th>
-          <th colspan="3" style="${hd}">Maximum Marks</th>
-          <th colspan="3" style="${hd}">Obtained Marks</th>
-          <th rowspan="2" style="${hd}">Grade</th>
-          <th rowspan="2" style="${hd}">Earned<br/>Credit</th>
-        </tr>
-        <tr>
-          <th style="${hd}">Theory</th><th style="${hd}">Internal</th><th style="${hd}">Total</th>
-          <th style="${hd}">Theory</th><th style="${hd}">Internal</th><th style="${hd}">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${marked.map(r => `
+    <div style="padding:11px 12px 12px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <colgroup><col style="width:14%"/><col style="width:30%"/><col style="width:28%"/><col style="width:28%"/></colgroup>
+        <thead>
           <tr>
-            <td style="${cell}white-space:nowrap;">${v(r.subject_code)}</td>
-            <td style="${cell}text-align:left;">${v(r.subject_name)}</td>
-            <td style="${cell}">${r.credit || '—'}</td>
-            <td style="${cell}">${r.maxT || '—'}</td>
-            <td style="${cell}">${r.maxI || '—'}</td>
-            <td style="${cell}">${r.maxTot || '—'}</td>
-            <td style="${cell}">${show(r.gotT)}</td>
-            <td style="${cell}">${show(r.gotI)}</td>
-            <td style="${cell}">${r.entered ? r.gotTot : '—'}</td>
-            <td style="${cell}font-weight:700;">${r.g.letter}</td>
-            <td style="${cell}">${r.earned || '—'}</td>
-          </tr>`).join('')}
-        ${Array.from({ length: Math.max(MIN_MARK_ROWS - marked.length, 0) }, () => `
-          <tr>
-            <td style="${cell}">&nbsp;</td><td style="${cell}"></td><td style="${cell}"></td>
-            <td style="${cell}"></td><td style="${cell}"></td><td style="${cell}"></td>
-            <td style="${cell}"></td><td style="${cell}"></td><td style="${cell}"></td>
-            <td style="${cell}"></td><td style="${cell}"></td>
-          </tr>`).join('')}
-        <tr>
-          <td style="${cell}"></td>
-          <td style="${cell}text-align:left;font-weight:700;">Total</td>
-          <td style="${cell}font-weight:700;">${sum('credit') || '—'}</td>
-          <td style="${cell}font-weight:700;">${sum('maxT') || '—'}</td>
-          <td style="${cell}font-weight:700;">${sum('maxI') || '—'}</td>
-          <td style="${cell}font-weight:700;">${sum('maxTot') || '—'}</td>
-          <td style="${cell}font-weight:700;">${sum('gotT') || '—'}</td>
-          <td style="${cell}font-weight:700;">${sum('gotI') || '—'}</td>
-          <td style="${cell}font-weight:700;">${sum('gotTot') || '—'}</td>
-          <td style="${cell}"></td>
-          <td style="${cell}font-weight:700;">${sum('earned') || '—'}</td>
-        </tr>
-        <tr>
-          <td colspan="11" style="${cell}font-weight:700;padding:6px;">
-            SGPA – ${sgpa == null ? '—' : sgpa.toFixed(2)}
-            <span style="display:inline-block;width:46px;"></span>|<span style="display:inline-block;width:46px;"></span>
-            CGPA – ${semNo === 1 ? '—' : (meta.cgpa ? Number(meta.cgpa).toFixed(2) : (sgpa == null ? '—' : sgpa.toFixed(2)))}
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:10px;font-weight:700;">
-      <span>Result: ${v(meta.resultStatus || 'Passed')}</span>
-      <span class="office-only">Date of Issue: ${v(meta.dateOfIssue)}</span>
+            <th style="${hd}text-align:left;">SL No</th>
+            <th style="${hd}text-align:left;">Subject Code</th>
+            <th style="${hd}text-align:left;">Full Marks</th>
+            <th style="${hd}text-align:left;">Obtain Marks</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${marked.map((r, i) => `
+            <tr>
+              <td style="${cell}">${i + 1}</td>
+              <td style="${cell}">${v(r.subject_code)}</td>
+              <td style="${cell}">${r.maxTot || '—'}</td>
+              <td style="${cell}">${r.entered ? r.gotTot : '—'}</td>
+            </tr>`).join('')}
+          ${Array.from({ length: Math.max(MIN_MARK_ROWS - marked.length, 0) }, () => `
+            <tr>
+              <td style="${cell}">&nbsp;</td><td style="${cell}"></td>
+              <td style="${cell}"></td><td style="${cell}"></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
     </div>
 
-    <div style="margin-top:12px;border:1px solid #000;padding:6px 8px;">
+    <table style="width:100%;border-collapse:collapse;">
+      ${cols}
+      <tr>
+        <td style="${bar}">Total Marks:</td>
+        <td style="${bar}border-left:1px solid rgba(255,255,255,0.3);">${anyMarks ? totGot : '—'}</td>
+        <td style="${bar}border-left:1px solid rgba(255,255,255,0.3);">Division:</td>
+        <td style="${bar}border-left:1px solid rgba(255,255,255,0.3);">${division}</td>
+      </tr>
+    </table>
+
+    <div class="office-only" style="text-align:right;font-size:10px;font-weight:700;padding:8px 12px 0;">
+      Date of Issue: ${v(meta.dateOfIssue)}
+    </div>
+
+    <div style="margin:12px;border:1px solid ${SHEET_LINE};padding:6px 8px;">
       <div style="font-size:9px;font-weight:900;letter-spacing:0.06em;">IMPORTANT NOTE</div>
       <div style="font-size:8.5px;color:#333;margin-top:2px;">
         Any change made to this statement, except by the Issuing Authority, shall result in cancellation of the statement and shall also invite appropriate legal action.
@@ -1061,15 +1062,17 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
       </div>
     </div>
 
-    <table class="office-only" style="width:100%;border-collapse:collapse;margin-top:26px;">
-      <tr>
-        <td style="text-align:center;font-size:9.5px;font-weight:700;border-top:1px solid #000;padding-top:4px;">CHECKED BY</td>
-        <td style="width:8%;"></td>
-        <td style="text-align:center;font-size:9.5px;font-weight:700;border-top:1px solid #000;padding-top:4px;">PREPARED BY</td>
-        <td style="width:8%;"></td>
-        <td style="text-align:center;font-size:9.5px;font-weight:700;border-top:1px solid #000;padding-top:4px;">REGISTRAR/CONTROLLER OF EXAMINATION</td>
-      </tr>
-    </table>
+    <div class="office-only" style="padding:26px 12px 14px;">
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>
+          <td style="text-align:center;font-size:9.5px;font-weight:700;border-top:1px solid #000;padding-top:4px;">CHECKED BY</td>
+          <td style="width:8%;"></td>
+          <td style="text-align:center;font-size:9.5px;font-weight:700;border-top:1px solid #000;padding-top:4px;">PREPARED BY</td>
+          <td style="width:8%;"></td>
+          <td style="text-align:center;font-size:9.5px;font-weight:700;border-top:1px solid #000;padding-top:4px;">REGISTRAR/CONTROLLER OF EXAMINATION</td>
+        </tr>
+      </table>
+    </div>
 
   </div>`
 }

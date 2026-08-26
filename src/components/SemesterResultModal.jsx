@@ -3,8 +3,8 @@ import { X, Award, Lock, BadgeCheck, FileText, Trash2, Maximize2, Minimize2, Eye
 import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
 import { semesterResults, saveSemesterResult, setSemesterResultVisible, deleteSemesterResult } from '../utils/semesterResults'
-import { fetchPaperMarks, fetchPaperMarksUpto, savePaperMarks } from '../utils/paperMarks'
-import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStudentCards'
+import { fetchPaperMarks, savePaperMarks } from '../utils/paperMarks'
+import { generateMarksStatement, gradeFor } from '../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
 
@@ -192,8 +192,6 @@ export default function SemesterResultModal({ student, special = false, onClose,
     const resolved = full ? await resolveStudentDocUrls(full) : student
     const rowsForSem = await fetchPaperMarks(student, row.sem)
     const dates = await fetchExamDates(resolved, row.sem)
-    // CGPA spans every semester up to this one, not just this one.
-    const cgpa = sgpaOf(await fetchPaperMarksUpto(student, row.sem))
     generateMarksStatement(resolved, rowsForSem, {
       dmcNo: resolved.enrollment_no ? `${resolved.enrollment_no}/S${row.sem}` : '',
       semester: `Semester ${row.sem}`,
@@ -204,7 +202,6 @@ export default function SemesterResultModal({ student, special = false, onClose,
       // when the calendar has none.
       dateOfIssue: dates.resultPublished
         || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      cgpa,
     })
     setPrinting(null)
   }
