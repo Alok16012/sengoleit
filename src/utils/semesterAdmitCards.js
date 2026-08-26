@@ -8,14 +8,34 @@ import { fetchSemesterSubjectRows, formatSubjectRow, paperKeyOf } from './fetchS
 // Every read returns null when add_semester_admit_cards.sql has not been run,
 // so callers fall back to the old single-card behaviour instead of erroring.
 
+// Every issued card for a set of students, read through portal_admit_cards.
+//
+// The admin reads these through is_admin() and the student through its own
+// SECURITY DEFINER function; only the centre went to the table directly, under
+// the admit_cards_center_read policy — which is why the centre was the one
+// role whose card list came back empty, and why a super centre saw nothing at
+// all for a sub-centre's student. The function answers for all three.
+//
+// Returns null when neither the function nor the table can be read, which is
+// the signal callers use for "the migration has not been run" and fall back on.
+async function readAdmitCards(studentIds) {
+  const { data, error } = await supabase.rpc('portal_admit_cards', { p_students: studentIds })
+  if (!error) return Array.isArray(data) ? data : []
+  // fix_center_portal_reads.sql not run yet — the old direct read still works
+  // for the admin, and for a centre wherever its RLS policy holds.
+  const res = await supabase
+    .from('student_admit_cards')
+    .select('id, student_id, semester, subject_ids, subject_keys, generated_at, released_at')
+    .in('student_id', studentIds)
+  if (res.error) return null
+  return res.data || []
+}
+
 // Issued cards for one student, keyed by semester.
 export async function admitCardsFor(studentId) {
-  const { data, error } = await supabase
-    .from('student_admit_cards')
-    .select('id, semester, subject_ids, subject_keys, generated_at, released_at')
-    .eq('student_id', studentId)
-  if (error) return null
-  return Object.fromEntries((data || []).map(r => [r.semester, r]))
+  const rows = await readAdmitCards([studentId])
+  if (rows == null) return null
+  return Object.fromEntries(rows.map(r => [r.semester, r]))
 }
 
 // Record a card as issued. Visible to the student straight away — the admin
@@ -70,13 +90,10 @@ export async function setAdmitCardVisible(studentId, semester, visible) {
 // been run, same convention as admitCardsFor.
 export async function admitCardsForMany(studentIds) {
   if (!studentIds?.length) return {}
-  const { data, error } = await supabase
-    .from('student_admit_cards')
-    .select('student_id, semester, released_at')
-    .in('student_id', studentIds)
-  if (error) return null
+  const rows = await readAdmitCards(studentIds)
+  if (rows == null) return null
   const byStudent = {}
-  for (const r of data || []) (byStudent[r.student_id] ||= []).push(r)
+  for (const r of rows) (byStudent[r.student_id] ||= []).push(r)
   for (const id in byStudent) byStudent[id].sort((a, b) => a.semester - b.semester)
   return byStudent
 }

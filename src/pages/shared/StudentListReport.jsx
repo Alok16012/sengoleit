@@ -745,12 +745,10 @@ function ResultViewModal({ student, onClose }) {
           {student.exam_result_remarks && (
             <p className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2">"{student.exam_result_remarks}"</p>
           )}
-          {student.exam_result_marksheet_url && (
-            <a href={student.exam_result_marksheet_url} target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
-              <Download size={14} /> Download Marksheet
-            </a>
-          )}
+          {/* No marksheet download: a centre reads the result, the university
+              issues the printed statement. This modal is the fallback for a
+              record that predates semester-wise results and so has no papers
+              behind it — the sheet itself opens from the per-semester view. */}
         </div>
       </div>
     </div>

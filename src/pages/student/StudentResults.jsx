@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
-import { formatDate, formatDayMonthYear, formatMonthYear } from '../../utils/formatDate'
+import { formatDate } from '../../utils/formatDate'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { studentSession } from '../../utils/studentSelf'
 import { fetchMyResults } from '../../utils/semesterResults'
 import { fetchMyMarksheet } from '../../utils/paperMarks'
-import { generateMarksStatement, sgpaOf } from '../../utils/generateStudentCards'
-import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
-import { GraduationCap, Award, FileText } from 'lucide-react'
+import ResultSheetView from '../../components/ResultSheetView'
+import { GraduationCap, Award, Eye, ChevronUp } from 'lucide-react'
 
 function Field({ label, value }) {
   return (
@@ -33,7 +32,14 @@ export default function StudentResults() {
   const [loading, setLoading] = useState(true)
 
   const [semResults, setSemResults] = useState([])
-  const [printing, setPrinting] = useState(null)
+  // The semester whose sheet is open, and the sheets already read, keyed by
+  // semester. The result opens ON this page — there is no download: the
+  // university issues the printed Statement of Marks, and a sheet the portal
+  // handed out would look like one without being one.
+  const [openSem, setOpenSem] = useState(null)
+  const [busySem, setBusySem] = useState(null)
+  const [sheets, setSheets] = useState({})
+  const [failed, setFailed] = useState({})
 
   useEffect(() => {
     if (!student?.id) return
@@ -49,28 +55,18 @@ export default function StudentResults() {
     load()
   }, [student?.id])
 
-  // The student's own Statement of Marks — always the student copy: no DMC
-  // number and no signature blocks, which belong to the university's copy.
-  async function printStatement(r) {
-    if (!data) return
-    setPrinting(r.semester)
-    const resolved = await resolveStudentDocUrls(data)
-    // Everything comes through the portal's own function: the tables behind a
-    // marksheet are open only TO authenticated, and this portal is not.
+  // Open a semester's sheet, reading it once and keeping it. Everything comes
+  // through the portal's own function: the tables behind a marksheet are open
+  // only TO authenticated, and this portal is not.
+  async function toggleView(r) {
+    if (openSem === r.semester) { setOpenSem(null); return }
+    setOpenSem(r.semester)
+    if (sheets[r.semester] || failed[r.semester]) return
+    setBusySem(r.semester)
     const { sheet, reason } = await fetchMyMarksheet(studentSession()?.token, r.semester)
-    setPrinting(null)
-    if (!sheet) {
-      alert(`${reason}\n\nIf this looks wrong, please contact your centre and quote this message.`)
-      return
-    }
-    generateMarksStatement(resolved, sheet.papers, {
-      semester: `Semester ${r.semester}`,
-      examHeld: String(sheet.exam_held || '').trim() || formatMonthYear(sheet.exam_start),
-      resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
-      dateOfIssue: formatDayMonthYear(sheet.result_published),
-      cgpa: sgpaOf(sheet.upto || []),
-      studentCopy: true,
-    })
+    setBusySem(null)
+    if (sheet) setSheets(s => ({ ...s, [r.semester]: sheet }))
+    else setFailed(f => ({ ...f, [r.semester]: reason }))
   }
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading...</div>
@@ -84,42 +80,55 @@ export default function StudentResults() {
     return (
       <div className="p-6 space-y-4">
         <h1 className="text-xl font-black text-gray-900">Results</h1>
-        {semResults.map(r => (
-          <div key={r.semester} className="bg-white rounded-xl border-2 border-emerald-100 p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <Award size={20} className={r.status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
-                <h3 className="font-black text-gray-900 text-lg">Semester {r.semester}</h3>
+        {semResults.map(r => {
+          const open = openSem === r.semester
+          return (
+            <div key={r.semester} className="bg-white rounded-xl border-2 border-emerald-100 p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <Award size={20} className={r.status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
+                  <h3 className="font-black text-gray-900 text-lg">Semester {r.semester}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-black px-3 py-1 rounded-lg ${r.status === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                    {r.status}
+                  </span>
+                  <button onClick={() => toggleView(r)} disabled={busySem === r.semester}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                    {open ? <ChevronUp size={13} /> : <Eye size={13} />}
+                    {busySem === r.semester ? '…' : open ? 'Hide' : 'View'}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-black px-3 py-1 rounded-lg ${r.status === 'Pass' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                  {r.status}
-                </span>
-                <button onClick={() => printStatement(r)} disabled={printing === r.semester}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                  <FileText size={13} /> {printing === r.semester ? '…' : 'Marks Statement'}
-                </button>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
+                <Field label="Obtained Marks" value={r.obtained_marks} />
+                <Field label="Total Marks" value={r.total_marks} />
+                <Field label="Percentage" value={pct(r.obtained_marks, r.total_marks)} />
+                <Field label="Declared On" value={formatDate(r.declared_at)} />
               </div>
+              {r.remarks && (
+                <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">"{r.remarks}"</div>
+              )}
+              {open && (
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  {busySem === r.semester ? (
+                    <p className="text-sm text-gray-400 py-6 text-center">Loading result…</p>
+                  ) : failed[r.semester] ? (
+                    // Say WHY it did not open. "Not available yet" covered a
+                    // database error, an expired session and an undeclared
+                    // result alike, and only the last of those was true.
+                    <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      {failed[r.semester]} If this looks wrong, please contact your centre and quote this message.
+                    </p>
+                  ) : (
+                    <ResultSheetView student={data} semester={r.semester}
+                      papers={sheets[r.semester]?.papers || []} status={r.status} />
+                  )}
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
-              <Field label="Obtained Marks" value={r.obtained_marks} />
-              <Field label="Total Marks" value={r.total_marks} />
-              <Field label="Percentage" value={pct(r.obtained_marks, r.total_marks)} />
-              <Field label="Declared On" value={formatDate(r.declared_at)} />
-            </div>
-            {r.remarks && (
-              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">"{r.remarks}"</div>
-            )}
-            {r.marksheet_url && (
-              <div className="mt-4 pt-4 border-t border-gray-100">
-                <a href={r.marksheet_url} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
-                  Download Marksheet
-                </a>
-              </div>
-            )}
-          </div>
-        ))}
+          )
+        })}
       </div>
     )
   }
@@ -156,14 +165,6 @@ export default function StudentResults() {
           {data.exam_result_remarks && (
             <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">
               "{data.exam_result_remarks}"
-            </div>
-          )}
-
-          {data.exam_result_marksheet_url && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <a href={data.exam_result_marksheet_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-xl transition-colors">
-                Download Marksheet
-              </a>
             </div>
           )}
         </div>

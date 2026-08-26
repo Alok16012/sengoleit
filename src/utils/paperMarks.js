@@ -140,6 +140,31 @@ export async function fetchMyMarksheet(token, semester) {
   return { sheet: data }
 }
 
+// The centre's copy of the same marksheet, through portal_marksheet — the
+// student's function with the token check swapped for a centre/admin one, so
+// the two sheets are assembled by identical rules and cannot disagree.
+//
+// Same { sheet } / { reason } contract as fetchMyMarksheet: a caller should be
+// able to say WHY a sheet did not open, not just that it did not.
+export async function fetchMarksheetFor(studentId, semester) {
+  if (!studentId) return { reason: 'No student was selected.' }
+  if (!semester) return { reason: 'No semester was selected.' }
+  const { data, error } = await supabase.rpc('portal_marksheet', {
+    p_student: studentId, p_semester: semester,
+  })
+  if (error) {
+    console.error('portal_marksheet failed', error)
+    return { reason: `Could not read the marksheet: ${error.message || error.code || 'unknown error'}` }
+  }
+  if (!data || !data.papers) {
+    return { reason: `Semester ${semester}'s result is not published yet.` }
+  }
+  if (!data.papers.length) {
+    return { reason: `No papers are recorded for Semester ${semester}. The Exam Section has to enter the marks first.` }
+  }
+  return { sheet: data }
+}
+
 // Replace a semester's marks for one student. Papers left blank are removed
 // rather than stored as zero — a blank cell means "not entered", and the
 // statement prints a dash for it.

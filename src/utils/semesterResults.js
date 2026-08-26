@@ -55,14 +55,26 @@ export async function fetchMyResults(token) {
 // Declared results for many students at once, keyed `${student_id}__${semester}`
 // — so a list can show each student's standing without a query per row.
 // Returns null when add_semester_results.sql hasn't been run.
+//
+// Read through portal_results for the same reason the admit cards are: the
+// admin reaches these rows through is_admin() and the student through
+// student_results_self, so the centre — going to the table under
+// student_results_center_read — was the only role whose Result button stayed
+// greyed out, and a super centre could not see a sub-centre's student at all.
 export async function fetchResultsForMany(studentIds) {
   if (!studentIds?.length) return {}
-  const { data, error } = await supabase
+  const keyed = rows => Object.fromEntries(rows.map(r => [`${r.student_id}__${r.semester}`, r]))
+
+  const { data, error } = await supabase.rpc('portal_results', { p_students: studentIds })
+  if (!error) return keyed(Array.isArray(data) ? data : [])
+
+  // fix_center_portal_reads.sql not run yet — fall back to the direct read.
+  const res = await supabase
     .from('student_results')
-    .select('student_id, semester, status, obtained_marks, total_marks, released_at')
+    .select('student_id, semester, status, obtained_marks, total_marks, declared_at, released_at')
     .in('student_id', studentIds)
-  if (error) return null
-  return Object.fromEntries((data || []).map(r => [`${r.student_id}__${r.semester}`, r]))
+  if (res.error) return null
+  return keyed(res.data || [])
 }
 
 // Remove a semester's declared result. The paper-wise marks are left alone —
