@@ -968,9 +968,14 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
     <div class="office-only" style="text-align:right;font-size:9.5px;font-weight:700;margin-bottom:4px;">
       Dmc No. : ${v(meta.dmcNo)}
     </div>
-    <!-- No logo on this sheet — the university's own statement carries only
-         its name and the establishment line. -->
+    <!-- The office copy carries only the name and the establishment line, the
+         way the university's own statement is printed. The centre's and the
+         student's copy gets the logo above the name. -->
     <div style="text-align:center;">
+      <div class="student-only" style="margin-bottom:6px;">
+        <img src="${LOGO_URL}" width="60" height="60" style="object-fit:contain;"
+          onerror="this.style.display='none'"/>
+      </div>
       <div style="font-size:22px;font-weight:900;color:${BRAND};letter-spacing:0.04em;">${UNI_NAME.toUpperCase()}</div>
       <div style="font-size:8.5px;color:#555;margin-top:4px;">
         Established by state Government of Sikkim by Act 14 of 2025, under Section 2(f) of UGC Act 1956 Government of India.
