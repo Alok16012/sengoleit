@@ -1054,13 +1054,19 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
 
     <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:10px;font-weight:700;">
       <span>Result: ${v(meta.resultStatus || 'Passed')}</span>
-      <span>Date of Issue: ${v(meta.dateOfIssue)}</span>
+      <span class="office-only">Date of Issue: ${v(meta.dateOfIssue)}</span>
     </div>
 
     <div style="margin-top:12px;border:1px solid #000;padding:6px 8px;">
       <div style="font-size:9px;font-weight:900;letter-spacing:0.06em;">IMPORTANT NOTE</div>
       <div style="font-size:8.5px;color:#333;margin-top:2px;">
         Any change made to this statement, except by the Issuing Authority, shall result in cancellation of the statement and shall also invite appropriate legal action.
+      </div>
+      <!-- The student's copy is provisional: it goes out before the printed
+           marksheet, so it carries the correction window instead of a date of
+           issue. The office copy says neither. -->
+      <div class="student-only" style="font-size:8.5px;color:#333;margin-top:4px;">
+        Marks May be changed at the printing of marksheet. If you need any correction please inform university withing 20 days.
       </div>
     </div>
 
@@ -1080,6 +1086,8 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
   /* The student's copy simply hides what only the office copy carries, so
      both are the same sheet and cannot drift apart. */
   body.student-copy .office-only { display:none !important; }
+  .student-only { display:none !important; }
+  body.student-copy .student-only { display:block !important; }
 </style>
 <script>
   function setMode(student) {
