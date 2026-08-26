@@ -6,6 +6,7 @@ import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2, Check } from 'lucide-react'
 import { generateFeePDF } from '../../utils/generateFeePDF'
+import { fetchAllRows } from '../../utils/fetchAllRows'
 import CenterCourses from './CenterCourses'
 
 // category types:
@@ -123,10 +124,13 @@ export default function FeeManagement() {
 
   async function fetchMaster() {
     setMasterLoading(true)
-    const { data } = await supabase
+    // Every structure, not just the newest 1000 — a course whose fee is older
+    // than that used to read as "No fee yet" here.
+    const { data } = await fetchAllRows(() => supabase
       .from('fee_structures')
       .select('id, total_semesters, program_id, session_id, programs(program_name), academic_sessions(session_name), fee_items(label, category, amount, sort_order)')
       .order('created_at', { ascending: false })
+      .order('id'))
     setMasterList(data || [])
     setMasterLoading(false)
   }
@@ -292,38 +296,56 @@ export default function FeeManagement() {
     const sessList = selectedSessIds.size > 0 ? [...selectedSessIds] : [null]
     const valid = items.filter(i => i.label.trim())
 
+    // A write that the database refuses used to be swallowed here, and the
+    // editor still said "Saved" — so a fee that never landed looked saved.
+    // The first failure stops the run and is shown.
+    let failure = null
+
     for (const pid of progList) {
       for (const rawSid of sessList) {
         // Upsert fee_structure
         let q = supabase.from('fee_structures').select('id').eq('program_id', pid)
         q = rawSid ? q.eq('session_id', rawSid) : q.is('session_id', null)
-        const { data: existing } = await q.maybeSingle()
+        const { data: existing, error: findErr } = await q.maybeSingle()
+        if (findErr) { failure = findErr; break }
 
         let fid = existing?.id
         const isNew = !fid
         if (fid) {
-          await supabase.from('fee_structures').update({ total_semesters: totalSems }).eq('id', fid)
+          const { error } = await supabase.from('fee_structures').update({ total_semesters: totalSems }).eq('id', fid)
+          if (error) { failure = error; break }
         } else {
-          const { data } = await supabase.from('fee_structures').insert({
+          const { data, error } = await supabase.from('fee_structures').insert({
             program_id: pid, session_id: rawSid || null, total_semesters: totalSems,
           }).select('id').single()
+          if (error) { failure = error; break }
           fid = data?.id
         }
-        if (!fid) continue
+        if (!fid) { failure = { message: 'The fee structure row could not be created.' }; break }
 
-        await supabase.from('fee_items').delete().eq('fee_structure_id', fid)
+        const { error: delErr } = await supabase.from('fee_items').delete().eq('fee_structure_id', fid)
+        if (delErr) { failure = delErr; break }
         if (valid.length) {
-          await supabase.from('fee_items').insert(
+          const { error } = await supabase.from('fee_items').insert(
             valid.map((i, idx) => ({
               fee_structure_id: fid, label: i.label.trim(),
               category: i.category, amount: parseFloat(i.amount) || 0, sort_order: idx,
             }))
           )
+          if (error) { failure = error; break }
         }
         // A brand-new structure → auto-allot to centers that already offer this
         // program (Pending), matching the quick-add behaviour.
         if (isNew) await autoAllotToProgramCenters(pid, fid)
       }
+      if (failure) break
+    }
+
+    if (failure) {
+      setSaving(false)
+      alert('Fee could not be saved: ' + (failure.message || 'unknown error'))
+      fetchMaster()
+      return
     }
 
     setSaving(false); setSaved(true)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import Button from '../../components/ui/Button'
+import { fetchAllRows } from '../../utils/fetchAllRows'
 import { Plus, Search, X, Check, Trash2, Building2, GraduationCap, CheckCircle2, Clock, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 
 const fmt = n => (n % 1 === 0 ? n.toLocaleString('en-IN') : n.toFixed(2))
@@ -69,9 +70,12 @@ export default function CenterCourses() {
       .in('center_type', ['super_center', 'center'])
       .order('center_name')
       .then(({ data }) => { setCenters(data || []); setCentersLoading(false) })
-    supabase.from('fee_structures')
+    // All of them — past the 1000 a single select returns, or the courses with
+    // the oldest fee structures cannot be allotted here at all.
+    fetchAllRows(() => supabase.from('fee_structures')
       .select('id, total_semesters, program_id, session_id, programs(program_name), academic_sessions(session_name), fee_items(label, category, amount)')
       .order('created_at', { ascending: false })
+      .order('id'))
       .then(({ data }) => setStructs(data || []))
     supabase.from('programs').select('id, program_name, department_id, programme_type_id, duration, semester_year')
       .then(({ data }) => setPrograms(data || []))
@@ -85,7 +89,7 @@ export default function CenterCourses() {
   }, [])
 
   function loadCounts() {
-    supabase.from('center_courses').select('center_id, status').then(({ data }) => {
+    fetchAllRows(() => supabase.from('center_courses').select('center_id, status').order('id')).then(({ data }) => {
       const m = {}
       ;(data || []).forEach(r => {
         if (!m[r.center_id]) m[r.center_id] = { pending: 0, approved: 0 }
