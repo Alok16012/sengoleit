@@ -202,8 +202,6 @@ export default function SemesterResultModal({ student, special = false, onClose,
       // The semester's published date from the Examination Calendar, so a
       // reprint reads the same as the first copy. Falls back to today only
       // when the calendar has none.
-      dateOfIssue: dates.resultPublished
-        || new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
       cgpa,
     })
     setPrinting(null)

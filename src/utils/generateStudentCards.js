@@ -919,7 +919,7 @@ const SHEET_DASH = '#9fb3b3'
 // (internal_obtained, theory_obtained). Grade and earned credit are derived
 // per paper; a paper that fails earns none.
 //
-// meta: { dmcNo, semester, examHeld, resultStatus, dateOfIssue, cgpa }.
+// meta: { dmcNo, semester, examHeld, resultStatus, cgpa }.
 //
 // This returns the SHEET only — the bordered page, with no document around it
 // and no print buttons. generateMarksStatement wraps it for the Exam Section;
@@ -1110,13 +1110,12 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
 
     <div style="display:flex;justify-content:space-between;padding:8px 12px 0;font-size:10px;font-weight:700;">
       <span>Result: ${v(meta.resultStatus || 'Passed')}</span>
-      <span class="student-only">Date of Issue: ${v(meta.dateOfIssue)}</span>
     </div>
 
-    <div class="student-only" style="margin:12px;border:1px solid ${SHEET_LINE};padding:6px 8px;">
+    <div style="margin:12px;border:1px solid ${SHEET_LINE};padding:6px 8px;">
       <div style="font-size:9px;font-weight:900;letter-spacing:0.06em;">जरूरी नोट</div>
       <div style="font-size:8.5px;color:#333;margin-top:2px;">
-        मार्क्स मार्कशीट के प्रिंटिंग के समय बदले जा सकते हैं। यदि आपको कोई सुधार की आवश्यकता है तो कृपया 20 दिनों के भीतर विश्वविद्यालय को सूचित करें।
+        Marks may be changed at the printing of marksheet. If you need any correction please inform university within 20 days.
       </div>
     </div>
 
@@ -1144,8 +1143,6 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
 // inside a page rather than as a document of its own.
 export const MARKS_STATEMENT_STYLE = `
   .student-copy .office-only { display:none !important; }
-  .student-only { display:none !important; }
-  .student-copy .student-only { display:block !important; }
 `
 
 // The Exam Section's printable Statement of Marks: the same sheet, wrapped in

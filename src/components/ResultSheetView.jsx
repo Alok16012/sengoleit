@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { marksStatementHTML, MARKS_STATEMENT_STYLE, sgpaOf } from '../utils/generateStudentCards'
-import { formatDayMonthYear, formatMonthYear } from '../utils/formatDate'
+import { formatMonthYear } from '../utils/formatDate'
 
 // The sheet is built at the width it prints at, then scaled to whatever the
 // page has — larger on a desktop, smaller on a phone. Scaling, not
@@ -28,7 +28,6 @@ export default function ResultSheetView({ student, semester, sheet, status }) {
     // fallback — the same order the printed sheet uses.
     examHeld: String(sheet?.exam_held || '').trim() || formatMonthYear(sheet?.exam_start),
     resultStatus: status === 'Fail' ? 'Failed' : 'Passed',
-    dateOfIssue: formatDayMonthYear(sheet?.result_published),
     // CGPA spans every semester up to this one, not just this one.
     cgpa: sgpaOf(sheet?.upto || []),
   })
