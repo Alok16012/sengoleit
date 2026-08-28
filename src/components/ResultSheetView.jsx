@@ -7,7 +7,7 @@ import { formatDayMonthYear, formatMonthYear } from '../utils/formatDate'
 // re-styling: what is on screen is the university's own Statement of Marks,
 // down to the last row, not a second layout that has to be kept in step
 // with it.
-const SHEET_WIDTH = 760
+const SHEET_WIDTH = 1000
 
 // The student's / centre's read-only Statement of Marks, rendered IN the page.
 //
