@@ -1112,8 +1112,8 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
       <span>Result: ${v(meta.resultStatus || 'Passed')}</span>
     </div>
 
-    <div style="margin:12px;border:1px solid ${SHEET_LINE};padding:6px 8px;">
-      <div style="font-size:9px;font-weight:900;letter-spacing:0.06em;">जरूरी नोट</div>
+    <div class="student-only" style="margin:12px;border:1px solid ${SHEET_LINE};padding:6px 8px;">
+      <div style="font-size:9px;font-weight:900;letter-spacing:0.06em;">IMPORTANT NOTE</div>
       <div style="font-size:8.5px;color:#333;margin-top:2px;">
         Marks may be changed at the printing of marksheet. If you need any correction please inform university within 20 days.
       </div>
@@ -1143,6 +1143,8 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
 // inside a page rather than as a document of its own.
 export const MARKS_STATEMENT_STYLE = `
   .student-copy .office-only { display:none !important; }
+  .student-only { display:none !important; }
+  .student-copy .student-only { display:block !important; }
 `
 
 // The Exam Section's printable Statement of Marks: the same sheet, wrapped in
