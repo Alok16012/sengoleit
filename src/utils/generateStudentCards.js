@@ -977,9 +977,14 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
   const showTotals = showTheory || showInternal || marked.some(r => r.maxTot || r.gotTot)
 
 
-  const cell = `border:1px dashed ${SHEET_DASH};padding:6px 9px;font-size:10px;color:#111;`
-  const mc = (extra = '') => `border:1px dashed ${SHEET_DASH};padding:4px 5px;font-size:9.5px;color:#111;text-align:center;${extra}`
-  const mh = (extra = '') => `${mc(extra)}font-size:9px;font-weight:700;background:#f7faf9;`
+  // The marksheet's own grid: the info section is a 4-column block, the marks
+  // table is the 4-column block PLUS 2 columns × markColCount. The two blocks
+  // are independent — their colspans live within themselves.
+  const INFO_COLS = 4
+  const MARKS_COLS = 4 + markColCount * 2
+  const cell = `border:1px solid ${SHEET_DASH};padding:6px 9px;font-size:10px;color:#111;`
+  const mc = (extra = '') => `border:1px solid ${SHEET_DASH};padding:5px 6px;font-size:9.5px;color:#111;text-align:center;${extra}`
+  const mh = (extra = '') => `${mc(extra)}font-size:9px;font-weight:700;background:#eef5f3;`
   const bar = `background:${SHEET_LINE};color:#fff;padding:8px 9px;font-size:10.5px;font-weight:700;`
 
   const markColCount = (showTheory ? 1 : 0) + (showInternal ? 1 : 0) + (showTotals ? 1 : 0)
@@ -1014,19 +1019,19 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
         <td colspan="2" style="${cell}font-weight:600;">${v(s.mothers_name)}</td>
       </tr>
       <tr>
-        <td style="${cell}white-space:nowrap;">Enrollment No:</td>
-        <td style="${cell}font-weight:600;">${v(s.enrollment_no)}</td>
+        <td colspan="2" style="${cell}white-space:nowrap;">Enrollment No:</td>
+        <td colspan="2" style="${cell}font-weight:600;">${v(s.enrollment_no)}</td>
+      </tr>
+      <tr>
         <td style="${cell}white-space:nowrap;">Reg no:</td>
         <td style="${cell}font-weight:600;">${v(s.registration_no)}</td>
-      </tr>
-      <tr>
         <td style="${cell}white-space:nowrap;">Semester:</td>
         <td style="${cell}font-weight:600;">${romanSemester(meta.semester)}</td>
-        <td style="${cell}white-space:nowrap;">Session :</td>
-        <td style="${cell}font-weight:600;">${sess}</td>
       </tr>
       <tr>
-        <td colspan="4" style="${cell}white-space:nowrap;">Examination held: <strong>${v(meta.examHeld)}</strong></td>
+        <td style="${cell}white-space:nowrap;">Session :</td>
+        <td style="${cell}font-weight:600;">${sess}</td>
+        <td colspan="2" style="${cell}white-space:nowrap;">Examination held: <strong>${v(meta.examHeld)}</strong></td>
       </tr>
       <tr>
         <td colspan="4" style="${cell}font-weight:600;">Program : ${v(prog)}</td>
@@ -1089,7 +1094,7 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
           <tr>
             <td colspan="${5 + markColCount * 2}" style="${mc}font-weight:700;padding:6px;">
               SGPA - ${sgpa == null ? '\u2014' : sgpa.toFixed(2)}
-              <span style="display:inline-block;width:46px;"></span>|<span style="display:inline-block;width:46px;"></span>
+              <span style="display:inline-block;width:1px;height:14px;background:${SHEET_LINE};vertical-align:middle;margin:0 8px;"></span>
               CGPA - ${semNo === 1 ? '\u2014' : (meta.cgpa ? Number(meta.cgpa).toFixed(2) : (sgpa == null ? '\u2014' : sgpa.toFixed(2)))}
             </td>
           </tr>
@@ -1097,13 +1102,12 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
       </table>
     </div>
 
-    <table style="width:100%;border-collapse:collapse;">
+    <table style="width:100%;border-collapse:collapse;margin-top:2px;">
       <tr>
-        <td style="${bar}">Total Marks:</td>
-        <td style="${bar}border-left:1px solid rgba(255,255,255,0.3);">${anyMarks ? totGot : '\u2014'}</td>
-        <td style="${bar}border-left:1px solid rgba(255,255,255,0.3);">Division:</td>
-        <td style="${bar}border-left:1px solid rgba(255,255,255,0.3);">${division}</td>
-        <td colspan="${Math.max(markColCount * 2 - 1, 0)}" style="${bar}"></td>
+        <td style="width:28%;${bar}border-top:2px solid rgba(255,255,255,0.2);">Total Marks:</td>
+        <td style="width:22%;${bar}border-left:1px solid rgba(255,255,255,0.3);border-top:2px solid rgba(255,255,255,0.2);">${anyMarks ? totGot : '\u2014'}</td>
+        <td style="width:18%;${bar}border-left:1px solid rgba(255,255,255,0.3);border-top:2px solid rgba(255,255,255,0.2);">Division:</td>
+        <td style="width:32%;${bar}border-left:1px solid rgba(255,255,255,0.3);border-top:2px solid rgba(255,255,255,0.2);">${division}</td>
       </tr>
     </table>
 
