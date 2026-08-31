@@ -977,11 +977,6 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
   const showTotals = showTheory || showInternal || marked.some(r => r.maxTot || r.gotTot)
 
 
-  // The marksheet's own grid: the info section is a 4-column block, the marks
-  // table is the 4-column block PLUS 2 columns × markColCount. The two blocks
-  // are independent — their colspans live within themselves.
-  const INFO_COLS = 4
-  const MARKS_COLS = 4 + markColCount * 2
   const cell = `border:1px solid ${SHEET_DASH};padding:6px 9px;font-size:10px;color:#111;`
   const mc = (extra = '') => `border:1px solid ${SHEET_DASH};padding:5px 6px;font-size:9.5px;color:#111;text-align:center;${extra}`
   const mh = (extra = '') => `${mc(extra)}font-size:9px;font-weight:700;background:#eef5f3;`
@@ -1115,7 +1110,7 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
       <span>Result: ${v(meta.resultStatus || 'Passed')}</span>
     </div>
 
-    <div class="student-only" style="margin:12px;border:1px solid ${SHEET_LINE};padding:6px 8px;">
+    <div class="student-only" style="margin:8px 12px 0;border:1px solid ${SHEET_LINE};padding:6px 8px;">
       <div style="font-size:9px;font-weight:900;letter-spacing:0.06em;">IMPORTANT NOTE</div>
       <div style="font-size:8.5px;color:#333;margin-top:2px;">
         Marks may be changed at the printing of marksheet. If you need any correction please inform university within 20 days.
