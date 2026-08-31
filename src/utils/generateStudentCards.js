@@ -1026,11 +1026,10 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
         <td style="${cell}font-weight:600;">${sess}</td>
       </tr>
       <tr>
-        <td colspan="2" style="${cell}white-space:nowrap;">Examination held:</td>
-        <td colspan="${5 + markColCount * 2 - 2}" style="${cell}font-weight:600;">${v(meta.examHeld)}</td>
+        <td colspan="4" style="${cell}white-space:nowrap;">Examination held: <strong>${v(meta.examHeld)}</strong></td>
       </tr>
       <tr>
-        <td colspan="${5 + markColCount * 2}" style="${cell}font-weight:600;">${'Program : ' + v(prog)}</td>
+        <td colspan="4" style="${cell}font-weight:600;">Program : ${v(prog)}</td>
       </tr>
     </table>
 
