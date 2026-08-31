@@ -1125,14 +1125,17 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
       </tr>
     </table>
 
+    <div class="office-only" style="border-bottom:1px solid ${SHEET_DASH};padding:8px 12px;font-size:10px;font-weight:700;">
+      Result:
+    </div>
     <div style="border-bottom:1px solid ${SHEET_DASH};padding:8px 12px;font-size:10px;font-weight:700;">
-      Result: ${v(meta.resultStatus || 'Passed')}
+      ${v(meta.resultStatus || 'Passed')}
     </div>
 
-    <div class="student-only" style="margin:10px 12px 12px;border:1px solid ${SHEET_LINE};padding:7px 9px;">
+    <div style="margin:10px 12px 12px;border:1px solid ${SHEET_LINE};padding:7px 9px;">
       <div style="font-size:9px;font-weight:900;letter-spacing:0.06em;">IMPORTANT NOTE</div>
       <div style="font-size:8.5px;color:#333;margin-top:2px;">
-        Marks may be changed at the printing of marksheet. If you need any correction please inform university within 20 days.
+        Marks May be changed at the printing of marksheet. If you need any correction please inform university within 20 days.
       </div>
     </div>
 
