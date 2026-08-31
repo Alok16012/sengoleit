@@ -483,9 +483,6 @@ export default function FeeManagement() {
                   {sessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
                 </select>
               </div>
-              <Button onClick={() => openEditor()}>
-                <Plus size={14} /> Add New Fee Structure
-              </Button>
             </div>
             {(() => {
               const q = masterSearch.toLowerCase()
