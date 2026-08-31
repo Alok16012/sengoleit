@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { formatDate } from '../../utils/formatDate'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { studentSession } from '../../utils/studentSelf'
@@ -100,11 +99,10 @@ export default function StudentResults() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
                 <Field label="Obtained Marks" value={r.obtained_marks} />
                 <Field label="Total Marks" value={r.total_marks} />
                 <Field label="Percentage" value={pct(r.obtained_marks, r.total_marks)} />
-                <Field label="Declared On" value={formatDate(r.declared_at)} />
               </div>
               {r.remarks && (
                 <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-100 italic">"{r.remarks}"</div>
@@ -155,11 +153,10 @@ export default function StudentResults() {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl mb-4">
             <Field label="Obtained Marks" value={data.exam_result_obtained_marks} />
             <Field label="Total Marks" value={data.exam_result_total_marks} />
             <Field label="Percentage" value={pct(data.exam_result_obtained_marks, data.exam_result_total_marks)} />
-            <Field label="Declared On" value={formatDate(data.exam_result_declared_at)} />
           </div>
 
           {data.exam_result_remarks && (
