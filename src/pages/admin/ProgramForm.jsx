@@ -49,8 +49,17 @@ export default function ProgramForm() {
 
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }))
 
+  function validate() {
+    if (form.course_code && form.enrollment_code && form.course_code === form.enrollment_code) {
+      alert('Course Code and Enrollment Code cannot be the same value.')
+      return false
+    }
+    return true
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!validate()) { setLoading(false); return }
     setLoading(true)
     const payload = { ...form }
     delete payload.id; delete payload.created_at; delete payload.updated_at
