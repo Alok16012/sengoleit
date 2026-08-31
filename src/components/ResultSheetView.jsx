@@ -21,6 +21,7 @@ export default function ResultSheetView({ student, semester, sheet, status }) {
   const page = useRef(null)
   const [scale, setScale] = useState(1)
   const [height, setHeight] = useState(0)
+  const [offset, setOffset] = useState(0)
 
   const html = marksStatementHTML(student || {}, sheet?.papers || [], {
     semester: `Semester ${semester}`,
@@ -39,6 +40,10 @@ export default function ResultSheetView({ student, semester, sheet, status }) {
       const s = Math.min(b.clientWidth / SHEET_WIDTH, 1)
       setScale(s)
       setHeight(p.offsetHeight * s)
+      // A transform does not shrink the element's layout box, so on a wide
+      // page the 1000px sheet still sits hard against the left edge with the
+      // slack piled up on the right. Centre it on what it actually occupies.
+      setOffset(Math.max(0, (b.clientWidth - SHEET_WIDTH * s) / 2))
     }
     fit()
     const ro = new ResizeObserver(fit)
@@ -53,7 +58,8 @@ export default function ResultSheetView({ student, semester, sheet, status }) {
     <div ref={box} style={{ height: height || undefined }} className="overflow-hidden student-copy">
       <style>{MARKS_STATEMENT_STYLE}</style>
       <div ref={page}
-        style={{ width: SHEET_WIDTH, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+        style={{ width: SHEET_WIDTH, marginLeft: offset,
+                 transform: `scale(${scale})`, transformOrigin: 'top left' }}
         dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   )
