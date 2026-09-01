@@ -5,6 +5,7 @@ import { Search, ChevronDown, X, AlertCircle, Download, Eye } from 'lucide-react
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import { generateCourseFeeListPDF } from '../../utils/generateCourseFeeListPDF'
+import { isOfferable } from '../../utils/feeValidity'
 
 // ── Searchable single-select dropdown ──────────────────────────────────────
 function SearchableSelect({ options, value, onChange, placeholder = 'All', label }) {
@@ -154,8 +155,12 @@ export default function CourseFeeView() {
         const fsIds = [...new Set((cc || []).map(r => r.fee_structure_id).filter(Boolean))]
         if (!fsIds.length) { setAllotRows([]); return }
 
-        const { data: fs } = await supabase.from('fee_structures')
-          .select('id, program_id, session_id').in('id', fsIds)
+        // A fee whose validity window has passed is no longer offered, so it
+        // does not belong in the centre's own course list either. The window is
+        // about OFFERING — students already admitted keep their fee.
+        const { data: fsAll } = await supabase.from('fee_structures')
+          .select('id, program_id, session_id, valid_from, valid_to').in('id', fsIds)
+        const fs = (fsAll || []).filter(isOfferable)
         const progIds = [...new Set((fs || []).map(f => f.program_id).filter(Boolean))]
         const { data: progs } = progIds.length
           ? await supabase.from('programs').select('id, program_name, department_id, programme_type_id, semester_year').in('id', progIds)
@@ -278,7 +283,7 @@ export default function CourseFeeView() {
       // Step 2: fetch fee_structures (simple columns only — no nested joins)
       let fsQ = supabase
         .from('fee_structures')
-        .select('id, program_id, session_id, total_semesters')
+        .select('id, program_id, session_id, total_semesters, valid_from, valid_to')
       if (selSession)     fsQ = fsQ.eq('session_id', selSession)
       if (matchProgIds)   fsQ = fsQ.in('program_id', matchProgIds)
 
@@ -286,8 +291,11 @@ export default function CourseFeeView() {
       if (fsErr) throw fsErr
       let fsList = fsRaw || []
 
-      // Restrict to courses the admin has approved for this center.
+      // Restrict to courses the admin has approved for this center, and to fees
+      // whose validity window still stands. The admin's own view is unfiltered:
+      // an expired fee is exactly what they need to see to revise it.
       if (centerRowId) {
+        fsList = fsList.filter(isOfferable)
         const { data: cc, error: ccErr } = await supabase
           .from('center_courses')
           .select('fee_structure_id')

@@ -11,6 +11,7 @@ import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee } from '../../utils/courseFee'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { findFreeNumber, countIssued } from '../../utils/uniqueNumbers'
+import { isOfferable } from '../../utils/feeValidity'
 import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, EyeOff,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft,
@@ -751,11 +752,16 @@ export default function StudentForm() {
         // query. (A second .in('id', [...]) blew past the URL length limit once a
         // center had hundreds of allotted courses, so nothing came back.)
         const { data: cc } = await supabase.from('center_courses')
-          .select('fee_structures(program_id, session_id)')
+          .select('fee_structures(program_id, session_id, valid_from, valid_to)')
           .eq('center_id', form.center_id)
           .eq('status', 'approved')
         if (!cancelled) {
           let rows = (cc || []).map(r => r.fee_structures).filter(Boolean)
+          // A fee whose validity window has passed cannot be admitted into —
+          // that is the whole point of the window: when the fee is revised, the
+          // old one stops taking new students. Students already admitted under
+          // it are untouched; this list only decides what can be admitted TO.
+          rows = rows.filter(isOfferable)
           // Once a session is chosen, only that session's approved courses apply.
           if (form.session_id) rows = rows.filter(r => r.session_id === form.session_id)
           setFeeProgramIds(new Set(rows.map(r => r.program_id).filter(Boolean)))

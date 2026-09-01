@@ -4,7 +4,8 @@ import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2, Check } from 'lucide-react'
+import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2, Check, CalendarClock } from 'lucide-react'
+import { validityState, validityLabel, todayISO } from '../../utils/feeValidity'
 import { generateFeePDF } from '../../utils/generateFeePDF'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import CenterCourses from './CenterCourses'
@@ -85,6 +86,13 @@ export default function FeeManagement() {
     next.has(pid) ? next.delete(pid) : next.add(pid)
     return next
   })
+  // Bulk validity window — set "this fee applies till this date" on the ticked
+  // courses, or on everything the filters are currently showing.
+  const [validityOpen, setValidityOpen]   = useState(false)
+  const [bulkFrom, setBulkFrom]           = useState('')
+  const [bulkTo, setBulkTo]               = useState('')
+  const [bulkScope, setBulkScope]         = useState('picked')   // 'picked' | 'filtered'
+  const [savingValidity, setSavingValidity] = useState(false)
   const [masterList, setMasterList] = useState([])
   const [masterLoading, setMasterLoading] = useState(true)
   const [masterSearch, setMasterSearch] = useState('')
@@ -104,6 +112,10 @@ export default function FeeManagement() {
   const [selectedProgIds, setSelectedProgIds] = useState(new Set())
   const [selectedSessIds, setSelectedSessIds] = useState(new Set())
   const [totalSems, setTotalSems]           = useState(4)
+  // The window this fee may be offered in. Blank = no limit, which is what
+  // every fee created before this existed carries.
+  const [validFrom, setValidFrom]           = useState('')
+  const [validTo, setValidTo]               = useState('')
   const [isEditMode, setIsEditMode]         = useState(false)
   const [items, setItems]                   = useState([])
   const [loading, setLoading]               = useState(false)
@@ -128,7 +140,7 @@ export default function FeeManagement() {
     // than that used to read as "No fee yet" here.
     const { data } = await fetchAllRows(() => supabase
       .from('fee_structures')
-      .select('id, total_semesters, program_id, session_id, programs(program_name), academic_sessions(session_name), fee_items(label, category, amount, sort_order)')
+      .select('id, total_semesters, program_id, session_id, valid_from, valid_to, programs(program_name), academic_sessions(session_name), fee_items(label, category, amount, sort_order)')
       .order('created_at', { ascending: false })
       .order('id'))
     setMasterList(data || [])
@@ -194,6 +206,51 @@ export default function FeeManagement() {
     setAddingSessFor(null)
   }
 
+  // A `date` column arrives as 'YYYY-MM-DD', which is exactly what <input
+  // type="date"> wants; anything else (or null) becomes blank = no limit.
+  const day = (v) => (v ? String(v).slice(0, 10) : '')
+
+  // Stamp a validity window onto the given fee structures. Structures, not
+  // programmes: with a Session filter on, a row stands for that session alone,
+  // and writing to the programme would silently stamp the sessions the filter
+  // is hiding. Blank dates clear the window — that is how a fee is re-opened.
+  async function applyValidity(structureIds) {
+    const ids = [...new Set(structureIds)].filter(Boolean)
+    if (!ids.length) return
+    if (bulkFrom && bulkTo && bulkFrom > bulkTo) {
+      alert('The "valid from" date is after the "valid to" date.')
+      return
+    }
+    setSavingValidity(true)
+    const patch = { valid_from: bulkFrom || null, valid_to: bulkTo || null }
+    // Hundreds of ids in one .in() blow past the URL length limit, so go in
+    // batches — the same trap the centre course lookup hit.
+    let failure = null
+    for (let i = 0; i < ids.length; i += 100) {
+      const { error } = await supabase.from('fee_structures')
+        .update(patch).in('id', ids.slice(i, i + 100))
+      if (error) { failure = error; break }
+    }
+    setSavingValidity(false)
+    if (failure) { alert('Validity could not be saved: ' + (failure.message || 'unknown error')); return }
+    setValidityOpen(false)
+    await fetchMaster()
+    const what = bulkTo ? `valid till ${bulkTo}` : bulkFrom ? `valid from ${bulkFrom}` : 'no date limit'
+    setFlash(`${ids.length} fee structure${ids.length > 1 ? 's' : ''} — ${what}.`)
+    setTimeout(() => setFlash(''), 4000)
+  }
+
+  // A Fee Master row collapses a course's sessions, so its validity is the best
+  // of them: still offerable while ANY session is, and 'expired' only once
+  // every one of them has lapsed.
+  function rowValidity(list) {
+    const states = list.map(s => validityState(s))
+    for (const best of ['active', 'open', 'scheduled']) {
+      if (states.includes(best)) return best
+    }
+    return 'expired'
+  }
+
   // Two structures carry the same fee when they run over the same number of
   // semesters and their items match one for one.
   function sameFee(a, b) {
@@ -225,6 +282,7 @@ export default function FeeManagement() {
         sessIds.length ? sessIds : struct.session_id ? [struct.session_id] : []
       ))
       setTotalSems(struct.total_semesters || 4)
+      setValidFrom(day(struct.valid_from)); setValidTo(day(struct.valid_to))
       setIsEditMode(true)
       const sorted = [...(struct.fee_items || [])].sort((a, b) => a.sort_order - b.sort_order)
       setItems(sorted.map(i => ({ ...i, _key: uid() })))
@@ -233,6 +291,7 @@ export default function FeeManagement() {
       setDeptId(''); setTypeId('')
       setSelectedProgIds(new Set()); setSelectedSessIds(new Set())
       setTotalSems(4); setIsEditMode(false); setItems(keyed(DEFAULTS)); setSaved(false)
+      setValidFrom(''); setValidTo('')
     }
     setTab('editor')
   }
@@ -256,6 +315,7 @@ export default function FeeManagement() {
     setIsEditMode(false)
     setItems(keyed(DEFAULTS))
     setSaved(false)
+    setValidFrom(''); setValidTo('')
     setPicked(new Set())
     setTab('editor')
   }
@@ -274,6 +334,7 @@ export default function FeeManagement() {
     setIsEditMode(false)
     setItems(keyed(DEFAULTS))
     setSaved(false)
+    setValidFrom(''); setValidTo('')
     setTab('editor')
   }
 
@@ -298,11 +359,13 @@ export default function FeeManagement() {
     const { data } = await q.maybeSingle()
     if (data) {
       setTotalSems(data.total_semesters || defaultSems)
+      setValidFrom(day(data.valid_from)); setValidTo(day(data.valid_to))
       const sorted = [...(data.fee_items || [])].sort((a, b) => a.sort_order - b.sort_order)
       setItems(sorted.map(i => ({ ...i, _key: uid() })))
       setSaved(true)
     } else {
       setTotalSems(defaultSems); setItems(keyed(DEFAULTS))
+      setValidFrom(''); setValidTo('')
     }
     setLoading(false)
   }
@@ -334,12 +397,16 @@ export default function FeeManagement() {
 
         let fid = existing?.id
         const isNew = !fid
+        // Blank means "no limit", which has to be written as NULL rather than
+        // left alone — clearing an end date is how a fee is un-expired.
+        const window = { valid_from: validFrom || null, valid_to: validTo || null }
         if (fid) {
-          const { error } = await supabase.from('fee_structures').update({ total_semesters: totalSems }).eq('id', fid)
+          const { error } = await supabase.from('fee_structures')
+            .update({ total_semesters: totalSems, ...window }).eq('id', fid)
           if (error) { failure = error; break }
         } else {
           const { data, error } = await supabase.from('fee_structures').insert({
-            program_id: pid, session_id: rawSid || null, total_semesters: totalSems,
+            program_id: pid, session_id: rawSid || null, total_semesters: totalSems, ...window,
           }).select('id').single()
           if (error) { failure = error; break }
           fid = data?.id
@@ -532,9 +599,16 @@ export default function FeeManagement() {
                 if (!byProgram.has(s.program_id)) byProgram.set(s.program_id, [])
                 byProgram.get(s.program_id).push(s)
               }
-              const feeRows = [...byProgram.values()].map(list => ({
-                ...list[0], __sessions: list, __sessionCount: list.length,
-              }))
+              const feeRows = [...byProgram.values()].map(list => {
+                const labels = [...new Set(list.map(s => validityLabel(s)))]
+                return {
+                  ...list[0], __sessions: list, __sessionCount: list.length,
+                  __validity: rowValidity(list),
+                  // Sessions priced for different windows cannot be summed up in
+                  // one line, so say so rather than showing the newest one's.
+                  __validityLabel: labels.length === 1 ? labels[0] : 'Mixed',
+                }
+              })
               // Programs that have NO fee structure yet — show them too so every
               // course is visible/searchable (e.g. B.Com without a fee structure).
               const structProgramIds = new Set(masterList.map(s => s.program_id))
@@ -556,8 +630,10 @@ export default function FeeManagement() {
                   total_semesters: p.duration || null,
                   programs: { program_name: p.program_name },
                 }))
+              const expiredRows = feeRows.filter(r => r.__validity === 'expired')
               const allRows = masterStatus === 'done' ? feeRows
                 : masterStatus === 'pending' ? programRows
+                : masterStatus === 'expired' ? expiredRows
                 : [...feeRows, ...programRows]
               const deptMap = Object.fromEntries(departments.map(d => [d.id, d.name]))
               return (
@@ -569,6 +645,9 @@ export default function FeeManagement() {
                 { key: 'all', label: 'All', count: feeRows.length + programRows.length },
                 { key: 'done', label: 'Done', count: feeRows.length },
                 { key: 'pending', label: 'Pending', count: programRows.length },
+                // The list to work from when a fee is due for revision: these
+                // are the courses centres can no longer be offered.
+                { key: 'expired', label: 'Expired', count: expiredRows.length },
               ].map(t => (
                 <button key={t.key} onClick={() => setMasterStatus(t.key)}
                   className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${masterStatus === t.key ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -579,14 +658,27 @@ export default function FeeManagement() {
                 </button>
               ))}
             </div>
+            {/* "How long does this fee stand?" — set it on the ticked courses,
+                or on everything the filters are showing. Past the end date the
+                course stops being offered to centres. */}
+            <button onClick={() => {
+              setBulkScope(picked.size ? 'picked' : 'filtered')
+              setBulkFrom(''); setBulkTo(''); setValidityOpen(true)
+            }}
+              className="ml-auto flex items-center gap-1.5 text-xs font-bold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3.5 py-2 rounded-xl transition-colors">
+              <CalendarClock size={14} /> Set Validity
+            </button>
             {/* Rows come from allRows, so the export matches the sub-tab, the
                 search and every filter exactly as the table shows them. A row
                 with no fee exports blank money columns rather than a dash. */}
-            <ExportButtons className="ml-auto" title="Fee Master" rows={allRows}
+            <ExportButtons title="Fee Master" rows={allRows}
               filename={`fee-master${masterStatus !== 'all' ? '_' + masterStatus : ''}`}
               meta={[
                 ...(masterSearch ? [`Search: ${masterSearch}`] : []),
-                ...(masterStatus !== 'all' ? [`Showing: ${masterStatus === 'done' ? 'with fee' : 'without fee'}`] : []),
+                ...(masterStatus !== 'all' ? [`Showing: ${
+                  masterStatus === 'done' ? 'with fee'
+                  : masterStatus === 'pending' ? 'without fee'
+                  : 'expired fee'}`] : []),
                 `${allRows.length} courses (${feeRows.length} with fee, ${programRows.length} without)`,
               ]}
               columns={[
@@ -603,6 +695,8 @@ export default function FeeManagement() {
                 { header: 'Grand Total', value: r => r.__programOnly ? '' : calcTotals(r.fee_items, r.total_semesters).grandTotal,
                   pdfValue: r => r.__programOnly ? '—' : `₹${fmt(calcTotals(r.fee_items, r.total_semesters).grandTotal)}` },
                 { header: 'Fee Status', value: r => r.__programOnly ? 'No fee yet' : 'Fee set' },
+                { header: 'Valid', value: r => r.__programOnly ? '' : r.__validityLabel },
+                { header: 'Validity Status', value: r => r.__programOnly ? '' : r.__validity },
               ]} />
             </div>
             {picked.size > 0 && (
@@ -645,6 +739,7 @@ export default function FeeManagement() {
                     <th className="text-left text-white font-semibold px-4 py-3">Department</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Session</th>
                     <th className="text-center text-white font-semibold px-4 py-3">Semesters</th>
+                    <th className="text-center text-white font-semibold px-4 py-3 whitespace-nowrap">Valid</th>
                     <th className="text-right text-white font-semibold px-4 py-3">Entry Fees</th>
                     <th className="text-right text-white font-semibold px-4 py-3">Per Sem</th>
                     <th className="text-right text-white font-semibold px-4 py-3">Grand Total</th>
@@ -678,6 +773,7 @@ export default function FeeManagement() {
                               {struct.total_semesters ? `${struct.total_semesters} Sem` : '—'}
                             </span>
                           </td>
+                          <td className="px-4 py-3 text-center text-gray-300 text-xs">—</td>
                           <td className="px-4 py-3 text-right text-gray-300 text-xs">—</td>
                           <td className="px-4 py-3 text-right text-gray-300 text-xs">—</td>
                           <td className="px-4 py-3 text-right text-gray-300 text-xs">—</td>
@@ -726,6 +822,18 @@ export default function FeeManagement() {
                             {struct.total_semesters} Sem
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <div className="text-[11px] text-gray-600">{struct.__validityLabel}</div>
+                          {struct.__validity !== 'open' && (
+                            <span className={`inline-block mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              struct.__validity === 'expired' ? 'bg-red-100 text-red-700'
+                              : struct.__validity === 'scheduled' ? 'bg-amber-50 text-amber-700'
+                              : 'bg-emerald-50 text-emerald-700'}`}>
+                              {struct.__validity === 'expired' ? 'Expired'
+                                : struct.__validity === 'scheduled' ? 'Not started' : 'Active'}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-right text-amber-700 font-semibold text-xs">
                           ₹{fmt(t.entryTotal)}
                         </td>
@@ -761,22 +869,109 @@ export default function FeeManagement() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-200">
-                    <td colSpan={5} className="px-4 py-3 font-bold text-gray-700 text-sm">
-                      {`${allRows.length} courses (${feeRows.length} with fee, ${programRows.length} without)`}
+                    {/* Seven columns before the money: checkbox, #, Program,
+                        Department, Session, Semesters, Valid. The entry total
+                        used to sit a column early, under Semesters. */}
+                    <td colSpan={7} className="px-4 py-3 font-bold text-gray-700 text-sm">
+                      {`${allRows.length} courses (${feeRows.length} with fee, ${programRows.length} without`
+                        + (expiredRows.length ? `, ${expiredRows.length} expired)` : ')')}
                     </td>
                     <td className="px-4 py-3 text-right font-black text-amber-700">
                       ₹{fmt(feeRows.reduce((s, st) => s + calcTotals(st.fee_items, st.total_semesters).entryTotal, 0))}
                     </td>
-                    <td className="px-4 py-3"></td>
-                    <td className="px-4 py-3 text-right font-black text-[#933d18]">
-                      —
-                    </td>
+                    <td className="px-4 py-3 text-right font-black text-[#933d18]">—</td>
+                    <td className="px-4 py-3 text-right font-black text-gray-900">—</td>
                     <td></td>
                   </tr>
                 </tfoot>
               </table>
               )}
             </div>
+
+            {validityOpen && (() => {
+              // Only courses that HAVE a fee can carry a window. Each row is
+              // counted as a course but written per fee structure, so a row
+              // showing three session chips stamps all three.
+              const structsOf = rows => rows.flatMap(r => (r.__sessions || []).map(s => s.id))
+              const pickedRows   = feeRows.filter(r => picked.has(r.program_id))
+              const filteredRows = allRows.filter(r => !r.__programOnly)
+              const targetRows = bulkScope === 'picked' ? pickedRows : filteredRows
+              const targets = structsOf(targetRows)
+              const scopes = [
+                { key: 'picked', label: 'Ticked courses', n: pickedRows.length },
+                { key: 'filtered', label: 'All courses shown by the filters', n: filteredRows.length },
+              ]
+              return (
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+                  onClick={() => !savingValidity && setValidityOpen(false)}>
+                  <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                      <div>
+                        <h3 className="font-black text-gray-900 flex items-center gap-2">
+                          <CalendarClock size={17} className="text-[#933d18]" /> Fee Validity
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          How long this fee may be offered. Past the end date the course stops
+                          showing for centres — students already admitted are unaffected.
+                        </p>
+                      </div>
+                      <button onClick={() => setValidityOpen(false)} disabled={savingValidity}
+                        className="text-gray-400 hover:text-gray-700 disabled:opacity-40"><X size={18} /></button>
+                    </div>
+
+                    <div className="p-5 space-y-4">
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">Apply to</label>
+                        <div className="space-y-1.5">
+                          {scopes.map(s => (
+                            <label key={s.key}
+                              className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border cursor-pointer text-sm transition-colors ${
+                                bulkScope === s.key ? 'border-[#933d18] bg-[#933d18]/5' : 'border-gray-200 hover:bg-gray-50'} ${
+                                s.n === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                              <input type="radio" name="validity-scope" className="accent-[#933d18]"
+                                checked={bulkScope === s.key} disabled={s.n === 0}
+                                onChange={() => setBulkScope(s.key)} />
+                              <span className="flex-1 text-gray-700">{s.label}</span>
+                              <span className="text-xs font-bold text-[#933d18] bg-[#933d18]/10 px-2 py-0.5 rounded-full">{s.n}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Valid From</label>
+                          <input type="date" value={bulkFrom} onChange={e => setBulkFrom(e.target.value)}
+                            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10" />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Valid To</label>
+                          <input type="date" value={bulkTo} onChange={e => setBulkTo(e.target.value)} min={bulkFrom || undefined}
+                            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10" />
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                        {!bulkFrom && !bulkTo
+                          ? <>Both dates blank <strong>removes</strong> the limit — the fee is offered until further notice. That is how an expired fee is re-opened.</>
+                          : bulkTo && bulkTo < todayISO()
+                            ? <><strong className="text-red-600">This end date is in the past</strong>, so these courses will stop showing for centres straight away.</>
+                            : <>Applies to {targets.length} fee structure{targets.length > 1 ? 's' : ''} across {targetRows.length} course{targetRows.length > 1 ? 's' : ''}.</>}
+                      </p>
+                    </div>
+
+                    <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+                      <button onClick={() => setValidityOpen(false)} disabled={savingValidity}
+                        className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-800 disabled:opacity-40">Cancel</button>
+                      <Button size="md" disabled={savingValidity || targets.length === 0}
+                        onClick={() => applyValidity(targets)}>
+                        <Save size={14} /> {savingValidity ? 'Saving…' : `Apply to ${targetRows.length}`}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
             </>
               )
             })()}
@@ -909,6 +1104,28 @@ export default function FeeManagement() {
                   value={totalSems} onChange={e => setTotalSems(Number(e.target.value))}>
                   {[1,2,3,4,5,6,7,8,9,10].map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
+              </div>
+              {/* How long this fee stands. Blank = no limit, which is what
+                  every fee carried before validity existed. */}
+              <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-3 py-2 flex-wrap">
+                <CalendarClock size={14} className="text-gray-400" />
+                <span className="text-sm text-gray-500 whitespace-nowrap">Valid</span>
+                <input type="date" value={validFrom} onChange={e => setValidFrom(e.target.value)}
+                  title="Valid from — blank means no start limit"
+                  className="text-sm text-gray-800 focus:outline-none bg-transparent" />
+                <span className="text-gray-300">→</span>
+                <input type="date" value={validTo} onChange={e => setValidTo(e.target.value)}
+                  min={validFrom || undefined}
+                  title="Valid to — blank means no end limit"
+                  className="text-sm text-gray-800 focus:outline-none bg-transparent" />
+                {(validFrom || validTo) && (
+                  <button onClick={() => { setValidFrom(''); setValidTo('') }}
+                    title="Remove the date limit"
+                    className="text-gray-300 hover:text-red-500"><X size={13} /></button>
+                )}
+                {validTo && validTo < todayISO() && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Expired</span>
+                )}
               </div>
               {selectedProgIds.size > 0 && (
                 <Button onClick={handleSave} disabled={saving}>
