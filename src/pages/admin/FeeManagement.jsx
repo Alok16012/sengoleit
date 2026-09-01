@@ -194,13 +194,36 @@ export default function FeeManagement() {
     setAddingSessFor(null)
   }
 
+  // Two structures carry the same fee when they run over the same number of
+  // semesters and their items match one for one.
+  function sameFee(a, b) {
+    if ((a.total_semesters || 0) !== (b.total_semesters || 0)) return false
+    const norm = s => [...(s.fee_items || [])]
+      .map(i => `${(i.label || '').trim()}|${i.category}|${Number(i.amount) || 0}`)
+      .sort().join('~')
+    return norm(a) === norm(b)
+  }
+
   function openEditor(struct = null) {
     if (struct) {
       const prog = programs.find(p => p.id === struct.program_id)
       setDeptId(prog?.department_id || '')
       setTypeId(prog?.programme_type_id || '')
       setSelectedProgIds(new Set([struct.program_id]))
-      setSelectedSessIds(struct.session_id ? new Set([struct.session_id]) : new Set())
+      // A Fee Master row collapses ALL of a course's sessions into one line, so
+      // Edit has to open on what that line shows — three session chips, three
+      // sessions selected — not just the newest one it happens to summarise.
+      //
+      // Only the sessions whose fee actually matches, though: the editor holds
+      // ONE set of items and saving writes it to every selected session, so
+      // carrying a session that was priced differently would silently overwrite
+      // it. Those stay out, and the user edits them from their own row.
+      const all = struct.__sessions?.length ? struct.__sessions : [struct]
+      const sessIds = all.filter(s => sameFee(s, struct))
+        .map(s => s.session_id).filter(Boolean)
+      setSelectedSessIds(new Set(
+        sessIds.length ? sessIds : struct.session_id ? [struct.session_id] : []
+      ))
       setTotalSems(struct.total_semesters || 4)
       setIsEditMode(true)
       const sorted = [...(struct.fee_items || [])].sort((a, b) => a.sort_order - b.sort_order)
@@ -408,12 +431,15 @@ export default function FeeManagement() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+        {/* No tab for the editor: it is opened FROM a program — Add or Edit on
+            a Fee Master row, or the bulk button over ticked programs — so it
+            always carries the programme it is about. A blank editor reached
+            from a tab had no programme behind it. */}
         {[
           { key: 'master', label: 'Fee Master', icon: <List size={14} /> },
-          { key: 'editor', label: 'Add / Edit Fee', icon: <Plus size={14} /> },
           { key: 'allot', label: 'Center Courses', icon: <Building2 size={14} /> },
         ].map(t => (
-          <button key={t.key} onClick={() => { setTab(t.key); if (t.key === 'editor' && selectedProgIds.size === 0) { setItems(keyed(DEFAULTS)); setSaved(false) } }}
+          <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === t.key ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             {t.icon} {t.label}
             {t.key === 'master' && programs.length > 0 && (
