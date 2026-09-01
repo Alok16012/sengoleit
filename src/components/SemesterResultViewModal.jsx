@@ -5,7 +5,6 @@ import { supabase } from '../lib/supabase'
 import { fetchResultsForMany } from '../utils/semesterResults'
 import { fetchMarksheetFor } from '../utils/paperMarks'
 import ResultSheetView from './ResultSheetView'
-import { formatDate } from '../utils/formatDate'
 
 // A centre's read-only view of its student's released results, semester by
 // semester, with the result sheet each one opens.
@@ -86,7 +85,6 @@ export default function SemesterResultViewModal({ student, onClose }) {
                         <p className="text-[11px] text-gray-500">
                           <span className={r.status === 'Pass' ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold'}>{r.status}</span>
                           {' · '}{r.obtained_marks || '—'}/{r.total_marks || '—'} · {pct(r.obtained_marks, r.total_marks)}
-                          {r.released_at ? ` · declared ${formatDate(r.released_at)}` : ''}
                         </p>
                       </div>
                       <Button size="sm" variant="secondary" disabled={busySem === r.semester}

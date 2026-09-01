@@ -740,7 +740,6 @@ function ResultViewModal({ student, onClose }) {
             <Field label="Obtained Marks" value={student.exam_result_obtained_marks ?? '—'} />
             <Field label="Total Marks" value={student.exam_result_total_marks ?? '—'} />
             <Field label="Percentage" value={pct(student.exam_result_obtained_marks, student.exam_result_total_marks)} />
-            <Field label="Declared On" value={formatDate(student.exam_result_declared_at)} />
           </div>
           {student.exam_result_remarks && (
             <p className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2">"{student.exam_result_remarks}"</p>
