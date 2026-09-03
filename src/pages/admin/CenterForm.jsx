@@ -40,6 +40,7 @@ const emptyForm = {
   facility_reception_desk: false, facility_waiting_area: false, facility_meeting_room: false,
   photos_attached: false, rent_agreement_attached: '',
   premises_type: 'Owned', office_area_sqft: '', student_capacity: '', revenue_share_percentage: '50',
+  fee_sharing: '', commission: '',
   bank_account_holder: '', bank_account_number: '', ifsc_code: '', bank_branch: '',
   edu_10th_institute: '', edu_10th_board: '', edu_10th_year: '',
   edu_12th_institute: '', edu_12th_board: '', edu_12th_year: '',
@@ -285,6 +286,7 @@ export default function CenterForm() {
         if (!payload[k]) { if (isEdit) payload[k] = null; else delete payload[k] }
       })
       const numericFields = ['office_area_sqft', 'student_capacity', 'revenue_share_percentage', 'virtual_balance',
+        'fee_sharing', 'commission',
         'num_classrooms', 'num_computers', 'num_faculty', 'establishment_year']
       numericFields.forEach(k => {
         if (payload[k] === '' || payload[k] === null) { if (isEdit) payload[k] = null; else delete payload[k] }
@@ -540,6 +542,10 @@ export default function CenterForm() {
               <Input label="Student Capacity" type="number" value={form.student_capacity} onChange={set('student_capacity')} />
             </div>
             <Input label="Revenue Share %" type="number" placeholder="50" value={form.revenue_share_percentage} onChange={set('revenue_share_percentage')} />
+            <div className="grid grid-cols-2 gap-4 mt-3">
+              <Input label="Fee Sharing %" type="number" placeholder="e.g. 50" value={form.fee_sharing} onChange={set('fee_sharing')} hint="Center's percentage share of the course fee" />
+              <Input label="Commission (₹)" type="number" placeholder="e.g. 5000" value={form.commission} onChange={set('commission')} hint="Fixed commission amount for the super center" />
+            </div>
 
             {/* Infrastructure */}
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-2">Infrastructure</p>
@@ -771,6 +777,8 @@ export default function CenterForm() {
                 ['City', form.city],
                 ['Organization', form.organization_name],
                 ['Documents', `${docsUploaded}/10 uploaded`],
+                ['Fee Sharing %', form.fee_sharing ? `${Number(form.fee_sharing)}%` : '—'],
+                ['Commission', form.commission ? `₹${Number(form.commission).toLocaleString()}` : '—'],
               ].map(([label, val]) => (
                 <div key={label} className="flex gap-2">
                   <span className="text-gray-400 text-xs">{label}:</span>

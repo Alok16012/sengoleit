@@ -6,7 +6,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight, Lock } from 'lucide-react'
+import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight, Lock, Check } from 'lucide-react'
 
 const APPROVAL_COLORS = {
   pending: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -23,6 +23,9 @@ export default function Centers() {
   const [centerFilter, setCenterFilter] = useState('all') // 'all' | center id
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({})
+  const [editingFeeSharing, setEditingFeeSharing] = useState({})
+  const [editingCommission, setEditingCommission] = useState({})
+  const [savingField, setSavingField] = useState({})
   const navigate = useNavigate()
 
   useEffect(() => { fetchData() }, [])
@@ -31,7 +34,7 @@ export default function Centers() {
     setLoading(true)
     const { data, error } = await supabase
       .from('centers')
-      .select('*, states:state_id(state_name)')
+      .select('*, states:state_id(state_name), fee_sharing, commission')
       .in('center_type', ['center', 'super_center'])
       .order('created_at', { ascending: false })
     if (error) console.error('Centers fetch error:', error)
@@ -50,6 +53,16 @@ export default function Centers() {
     const newStatus = center.status === 'Active' ? 'Inactive' : 'Active'
     await supabase.from('centers').update({ status: newStatus }).eq('id', center.id)
     fetchData()
+  }
+
+  async function updateCenterField(id, field, value) {
+    setSavingField(prev => ({ ...prev, [`${field}-${id}`]: true }))
+    const { error } = await supabase.from('centers').update({ [field]: value }).eq('id', id)
+    setSavingField(prev => ({ ...prev, [`${field}-${id}`]: false }))
+    if (error) { alert(`Failed to update ${field}: ${error.message}`); return }
+    setData(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r))
+    if (field === 'fee_sharing') setEditingFeeSharing(prev => { const n = { ...prev }; delete n[id]; return n })
+    if (field === 'commission') setEditingCommission(prev => { const n = { ...prev }; delete n[id]; return n })
   }
 
   // Mark/unmark a center as a Staging (draft) center: students added there are
@@ -253,6 +266,9 @@ export default function Centers() {
             { header: 'State', value: c => c.states?.state_name || '' },
             { header: 'Wallet Balance', value: c => Number(c.virtual_balance || 0),
               pdfValue: c => `₹${Number(c.virtual_balance || 0).toLocaleString('en-IN')}` },
+            { header: 'Fee Sharing', value: c => c.fee_sharing != null ? `${Number(c.fee_sharing).toFixed(0)}%` : '' },
+            { header: 'Commission', value: c => Number(c.commission || 0),
+              pdfValue: c => `₹${Number(c.commission || 0).toLocaleString('en-IN')}` },
             { header: 'Approval', value: c => c.approval_status || 'Pending' },
             { header: 'Status', value: c => c.status || 'Pending' },
           ]} />
@@ -275,12 +291,14 @@ export default function Centers() {
               <Th>Approval</Th>
               <Th>Status</Th>
               <Th>Activate/Deactivate</Th>
+              <Th className="min-w-[160px]">Fee Sharing</Th>
+              <Th className="min-w-[160px]">Commission</Th>
               <Th>Actions</Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
+              <Tr><Td colSpan={14} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
             ) : filtered.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -365,6 +383,54 @@ export default function Centers() {
                     </button>
                   ) : (
                     <span className="text-gray-300 text-xs">—</span>
+                  )}
+                </Td>
+                <Td>
+                  {editingFeeSharing[c.id] ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        autoFocus
+                        value={editingFeeSharing[c.id]}
+                        onChange={e => setEditingFeeSharing(prev => ({ ...prev, [c.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') updateCenterField(c.id, 'fee_sharing', Number(editingFeeSharing[c.id]) || 0); if (e.key === 'Escape') setEditingFeeSharing(prev => { const n = { ...prev }; delete n[c.id]; return n }) }}
+                        onBlur={() => updateCenterField(c.id, 'fee_sharing', Number(editingFeeSharing[c.id]) || 0)}
+                        className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs w-16 text-right focus:outline-none focus:border-[#933d18]"
+                        placeholder="%"
+                      />
+                      {savingField[`fee_sharing-${c.id}`] ? <span className="text-[10px] text-gray-400">…</span> : <Check size={12} className="text-emerald-600" />}
+                    </div>
+                  ) : (
+                    <button onClick={() => setEditingFeeSharing(prev => ({ ...prev, [c.id]: c.fee_sharing ?? '' }))} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
+                      <span className="text-xs font-medium text-gray-700">
+                        {c.fee_sharing != null ? `${Number(c.fee_sharing).toFixed(0)}%` : <span className="text-gray-300">not set</span>}
+                      </span>
+                      <Pencil size={10} className="text-gray-300 group-hover:text-[#933d18] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  )}
+                </Td>
+                <Td>
+                  {editingCommission[c.id] ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        autoFocus
+                        value={editingCommission[c.id]}
+                        onChange={e => setEditingCommission(prev => ({ ...prev, [c.id]: e.target.value }))}
+                        onKeyDown={e => { if (e.key === 'Enter') updateCenterField(c.id, 'commission', Number(editingCommission[c.id]) || 0); if (e.key === 'Escape') setEditingCommission(prev => { const n = { ...prev }; delete n[c.id]; return n }) }}
+                        onBlur={() => updateCenterField(c.id, 'commission', Number(editingCommission[c.id]) || 0)}
+                        className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs w-20 text-right focus:outline-none focus:border-[#933d18]"
+                        placeholder="₹"
+                      />
+                      {savingField[`commission-${c.id}`] ? <span className="text-[10px] text-gray-400">…</span> : <Check size={12} className="text-emerald-600" />}
+                    </div>
+                  ) : (
+                    <button onClick={() => setEditingCommission(prev => ({ ...prev, [c.id]: c.commission ?? '' }))} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
+                      <span className="text-xs font-medium text-gray-700">
+                        {c.commission != null ? `₹${Number(c.commission).toLocaleString()}` : <span className="text-gray-300">not set</span>}
+                      </span>
+                      <Pencil size={10} className="text-gray-300 group-hover:text-[#933d18] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
                   )}
                 </Td>
                 <Td>
