@@ -52,8 +52,13 @@ export default function BalanceView() {
           setSubCenters(subs || [])
           const ids = (subs || []).map(s => s.id)
           if (ids.length) {
-            const { data: reqs } = await supabase.from('recharge_requests')
+            const { data: reqs, error: reqErr } = await supabase.from('recharge_requests')
               .select('*, centers(center_name, center_code)').in('center_id', ids).order('created_at', { ascending: false })
+            // RLS refuses by returning zero rows and NO error, so this only
+            // catches a real failure — but a swallowed one left the page
+            // looking merely empty, which is how the missing super-centre
+            // read policy went unnoticed.
+            if (reqErr) setCenterErr(`Could not read your centers' recharges: ${reqErr.message}`)
             setChildRequests(reqs || [])
           } else {
             setChildRequests([])
@@ -303,18 +308,26 @@ export default function BalanceView() {
       {/* Super center: switch between its own recharge history and its centers. */}
       {isSuperCenter && (
         <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
+          {/* The counts are the point: a super centre files few recharges of
+              its own, so an empty "Recharge History" is normal and used to
+              read as "nothing is here" — while its centres' recharges sat
+              unnoticed behind the second tab. */}
           {[
-            { key: 'recharge', label: 'Recharge History' },
-            { key: 'centers', label: "My Centers' Balance" },
+            { key: 'recharge', label: 'My Recharge History', n: requests.length },
+            { key: 'centers', label: "My Centers", n: childRequests.length },
           ].map(t => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                 tab === t.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {t.label}
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                tab === t.key ? 'bg-[#933d18] text-white' : 'bg-gray-200 text-gray-500'}`}>
+                {t.n}
+              </span>
             </button>
           ))}
         </div>
