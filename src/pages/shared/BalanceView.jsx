@@ -8,8 +8,25 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import DateInput from '../../components/ui/DateInput'
-import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2, Pencil, TrendingDown } from 'lucide-react'
+import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2, Pencil, TrendingDown, ChevronDown } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
+
+// A section heading that folds its table away. The super centre's "My Centers"
+// tab stacks two long tables, and the one you are not reading pushes the other
+// off the screen.
+function FoldHeading({ open, onToggle, title, count, className = '' }) {
+  return (
+    <button type="button" onClick={onToggle}
+      aria-expanded={open}
+      className={`flex items-center gap-2 mb-3 group ${className}`}>
+      <ChevronDown size={15}
+        className={`text-gray-400 group-hover:text-[#933d18] transition-transform ${open ? '' : '-rotate-90'}`} />
+      <h2 className="text-sm font-bold text-gray-700 group-hover:text-[#933d18] transition-colors">{title}</h2>
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-500">{count}</span>
+      <span className="text-[11px] text-gray-400 font-semibold">{open ? 'Hide' : 'Show'}</span>
+    </button>
+  )
+}
 
 export default function BalanceView() {
   const { user } = useAuth()
@@ -25,6 +42,10 @@ export default function BalanceView() {
   // Super center view splits into two tabs: its own Recharge History and its
   // centers' balances. Regular centers only ever see the recharge history.
   const [tab, setTab] = useState('recharge')
+  // Both open to begin with — folding is for getting one table out of the way,
+  // not for hiding either of them by default.
+  const [showBalances, setShowBalances] = useState(true)
+  const [showChildHistory, setShowChildHistory] = useState(true)
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -420,9 +441,10 @@ export default function BalanceView() {
       {/* Super center only: per-center wallet breakdown + recharge activity of its own centers. */}
       {isSuperCenter && tab === 'centers' && (
         <div className="mt-8">
-          <h2 className="text-sm font-bold text-gray-700 mb-3">My Centers' Balances</h2>
+          <FoldHeading open={showBalances} onToggle={() => setShowBalances(v => !v)}
+            title="My Centers' Balances" count={filteredSubCenters.length} />
 
-          {loading ? (
+          {!showBalances ? null : loading ? (
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
           ) : (
             <Table>
@@ -462,8 +484,10 @@ export default function BalanceView() {
             </Table>
           )}
 
-          <h2 className="text-sm font-bold text-gray-700 mb-3 mt-8">My Centers' Recharge History</h2>
+          <FoldHeading open={showChildHistory} onToggle={() => setShowChildHistory(v => !v)}
+            title="My Centers' Recharge History" count={filteredChildRequests.length} className="mt-8" />
 
+          {showChildHistory && (
           <div className="mb-3">
             <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Center</label>
             <select value={centerFilter} onChange={e => setCenterFilter(e.target.value)}
@@ -474,8 +498,9 @@ export default function BalanceView() {
               ))}
             </select>
           </div>
+          )}
 
-          {loading ? (
+          {!showChildHistory ? null : loading ? (
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
           ) : (
             <Table>
