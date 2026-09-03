@@ -6,7 +6,8 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { formatDate, approvalPaymentDate } from '../../utils/formatDate'
-import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2 } from 'lucide-react'
+import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2, Clock } from 'lucide-react'
+import CommissionWallet from '../../components/admin/CommissionWallet'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -62,6 +63,11 @@ export default function CouponManagement() {
   const [editCode, setEditCode] = useState(null)
   const [editAmount, setEditAmount] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+
+  // Pending tab state
+  const [pendingSubTab, setPendingSubTab] = useState('generate')  // 'generate' | 'unused' | 'used'
+  const [pendingCoupons, setPendingCoupons] = useState([])
+  const [pendingLoading, setPendingLoading] = useState(false)
 
   function openDirect(type) {
     setDirectType(type)
@@ -176,6 +182,39 @@ export default function CouponManagement() {
   }
 
   useEffect(() => { fetchData() }, [])
+
+  // Fetch coupons for the Pending tab (Generate / Unused / Used sub-tabs)
+  async function fetchPending(subTab) {
+    setPendingLoading(true)
+    setPendingCoupons([])
+    try {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*, centers(center_name, center_code, center_type, super_center_id)')
+        .is('application_id', null)
+        .order('created_at', { ascending: false })
+        .limit(200)
+      if (!error && data) {
+        const filtered = data.filter(c => {
+          if (subTab === 'generate') return !(c.is_used || c.used_at) && !c.is_rejected
+          if (subTab === 'unused') return !(c.is_used || c.used_at) && !c.is_rejected && c.coupon_type === 'discount'
+          if (subTab === 'used') return !!(c.is_used || c.used_at) && c.coupon_type === 'discount'
+          return true
+        })
+        setPendingCoupons(filtered)
+      }
+    } catch (e) {
+      console.error('pending fetch error:', e)
+    }
+    setPendingLoading(false)
+  }
+
+  // Load pending coupons when the Pending tab or sub-tab changes
+  useEffect(() => {
+    if (directType === 'pending') {
+      fetchPending(pendingSubTab)
+    }
+  }, [directType, pendingSubTab])
 
   // Super Center / Center scope, applied to every tab. A coupon's owning super
   // center = the center itself if it IS a super center (approval codes), else its
@@ -388,11 +427,24 @@ export default function CouponManagement() {
           { k: null, label: 'All Coupons', icon: Ticket },
           { k: 'approval', label: 'Approval Codes', icon: BadgeCheck },
           { k: 'discount', label: 'Discounted Coupons', icon: Tag },
+          { k: 'pending', label: 'Pending', icon: Clock },
           { k: 'wallet', label: 'Coupon Wallet', icon: Wallet },
+          { k: 'commission', label: 'Commission Wallet', icon: Wallet },
         ].map(t => {
           const active = directType === t.k
           return (
-            <button key={t.label} onClick={() => (t.k === 'wallet' ? setDirectType('wallet') : t.k ? openDirect(t.k) : closeDirect())}
+            <button key={t.label} onClick={() => {
+              if (t.k === 'wallet' || t.k === 'commission') {
+                setDirectType(t.k)
+              } else if (t.k === 'pending') {
+                setDirectType('pending')
+                setPendingSubTab('generate')
+              } else if (t.k === null) {
+                closeDirect()
+              } else {
+                openDirect(t.k)
+              }
+            }}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${
                 active ? 'bg-white text-[#933d18] border border-gray-200 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}>
@@ -434,6 +486,89 @@ export default function CouponManagement() {
         </div>
       </div>
 
+      {/* ─────────── PENDING (Generate / Unused / Used) ─────────── */}
+      {directType === 'pending' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Clock size={16} className="text-[#933d18]" />
+            <h2 className="text-sm font-black text-gray-700 uppercase tracking-widest">Pending Coupons</h2>
+          </div>
+          <div className="flex gap-2 mb-4">
+            {[
+              { k: 'generate', label: 'Generate' },
+              { k: 'unused', label: 'Unused' },
+              { k: 'used', label: 'Used' },
+            ].map(t => {
+              const isActive = pendingSubTab === t.k
+              const count = pendingCoupons.filter(c => {
+                if (t.k === 'generate') return !(c.is_used || c.used_at) && !c.is_rejected
+                if (t.k === 'unused') return !(c.is_used || c.used_at) && !c.is_rejected && c.coupon_type === 'discount'
+                if (t.k === 'used') return !!(c.is_used || c.used_at) && c.coupon_type === 'discount'
+                return true
+              }).length
+              return (
+                <button key={t.k} onClick={() => setPendingSubTab(t.k)}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
+                    isActive ? 'bg-white text-[#933d18] border border-gray-200 shadow-sm' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}>
+                  {t.label} <span className="ml-1 text-xs opacity-60">({count})</span>
+                </button>
+              )
+            })}
+          </div>
+          {pendingLoading ? (
+            <p className="text-sm text-gray-400 py-8 text-center">Loading…</p>
+          ) : pendingCoupons.length === 0 ? (
+            <p className="text-sm text-gray-400 py-4 text-center">No coupons in this category.</p>
+          ) : (
+            <div className="border border-gray-100 rounded-xl overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">Code</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">Center</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">Kind</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500">Face Value</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">Generated On</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingCoupons.map((c, i) => {
+                    const isUsed = !!(c.is_used || c.used_at)
+                    return (
+                      <tr key={c.id} className={`border-t ${i % 2 ? 'bg-gray-50/50' : ''}`}>
+                        <Td className="font-mono text-xs">{c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'}</Td>
+                        <Td>
+                          <p className="font-semibold text-gray-900">{c.centers?.center_name || '—'}</p>
+                          {c.centers?.center_code && <p className="text-xs text-gray-400">{c.centers.center_code}</p>}
+                        </Td>
+                        <Td>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${c.coupon_type === 'approval' ? 'bg-indigo-50 text-indigo-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                            {c.coupon_type === 'approval' ? 'Approval' : 'Discount'}
+                          </span>
+                        </Td>
+                        <Td className="text-right font-bold">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
+                        <Td className="text-xs text-gray-400">{formatDate(c.created_at)}</Td>
+                        <Td>
+                          {isUsed ? (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Used</span>
+                          ) : c.is_rejected ? (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">Rejected</span>
+                          ) : (
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">Pending</span>
+                          )}
+                        </Td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ─────────── COUPON WALLET (deposited money waiting to be minted) ─────────── */}
       {directType === 'wallet' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
@@ -464,6 +599,11 @@ export default function CouponManagement() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ─────────── COMMISSION WALLET ─────────── */}
+      {directType === 'commission' && (
+        <CommissionWallet />
       )}
 
       {/* ─────────── OVERVIEW (All Coupons) ─────────── */}

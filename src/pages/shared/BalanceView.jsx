@@ -484,24 +484,24 @@ export default function BalanceView() {
           {loading ? (
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
           ) : (
+            /* Oversight, not verification: a super centre needs to see WHAT
+               its centres put in and where it stands. The payment's own
+               evidence — UTR, receipt, payment and verification dates — is
+               between the centre and the Account Dept, and is left off. */
             <Table>
               <Thead>
                 <tr>
                   <Th>#</Th>
                   <Th>Center</Th>
                   <Th>Amount</Th>
-                  <Th>UTR Number</Th>
-                  <Th>Payment Date</Th>
-                  <Th>Screenshot</Th>
                   <Th>Notes</Th>
                   <Th>Requested On</Th>
-                  <Th>Verified On</Th>
                   <Th>Status</Th>
                 </tr>
               </Thead>
               <Tbody>
                 {filteredChildRequests.length === 0 ? (
-                  <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">No recharge requests from your centers yet</Td></Tr>
+                  <Tr><Td colSpan={6} className="text-center text-gray-400 py-12">No recharge requests from your centers yet</Td></Tr>
                 ) : filteredChildRequests.map((r, i) => (
                   <Tr key={r.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -510,16 +510,8 @@ export default function BalanceView() {
                       {r.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{r.centers.center_code}</span>}
                     </Td>
                     <Td><span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span></Td>
-                    <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
-                    <Td className="text-gray-500 text-xs">{formatDate(r.payment_date)}</Td>
-                    <Td>
-                      {r.utr_screenshot_url ? (
-                        <a href={r.utr_screenshot_url} target="_blank" rel="noreferrer" className="text-[#933d18] text-xs font-semibold underline">View</a>
-                      ) : '—'}
-                    </Td>
                     <Td className="text-gray-500 text-xs">{r.notes || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
-                    <Td className="text-gray-400 text-xs">{formatDate(r.verified_at)}</Td>
                     <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
                   </Tr>
                 ))}
