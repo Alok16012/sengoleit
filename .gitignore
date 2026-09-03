@@ -29,3 +29,6 @@ dist-ssr
 .env*.local
 .env.*
 .netlify
+
+# Next.js build cache — stray output from another tool, never part of this Vite build
+.next
