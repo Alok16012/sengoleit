@@ -4,6 +4,17 @@ import RecordCommissionModal from './RecordCommissionModal'
 
 const fmt = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
+// A timestamp's LOCAL calendar day as 'YYYY-MM-DD' — the same day the row
+// prints with toLocaleDateString, so the date filter and the Date column
+// always agree.
+const localDay = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const p = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 // The "real" admission price a student paid: payment_amount (if set, includes letter
 // fee) else base_fee.  Returns null if neither is set.
 function realAdmissionPrice(app) {
@@ -100,8 +111,15 @@ export default function CommissionWallet({ superCenterId = '' }) {
   const scLedger = useMemo(() => {
     if (!selectedSC) return []
     let rows = ledger.filter(r => r.super_center_id === selectedSC.id)
-    if (startDate) rows = rows.filter(r => r.created_at?.startsWith(startDate))
-    if (endDate) rows = rows.filter(r => r.created_at?.startsWith(endDate))
+    // A RANGE, not two exact-day matches. Both filters used startsWith, so
+    // From meant "only this day", To meant "only that day", and setting both
+    // to different dates could never match anything.
+    //
+    // Compared on the LOCAL day, which is the day the row displays. created_at
+    // is UTC, so slicing its first ten characters puts an entry made after
+    // 5:30pm IST on the previous date and drops it from its own day's range.
+    if (startDate) rows = rows.filter(r => localDay(r.created_at) >= startDate)
+    if (endDate)   rows = rows.filter(r => localDay(r.created_at) <= endDate)
     return rows
   }, [ledger, selectedSC, startDate, endDate])
 
@@ -296,7 +314,13 @@ export default function CommissionWallet({ superCenterId = '' }) {
                     className="text-xs text-blue-600 hover:underline mb-1">Clear filters</button>
                 )}
                 <div className="ml-auto text-sm text-gray-600">
-                  Showing <span className="font-bold">{scLedger.length}</span> entries
+                  {/* A backwards range matches nothing, which otherwise reads
+                      as "there is no data" rather than "the dates are swapped". */}
+                  {startDate && endDate && startDate > endDate ? (
+                    <span className="text-amber-700 font-semibold">From is after To — swap the dates.</span>
+                  ) : (
+                    <>Showing <span className="font-bold">{scLedger.length}</span> entries</>
+                  )}
                 </div>
               </div>
 
