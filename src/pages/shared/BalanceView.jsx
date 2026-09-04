@@ -53,14 +53,20 @@ export default function BalanceView() {
           const { data: subs } = await supabase.from('centers')
             .select('id, center_name, center_code, virtual_balance').eq('super_center_id', data.id).order('center_name')
           setSubCenters(subs || [])
-          // Commission this super centre has earned. Driven by the rates it is
-          // paid at, NOT by which centres sit under it — it may earn on a
+          // Commission this super centre has been PAID. Driven by the rates it
+          // is paid at, NOT by which centres sit under it — it may earn on a
           // centre that belongs to someone else.
+          //
+          // Only what has actually been released: a commission the university
+          // has recorded but not yet paid is its own business, and showing it
+          // here would promise money that is not in the wallet. Filtered in the
+          // query, so the unreleased rows never reach the browser at all.
           const { data: comm, error: cErr } = await supabase
             .from('recharge_commissions')
             .select('id, recharge_id, amount, percent, sent_at')
             .eq('super_center_id', data.id)
-            .order('sent_at', { ascending: false, nullsFirst: true })
+            .not('sent_at', 'is', null)
+            .order('sent_at', { ascending: false })
           if (cErr) setCenterErr(`Could not read your commission: ${cErr.message}`)
           // The recharge each amount came from, so the row can name the centre
           // and the sum it was worked out on. Fetched separately rather than
@@ -557,28 +563,23 @@ export default function BalanceView() {
           university has paid it into the wallet yet. Read-only — generating and
           paying are the admin's, so there is nothing to click here. */}
       {isSuperCenter && tab === 'commission' && (() => {
-        const paid = commissions.filter(c => c.sent_at)
-        const owed = commissions.filter(c => !c.sent_at)
-        const sum = list => list.reduce((s, c) => s + Number(c.amount || 0), 0)
+        const total = commissions.reduce((s, c) => s + Number(c.amount || 0), 0)
         return (
         <div>
           <h2 className="text-sm font-bold text-gray-700 mb-3">Commission Wallet</h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+          {/* One figure, because there is only one thing to say: what has been
+              paid. Anything still unreleased is not shown at all. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5 max-w-2xl">
             <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Received</p>
-              <p className="text-2xl font-black text-emerald-800 mt-1">₹{sum(paid).toLocaleString('en-IN')}</p>
-              <p className="text-[11px] text-emerald-600 mt-1">Already in your balance</p>
-            </div>
-            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-amber-700">Pending</p>
-              <p className="text-2xl font-black text-amber-800 mt-1">₹{sum(owed).toLocaleString('en-IN')}</p>
-              <p className="text-[11px] text-amber-600 mt-1">Earned, not yet released</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Commission Received</p>
+              <p className="text-2xl font-black text-emerald-800 mt-1">₹{total.toLocaleString('en-IN')}</p>
+              <p className="text-[11px] text-emerald-600 mt-1">Already added to your balance</p>
             </div>
             <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Total Earned</p>
-              <p className="text-2xl font-black text-gray-800 mt-1">₹{sum(commissions).toLocaleString('en-IN')}</p>
-              <p className="text-[11px] text-gray-400 mt-1">{commissions.length} entries</p>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Payments</p>
+              <p className="text-2xl font-black text-gray-800 mt-1">{commissions.length}</p>
+              <p className="text-[11px] text-gray-400 mt-1">Credited to this account</p>
             </div>
           </div>
 
@@ -593,14 +594,14 @@ export default function BalanceView() {
                   <Th>Recharge</Th>
                   <Th>Rate</Th>
                   <Th>Commission</Th>
-                  <Th>Status</Th>
+                  <Th>Received On</Th>
                 </tr>
               </Thead>
               <Tbody>
                 {commissions.length === 0 ? (
                   <Tr><Td colSpan={6} className="text-center text-gray-400 py-12">
-                    <p className="text-gray-500 font-semibold">No commission yet.</p>
-                    <p className="text-xs mt-1">It appears here once the university records commission on a center&apos;s recharge.</p>
+                    <p className="text-gray-500 font-semibold">No commission received yet.</p>
+                    <p className="text-xs mt-1">A payment appears here once the university releases it into your balance.</p>
                   </Td></Tr>
                 ) : commissions.map((c, i) => (
                   <Tr key={c.id}>
@@ -617,16 +618,7 @@ export default function BalanceView() {
                     </Td>
                     <Td className="text-gray-500 text-xs">{Number(c.percent)}%</Td>
                     <Td><span className="font-bold text-emerald-700">₹{Number(c.amount).toLocaleString('en-IN')}</span></Td>
-                    <Td>
-                      {c.sent_at ? (
-                        <>
-                          <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">Received</span>
-                          <span className="block text-[10px] text-gray-400 mt-0.5">{formatDate(c.sent_at)}</span>
-                        </>
-                      ) : (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">Pending</span>
-                      )}
-                    </Td>
+                    <Td className="text-gray-500 text-xs">{formatDate(c.sent_at)}</Td>
                   </Tr>
                 ))}
               </Tbody>
