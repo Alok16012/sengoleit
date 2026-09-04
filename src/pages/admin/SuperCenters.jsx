@@ -311,7 +311,10 @@ export default function SuperCenters() {
                   )}
                 </Td>
                 <Td>
-                  {editingFeeSharing[c.id] ? (
+                  {/* `!== undefined`, not truthiness: the column defaults to 0,
+                      and 0 is falsy — so clicking a 0% cell opened an editor
+                      that closed on the same render and nothing was editable. */}
+                  {editingFeeSharing[c.id] !== undefined ? (
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
@@ -335,7 +338,7 @@ export default function SuperCenters() {
                   )}
                 </Td>
                 <Td>
-                  {editingCommission[c.id] ? (
+                  {editingCommission[c.id] !== undefined ? (
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
@@ -344,15 +347,15 @@ export default function SuperCenters() {
                         onChange={e => setEditingCommission(prev => ({ ...prev, [c.id]: e.target.value }))}
                         onKeyDown={e => { if (e.key === 'Enter') updateCenterField(c.id, 'commission', Number(editingCommission[c.id]) || 0); if (e.key === 'Escape') setEditingCommission(prev => { const n = { ...prev }; delete n[c.id]; return n }) }}
                         onBlur={() => updateCenterField(c.id, 'commission', Number(editingCommission[c.id]) || 0)}
-                        className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs w-20 text-right focus:outline-none focus:border-[#933d18]"
-                        placeholder="₹"
+                        className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs w-16 text-right focus:outline-none focus:border-[#933d18]"
+                        placeholder="%"
                       />
                       {savingField[`commission-${c.id}`] ? <span className="text-[10px] text-gray-400">…</span> : <Check size={12} className="text-emerald-600" />}
                     </div>
                   ) : (
                     <button onClick={() => setEditingCommission(prev => ({ ...prev, [c.id]: c.commission ?? '' }))} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
                       <span className="text-xs font-medium text-gray-700">
-                        {c.commission != null ? `₹${Number(c.commission).toLocaleString()}` : <span className="text-gray-300">not set</span>}
+                        {c.commission != null ? `${Number(c.commission).toFixed(0)}%` : <span className="text-gray-300">not set</span>}
                       </span>
                       <Pencil size={10} className="text-gray-300 group-hover:text-[#933d18] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>

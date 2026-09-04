@@ -7,6 +7,7 @@ import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight, Lock, Check } from 'lucide-react'
+import CommissionRecipients from '../../components/admin/CommissionRecipients'
 
 const APPROVAL_COLORS = {
   pending: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -24,8 +25,11 @@ export default function Centers() {
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({})
   const [editingFeeSharing, setEditingFeeSharing] = useState({})
-  const [editingCommission, setEditingCommission] = useState({})
   const [savingField, setSavingField] = useState({})
+  // center_id -> [{ id, super_center_id, percent }]
+  const [commissions, setCommissions] = useState({})
+  const [commErr, setCommErr] = useState('')
+  const [commFor, setCommFor] = useState(null)   // centre whose recipients are open
   const navigate = useNavigate()
 
   useEffect(() => { fetchData() }, [])
@@ -39,7 +43,23 @@ export default function Centers() {
       .order('created_at', { ascending: false })
     if (error) console.error('Centers fetch error:', error)
     setData(data || [])
+    await fetchCommissions()
     setLoading(false)
+  }
+
+  // Who earns commission on each centre. A centre belongs to ONE super centre,
+  // but it may have been brought in through two — so who is paid is a list,
+  // kept apart from centers.super_center_id.
+  async function fetchCommissions() {
+    const { data, error } = await supabase
+      .from('center_commissions')
+      .select('id, center_id, super_center_id, percent')
+    // The table arrives with the migration; until it is run, the column simply
+    // reads as "not set" rather than breaking the page.
+    setCommErr(error ? error.message : '')
+    const map = {}
+    for (const r of data || []) (map[r.center_id] ||= []).push(r)
+    setCommissions(map)
   }
 
   async function handleDelete(id, name) {
@@ -62,7 +82,6 @@ export default function Centers() {
     if (error) { alert(`Failed to update ${field}: ${error.message}`); return }
     setData(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r))
     if (field === 'fee_sharing') setEditingFeeSharing(prev => { const n = { ...prev }; delete n[id]; return n })
-    if (field === 'commission') setEditingCommission(prev => { const n = { ...prev }; delete n[id]; return n })
   }
 
   // Mark/unmark a center as a Staging (draft) center: students added there are
@@ -267,8 +286,9 @@ export default function Centers() {
             { header: 'Wallet Balance', value: c => Number(c.virtual_balance || 0),
               pdfValue: c => `₹${Number(c.virtual_balance || 0).toLocaleString('en-IN')}` },
             { header: 'Fee Sharing', value: c => c.fee_sharing != null ? `${Number(c.fee_sharing).toFixed(0)}%` : '' },
-            { header: 'Commission', value: c => Number(c.commission || 0),
-              pdfValue: c => `₹${Number(c.commission || 0).toLocaleString('en-IN')}` },
+            { header: 'Commission', value: c => (commissions[c.id] || []).map(r => `${Number(r.percent)}%`).join(' + ') },
+            { header: 'Commission Paid To', value: c => (commissions[c.id] || [])
+              .map(r => data.find(s => s.id === r.super_center_id)?.center_name || '').filter(Boolean).join(', ') },
             { header: 'Approval', value: c => c.approval_status || 'Pending' },
             { header: 'Status', value: c => c.status || 'Pending' },
           ]} />
@@ -386,7 +406,10 @@ export default function Centers() {
                   )}
                 </Td>
                 <Td>
-                  {editingFeeSharing[c.id] ? (
+                  {/* `!== undefined`, not truthiness: the column defaults to 0,
+                      and 0 is falsy — so clicking a 0% cell opened an editor
+                      that closed on the same render and nothing was editable. */}
+                  {editingFeeSharing[c.id] !== undefined ? (
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
@@ -409,29 +432,24 @@ export default function Centers() {
                     </button>
                   )}
                 </Td>
+                {/* Commission is a LIST now — a centre sits under one super
+                    centre but may pay two — so the cell opens the recipients
+                    instead of editing one number in place. */}
                 <Td>
-                  {editingCommission[c.id] ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        autoFocus
-                        value={editingCommission[c.id]}
-                        onChange={e => setEditingCommission(prev => ({ ...prev, [c.id]: e.target.value }))}
-                        onKeyDown={e => { if (e.key === 'Enter') updateCenterField(c.id, 'commission', Number(editingCommission[c.id]) || 0); if (e.key === 'Escape') setEditingCommission(prev => { const n = { ...prev }; delete n[c.id]; return n }) }}
-                        onBlur={() => updateCenterField(c.id, 'commission', Number(editingCommission[c.id]) || 0)}
-                        className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs w-20 text-right focus:outline-none focus:border-[#933d18]"
-                        placeholder="₹"
-                      />
-                      {savingField[`commission-${c.id}`] ? <span className="text-[10px] text-gray-400">…</span> : <Check size={12} className="text-emerald-600" />}
-                    </div>
-                  ) : (
-                    <button onClick={() => setEditingCommission(prev => ({ ...prev, [c.id]: c.commission ?? '' }))} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
-                      <span className="text-xs font-medium text-gray-700">
-                        {c.commission != null ? `₹${Number(c.commission).toLocaleString()}` : <span className="text-gray-300">not set</span>}
+                  <button onClick={() => setCommFor(c)}
+                    className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group text-left">
+                    <span className="text-xs font-medium text-gray-700">
+                      {(commissions[c.id] || []).length === 0
+                        ? <span className="text-gray-300">not set</span>
+                        : (commissions[c.id] || []).map(r => `${Number(r.percent)}%`).join(' + ')}
+                    </span>
+                    {(commissions[c.id] || []).length > 1 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#933d18]/10 text-[#933d18]">
+                        {commissions[c.id].length}
                       </span>
-                      <Pencil size={10} className="text-gray-300 group-hover:text-[#933d18] opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                  )}
+                    )}
+                    <Pencil size={10} className="text-gray-300 group-hover:text-[#933d18] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
                 </Td>
                 <Td>
                   <div className="flex gap-1 items-center">
@@ -459,6 +477,22 @@ export default function Centers() {
             ))}
           </Tbody>
         </Table>
+      )}
+
+      {commErr && (
+        <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-sm">
+          Commission recipients could not be read: {commErr} — run <strong>add_commission_recipients.sql</strong> in Supabase.
+        </div>
+      )}
+
+      {commFor && (
+        <CommissionRecipients
+          center={commFor}
+          superCenters={data.filter(c => c.center_type === 'super_center')}
+          rows={commissions[commFor.id] || []}
+          onClose={() => setCommFor(null)}
+          onSaved={fetchCommissions}
+        />
       )}
     </div>
   )

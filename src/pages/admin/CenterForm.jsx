@@ -302,10 +302,25 @@ export default function CenterForm() {
         payload.application_no = await generateApplicationNo()
       }
 
-      const { error: err } = isEdit
-        ? await supabase.from('centers').update(payload).eq('id', id)
-        : await supabase.from('centers').insert(payload)
+      const { data: saved, error: err } = isEdit
+        ? await supabase.from('centers').update(payload).eq('id', id).select('id').maybeSingle()
+        : await supabase.from('centers').insert(payload).select('id').maybeSingle()
       if (err) throw err
+
+      // Commission is a LIST — a centre may pay more than one super centre, and
+      // that list lives in center_commissions and is edited from the Centers
+      // page. This field only sets the PARENT's rate, so a centre created here
+      // does not read as "not set" over there.
+      const centerId = saved?.id || id
+      const pct = Number(form.commission)
+      if (centerId && payload.super_center_id && pct > 0) {
+        const { error: cErr } = await supabase.from('center_commissions').upsert(
+          { center_id: centerId, super_center_id: payload.super_center_id, percent: pct },
+          { onConflict: 'center_id,super_center_id' }
+        )
+        // The centre itself saved fine; a missing migration must not lose that.
+        if (cErr) console.warn('Commission recipient not saved:', cErr.message)
+      }
       navigate(form.center_type === 'super_center' ? '/admin/super-centers' : '/admin/centers')
     } catch (err) {
       setError(err.message || 'Something went wrong.')
@@ -544,7 +559,7 @@ export default function CenterForm() {
             <Input label="Revenue Share %" type="number" placeholder="50" value={form.revenue_share_percentage} onChange={set('revenue_share_percentage')} />
             <div className="grid grid-cols-2 gap-4 mt-3">
               <Input label="Fee Sharing %" type="number" placeholder="e.g. 50" value={form.fee_sharing} onChange={set('fee_sharing')} hint="Center's percentage share of the course fee" />
-              <Input label="Commission (₹)" type="number" placeholder="e.g. 5000" value={form.commission} onChange={set('commission')} hint="Fixed commission amount for the super center" />
+              <Input label="Commission %" type="number" placeholder="e.g. 10" value={form.commission} onChange={set('commission')} hint="Parent super center's rate. To pay a second super center too, use Commission on the Centers list." />
             </div>
 
             {/* Infrastructure */}
@@ -778,7 +793,7 @@ export default function CenterForm() {
                 ['Organization', form.organization_name],
                 ['Documents', `${docsUploaded}/10 uploaded`],
                 ['Fee Sharing %', form.fee_sharing ? `${Number(form.fee_sharing)}%` : '—'],
-                ['Commission', form.commission ? `₹${Number(form.commission).toLocaleString()}` : '—'],
+                ['Commission %', form.commission ? `${Number(form.commission)}%` : '—'],
               ].map(([label, val]) => (
                 <div key={label} className="flex gap-2">
                   <span className="text-gray-400 text-xs">{label}:</span>
