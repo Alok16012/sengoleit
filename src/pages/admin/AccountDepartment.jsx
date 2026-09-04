@@ -97,6 +97,7 @@ export default function AccountDepartment() {
   const [rechargeModal, setRechargeModal] = useState(null)
   const [rechargeChecked, setRechargeChecked] = useState(false)
   const [rechargeSaving, setRechargeSaving] = useState(false)
+  const [editingAmt, setEditingAmt] = useState(null)   // recharge id while correcting its amount
   const [rechargeRemark, setRechargeRemark] = useState('')
   // Payment method flow: '' (not chosen) | 'manual' (offline/UTR) | 'link' (Razorpay)
   const [receiptVerified, setReceiptVerified] = useState(false)
@@ -562,6 +563,49 @@ export default function AccountDepartment() {
     try {
       await supabase.from('recharge_requests').update({ admin_remarks: remark }).eq('id', id)
     } catch { /* column may not exist yet — ignore */ }
+  }
+
+  // Correct the amount on a recharge that is already verified.
+  //
+  // The wallet was credited from the old figure, so the two have to move
+  // together — editing the request alone would leave the centre's balance
+  // wrong for good. admin_edit_recharge_amount() does both inside one locked
+  // transaction and applies only the DIFFERENCE, so nothing else that touched
+  // the wallet in between is lost.
+  async function editRechargeAmount(req) {
+    const typed = prompt(
+      `Correct the amount for ${req.centers?.center_name || 'this center'}.\n\n` +
+      `Currently ₹${Number(req.amount).toLocaleString('en-IN')}.\n` +
+      `The center's wallet will move by the difference.`,
+      String(Math.round(Number(req.amount) || 0))
+    )
+    if (typed === null) return
+    const amt = Number(String(typed).replace(/[, ₹]/g, ''))
+    if (!isFinite(amt) || amt < 0) { alert('Enter a number.'); return }
+    const diff = amt - Number(req.amount || 0)
+    if (!confirm(
+      `Change ₹${Number(req.amount).toLocaleString('en-IN')} → ₹${amt.toLocaleString('en-IN')}?\n\n` +
+      `The wallet will ${diff < 0 ? 'go DOWN' : 'go UP'} by ₹${Math.abs(diff).toLocaleString('en-IN')}.`
+    )) return
+
+    setEditingAmt(req.id)
+    const { data, error } = await supabase.rpc('admin_edit_recharge_amount', {
+      p_recharge: req.id, p_amount: amt,
+    })
+    setEditingAmt(null)
+    if (error) {
+      const missing = /admin_edit_recharge_amount|PGRST202|42883|schema cache/i.test(error.message || '')
+      alert(missing
+        ? 'This needs a database update — nothing was changed.\n\nPlease run add_edit_recharge_amount.sql in Supabase.'
+        : 'Nothing was changed:\n\n' + error.message)
+      return
+    }
+    const g = Array.isArray(data) ? data[0] : data
+    await fetchAll()
+    alert(
+      `Amount is now ₹${Number(g?.new_amount).toLocaleString('en-IN')}.\n` +
+      `Wallet: ₹${Number(g?.wallet_before).toLocaleString('en-IN')} → ₹${Number(g?.wallet_after).toLocaleString('en-IN')}.`
+    )
   }
 
   async function handleVerifyRecharge(req) {
@@ -1511,6 +1555,15 @@ export default function AccountDepartment() {
                         <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false); setRechargeRemark(r.admin_remarks || '') }}>
                           <CheckCircle size={13} /> {r.status === 'hold' ? 'Re-Review' : 'Review'}
                         </Button>
+                      ) : r.status === 'verified' ? (
+                        // Correcting a verified amount has to move the wallet
+                        // with it, so it goes through the RPC rather than an
+                        // update here — see editRechargeAmount.
+                        <button onClick={() => editRechargeAmount(r)} disabled={editingAmt === r.id}
+                          title="Correct the amount — the wallet moves by the difference"
+                          className="text-xs font-semibold text-[#933d18] hover:underline disabled:opacity-40">
+                          {editingAmt === r.id ? '…' : 'Edit ₹'}
+                        </button>
                       ) : (
                         <span className="text-gray-300 text-xs">—</span>
                       )}
