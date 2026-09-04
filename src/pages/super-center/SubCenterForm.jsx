@@ -570,7 +570,7 @@ export default function SubCenterForm() {
         if (hasCode && codeCoupon) {
           await supabase.from('coupons')
             .update({ is_used: true, used_at: new Date().toISOString() })
-            .eq('id', codeCoupon.id).eq('is_used', false)
+            .eq('id', codeCoupon.id).eq('is_used', false).eq('is_disabled', false)
           // Deposit the code's amount into THIS super center's own wallet — coupon
           // wallet (mint coupons later) or the spendable balance, per the choice above.
           const depositAmt = Math.round(Number(codeCoupon.face_value || 0))

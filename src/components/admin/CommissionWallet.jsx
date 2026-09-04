@@ -25,6 +25,8 @@ export default function CommissionWallet({ superCenterId = '' }) {
   const [paidRows, setPaidRows] = useState([])    // recharge_commissions + coupon
   const [rechargeErr, setRechargeErr] = useState('')
   const [genBusy, setGenBusy] = useState(null)                // recharge id while minting
+  const [actBusy, setActBusy] = useState(null)                // recharge id while toggling active
+  const [sentBusy, setSentBusy] = useState(null)              // recharge id while marking sent
   const [loading, setLoading] = useState(true)
   // null = not chosen yet, so the default can follow the data. Landing on an
   // empty Ledger History while 11 recharges waited behind another tab read as
@@ -65,13 +67,13 @@ export default function CommissionWallet({ superCenterId = '' }) {
     const { data: rates, error: rateErr } = await supabase
       .from('center_commissions').select('center_id, super_center_id, percent')
     const { data: paid } = await supabase
-      .from('recharge_commissions').select('recharge_id, super_center_id, coupon_id, percent, amount')
+      .from('recharge_commissions').select('id, recharge_id, super_center_id, coupon_id, percent, amount, sent_at')
 
     const couponIds = [...new Set((paid || []).map(p => p.coupon_id).filter(Boolean))]
     let couponMap = {}
     if (couponIds.length) {
       const { data: cps } = await supabase
-        .from('coupons').select('id, coupon_code, face_value, is_used').in('id', couponIds)
+        .from('coupons').select('id, coupon_code, face_value, is_used, is_disabled').in('id', couponIds)
       couponMap = Object.fromEntries((cps || []).map(c => [c.id, c]))
     }
 
@@ -144,6 +146,46 @@ export default function CommissionWallet({ superCenterId = '' }) {
   // ledger only fills AFTER a commission is generated, so a fresh super centre
   // always opened on an empty table with the work hidden behind another tab.
   const activeTab = tab || (scLedger.length === 0 && scRecharges.length > 0 ? 'recharges' : 'history')
+
+  // Switch a generated coupon on or off. The flag is enforced inside
+  // reserve_coupon(), not here — a disabled coupon genuinely cannot be
+  // redeemed, rather than merely looking off on this screen.
+  async function toggleActive(row) {
+    const c = row.paid?.coupon
+    if (!c) return
+    const turningOn = c.is_disabled
+    if (!turningOn && !confirm(
+      `Deactivate coupon ${c.coupon_code}?\n\n` +
+      `It cannot be applied to an admission while it is off. You can switch it back on.`
+    )) return
+    setActBusy(row.id)
+    const { error } = await supabase.from('coupons')
+      .update({ is_disabled: !c.is_disabled, disabled_at: c.is_disabled ? null : new Date().toISOString() })
+      .eq('id', c.id)
+    setActBusy(null)
+    if (error) { alert('Could not change it:\n\n' + error.message); return }
+    await fetchAll()
+  }
+
+  // A record of the handover, nothing more. It deliberately does NOT make the
+  // coupon usable — activating does, and keeping the two apart is what lets a
+  // coupon be sent and still held back.
+  async function markSent(row) {
+    const p = row.paid
+    if (!p) return
+    const undo = !!p.sent_at
+    if (!confirm(undo
+      ? `Clear the "sent" mark on coupon ${p.coupon?.coupon_code}?`
+      : `Mark coupon ${p.coupon?.coupon_code} (${fmt(p.amount)}) as sent to ${selectedSC.center_name}?\n\n`
+        + `This records the handover. It does not activate the coupon.`
+    )) return
+    setSentBusy(row.id)
+    const { error } = await supabase.from('recharge_commissions')
+      .update({ sent_at: undo ? null : new Date().toISOString() }).eq('id', p.id)
+    setSentBusy(null)
+    if (error) { alert('Could not record it:\n\n' + error.message); return }
+    await fetchAll()
+  }
 
   async function generateCoupon(row) {
     // Pin the tab: generating fills the ledger, and the derived default above
@@ -398,18 +440,58 @@ export default function CommissionWallet({ superCenterId = '' }) {
                           >{genBusy === r.id ? '…' : done ? 'Done' : 'Generate'}</button>
                         </td>
                         <td className="px-3 py-2 font-mono text-xs text-gray-800">{r.paid?.coupon?.coupon_code || <span className="text-gray-300">—</span>}</td>
+                        {/* Three states, not two: a coupon that is off is not
+                            the same as one that is spent, and calling both
+                            "Unused" hid the fact that it could not be spent. */}
                         <td className="px-3 py-2">
                           {!done ? <span className="text-xs text-gray-400">Not generated</span>
                             : r.paid?.coupon?.is_used
                               ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700">Used</span>
-                              : <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">Unused</span>}
+                              : r.paid?.coupon?.is_disabled
+                                ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Deactive</span>
+                                : <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">Active</span>}
+                          {r.paid?.sent_at && (
+                            <span className="block text-[10px] text-gray-400 mt-0.5">
+                              sent {new Date(r.paid.sent_at).toLocaleDateString('en-IN')}
+                            </span>
+                          )}
                         </td>
-                        <td className="px-3 py-2 text-center">
-                          {r.paid?.coupon?.coupon_code ? (
-                            <button onClick={() => navigator.clipboard?.writeText(r.paid.coupon.coupon_code)}
-                              title="Copy coupon code"
-                              className="text-xs font-semibold text-blue-600 hover:underline">Copy</button>
-                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        <td className="px-3 py-2">
+                          {!done ? <span className="text-gray-300 text-xs">—</span> : (
+                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                              {/* Spent is final: there is nothing left to switch
+                                  on, off, or hand over. */}
+                              {r.paid?.coupon?.is_used ? (
+                                <span className="text-[11px] text-gray-400">Redeemed</span>
+                              ) : (
+                                <>
+                                  <button onClick={() => toggleActive(r)} disabled={actBusy === r.id}
+                                    title={r.paid?.coupon?.is_disabled
+                                      ? 'Switch it on so it can be applied to an admission'
+                                      : 'Switch it off — it cannot be applied while off'}
+                                    className={`px-2 py-0.5 rounded text-xs font-semibold disabled:opacity-40 ${
+                                      r.paid?.coupon?.is_disabled
+                                        ? 'bg-green-600 text-white hover:bg-green-700'
+                                        : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`}>
+                                    {actBusy === r.id ? '…' : r.paid?.coupon?.is_disabled ? 'Active' : 'Deactive'}
+                                  </button>
+                                  <button onClick={() => markSent(r)} disabled={sentBusy === r.id}
+                                    title={r.paid?.sent_at
+                                      ? 'Handed over — click to clear the mark'
+                                      : 'Record that this coupon was handed to the super center'}
+                                    className={`px-2 py-0.5 rounded text-xs font-semibold disabled:opacity-40 ${
+                                      r.paid?.sent_at
+                                        ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                        : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                                    {sentBusy === r.id ? '…' : r.paid?.sent_at ? 'Sent ✓' : 'Send to SC'}
+                                  </button>
+                                </>
+                              )}
+                              <button onClick={() => navigator.clipboard?.writeText(r.paid.coupon.coupon_code)}
+                                title="Copy coupon code"
+                                className="text-xs font-semibold text-blue-600 hover:underline">Copy</button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )

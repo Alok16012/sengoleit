@@ -721,14 +721,18 @@ export default function StudentForm() {
   useEffect(() => {
     if (!form.center_id || isEdit) { setAvailableCoupons([]); return }
     supabase.from('coupons')
-      .select('id, coupon_code, coupon_type, face_value, is_used, used_at, center_id')
+      .select('id, coupon_code, coupon_type, face_value, is_used, used_at, is_disabled, center_id')
       .eq('center_id', form.center_id)
       .then(({ data }) => {
         // Only unused DISCOUNT coupons — must be strictly coupon_type 'discount'
         // so it matches exactly what admin's Coupon Management shows. Legacy
         // coupons with a null coupon_type are NOT offered (they don't appear in
         // admin either), avoiding phantom codes the center can't reconcile.
-        const avail = (data || []).filter(c => !c.is_used && !c.used_at && c.coupon_type === 'discount')
+        //
+        // A switched-off coupon is left out too. reserve_coupon() refuses it
+        // anyway, but offering it here would mean picking a code and only
+        // finding out at submit time.
+        const avail = (data || []).filter(c => !c.is_used && !c.used_at && !c.is_disabled && c.coupon_type === 'discount')
         setAvailableCoupons(avail)
       })
   }, [form.center_id])
@@ -1078,7 +1082,7 @@ export default function StudentForm() {
       let rows = null
       const withType = await supabase
         .from('coupons')
-        .select('id, coupon_code, face_value, is_used, used_at, center_id, coupon_type')
+        .select('id, coupon_code, face_value, is_used, used_at, is_disabled, center_id, coupon_type')
         .eq('center_id', form.center_id)
       if (withType.error) {
         const plain = await supabase
@@ -1090,7 +1094,7 @@ export default function StudentForm() {
         rows = withType.data
       }
       const match = (rows || []).find(
-        r => !r.is_used && !r.used_at
+        r => !r.is_used && !r.used_at && !r.is_disabled
           && r.coupon_type === 'discount'
           // Match the code the center actually sees: the real coupon_code (as in
           // admin), falling back to the id prefix only for legacy coupons.
@@ -1329,9 +1333,13 @@ export default function StudentForm() {
         // (coupon_code / coupon_discount below), which is what the Account
         // Dept reads at fee collection.
         const db = supabaseAdmin || supabase
+        // is_disabled is guarded HERE, in the same statement that flips
+        // is_used. This update is the real redemption chokepoint — the app
+        // does not call reserve_coupon() — so the WHERE clause is what makes
+        // a deactivated coupon genuinely unusable rather than merely hidden.
         const { data: reserved, error: reserveErr } = await db.from('coupons')
           .update({ is_used: true, used_at: new Date().toISOString() })
-          .eq('id', coupon.applied.id).eq('is_used', false).select('id')
+          .eq('id', coupon.applied.id).eq('is_used', false).eq('is_disabled', false).select('id')
         couponReserveFailed = !!reserveErr || !reserved || reserved.length === 0
       }
       // Persist (or clear) the discount on the student row itself. The center
