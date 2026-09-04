@@ -108,8 +108,13 @@ BEGIN
 
   -- Lock the recharge before reading it, so two clicks cannot both get past the
   -- "already paid?" check.
-  SELECT id, center_id, amount, status INTO r
-    FROM recharge_requests WHERE id = p_recharge FOR UPDATE;
+  --
+  -- Every column here is qualified with the table alias on purpose. `amount`
+  -- and `percent` are also OUT parameters of this function, and an unqualified
+  -- `amount` matches both the column and the variable — Postgres refuses the
+  -- whole call with 'column reference "amount" is ambiguous'.
+  SELECT rr.id, rr.center_id, rr.amount, rr.status INTO r
+    FROM recharge_requests rr WHERE rr.id = p_recharge FOR UPDATE;
 
   IF r.id IS NULL THEN
     RAISE EXCEPTION 'Recharge not found.';
@@ -122,18 +127,18 @@ BEGIN
   END IF;
 
   FOR rec IN
-    SELECT cc.super_center_id AS sc, cc.percent, sc.center_name
+    SELECT cc.super_center_id AS sc_id, cc.percent AS pct, s.center_name AS sc_name
       FROM center_commissions cc
-      JOIN centers sc ON sc.id = cc.super_center_id
+      JOIN centers s ON s.id = cc.super_center_id
      WHERE cc.center_id = r.center_id
        -- Skip the ones already paid for this recharge.
        AND NOT EXISTS (
          SELECT 1 FROM recharge_commissions rc
           WHERE rc.recharge_id = r.id AND rc.super_center_id = cc.super_center_id
        )
-     ORDER BY sc.center_name
+     ORDER BY s.center_name
   LOOP
-    v_amt := round(COALESCE(r.amount, 0) * rec.percent / 100.0);
+    v_amt := round(COALESCE(r.amount, 0) * rec.pct / 100.0);
     -- A rate so small it rounds to nothing is skipped rather than failing the
     -- whole run — the other recipients still get paid.
     CONTINUE WHEN v_amt < 1;
@@ -141,25 +146,25 @@ BEGIN
     v_code := substr(upper(md5(random()::text || clock_timestamp()::text)), 1, 8);
 
     INSERT INTO coupons (center_id, face_value, coupon_type, coupon_code)
-    VALUES (rec.sc, v_amt, 'discount', v_code)
+    VALUES (rec.sc_id, v_amt, 'discount', v_code)
     RETURNING id INTO v_id;
 
     INSERT INTO recharge_commissions (recharge_id, super_center_id, coupon_id, percent, amount)
-    VALUES (r.id, rec.sc, v_id, rec.percent, v_amt);
+    VALUES (r.id, rec.sc_id, v_id, rec.pct, v_amt);
 
     -- base_fee is NOT NULL on the ledger and has no meaning for a recharge, so
     -- it records 0; charged_amount carries the recharge it was taken on.
     INSERT INTO commission_ledger (super_center_id, center_id, amount, base_fee, charged_amount, kind, note)
-    VALUES (rec.sc, r.center_id, v_amt, 0, COALESCE(r.amount, 0), 'recharge',
-            format('%s%% commission on recharge, coupon %s', rec.percent, v_code));
+    VALUES (rec.sc_id, r.center_id, v_amt, 0, COALESCE(r.amount, 0), 'recharge',
+            format('%s%% commission on recharge, coupon %s', rec.pct, v_code));
 
     v_made := v_made + 1;
 
-    super_center_id   := rec.sc;
-    super_center_name := rec.center_name;
+    super_center_id   := rec.sc_id;
+    super_center_name := rec.sc_name;
     coupon_code       := v_code;
     amount            := v_amt;
-    percent           := rec.percent;
+    percent           := rec.pct;
     RETURN NEXT;
   END LOOP;
 
