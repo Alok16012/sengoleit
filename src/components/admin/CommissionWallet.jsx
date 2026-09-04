@@ -107,6 +107,13 @@ export default function CommissionWallet({ superCenterId = '' }) {
   // sits under one super centre but may pay two, so the list is driven by the
   // commission rates, and a centre under someone else still shows here if this
   // super centre is paid on it.
+  // The centres this super centre is paid on. Empty is the usual reason the
+  // Center Recharges tab looks blank, so it is named rather than inferred.
+  const myRates = useMemo(
+    () => (selectedSC ? rates.filter(r => r.super_center_id === selectedSC.id) : []),
+    [rates, selectedSC]
+  )
+
   const scRecharges = useMemo(() => {
     if (!selectedSC) return []
     const rateFor = new Map(
@@ -172,6 +179,17 @@ export default function CommissionWallet({ superCenterId = '' }) {
         </p>
       ) : (
         <>
+          {/* A missing table is a setup problem, not a tab problem — it used to
+              be reported only inside Center Recharges, so anyone standing on
+              Ledger History saw three zeroes and no reason for them. */}
+          {rechargeErr && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
+              Commission data could not be read: {rechargeErr}
+              {/does not exist|relation|schema cache|column/i.test(rechargeErr) &&
+                <> — run <strong>add_commission_recipients.sql</strong> in Supabase.</>}
+            </div>
+          )}
+
           {/* ---- Summary cards ---- */}
           <div className="grid grid-cols-3 gap-4 max-w-2xl">
             <div className="bg-white border rounded-lg p-4 shadow-sm">
@@ -294,7 +312,29 @@ export default function CommissionWallet({ superCenterId = '' }) {
                 </thead>
                 <tbody>
                   {scRecharges.length === 0 ? (
-                    <tr><td colSpan="11" className="text-center text-gray-400 py-8">No recharges from this super center&apos;s centers yet.</td></tr>
+                    // "Nothing here" has two quite different causes and the old
+                    // message covered both, so an unset rate looked like an
+                    // empty ledger. The list is driven by RATES, not by which
+                    // super centre a centre sits under.
+                    <tr><td colSpan="11" className="text-center text-gray-400 py-8">
+                      {myRates.length === 0 ? (
+                        <>
+                          <p className="text-gray-500 font-semibold">No commission rate is set for {selectedSC.center_name}.</p>
+                          <p className="text-xs mt-1">
+                            Open <strong>Centers</strong>, click the <strong>Commission</strong> cell on a center,
+                            and add {selectedSC.center_name} with a percentage. Its recharges then appear here.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-gray-500 font-semibold">No recharges yet.</p>
+                          <p className="text-xs mt-1">
+                            {selectedSC.center_name} earns on {myRates.length} center{myRates.length > 1 ? 's' : ''},
+                            but {myRates.length > 1 ? 'none of them has' : 'it has not'} made a recharge.
+                          </p>
+                        </>
+                      )}
+                    </td></tr>
                   ) : scRecharges.map((r, i) => {
                     const done = !!r.paid
                     const verified = r.status === 'verified'
