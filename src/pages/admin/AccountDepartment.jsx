@@ -1536,8 +1536,22 @@ export default function AccountDepartment() {
                         {r.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
                       </span>
                     </Td>
+                    {/* The edit sits ON the amount, not only in the Actions
+                        column: Actions is the 13th of 13 and scrolls off the
+                        right of most screens, so a pencil there is invisible
+                        to someone looking straight at the figure they want to
+                        correct. */}
                     <Td>
-                      <span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span>
+                        {r.status === 'verified' && (
+                          <button onClick={() => editRechargeAmount(r)} disabled={editingAmt === r.id}
+                            title="Correct this amount — the wallet moves by the difference"
+                            className="text-gray-300 hover:text-[#933d18] disabled:opacity-40">
+                            {editingAmt === r.id ? <span className="text-[10px]">…</span> : <Pencil size={12} />}
+                          </button>
+                        )}
+                      </div>
                     </Td>
                     <Td className="font-mono text-sm text-gray-700">{r.payment_txn_id || '—'}</Td>
                     <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
