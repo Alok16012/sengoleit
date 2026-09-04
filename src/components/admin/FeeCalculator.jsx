@@ -16,15 +16,23 @@ const fmt = n => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits:
 //   share    — what X% of the fee comes to (a centre's share, a commission)
 //   increase — the fee after adding X% (next year's revision)
 //   discount — the fee after taking X% off (a concession)
-// The fourth column has to change with the mode. A share of ₹2,300 at 10% is
-// ₹230, and calling the gap to the full fee a "difference" of −₹2,070 reads as
-// a loss; what is actually wanted there is what is LEFT after the share.
+// A share splits the fee in two, so the fourth column carries the OTHER half
+// and names its percentage: put 60 in and the column reads "Remaining @ 40%".
+// Both sides of the split are then on one row, in rupees and in percent, which
+// is the whole question a fee share asks.
+//
+// Increase and discount are not a split, so theirs stays a plain difference —
+// and calling a share's other half a "difference" of −₹920 read as a loss.
+const pctOut = (n) => (Math.round(n * 100) / 100)
 const MODES = [
-  { key: 'share',    label: 'Share',    hint: 'X% of the fee', lastCol: 'Remaining',
+  { key: 'share',    label: 'Share',    hint: 'X% of the fee',
+    lastCol: p => `Remaining @ ${pctOut(100 - p)}%`,
     calc: (b, p) => b * p / 100,        last: (b, out) => b - out, signed: false },
-  { key: 'increase', label: 'Increase', hint: 'fee + X%',      lastCol: 'Difference',
+  { key: 'increase', label: 'Increase', hint: 'fee + X%',
+    lastCol: () => 'Difference',
     calc: (b, p) => b * (1 + p / 100),  last: (b, out) => out - b, signed: true },
-  { key: 'discount', label: 'Discount', hint: 'fee − X%',      lastCol: 'Difference',
+  { key: 'discount', label: 'Discount', hint: 'fee − X%',
+    lastCol: () => 'Difference',
     calc: (b, p) => b * (1 - p / 100),  last: (b, out) => out - b, signed: true },
 ]
 
@@ -96,7 +104,7 @@ export default function FeeCalculator({ semAmounts = [], grandTotal = 0 }) {
                     <th className="text-right text-white font-semibold px-4 py-2.5 whitespace-nowrap">
                       {m.label} @ {p}%
                     </th>
-                    <th className="text-right text-white font-semibold px-4 py-2.5 whitespace-nowrap">{m.lastCol}</th>
+                    <th className="text-right text-white font-semibold px-4 py-2.5 whitespace-nowrap">{m.lastCol(p)}</th>
                   </tr>
                 </thead>
                 <tbody>
