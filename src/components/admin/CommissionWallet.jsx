@@ -26,7 +26,10 @@ export default function CommissionWallet({ superCenterId = '' }) {
   const [rechargeErr, setRechargeErr] = useState('')
   const [genBusy, setGenBusy] = useState(null)                // recharge id while minting
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('history')                   // 'history' | 'recharges' | 'record'
+  // null = not chosen yet, so the default can follow the data. Landing on an
+  // empty Ledger History while 11 recharges waited behind another tab read as
+  // "nothing is here".
+  const [tab, setTab] = useState(null)                        // 'history' | 'recharges' | 'record'
   const [recordModal, setRecordModal] = useState(null)         // { superCenter } or null
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -103,17 +106,17 @@ export default function CommissionWallet({ superCenterId = '' }) {
   const totalCommission = useMemo(() => scLedger.reduce((s, r) => s + Number(r.amount || 0), 0), [scLedger])
   const currentBalance = Number(selectedSC?.commission_balance || 0)
 
-  // The recharges this super centre EARNS on. Not "its own centres" — a centre
-  // sits under one super centre but may pay two, so the list is driven by the
-  // commission rates, and a centre under someone else still shows here if this
-  // super centre is paid on it.
-  // The centres this super centre is paid on. Empty is the usual reason the
-  // Center Recharges tab looks blank, so it is named rather than inferred.
+  // The centres this super centre is paid on. Empty is one of the two reasons
+  // the Center Recharges tab looks blank, so it is named rather than inferred.
   const myRates = useMemo(
     () => (selectedSC ? rates.filter(r => r.super_center_id === selectedSC.id) : []),
     [rates, selectedSC]
   )
 
+  // The recharges this super centre EARNS on. Not "its own centres" — a centre
+  // sits under one super centre but may pay two, so the list is driven by the
+  // commission rates, and a centre under someone else still shows here if this
+  // super centre is paid on it.
   const scRecharges = useMemo(() => {
     if (!selectedSC) return []
     const rateFor = new Map(
@@ -137,7 +140,16 @@ export default function CommissionWallet({ superCenterId = '' }) {
       })
   }, [recharges, centers, rates, paidRows, selectedSC])
 
+  // Until a tab is picked, land on the one with something to act on. The
+  // ledger only fills AFTER a commission is generated, so a fresh super centre
+  // always opened on an empty table with the work hidden behind another tab.
+  const activeTab = tab || (scLedger.length === 0 && scRecharges.length > 0 ? 'recharges' : 'history')
+
   async function generateCoupon(row) {
+    // Pin the tab: generating fills the ledger, and the derived default above
+    // would then hand the view to Ledger History mid-run — walking the user off
+    // the table they are working through.
+    setTab('recharges')
     // One click pays EVERY super centre that earns on this centre, not only the
     // one on screen — the commission is owed to all of them, and minting them
     // separately would be a way to forget one.
@@ -210,20 +222,20 @@ export default function CommissionWallet({ superCenterId = '' }) {
           <div className="flex gap-2 border-b">
             <button
               onClick={() => setTab('history')}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${tab === 'history' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${activeTab === 'history' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >Ledger History</button>
             <button
               onClick={() => setTab('recharges')}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${tab === 'recharges' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${activeTab === 'recharges' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >Center Recharges ({scRecharges.length})</button>
             <button
               onClick={() => setTab('record')}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${tab === 'record' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${activeTab === 'record' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >Record New Commission</button>
           </div>
 
           {/* ---- History tab ---- */}
-          {tab === 'history' && (
+          {activeTab === 'history' && (
             <div className="bg-white border rounded-lg shadow-sm overflow-hidden">
               {/* Filters */}
               <div className="flex items-end gap-3 p-3 bg-gray-50 border-b flex-wrap">
@@ -260,7 +272,22 @@ export default function CommissionWallet({ superCenterId = '' }) {
                 </thead>
                 <tbody>
                   {scLedger.length === 0 ? (
-                    <tr><td colSpan="7" className="text-center text-gray-400 py-8">No transactions yet.</td></tr>
+                    // The ledger is a record of what has been GENERATED, so it
+                    // is empty until someone generates. Saying only "no
+                    // transactions" left the next step off the screen.
+                    <tr><td colSpan="7" className="text-center text-gray-400 py-8">
+                      <p className="text-gray-500 font-semibold">Nothing generated yet.</p>
+                      {scRecharges.length > 0 ? (
+                        <p className="text-xs mt-1">
+                          {scRecharges.length} recharge{scRecharges.length > 1 ? 's are' : ' is'} waiting —
+                          open <button onClick={() => setTab('recharges')}
+                            className="text-blue-600 font-semibold hover:underline">Center Recharges</button> and
+                          generate the commission.
+                        </p>
+                      ) : (
+                        <p className="text-xs mt-1">Commission appears here once it is generated from a recharge.</p>
+                      )}
+                    </td></tr>
                   ) : scLedger.map(r => {
                     const center = centers.find(c => c.id === r.center_id)
                     return (
@@ -286,13 +313,13 @@ export default function CommissionWallet({ superCenterId = '' }) {
               coupon it was paid out as, and whether that coupon is still
               unused. Generate is disabled once a coupon exists, but the
               database enforces one-per-recharge regardless. */}
-          {tab === 'recharges' && rechargeErr && (
+          {activeTab === 'recharges' && rechargeErr && (
             <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 text-sm">
               Could not read the recharges: {rechargeErr}
               {/commission_coupon_id|column/i.test(rechargeErr) && <> — run <strong>add_commission_coupon.sql</strong> in Supabase.</>}
             </div>
           )}
-          {tab === 'recharges' && !rechargeErr && (
+          {activeTab === 'recharges' && !rechargeErr && (
             <div className="bg-white border rounded-lg shadow-sm overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
@@ -393,7 +420,7 @@ export default function CommissionWallet({ superCenterId = '' }) {
           )}
 
           {/* ---- Record tab ---- */}
-          {tab === 'record' && (
+          {activeTab === 'record' && (
             <div>
               {recordModal ? (
                 <RecordCommissionModal
