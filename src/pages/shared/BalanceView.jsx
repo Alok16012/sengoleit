@@ -21,6 +21,9 @@ export default function BalanceView() {
   // the "My Centers" oversight section (separate from its own wallet above).
   const [subCenters, setSubCenters] = useState([])
   const [childRequests, setChildRequests] = useState([])
+  // Commission earned by this super centre: what is owed, and what has already
+  // been paid into its wallet.
+  const [commissions, setCommissions] = useState([])
   const [centerFilter, setCenterFilter] = useState('all')
   // Super center view splits into two tabs: its own Recharge History and its
   // centers' balances. Regular centers only ever see the recharge history.
@@ -50,6 +53,34 @@ export default function BalanceView() {
           const { data: subs } = await supabase.from('centers')
             .select('id, center_name, center_code, virtual_balance').eq('super_center_id', data.id).order('center_name')
           setSubCenters(subs || [])
+          // Commission this super centre has earned. Driven by the rates it is
+          // paid at, NOT by which centres sit under it — it may earn on a
+          // centre that belongs to someone else.
+          const { data: comm, error: cErr } = await supabase
+            .from('recharge_commissions')
+            .select('id, recharge_id, amount, percent, sent_at')
+            .eq('super_center_id', data.id)
+            .order('sent_at', { ascending: false, nullsFirst: true })
+          if (cErr) setCenterErr(`Could not read your commission: ${cErr.message}`)
+          // The recharge each amount came from, so the row can name the centre
+          // and the sum it was worked out on. Fetched separately rather than
+          // embedded: a wrong embed hint fails the whole query silently.
+          const rIds = [...new Set((comm || []).map(c => c.recharge_id).filter(Boolean))]
+          let rMap = {}
+          if (rIds.length) {
+            const { data: rr } = await supabase.from('recharge_requests')
+              .select('id, center_id, amount, created_at').in('id', rIds)
+            const cIds = [...new Set((rr || []).map(x => x.center_id).filter(Boolean))]
+            let nameMap = {}
+            if (cIds.length) {
+              const { data: cs } = await supabase.from('centers')
+                .select('id, center_name, center_code').in('id', cIds)
+              nameMap = Object.fromEntries((cs || []).map(c => [c.id, c]))
+            }
+            rMap = Object.fromEntries((rr || []).map(x => [x.id, { ...x, center: nameMap[x.center_id] || null }]))
+          }
+          setCommissions((comm || []).map(c => ({ ...c, recharge: rMap[c.recharge_id] || null })))
+
           const ids = (subs || []).map(s => s.id)
           if (ids.length) {
             const { data: reqs, error: reqErr } = await supabase.from('recharge_requests')
@@ -316,6 +347,7 @@ export default function BalanceView() {
             { key: 'recharge', label: 'My Recharge History', n: requests.length },
             { key: 'balances', label: "My Centers' Balances", n: subCenters.length },
             { key: 'childRecharge', label: "My Centers' Recharge History", n: childRequests.length },
+            { key: 'commission', label: 'Commission Wallet', n: commissions.length },
           ].map(t => (
             <button
               key={t.key}
@@ -520,6 +552,89 @@ export default function BalanceView() {
           )}
         </div>
       )}
+
+      {/* Super center only: what it has earned in commission, and whether the
+          university has paid it into the wallet yet. Read-only — generating and
+          paying are the admin's, so there is nothing to click here. */}
+      {isSuperCenter && tab === 'commission' && (() => {
+        const paid = commissions.filter(c => c.sent_at)
+        const owed = commissions.filter(c => !c.sent_at)
+        const sum = list => list.reduce((s, c) => s + Number(c.amount || 0), 0)
+        return (
+        <div>
+          <h2 className="text-sm font-bold text-gray-700 mb-3">Commission Wallet</h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-700">Received</p>
+              <p className="text-2xl font-black text-emerald-800 mt-1">₹{sum(paid).toLocaleString('en-IN')}</p>
+              <p className="text-[11px] text-emerald-600 mt-1">Already in your balance</p>
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-amber-700">Pending</p>
+              <p className="text-2xl font-black text-amber-800 mt-1">₹{sum(owed).toLocaleString('en-IN')}</p>
+              <p className="text-[11px] text-amber-600 mt-1">Earned, not yet released</p>
+            </div>
+            <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Total Earned</p>
+              <p className="text-2xl font-black text-gray-800 mt-1">₹{sum(commissions).toLocaleString('en-IN')}</p>
+              <p className="text-[11px] text-gray-400 mt-1">{commissions.length} entries</p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
+          ) : (
+            <Table>
+              <Thead>
+                <tr>
+                  <Th>#</Th>
+                  <Th>Center</Th>
+                  <Th>Recharge</Th>
+                  <Th>Rate</Th>
+                  <Th>Commission</Th>
+                  <Th>Status</Th>
+                </tr>
+              </Thead>
+              <Tbody>
+                {commissions.length === 0 ? (
+                  <Tr><Td colSpan={6} className="text-center text-gray-400 py-12">
+                    <p className="text-gray-500 font-semibold">No commission yet.</p>
+                    <p className="text-xs mt-1">It appears here once the university records commission on a center&apos;s recharge.</p>
+                  </Td></Tr>
+                ) : commissions.map((c, i) => (
+                  <Tr key={c.id}>
+                    <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                    <Td>
+                      <p className="font-semibold text-gray-900 text-sm">{c.recharge?.center?.center_name || '—'}</p>
+                      {c.recharge?.center?.center_code && (
+                        <span className="text-[10px] text-gray-400 font-mono">{c.recharge.center.center_code}</span>
+                      )}
+                    </Td>
+                    <Td className="text-gray-600 text-sm">
+                      ₹{Number(c.recharge?.amount || 0).toLocaleString('en-IN')}
+                      <span className="block text-[10px] text-gray-400">{formatDate(c.recharge?.created_at)}</span>
+                    </Td>
+                    <Td className="text-gray-500 text-xs">{Number(c.percent)}%</Td>
+                    <Td><span className="font-bold text-emerald-700">₹{Number(c.amount).toLocaleString('en-IN')}</span></Td>
+                    <Td>
+                      {c.sent_at ? (
+                        <>
+                          <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">Received</span>
+                          <span className="block text-[10px] text-gray-400 mt-0.5">{formatDate(c.sent_at)}</span>
+                        </>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">Pending</span>
+                      )}
+                    </Td>
+                  </Tr>
+                ))}
+              </Tbody>
+            </Table>
+          )}
+        </div>
+        )
+      })()}
 
       {/* Recharge Modal */}
       <Modal isOpen={modal} onClose={() => setModal(false)} title={editingId ? 'Edit & Resubmit Recharge' : 'Request Recharge'}>

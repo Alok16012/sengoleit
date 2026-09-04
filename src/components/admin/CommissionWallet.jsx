@@ -38,7 +38,6 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
   const [paidRows, setPaidRows] = useState([])    // recharge_commissions + coupon
   const [rechargeErr, setRechargeErr] = useState('')
   const [genBusy, setGenBusy] = useState(null)                // recharge id while minting
-  const [actBusy, setActBusy] = useState(null)                // recharge id while toggling active
   const [sentBusy, setSentBusy] = useState(null)              // recharge id while marking sent
   const [loading, setLoading] = useState(true)
   // null = not chosen yet, so the default can follow the data. Landing on an
@@ -169,44 +168,36 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
   // always opened on an empty table with the work hidden behind another tab.
   const activeTab = tab || (scLedger.length === 0 && scRecharges.length > 0 ? 'recharges' : 'history')
 
-  // Switch a generated coupon on or off. The flag is enforced inside
-  // reserve_coupon(), not here — a disabled coupon genuinely cannot be
-  // redeemed, rather than merely looking off on this screen.
-  async function toggleActive(row) {
-    const c = row.paid?.coupon
-    if (!c) return
-    const turningOn = c.is_disabled
-    if (!turningOn && !confirm(
-      `Deactivate coupon ${c.coupon_code}?\n\n` +
-      `It cannot be applied to an admission while it is off. You can switch it back on.`
-    )) return
-    setActBusy(row.id)
-    const { error } = await supabase.from('coupons')
-      .update({ is_disabled: !c.is_disabled, disabled_at: c.is_disabled ? null : new Date().toISOString() })
-      .eq('id', c.id)
-    setActBusy(null)
-    if (error) { alert('Could not change it:\n\n' + error.message); return }
-    await fetchAll()
-  }
-
-  // A record of the handover, nothing more. It deliberately does NOT make the
-  // coupon usable — activating does, and keeping the two apart is what lets a
-  // coupon be sent and still held back.
+  // Paying it. The amount lands in the super centre's Available Balance — the
+  // same wallet it spends to register students — inside one locked
+  // transaction, so nothing else that touched the balance is lost. Undo takes
+  // it back, refusing if the wallet has since been spent below it.
+  //
+  // There is no Active/Deactive here any more: that pair belonged to the
+  // coupon, and commission is not paid by coupon now. Paying by coupon AND
+  // crediting the wallet would hand the same money over twice.
   async function markSent(row) {
     const p = row.paid
     if (!p) return
     const undo = !!p.sent_at
     if (!confirm(undo
-      ? `Clear the "sent" mark on coupon ${p.coupon?.coupon_code}?`
-      : `Mark coupon ${p.coupon?.coupon_code} (${fmt(p.amount)}) as sent to ${selectedSC.center_name}?\n\n`
-        + `This records the handover. It does not activate the coupon.`
+      ? `Take back ${fmt(p.amount)} from ${selectedSC.center_name}?\n\nIt will be removed from their wallet.`
+      : `Pay ${fmt(p.amount)} to ${selectedSC.center_name}?\n\nIt goes straight into their Available Balance.`
     )) return
     setSentBusy(row.id)
-    const { error } = await supabase.from('recharge_commissions')
-      .update({ sent_at: undo ? null : new Date().toISOString() }).eq('id', p.id)
+    const { data, error } = await supabase.rpc('commission_set_sent', { p_id: p.id, p_sent: !undo })
     setSentBusy(null)
-    if (error) { alert('Could not record it:\n\n' + error.message); return }
+    if (error) {
+      const missing = /commission_set_sent|PGRST202|42883|schema cache/i.test(error.message || '')
+      alert(missing
+        ? 'This needs a database update — nothing was changed.\n\nPlease run add_commission_payout.sql in Supabase.'
+        : 'Nothing was changed:\n\n' + error.message)
+      return
+    }
+    const g = Array.isArray(data) ? data[0] : data
     await fetchAll()
+    alert(`${undo ? 'Taken back' : 'Paid'} ${fmt(g?.amount)}.\n`
+      + `${selectedSC.center_name}'s wallet: ${fmt(g?.wallet_before)} → ${fmt(g?.wallet_after)}.`)
   }
 
   async function generateCoupon(row) {
@@ -223,16 +214,16 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
       `Generate the commission on ${row.center?.center_name || 'this center'}'s recharge of ${fmt(row.amount)}?\n\n` +
       `${selectedSC.center_name}: ${row.pct}% = ${fmt(row.commission)}\n` +
       others.map(o => `${nameOf(o.super_center_id)}: ${o.percent}% = ${fmt(Math.round((Number(row.amount) || 0) * Number(o.percent) / 100))}`).join('\n') +
-      (others.length ? '\n\nAll of the above are paid — the commission is owed to each.' : '') +
-      `\n\nNo wallet is debited.`
+      (others.length ? '\n\nAll of the above are recorded — the commission is owed to each.' : '') +
+      `\n\nThis records what is OWED. Nothing reaches a wallet until you send it.`
     )) return
     setGenBusy(row.id)
-    const { data, error } = await supabase.rpc('generate_commission_coupons', { p_recharge: row.id })
+    const { data, error } = await supabase.rpc('generate_commission_payables', { p_recharge: row.id })
     setGenBusy(null)
     if (error) {
-      const missing = /generate_commission_coupons|PGRST202|42883|schema cache/i.test(error.message || '')
+      const missing = /generate_commission_payables|PGRST202|42883|schema cache/i.test(error.message || '')
       alert(missing
-        ? 'This needs a database update — nothing was created.\n\nPlease run add_commission_recipients.sql in Supabase.'
+        ? 'This needs a database update — nothing was created.\n\nPlease run add_commission_payout.sql in Supabase.'
         : 'Nothing was created:\n\n' + error.message)
       await fetchAll()
       return
@@ -240,7 +231,8 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
     await fetchAll()
     const made = Array.isArray(data) ? data : data ? [data] : []
     alert(made.length
-      ? made.map(g => `${g.super_center_name}: coupon ${g.coupon_code} for ${fmt(g.amount)} (${g.percent}%)`).join('\n')
+      ? made.map(g => `${g.super_center_name}: ${fmt(g.amount)} owed (${g.percent}%)`).join('\n')
+        + '\n\nUse "Send to SC" to pay it into their wallet.'
       : 'Nothing was generated.')
   }
 
@@ -402,8 +394,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                     <th className="text-left px-3 py-2">Recharge</th>
                     <th className="text-right px-3 py-2">Commission</th>
                     <th className="text-center px-3 py-2">Generate</th>
-                    <th className="text-left px-3 py-2">Coupon No</th>
-                    <th className="text-left px-3 py-2">Coupon Status</th>
+                    <th className="text-left px-3 py-2">Payout</th>
                     <th className="text-center px-3 py-2">Action</th>
                   </tr>
                 </thead>
@@ -413,7 +404,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                     // message covered both, so an unset rate looked like an
                     // empty ledger. The list is driven by RATES, not by which
                     // super centre a centre sits under.
-                    <tr><td colSpan="11" className="text-center text-gray-400 py-8">
+                    <tr><td colSpan="10" className="text-center text-gray-400 py-8">
                       {centerId ? (
                         // With a centre picked, "nothing here" is almost always
                         // that centre rather than the super centre's setup, so
@@ -480,58 +471,40 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                             className="px-3 py-1 rounded text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
                           >{genBusy === r.id ? '…' : done ? 'Done' : 'Generate'}</button>
                         </td>
-                        <td className="px-3 py-2 font-mono text-xs text-gray-800">{r.paid?.coupon?.coupon_code || <span className="text-gray-300">—</span>}</td>
-                        {/* Three states, not two: a coupon that is off is not
-                            the same as one that is spent, and calling both
-                            "Unused" hid the fact that it could not be spent. */}
+                        {/* Owed vs paid — the coupon is gone and the money goes
+                            into the wallet now. A row minted under the old
+                            scheme still names its coupon, which stays switched
+                            off so it cannot be spent alongside the credit. */}
                         <td className="px-3 py-2">
                           {!done ? <span className="text-xs text-gray-400">Not generated</span>
-                            : r.paid?.coupon?.is_used
-                              ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-gray-200 text-gray-700">Used</span>
-                              : r.paid?.coupon?.is_disabled
-                                ? <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Deactive</span>
-                                : <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">Active</span>}
-                          {r.paid?.sent_at && (
-                            <span className="block text-[10px] text-gray-400 mt-0.5">
-                              sent {new Date(r.paid.sent_at).toLocaleDateString('en-IN')}
+                            : r.paid?.sent_at
+                              ? <>
+                                  <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">Paid</span>
+                                  <span className="block text-[10px] text-gray-400 mt-0.5">
+                                    {new Date(r.paid.sent_at).toLocaleDateString('en-IN')}
+                                  </span>
+                                </>
+                              : <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Owed</span>}
+                          {r.paid?.coupon?.coupon_code && (
+                            <span className="block text-[10px] text-gray-300 font-mono mt-0.5"
+                              title="Minted before commission moved to the wallet; switched off">
+                              old coupon {r.paid.coupon.coupon_code}
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2">
+                        {/* One action: pay it, or take it back. */}
+                        <td className="px-3 py-2 text-center">
                           {!done ? <span className="text-gray-300 text-xs">—</span> : (
-                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                              {/* Spent is final: there is nothing left to switch
-                                  on, off, or hand over. */}
-                              {r.paid?.coupon?.is_used ? (
-                                <span className="text-[11px] text-gray-400">Redeemed</span>
-                              ) : (
-                                <>
-                                  <button onClick={() => toggleActive(r)} disabled={actBusy === r.id}
-                                    title={r.paid?.coupon?.is_disabled
-                                      ? 'Switch it on so it can be applied to an admission'
-                                      : 'Switch it off — it cannot be applied while off'}
-                                    className={`px-2 py-0.5 rounded text-xs font-semibold disabled:opacity-40 ${
-                                      r.paid?.coupon?.is_disabled
-                                        ? 'bg-green-600 text-white hover:bg-green-700'
-                                        : 'bg-amber-100 text-amber-800 hover:bg-amber-200'}`}>
-                                    {actBusy === r.id ? '…' : r.paid?.coupon?.is_disabled ? 'Active' : 'Deactive'}
-                                  </button>
-                                  <button onClick={() => markSent(r)} disabled={sentBusy === r.id}
-                                    title={r.paid?.sent_at
-                                      ? 'Handed over — click to clear the mark'
-                                      : 'Record that this coupon was handed to the super center'}
-                                    className={`px-2 py-0.5 rounded text-xs font-semibold disabled:opacity-40 ${
-                                      r.paid?.sent_at
-                                        ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                        : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                                    {sentBusy === r.id ? '…' : r.paid?.sent_at ? 'Sent ✓' : 'Send to SC'}
-                                  </button>
-                                </>
-                              )}
-                              <button onClick={() => navigator.clipboard?.writeText(r.paid.coupon.coupon_code)}
-                                title="Copy coupon code"
-                                className="text-xs font-semibold text-blue-600 hover:underline">Copy</button>
-                            </div>
+                            <button onClick={() => markSent(r)} disabled={sentBusy === r.id}
+                              title={r.paid?.sent_at
+                                ? 'Paid into their wallet — click to take it back'
+                                : `Pay ${fmt(r.paid?.amount)} into ${selectedSC.center_name}'s wallet`}
+                              className={`px-2.5 py-1 rounded text-xs font-semibold disabled:opacity-40 ${
+                                r.paid?.sent_at
+                                  ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                  : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                              {sentBusy === r.id ? '…' : r.paid?.sent_at ? 'Undo' : 'Send to SC'}
+                            </button>
                           )}
                         </td>
                       </tr>
