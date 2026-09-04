@@ -603,7 +603,9 @@ export default function CouponManagement() {
 
       {/* ─────────── COMMISSION WALLET ─────────── */}
       {directType === 'commission' && (
-        <CommissionWallet superCenterId={superFilter === 'all' ? '' : superFilter} />
+        <CommissionWallet
+          superCenterId={superFilter === 'all' ? '' : superFilter}
+          centerId={centerFilter || ''} />
       )}
 
       {/* ─────────── OVERVIEW (All Coupons) ─────────── */}

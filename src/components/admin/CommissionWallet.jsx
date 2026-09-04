@@ -25,10 +25,12 @@ function realAdmissionPrice(app) {
   return null
 }
 
-// `superCenterId` comes from the page's own Super Center filter, which sits
-// above every tab. This used to carry a second dropdown of its own, so the
-// screen asked the same question twice and the two could disagree.
-export default function CommissionWallet({ superCenterId = '' }) {
+// `superCenterId` and `centerId` come from the page's own filters, which sit
+// above every tab. This used to carry a second super-centre dropdown of its
+// own, so the screen asked the same question twice and the two could disagree
+// — and the Center filter reached nothing here at all, so picking a centre
+// left rows from a different one on screen.
+export default function CommissionWallet({ superCenterId = '', centerId = '' }) {
   const [centers, setCenters] = useState([])
   const [ledger, setLedger] = useState([])
   const [recharges, setRecharges] = useState([])
@@ -111,6 +113,7 @@ export default function CommissionWallet({ superCenterId = '' }) {
   const scLedger = useMemo(() => {
     if (!selectedSC) return []
     let rows = ledger.filter(r => r.super_center_id === selectedSC.id)
+    if (centerId) rows = rows.filter(r => r.center_id === centerId)
     // A RANGE, not two exact-day matches. Both filters used startsWith, so
     // From meant "only this day", To meant "only that day", and setting both
     // to different dates could never match anything.
@@ -121,7 +124,7 @@ export default function CommissionWallet({ superCenterId = '' }) {
     if (startDate) rows = rows.filter(r => localDay(r.created_at) >= startDate)
     if (endDate)   rows = rows.filter(r => localDay(r.created_at) <= endDate)
     return rows
-  }, [ledger, selectedSC, startDate, endDate])
+  }, [ledger, selectedSC, centerId, startDate, endDate])
 
   const totalCommission = useMemo(() => scLedger.reduce((s, r) => s + Number(r.amount || 0), 0), [scLedger])
   const currentBalance = Number(selectedSC?.commission_balance || 0)
@@ -145,6 +148,7 @@ export default function CommissionWallet({ superCenterId = '' }) {
     const centerById = new Map(centers.map(c => [c.id, c]))
     return recharges
       .filter(r => rateFor.has(r.center_id))
+      .filter(r => !centerId || r.center_id === centerId)
       .map(r => {
         const pct = rateFor.get(r.center_id) || 0
         const mine = paidRows.find(p => p.recharge_id === r.id && p.super_center_id === selectedSC.id)
@@ -158,7 +162,7 @@ export default function CommissionWallet({ superCenterId = '' }) {
           owedTo: rates.filter(x => x.center_id === r.center_id),
         }
       })
-  }, [recharges, centers, rates, paidRows, selectedSC])
+  }, [recharges, centers, rates, paidRows, selectedSC, centerId])
 
   // Until a tab is picked, land on the one with something to act on. The
   // ledger only fills AFTER a commission is generated, so a fresh super centre
@@ -410,7 +414,20 @@ export default function CommissionWallet({ superCenterId = '' }) {
                     // empty ledger. The list is driven by RATES, not by which
                     // super centre a centre sits under.
                     <tr><td colSpan="11" className="text-center text-gray-400 py-8">
-                      {myRates.length === 0 ? (
+                      {centerId ? (
+                        // With a centre picked, "nothing here" is almost always
+                        // that centre rather than the super centre's setup, so
+                        // it is named before the broader reasons.
+                        <>
+                          <p className="text-gray-500 font-semibold">
+                            Nothing for {centers.find(c => c.id === centerId)?.center_name || 'this center'}.
+                          </p>
+                          <p className="text-xs mt-1">
+                            Either {selectedSC.center_name} earns no commission on it, or it has no recharge yet.
+                            Clear the <strong>Center</strong> filter above to see them all.
+                          </p>
+                        </>
+                      ) : myRates.length === 0 ? (
                         <>
                           <p className="text-gray-500 font-semibold">No commission rate is set for {selectedSC.center_name}.</p>
                           <p className="text-xs mt-1">
