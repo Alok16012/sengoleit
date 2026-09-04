@@ -6,6 +6,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import { generateCourseFeeListPDF } from '../../utils/generateCourseFeeListPDF'
 import { isOfferable } from '../../utils/feeValidity'
+import { isCharged } from '../../utils/feeItems'
 
 // ── Searchable single-select dropdown ──────────────────────────────────────
 function SearchableSelect({ options, value, onChange, placeholder = 'All', label }) {
@@ -564,10 +565,13 @@ export default function CourseFeeView() {
 function FeeViewModal({ row, onClose }) {
   const sems     = row.totalSems || 4
   const feeItems = row.feeItems || []
-  const entryItems     = feeItems.filter(i => i.category === 'entry')
-  const divideItems    = feeItems.filter(i => i.category === 'divide')
-  const multiply1Items = feeItems.filter(i => i.category === 'multiply')
-  const multiply2Items = feeItems.filter(i => i.category === 'multiply2')
+  // Only lines that actually charge something — see isCharged. Safe at the
+  // source: a zero line adds 0 to every total below.
+  const charged        = feeItems.filter(isCharged)
+  const entryItems     = charged.filter(i => i.category === 'entry')
+  const divideItems    = charged.filter(i => i.category === 'divide')
+  const multiply1Items = charged.filter(i => i.category === 'multiply')
+  const multiply2Items = charged.filter(i => i.category === 'multiply2')
 
   const entryTotal      = entryItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)
   const divideTotal     = divideItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0)

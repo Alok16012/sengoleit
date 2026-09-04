@@ -1,4 +1,5 @@
 import { formatDate } from './formatDate'
+import { isCharged } from './feeItems'
 
 // Use the app's own bundled logo (resolved to an absolute URL so it works
 // inside window.open popups whose base URL is about:blank).
@@ -40,10 +41,13 @@ export function generateFeePDF(struct) {
   const sessName  = academic_sessions?.session_name || 'All Sessions'
   const { entryTotal, divideTotal, dividePerSem, multiplyPerSem, multiply2PerSem, perSem1, perSem, grandTotal } = calcTotals(fee_items, sems)
 
-  const entryItems    = (fee_items || []).filter(i => i.category === 'entry')
-  const divideItems   = (fee_items || []).filter(i => i.category === 'divide')
-  const multiplyItems = (fee_items || []).filter(i => i.category === 'multiply')
-  const multiply2Items = (fee_items || []).filter(i => i.category === 'multiply2')
+  // Only lines that actually charge something reach the printed sheet — see
+  // isCharged. Safe at the source: a zero line adds 0 to every total below.
+  const charged = (fee_items || []).filter(isCharged)
+  const entryItems    = charged.filter(i => i.category === 'entry')
+  const divideItems   = charged.filter(i => i.category === 'divide')
+  const multiplyItems = charged.filter(i => i.category === 'multiply')
+  const multiply2Items = charged.filter(i => i.category === 'multiply2')
 
   /* ── semester header cells ── */
   const semHeaders = Array.from({ length: sems }, (_, i) =>

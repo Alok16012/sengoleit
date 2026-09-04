@@ -7,6 +7,8 @@ import Button from '../../components/ui/Button'
 import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2, Check, CalendarClock } from 'lucide-react'
 import { validityState, validityLabel, todayISO } from '../../utils/feeValidity'
 import { generateFeePDF } from '../../utils/generateFeePDF'
+import { isCharged } from '../../utils/feeItems'
+import FeeCalculator from '../../components/admin/FeeCalculator'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import CenterCourses from './CenterCourses'
 
@@ -1145,6 +1147,13 @@ export default function FeeManagement() {
             <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
           ) : (
             <>
+              {/* A scratch pad, not part of the fee: nothing here is saved or
+                  reaches a centre. Fed the same per-semester figures the
+                  structure table's TOTAL row shows, so the two agree. */}
+              <FeeCalculator
+                semAmounts={Array.from({ length: totalSems }, (_, i) => i === 0 ? entryTotal + perSem1 : perSem)}
+                grandTotal={grandTotal} />
+
               {/* 3 input columns */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
                 <FeeCol title="One-time Fees" badge="entry"
@@ -1197,7 +1206,7 @@ export default function FeeManagement() {
                       </tr>
                     </thead>
                     <tbody>
-                      {entryItems.filter(i => i.label).map((item, idx) => (
+                      {entryItems.filter(isCharged).map((item, idx) => (
                         <tr key={item._key} className={idx % 2 === 0 ? 'bg-amber-50/40' : 'bg-white'}>
                           <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
                           <td className="px-3 py-2 text-center"><span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded text-[10px]">One-time</span></td>
@@ -1206,7 +1215,7 @@ export default function FeeManagement() {
                           <td className="px-4 py-2 text-right font-bold text-gray-800">{parseFloat(item.amount) > 0 ? `₹${fmt(parseFloat(item.amount))}` : '—'}</td>
                         </tr>
                       ))}
-                      {divideItems.filter(i => i.label).map((item, idx) => {
+                      {divideItems.filter(isCharged).map((item, idx) => {
                         const total = parseFloat(item.amount) || 0
                         const ps = totalSems > 0 ? total / totalSems : 0
                         return (
@@ -1219,7 +1228,7 @@ export default function FeeManagement() {
                           </tr>
                         )
                       })}
-                      {multiply1Items.filter(i => i.label).map((item, idx) => {
+                      {multiply1Items.filter(isCharged).map((item, idx) => {
                         const ps = parseFloat(item.amount) || 0
                         return (
                           <tr key={item._key} className={idx % 2 === 0 ? 'bg-indigo-50/40' : 'bg-white'}>
@@ -1231,7 +1240,7 @@ export default function FeeManagement() {
                           </tr>
                         )
                       })}
-                      {multiply2Items.filter(i => i.label).map((item, idx) => {
+                      {multiply2Items.filter(isCharged).map((item, idx) => {
                         const ps = parseFloat(item.amount) || 0
                         return (
                           <tr key={item._key} className={idx % 2 === 0 ? 'bg-purple-50/40' : 'bg-white'}>
@@ -1566,7 +1575,7 @@ function FeeViewModal({ struct, onClose, onPDF }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {entryItems.filter(i => i.label).map((item, idx) => (
+                  {entryItems.filter(isCharged).map((item, idx) => (
                     <tr key={idx} className={idx % 2 === 0 ? 'bg-amber-50/40' : 'bg-white'}>
                       <td className="px-4 py-2 font-medium text-gray-800">{item.label}</td>
                       <td className="px-3 py-2 text-center"><span className="bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded text-[10px]">One-time</span></td>
@@ -1575,7 +1584,7 @@ function FeeViewModal({ struct, onClose, onPDF }) {
                       <td className="px-4 py-2 text-right font-bold text-gray-800">{parseFloat(item.amount) > 0 ? `₹${fmt(parseFloat(item.amount))}` : '—'}</td>
                     </tr>
                   ))}
-                  {divideItems.filter(i => i.label).map((item, idx) => {
+                  {divideItems.filter(isCharged).map((item, idx) => {
                     const total = parseFloat(item.amount) || 0
                     const ps    = sems > 0 ? total / sems : 0
                     return (
@@ -1588,7 +1597,7 @@ function FeeViewModal({ struct, onClose, onPDF }) {
                       </tr>
                     )
                   })}
-                  {multiply1Items.filter(i => i.label).map((item, idx) => {
+                  {multiply1Items.filter(isCharged).map((item, idx) => {
                     const ps = parseFloat(item.amount) || 0
                     return (
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-indigo-50/40' : 'bg-white'}>
@@ -1600,7 +1609,7 @@ function FeeViewModal({ struct, onClose, onPDF }) {
                       </tr>
                     )
                   })}
-                  {multiply2Items.filter(i => i.label).map((item, idx) => {
+                  {multiply2Items.filter(isCharged).map((item, idx) => {
                     const ps = parseFloat(item.amount) || 0
                     return (
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-purple-50/40' : 'bg-white'}>
