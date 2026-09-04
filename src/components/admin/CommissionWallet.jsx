@@ -14,11 +14,13 @@ function realAdmissionPrice(app) {
   return null
 }
 
-export default function CommissionWallet() {
-  const [superCenters, setSuperCenters] = useState([])
+// `superCenterId` comes from the page's own Super Center filter, which sits
+// above every tab. This used to carry a second dropdown of its own, so the
+// screen asked the same question twice and the two could disagree.
+export default function CommissionWallet({ superCenterId = '' }) {
+  const [centers, setCenters] = useState([])
   const [ledger, setLedger] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedSC, setSelectedSC] = useState(null)          // super_center object
   const [tab, setTab] = useState('history')                   // 'history' | 'record'
   const [recordModal, setRecordModal] = useState(null)         // { superCenter } or null
   const [startDate, setStartDate] = useState('')
@@ -26,10 +28,12 @@ export default function CommissionWallet() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const { data: sc } = await supabase
+    // Every centre, not just the super ones: a ledger row names the CENTRE the
+    // commission came from, and looking that up in a super-centre-only list
+    // found nothing and printed a slice of its uuid instead.
+    const { data: ctr } = await supabase
       .from('centers')
       .select('id, center_name, center_code, center_type, commission_balance, base_fee')
-      .eq('center_type', 'super_center')
       .order('center_name')
 
     const { data: led } = await supabase
@@ -38,12 +42,19 @@ export default function CommissionWallet() {
       .order('created_at', { ascending: false })
       .limit(500)
 
-    setSuperCenters(sc || [])
+    setCenters(ctr || [])
     setLedger(led || [])
     setLoading(false)
   }, [])
 
   useEffect(() => { fetchAll() }, [fetchAll])
+
+  // Derived, not held: the page filter is the single source of truth for which
+  // super centre is in view.
+  const selectedSC = useMemo(
+    () => centers.find(c => c.id === superCenterId && c.center_type === 'super_center') || null,
+    [centers, superCenterId]
+  )
 
   const scLedger = useMemo(() => {
     if (!selectedSC) return []
@@ -56,36 +67,15 @@ export default function CommissionWallet() {
   const totalCommission = useMemo(() => scLedger.reduce((s, r) => s + Number(r.amount || 0), 0), [scLedger])
   const currentBalance = Number(selectedSC?.commission_balance || 0)
 
-  // For the record tab: group raw admissions by super_center
-  const scRaw = useMemo(() => {
-    if (tab !== 'record' || !selectedSC) return []
-    // We'll fetch on demand in the modal, but show a quick count here
-    return null
-  }, [tab, selectedSC])
-
   return (
     <div className="space-y-4">
-      {/* ---- Super Center selector ---- */}
-      <div>
-        <label className="block text-sm font-semibold text-gray-600 mb-1">Select Super Center</label>
-        <select
-          value={selectedSC?.id || ''}
-          onChange={e => {
-            const sc = superCenters.find(c => c.id === e.target.value) || null
-            setSelectedSC(sc)
-            setTab('history')
-          }}
-          className="border rounded px-3 py-2 w-full max-w-md"
-        >
-          <option value="">— choose super center —</option>
-          {superCenters.map(sc => (
-            <option key={sc.id} value={sc.id}>{sc.center_name} ({sc.center_code})</option>
-          ))}
-        </select>
-      </div>
-
-      {!selectedSC ? (
-        <p className="text-gray-400 text-sm">Select a super center above to view its commission wallet.</p>
+      {loading ? (
+        <p className="text-gray-400 text-sm py-8 text-center">Loading…</p>
+      ) : !selectedSC ? (
+        <p className="text-gray-400 text-sm">
+          Pick one super center in the <strong className="text-gray-500">Super Center</strong> filter above
+          to view its commission wallet.
+        </p>
       ) : (
         <>
           {/* ---- Summary cards ---- */}
@@ -156,7 +146,7 @@ export default function CommissionWallet() {
                   {scLedger.length === 0 ? (
                     <tr><td colSpan="7" className="text-center text-gray-400 py-8">No transactions yet.</td></tr>
                   ) : scLedger.map(r => {
-                    const center = superCenters.find(c => c.id === r.center_id)
+                    const center = centers.find(c => c.id === r.center_id)
                     return (
                       <tr key={r.id} className="border-t hover:bg-gray-50">
                         <td className="px-3 py-2 whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '-'}</td>
