@@ -1725,8 +1725,7 @@ export default function StudentForm() {
                             // Show the working, or a fee suddenly 60% smaller
                             // than the fee master reads as a mistake.
                             <span className="text-emerald-700 font-semibold">
-                              &nbsp;(₹{Number(walletInfo.grossFee || 0).toLocaleString('en-IN')} − {walletInfo.sharingPct}% your share
-                              = ₹{Number(walletInfo.centerShare || 0).toLocaleString('en-IN')} kept)
+                              &nbsp;(your share is {walletInfo.sharingPct}%)
                             </span>
                           )}
                           &nbsp;·&nbsp;50%: ₹{Math.ceil(walletInfo.courseFee * 0.5).toLocaleString('en-IN')}
