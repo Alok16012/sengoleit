@@ -40,10 +40,26 @@ const MODES = [
     calc: (b, p) => b * (1 - p / 100),  last: (b, out) => out - b, signed: true },
 ]
 
-export default function FeeCalculator({ semAmounts = [], grandTotal = 0 }) {
+export default function FeeCalculator({ semAmounts = [], grandTotal = 0, centers = [] }) {
   const [open, setOpen] = useState(false)
   const [pct, setPct] = useState('')
   const [mode, setMode] = useState('share')
+  const [centerId, setCenterId] = useState('')
+
+  // Centres carry a Fee Sharing % that was being stored and shown and never
+  // used for anything. Picking one fills the percentage from it, so the split
+  // is worked out from what is on the centre's record rather than from memory.
+  const centersWithShare = centers.filter(c => Number(c.fee_sharing) > 0)
+  const picked = centers.find(c => c.id === centerId) || null
+
+  function chooseCenter(id) {
+    setCenterId(id)
+    const c = centers.find(x => x.id === id)
+    if (c && Number(c.fee_sharing) > 0) {
+      setPct(String(Number(c.fee_sharing)))
+      setMode('share')   // a fee share is a share, whatever mode was left open
+    }
+  }
 
   const p = parseFloat(pct)
   const valid = !isNaN(p)
@@ -66,6 +82,20 @@ export default function FeeCalculator({ semAmounts = [], grandTotal = 0 }) {
       {open && (
         <div className="px-5 pb-5 border-t border-gray-100 pt-4">
           <div className="flex flex-wrap items-end gap-3 mb-4">
+            {centersWithShare.length > 0 && (
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Center</label>
+                <select value={centerId} onChange={e => chooseCenter(e.target.value)}
+                  className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white min-w-[200px] focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10">
+                  <option value="">— type the % myself —</option>
+                  {centersWithShare.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.center_name}{c.center_code ? ` (${c.center_code})` : ''} — {Number(c.fee_sharing)}%
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Percentage</label>
               <div className="flex items-center gap-1">
@@ -91,7 +121,13 @@ export default function FeeCalculator({ semAmounts = [], grandTotal = 0 }) {
                 ))}
               </div>
             </div>
-            <p className="text-xs text-gray-400 pb-2">{m.hint}</p>
+            <p className="text-xs text-gray-400 pb-2">
+              {picked && Number(picked.fee_sharing) > 0 && mode === 'share'
+                // Name whose share it is, so a figure carried over from a
+                // centre's record is not mistaken for one typed in.
+                ? <>{picked.center_name} keeps {Number(picked.fee_sharing)}% — you keep the rest</>
+                : m.hint}
+            </p>
           </div>
 
           {!valid ? (

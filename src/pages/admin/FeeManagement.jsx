@@ -109,6 +109,7 @@ export default function FeeManagement() {
   const [departments, setDepartments]       = useState([])
   const [programmeTypes, setProgrammeTypes] = useState([])
   const [sessions, setSessions]             = useState([])
+  const [centers, setCenters]               = useState([])   // for the Fee Calculator only
   const [deptId, setDeptId]                 = useState('')
   const [typeId, setTypeId]                 = useState('')
   const [selectedProgIds, setSelectedProgIds] = useState(new Set())
@@ -134,6 +135,11 @@ export default function FeeManagement() {
       .then(({ data }) => setPrograms(data || []))
     supabase.from('academic_sessions').select('id, session_name').or('status.eq.Active,status.is.null').order('session_name', { ascending: false })
       .then(({ data }) => setSessions(data || []))
+    // Only for the Fee Calculator, which fills its percentage from the centre's
+    // own fee_sharing rather than having it typed in from memory.
+    supabase.from('centers').select('id, center_name, center_code, fee_sharing')
+      .in('center_type', ['center', 'super_center']).order('center_name')
+      .then(({ data }) => setCenters(data || []))
   }, [])
 
   async function fetchMaster() {
@@ -1206,7 +1212,8 @@ export default function FeeManagement() {
                   structure table's TOTAL row shows, so the two agree. */}
               <FeeCalculator
                 semAmounts={Array.from({ length: totalSems }, (_, i) => i === 0 ? entryTotal + perSem1 : perSem)}
-                grandTotal={grandTotal} />
+                grandTotal={grandTotal}
+                centers={centers} />
 
               {/* 3 input columns */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
