@@ -396,6 +396,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                     <th className="text-left px-3 py-2">Recharge</th>
                     <th className="text-right px-3 py-2">Commission</th>
                     <th className="text-center px-3 py-2">Generate</th>
+                    <th className="text-left px-3 py-2">Coupon No</th>
                     <th className="text-left px-3 py-2">Payout</th>
                     <th className="text-center px-3 py-2">Action</th>
                   </tr>
@@ -406,7 +407,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                     // message covered both, so an unset rate looked like an
                     // empty ledger. The list is driven by RATES, not by which
                     // super centre a centre sits under.
-                    <tr><td colSpan="10" className="text-center text-gray-400 py-8">
+                    <tr><td colSpan="11" className="text-center text-gray-400 py-8">
                       {centerId ? (
                         // With a centre picked, "nothing here" is almost always
                         // that centre rather than the super centre's setup, so
@@ -473,10 +474,22 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                             className="px-3 py-1 rounded text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
                           >{genBusy === r.id ? '…' : done ? 'Done' : 'Generate'}</button>
                         </td>
-                        {/* Owed vs paid — the coupon is gone and the money goes
-                            into the wallet now. A row minted under the old
-                            scheme still names its coupon, which stays switched
-                            off so it cannot be spent alongside the credit. */}
+                        {/* The coupon this commission was originally minted as,
+                            with its face value, so which coupon is worth what
+                            can be read straight off the row. Commission is paid
+                            into the wallet now, so rows generated since have
+                            none — those show a dash rather than a blank. */}
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {r.paid?.coupon?.coupon_code ? (
+                            <>
+                              <span className="font-mono text-xs font-semibold text-gray-800">{r.paid.coupon.coupon_code}</span>
+                              <span className="block text-[10px] text-gray-400">
+                                {fmt(r.paid.coupon.face_value)}
+                                {r.paid.coupon.is_disabled && ' · off'}
+                              </span>
+                            </>
+                          ) : <span className="text-gray-300 text-xs">—</span>}
+                        </td>
                         <td className="px-3 py-2">
                           {!done ? <span className="text-xs text-gray-400">Not generated</span>
                             : r.paid?.sent_at
@@ -490,12 +503,6 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                                   <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Deactive</span>
                                   <span className="block text-[10px] text-gray-400 mt-0.5">not in their wallet</span>
                                 </>}
-                          {r.paid?.coupon?.coupon_code && (
-                            <span className="block text-[10px] text-gray-300 font-mono mt-0.5"
-                              title="Minted before commission moved to the wallet; switched off">
-                              old coupon {r.paid.coupon.coupon_code}
-                            </span>
-                          )}
                         </td>
                         {/* Active/Deactive IS the money moving. Commission is
                             paid as a wallet balance now, so there is no way to
