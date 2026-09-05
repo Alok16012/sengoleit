@@ -29,6 +29,8 @@ export default function CenterCourses() {
   const [progTypes, setProgTypes]   = useState([])
   const [sessions, setSessions]     = useState([])
   const [counts, setCounts]         = useState({})   // center_id -> { pending, approved }
+  const [countsErr, setCountsErr]   = useState('')
+  const [countsTotal, setCountsTotal] = useState(null) // rows read; null until loaded
   const [centersLoading, setCentersLoading] = useState(true)
 
   // List view state
@@ -89,13 +91,18 @@ export default function CenterCourses() {
   }, [])
 
   function loadCounts() {
-    fetchAllRows(() => supabase.from('center_courses').select('center_id, status').order('id')).then(({ data }) => {
+    // The error was dropped here, so a failed read and an empty table both came
+    // out as a column of zeroes with nothing on screen to tell them apart.
+    fetchAllRows(() => supabase.from('center_courses').select('center_id, status').order('id')).then(({ data, error }) => {
+      setCountsErr(error ? error.message : '')
+      const rows = data || []
       const m = {}
-      ;(data || []).forEach(r => {
+      rows.forEach(r => {
         if (!m[r.center_id]) m[r.center_id] = { pending: 0, approved: 0 }
         m[r.center_id][r.status] = (m[r.center_id][r.status] || 0) + 1
       })
       setCounts(m)
+      setCountsTotal(rows.length)
     })
   }
 
@@ -118,9 +125,19 @@ export default function CenterCourses() {
   const progMap = Object.fromEntries(programs.map(p => [p.id, p]))
 
   // ── Center list (status bar) ──
-  const isApproved = c => (counts[c.id]?.approved || 0) > 0
-  const pendingCenters  = centers.filter(c => !isApproved(c))
-  const approvedCenters = centers.filter(c => isApproved(c))
+  // "Pending" has to mean the same thing as the Pending COLUMN: courses waiting
+  // to be approved. It used to mean "this centre has no approved course", so a
+  // centre with 187 pending allotments sat in the Approved tab — because it also
+  // had approved ones — and the Pending tab showed only centres with nothing at
+  // all, every count reading 0.
+  //
+  // Centres with nothing yet still belong here (that is where a new centre gets
+  // its first course), but they come after the ones that actually need a
+  // decision.
+  const hasPending  = c => (counts[c.id]?.pending  || 0) > 0
+  const hasApproved = c => (counts[c.id]?.approved || 0) > 0
+  const pendingCenters  = centers.filter(c => hasPending(c) || !hasApproved(c))
+  const approvedCenters = centers.filter(hasApproved)
   const cq = centerSearch.toLowerCase()
   // Super centers rank before regular centers, then alphabetical by name.
   const typeRank = c => (c.center_type === 'super_center' ? 0 : 1)
@@ -137,7 +154,13 @@ export default function CenterCourses() {
     .filter(c => superFilter === 'all' || c.super_center_id === superFilter || c.id === superFilter)
     .filter(c => centerFilter === 'all' || c.id === centerFilter)
     .filter(c => !cq || (c.center_name || '').toLowerCase().includes(cq) || (c.center_code || '').toLowerCase().includes(cq))
-    .sort((a, b) => typeRank(a) - typeRank(b) || (a.center_name || '').localeCompare(b.center_name || ''))
+    // On the Pending tab the centres with something to decide come first —
+    // otherwise the one centre with 187 waiting courses is buried under ten
+    // that have none.
+    .sort((a, b) =>
+      (listTab === 'pending' ? (counts[b.id]?.pending || 0) - (counts[a.id]?.pending || 0) : 0)
+      || typeRank(a) - typeRank(b)
+      || (a.center_name || '').localeCompare(b.center_name || ''))
 
   // ── Catalog (Add Course) ──
   // A course+session that is already allotted to this center (pending OR
@@ -310,6 +333,20 @@ export default function CenterCourses() {
   if (!centerId) {
     return (
       <div>
+        {/* A column of zeroes has two quite different causes, and the page used
+            to look identical either way. Say which one it is. */}
+        {countsErr ? (
+          <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-sm">
+            Course allotments could not be read: {countsErr} — the Pending and Approved
+            counts below are not real until this is fixed.
+          </div>
+        ) : countsTotal === 0 ? (
+          <div className="mb-4 bg-blue-50 border border-blue-100 text-blue-800 rounded-xl px-4 py-2.5 text-sm">
+            No course has been allotted to any center yet, so every count reads 0.
+            Open a center with <strong>Allot Courses</strong> to give it its first course.
+          </div>
+        ) : null}
+
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
             {[
@@ -350,7 +387,7 @@ export default function CenterCourses() {
 
         <p className="text-xs text-gray-400 mb-3">
           {listTab === 'pending'
-            ? 'Newly created centers appear here until at least one course is approved for them.'
+            ? 'Centers with courses waiting to be approved, listed first — then newly created centers with none yet. A center can appear in both tabs.'
             : 'Centers that have at least one approved course.'}
         </p>
 
