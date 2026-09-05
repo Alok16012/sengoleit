@@ -158,14 +158,17 @@ export default function StudentListReport({ status }) {
   }
 
   // Recompute today's required hold for every student whose fee is still held.
-  // Students on the same programme + session + entry semester share a fee, so
-  // the calculation is done once per distinct combination, not once per row.
+  // Students on the same centre + programme + session + entry semester share a
+  // fee, so the calculation is done once per distinct combination, not once per
+  // row. The CENTRE is part of the key because the fee is now net of that
+  // centre's commission — two centres on the same programme owe different
+  // amounts, and grouping without it would quote one centre's fee for both.
   async function loadHoldsDue(rows) {
     const held = rows.filter(r => Number(r.fee_held || 0) > 0)
     if (!held.length) { setHoldDue({}); return }
     const groups = {}
     held.forEach(r => {
-      const key = `${r.programme_id}|${r.session_id}|${r.semester_year}`
+      const key = `${r.center_id}|${r.programme_id}|${r.session_id}|${r.semester_year}`
       ;(groups[key] ||= []).push(r)
     })
     const next = {}
@@ -178,6 +181,7 @@ export default function StudentListReport({ status }) {
         semYear: s.programs?.semester_year,
         duration: s.programs?.duration,
         programName: s.programs?.program_name,
+        center_id: s.center_id,
       })
       // The coupon is per student, so only the course fee is shared.
       members.forEach(m => { next[m.id] = holdAmount(courseFee, m.coupon_discount) })
@@ -231,6 +235,7 @@ export default function StudentListReport({ status }) {
       semYear: student.programs?.semester_year,
       duration: student.programs?.duration,
       programName: student.programs?.program_name,
+      center_id: student.center_id || student.centers?.id,
     })
 
     // Coupon discount applied at submission. Prefer the value stored on the

@@ -762,6 +762,9 @@ export default function AccountDepartment() {
       semYear: student.programs?.semester_year,
       duration: student.programs?.duration,
       programName: student.programs?.program_name,
+      // Same centre, same deduction — otherwise the Account Dept would collect
+      // the whole fee the centre was never charged.
+      center_id: student.center_id || student.centers?.id,
     })
 
     // Coupon discount applied at submission. Prefer the value stored directly on

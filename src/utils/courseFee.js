@@ -48,7 +48,30 @@ export function dueSemesterFromElapsed(sessionStart, totalSems) {
 //   entry     → once (Sem 1)          divide → split evenly across all semesters
 //   multiply  → every semester        multiply2 → from Sem 2 onward
 // Returns { courseFee, dueSem, totalSems, calendarActive }.
-export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration, programName }) {
+// What a centre keeps out of the course fee, as a percentage.
+//
+// Set in the Centers list under Commission. A centre may owe more than one
+// super centre, so the rows are summed — that is the whole share leaving the
+// university. Capped at 100 so a mis-typed rate can never make a fee negative,
+// and falls back to the legacy centers.commission column when the centre has
+// no rows yet.
+//
+// Returns 0 for an unknown centre, which is what keeps the fee whole for every
+// caller that does not know (or does not care) which centre is asking.
+export async function centerCommissionPct(center_id) {
+  if (!center_id) return 0
+  const { data: rows } = await supabase
+    .from('center_commissions').select('percent').eq('center_id', center_id)
+  let pct = (rows || []).reduce((s, r) => s + (Number(r.percent) || 0), 0)
+  if (!pct) {
+    const { data: c } = await supabase
+      .from('centers').select('commission').eq('id', center_id).maybeSingle()
+    pct = Number(c?.commission) || 0
+  }
+  return Math.min(Math.max(pct, 0), 100)
+}
+
+export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration, programName, center_id }) {
   const { data: structures } = await supabase
     .from('fee_structures')
     .select('id, session_id, total_semesters')
@@ -128,7 +151,23 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
     ? entryT + (totalSems > 0 ? divideT / totalSems : 0) * dueSem + mulT * dueSem + mul2T * Math.max(dueSem - 1, 0)
     : 0
 
-  return { courseFee: Math.round(cumulative), dueSem, totalSems, calendarActive }
+  // The centre keeps its commission and owes the university the rest:
+  //   fee due  ×  (100 − commission%)  ÷  100
+  // Rounded once, at the end, so the wallet check, the Account Dept's
+  // collection and the reports all quote the same rupee figure.
+  //
+  // Without a center_id nothing is deducted, so a caller that does not name a
+  // centre still gets the whole fee — the figure the university is owed in
+  // total, which is what the admin-side screens want.
+  const commissionPct = await centerCommissionPct(center_id)
+  const net = cumulative * (100 - commissionPct) / 100
+
+  return {
+    courseFee: Math.round(net),
+    grossFee: Math.round(cumulative),   // before the centre's share
+    commissionPct,
+    dueSem, totalSems, calendarActive,
+  }
 }
 
 // The wallet hold taken when a center forwards a student: half the fee due so

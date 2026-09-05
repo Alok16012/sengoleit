@@ -1043,13 +1043,16 @@ export default function StudentForm() {
     try {
       // Shared source of truth so the entry fee here exactly matches the fee held
       // at forward (StudentListReport) and collected at Account Dept.
-      const { courseFee, dueSem, calendarActive } = await computeCumulativeCourseFee({
+      const { courseFee, grossFee, commissionPct, dueSem, calendarActive } = await computeCumulativeCourseFee({
         programme_id: form.programme_id,
         session_id: form.session_id,
         semester_year: form.semester_year,
         semYear: progSemYear,
         duration: progDuration,
         programName: selectedProgram?.program_name,
+        // Named so the centre's commission comes off — this is what the CENTRE
+        // owes, not the whole fee.
+        center_id: form.center_id,
       })
 
       const { data: ctr } = await supabase
@@ -1063,7 +1066,7 @@ export default function StudentForm() {
       const half = Math.ceil(courseFee * 0.5)
       const minRequired = Math.max(half - (coupon.discount || 0), 0)
       const ok = courseFee === 0 || balance >= minRequired
-      setWalletInfo({ checking: false, balance, courseFee, ok, checked: true, dueSem, calendarActive })
+      setWalletInfo({ checking: false, balance, courseFee, grossFee, commissionPct, ok, checked: true, dueSem, calendarActive })
       return ok
     } catch {
       setWalletInfo(w => ({ ...w, checking: false, checked: true, ok: true }))
@@ -1685,6 +1688,13 @@ export default function StudentForm() {
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
+                          {walletInfo.commissionPct > 0 && (
+                            // Show the working, or a fee that is suddenly 60%
+                            // smaller than the fee master reads as a mistake.
+                            <span className="text-emerald-700 font-semibold">
+                              &nbsp;(₹{Number(walletInfo.grossFee || 0).toLocaleString('en-IN')} − {walletInfo.commissionPct}% your share)
+                            </span>
+                          )}
                           &nbsp;·&nbsp;50%: ₹{Math.ceil(walletInfo.courseFee * 0.5).toLocaleString('en-IN')}
                           {coupon.discount > 0 && (
                             <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}</>
