@@ -62,8 +62,14 @@ export default function CenterCourses() {
 
   const [busy, setBusy] = useState(null)
 
+  // Ticking every session by hand means the same as ticking none, so it
+  // normalises back to [] — otherwise the box reads "3 selected" when it is
+  // filtering nothing.
   const toggleSession = (id) =>
-    setFSessions(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setFSessions(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      return next.length === sessions.length ? [] : next
+    })
 
   useEffect(() => {
     setCentersLoading(true)
@@ -489,10 +495,18 @@ export default function CenterCourses() {
           <>
             <div className="fixed inset-0 z-10" onClick={() => setSessOpen(false)} />
             <div className="absolute z-20 mt-1 w-56 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg p-1">
+              {/* Carries the same tick as the rows below it. As a bare line of
+                  text it read as a heading, so the way back to "no session
+                  filter" looked like it was not there at all. */}
               <button type="button" onClick={() => setFSessions([])}
-                className="w-full text-left px-3 py-2 text-sm font-semibold text-gray-500 hover:bg-gray-50 rounded-lg">
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
+                <span className={`w-4 h-4 rounded border flex items-center justify-center ${
+                  fSessions.length === 0 ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300'}`}>
+                  {fSessions.length === 0 && <Check size={11} className="text-white" />}
+                </span>
                 All Sessions
               </button>
+              <div className="h-px bg-gray-100 my-1" />
               {sessions.map(s => {
                 const on = fSessions.includes(s.id)
                 return (
@@ -696,9 +710,17 @@ export default function CenterCourses() {
                 <tr><td colSpan={7} className="text-center text-gray-400 py-12">Loading...</td></tr>
               ) : groupedRows.length === 0 ? (
                 <tr><td colSpan={7} className="text-center text-gray-400 py-12">
-                  {catalogFilterActive
-                    ? `No ${subTab} courses match these filters — try clearing them.`
-                    : <>No {subTab} courses. Click “Add Course” to allot.</>}
+                  {/* Blaming the filters is wrong when the centre has nothing
+                      allotted at all — clearing them would change nothing, and
+                      the real next step is Add Course. */}
+                  {Object.keys(allot).length === 0
+                    ? <>
+                        <p className="text-gray-500 font-semibold">No course is allotted to this center yet.</p>
+                        <p className="text-xs mt-1">Click <strong>+ Add Course</strong> to give it its first one.</p>
+                      </>
+                    : catalogFilterActive
+                      ? `No ${subTab} courses match these filters — try clearing them.`
+                      : <>No {subTab} courses. Click “Add Course” to allot.</>}
                 </td></tr>
               ) : groupedRows.map((g, i) => {
                 const grpBusy = busy === 'grp-' + (g.program_id || '')
