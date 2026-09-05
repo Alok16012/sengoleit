@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
-import { Plus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2, Check, CalendarClock } from 'lucide-react'
+import { Plus, Minus, Trash2, Save, GraduationCap, Pencil, List, Eye, Download, X, ChevronDown, Search, ChevronRight, Building2, Check, CalendarClock } from 'lucide-react'
 import { validityState, validityLabel, todayISO } from '../../utils/feeValidity'
 import { generateFeePDF } from '../../utils/generateFeePDF'
 import { isCharged } from '../../utils/feeItems'
@@ -188,6 +188,7 @@ export default function FeeManagement() {
   // Quick-add a fee structure for another session of the same program by
   // copying the representative structure's fee items — no full edit needed.
   const [addingSessFor, setAddingSessFor] = useState(null) // program_id while inserting
+  const [removingSessFor, setRemovingSessFor] = useState(null) // program_id while deleting
   async function addSessionFee(struct, sessionId) {
     setAddingSessFor(struct.program_id)
     const { data: fs, error } = await supabase.from('fee_structures')
@@ -263,6 +264,35 @@ export default function FeeManagement() {
     return norm(a) === norm(b)
   }
 
+  // Delete the fee structures for the sessions that were unticked.
+  //
+  // center_courses.fee_structure_id is ON DELETE CASCADE, so this quietly
+  // withdraws the course from every centre it was allotted to. That count is
+  // read FIRST and named in the confirmation — it is the part that is easy to
+  // not think about and impossible to undo.
+  async function removeSessionFees(structs) {
+    const ids = structs.map(s => s.id).filter(Boolean)
+    if (!ids.length) return
+    const names = structs.map(s => s.academic_sessions?.session_name || 'All Sessions')
+
+    const { count } = await supabase.from('center_courses')
+      .select('id', { count: 'exact', head: true }).in('fee_structure_id', ids)
+
+    if (!confirm(
+      `Remove the fee for ${names.join(', ')}?\n\n` +
+      (count ? `This also withdraws the course from ${count} centre allotment${count > 1 ? 's' : ''}.\n\n` : '') +
+      `This cannot be undone.`
+    )) return
+
+    setRemovingSessFor(structs[0]?.program_id || 'x')
+    const { error } = await supabase.from('fee_structures').delete().in('id', ids)
+    setRemovingSessFor(null)
+    if (error) { alert('Nothing was removed:\n\n' + error.message); return }
+    await fetchMaster()
+    setFlash(`Removed ${names.length} session fee${names.length > 1 ? 's' : ''}.`)
+    setTimeout(() => setFlash(''), 4000)
+  }
+
   function openEditor(struct = null) {
     if (struct) {
       const prog = programs.find(p => p.id === struct.program_id)
@@ -328,7 +358,12 @@ export default function FeeManagement() {
     setDeptId(prog?.department_id || '')
     setTypeId(prog?.programme_type_id || '')
     setSelectedProgIds(new Set([pid]))
-    setSelectedSessIds(new Set())
+    // Every session ticked to begin with; untick the ones this course is not
+    // offered in. Opening with NONE ticked was how the session-less rows got
+    // made: handleSave reads an empty selection as [null] and writes a single
+    // structure that belongs to no session, which is what put "All Sessions"
+    // on nearly every course in the Fee Master.
+    setSelectedSessIds(new Set(sessions.map(s => s.id)))
     // `duration` is already stored in semesters (per the program form), so use it
     // directly — no ×2 (that double-counted Year-based programs, e.g. a 6-semester
     // Ph.D showed 12).
@@ -687,7 +722,7 @@ export default function FeeManagement() {
                 { header: 'Program', value: r => r.programs?.program_name || '' },
                 { header: 'Department', value: r => deptMap[progMap[r.program_id]?.department_id] || '' },
                 { header: 'Session', value: r => r.__programOnly ? 'All Sessions'
-                  : (r.__sessions || [r]).map(x => x.academic_sessions?.session_name || 'All Sessions').join(', ') },
+                  : (r.__sessions || [r]).map(x => x.academic_sessions?.session_name).filter(Boolean).join(', ') },
                 { header: 'Semesters', value: r => r.total_semesters || '' },
                 { header: 'Fee Components', value: r => r.__programOnly ? 0 : (r.fee_items?.length || 0) },
                 { header: 'Entry Fees', value: r => r.__programOnly ? '' : calcTotals(r.fee_items, r.total_semesters).entryTotal,
@@ -805,17 +840,32 @@ export default function FeeManagement() {
                           {deptMap[progMap[struct.program_id]?.department_id] || <span className="text-gray-300">—</span>}
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">
+                          {/* Only the named sessions get a chip. A structure
+                              with no session is a fallback, not a session, and
+                              an "All Sessions" chip on nearly every course was
+                              noise that pushed the real ones out of view. It is
+                              still there, still editable, and still counted. */}
                           <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
-                            {(struct.__sessions || [struct]).map(s => (
+                            {(struct.__sessions || [struct]).filter(s => s.academic_sessions?.session_name).map(s => (
                               <span key={s.id} className="bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded-full whitespace-nowrap">
-                                {s.academic_sessions?.session_name || 'All Sessions'}
+                                {s.academic_sessions.session_name}
                               </span>
                             ))}
+                            {!(struct.__sessions || [struct]).some(s => s.academic_sessions?.session_name) && (
+                              // Nothing but the fallback: say so rather than
+                              // leaving the cell blank.
+                              <span className="text-gray-300">No session set</span>
+                            )}
                             <AddSessionBtn
                               sessions={sessions}
                               existingIds={new Set((struct.__sessions || [struct]).map(s => s.session_id).filter(Boolean))}
                               busy={addingSessFor === struct.program_id}
                               onPick={sid => addSessionFee(struct, sid)}
+                            />
+                            <RemoveSessionBtn
+                              structs={struct.__sessions || [struct]}
+                              busy={removingSessFor === struct.program_id}
+                              onRemove={removeSessionFees}
                             />
                           </div>
                         </td>
@@ -1076,9 +1126,13 @@ export default function FeeManagement() {
                 getNote={p => feeProgramIds.has(p.id) ? 'fee set' : ''}
                 disabled={!typeId}
               />
+              {/* Not a filter — this decides which sessions get a fee. The old
+                  "All Sessions (no filter)" read as "leave it and you get them
+                  all", when an empty selection actually writes ONE fee that
+                  belongs to no session at all. */}
               <MultiCheckDropdown
                 label="Sessions"
-                placeholder="All Sessions (no filter)"
+                placeholder="None — saves one fee with no session"
                 selectedIds={selectedSessIds}
                 onChange={v => { setSelectedSessIds(v); setIsEditMode(false); setSaved(false) }}
                 options={sessions}
@@ -1289,6 +1343,83 @@ export default function FeeManagement() {
 
 // Small "+" next to the session chips in Fee Master — pick a session that has
 // no fee structure yet and it is created instantly with the same fee items.
+// The "−" beside the "+": tick off the sessions a course should keep, and the
+// unticked ones have their fee structure deleted.
+//
+// Checkboxes rather than a delete-per-row, because removing several at once is
+// the usual case and because leaving them all ticked does nothing — the
+// destructive reading takes an extra, deliberate action.
+//
+// A structure with no session is listed too, as "All Sessions", so the fallback
+// rows can be cleared out from here rather than only from the database.
+function RemoveSessionBtn({ structs, busy, onRemove }) {
+  const [open, setOpen] = useState(false)
+  const [keep, setKeep] = useState(null)   // Set of ids to KEEP; null until opened
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function onOut(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onOut)
+    return () => document.removeEventListener('mousedown', onOut)
+  }, [])
+
+  function toggleOpen() {
+    // Reset on every open so a half-made selection from last time cannot be
+    // applied by accident.
+    if (!open) setKeep(new Set(structs.map(s => s.id)))
+    setOpen(o => !o)
+  }
+
+  const kept = keep || new Set(structs.map(s => s.id))
+  const drop = structs.filter(s => !kept.has(s.id))
+
+  return (
+    <div className="relative inline-block" ref={ref}>
+      <button type="button" title="Remove a session's fee"
+        disabled={busy}
+        onClick={toggleOpen}
+        className={`w-5 h-5 inline-flex items-center justify-center rounded-full transition-colors
+          ${busy ? 'bg-gray-100 text-gray-300 cursor-wait' : 'bg-red-50 text-red-500 hover:bg-red-100'}`}>
+        <Minus size={11} />
+      </button>
+      {open && (
+        <div className="absolute z-30 top-full mt-1 left-0 w-60 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          <p className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 bg-gray-50">
+            Untick a session to remove its fee
+          </p>
+          <div className="max-h-44 overflow-y-auto">
+            {structs.map(s => (
+              <label key={s.id}
+                className="flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 border-b border-gray-50 last:border-0 cursor-pointer">
+                <input type="checkbox" className="accent-[#933d18] w-3.5 h-3.5"
+                  checked={kept.has(s.id)}
+                  onChange={e => setKeep(prev => {
+                    const next = new Set(prev || structs.map(x => x.id))
+                    e.target.checked ? next.add(s.id) : next.delete(s.id)
+                    return next
+                  })} />
+                <span className={kept.has(s.id) ? '' : 'line-through text-red-500'}>
+                  {s.academic_sessions?.session_name || 'All Sessions'}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-gray-100 bg-gray-50">
+            <span className="text-[11px] text-gray-500">
+              {drop.length === 0 ? 'Nothing unticked' : `${drop.length} to remove`}
+            </span>
+            <button type="button" disabled={busy || drop.length === 0}
+              onClick={() => { setOpen(false); onRemove(drop) }}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-200 disabled:text-gray-400">
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AddSessionBtn({ sessions, existingIds, busy, onPick }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
