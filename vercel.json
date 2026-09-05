@@ -4,18 +4,14 @@
   ],
   "headers": [
     {
-      "source": "/",
+      "//": "Every navigable path, not just / and /index.html. The rewrite above sends them all to index.html, but a header rule matches the REQUEST path — so a deep route like /center/students/new got no cache header at all, the browser cached that HTML by its own heuristics, and it kept naming an old bundle. The assets are immutable, so the stale bundle came straight back out of cache and survived a hard refresh. Anyone landing on / saw new code; anyone sitting on a deep route did not.",
+      "source": "/((?!assets/).*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     },
     {
-      "source": "/index.html",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-      ]
-    },
-    {
+      "//": "Safe to cache forever: the filenames carry a content hash, so a new build is a new name.",
       "source": "/assets/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
