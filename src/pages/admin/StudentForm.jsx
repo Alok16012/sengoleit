@@ -9,6 +9,7 @@ import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee } from '../../utils/courseFee'
+// Fee Sharing calculation version: 2.1 (Strict centers.fee_sharing 60% -> 4000)
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { findFreeNumber, countIssued } from '../../utils/uniqueNumbers'
 import { isOfferable } from '../../utils/feeValidity'
