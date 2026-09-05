@@ -857,8 +857,12 @@ export default function CouponManagement() {
         )}
       </Modal>
 
-      {/* Type panel — Approval Codes / Discounted Coupons: inline (no popup) */}
-      {directType && directType !== 'wallet' && (
+      {/* Type panel — Approval Codes / Discounted Coupons: inline (no popup).
+          Named explicitly rather than "anything but wallet": that let the
+          Commission Wallet tab render this coupon list underneath itself, so a
+          tab about wallet payouts carried a Generate New button and an empty
+          coupon table that had nothing to do with it. */}
+      {isTypePanel && (
           <div className="space-y-4">
             {/* Top bar: status tabs + Generate button */}
             {!genMode && (
