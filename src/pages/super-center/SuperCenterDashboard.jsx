@@ -127,17 +127,19 @@ export default function SuperCenterDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {/* The same figure Wallet Summary calls Available Balance: this centre
-            plus the ones under it. Showing only this centre's own wallet here
-            gave two different "balances" under two names, and the smaller one
-            read as money that had gone missing. The split is spelled out so the
-            spendable part is still clear. */}
-        <StatCard label="Virtual Balance"
-          value={`₹${(Number(center?.virtual_balance || 0) + Number(stats.childBalance || 0)).toLocaleString('en-IN')}`}
-          sub={`₹${Number(center?.virtual_balance || 0).toLocaleString('en-IN')} yours`
-            + (stats.centers ? ` + ₹${Number(stats.childBalance || 0).toLocaleString('en-IN')} across ${stats.centers} center${stats.centers > 1 ? 's' : ''}` : '')}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+        {/* Two wallets, two cards. One combined figure needed a caption to
+            explain itself, and a super centre reading it asked where money it
+            never recharged had come from — because most of it is its centres'.
+            Kept apart, neither number needs explaining. */}
+        <StatCard label="My Virtual Balance"
+          value={`₹${Number(center?.virtual_balance || 0).toLocaleString('en-IN')}`}
+          sub="This center's own wallet"
           icon={Wallet} color="bg-[#933d18]" />
+        <StatCard label="Centers' Balance"
+          value={`₹${Number(stats.childBalance || 0).toLocaleString('en-IN')}`}
+          sub={stats.centers ? `Across ${stats.centers} center${stats.centers > 1 ? 's' : ''}` : 'No centers yet'}
+          icon={Building2} color="bg-teal-600" />
         <StatCard label="Centers Created" value={stats.centers ?? 0} icon={Building2} color="bg-indigo-500" />
         <StatCard label="Total Students" value={stats.students ?? 0} icon={Users} color="bg-blue-500" />
         <StatCard label="Pending Recharges" value={stats.pendingRecharges ?? 0} icon={Clock} color="bg-amber-500" sub="Awaiting verification" />
