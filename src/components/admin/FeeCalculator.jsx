@@ -16,22 +16,26 @@ const fmt = n => Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits:
 //   share    — what X% of the fee comes to (a centre's share, a commission)
 //   increase — the fee after adding X% (next year's revision)
 //   discount — the fee after taking X% off (a concession)
-// A share splits the fee in two, so the fourth column carries the OTHER half
-// and names its percentage: put 60 in and the column reads "Remaining @ 40%".
-// Both sides of the split are then on one row, in rupees and in percent, which
-// is the whole question a fee share asks.
+// In Share the number typed is the percentage GIVEN AWAY, so the answer is what
+// is left: put 60 in and the main column is 40% of the fee. It used to lead
+// with the 60% and push the 40% into the last column, which is backwards —
+// the share is the input, not the result.
 //
-// Increase and discount are not a split, so theirs stays a plain difference —
-// and calling a share's other half a "difference" of −₹920 read as a loss.
+// Both halves still show, so the split is auditable: main = what you keep,
+// last = what you gave. Increase and discount are not a split, so theirs stays
+// a plain difference.
 const pctOut = (n) => (Math.round(n * 100) / 100)
 const MODES = [
-  { key: 'share',    label: 'Share',    hint: 'X% of the fee',
-    lastCol: p => `Remaining @ ${pctOut(100 - p)}%`,
-    calc: (b, p) => b * p / 100,        last: (b, out) => b - out, signed: false },
+  { key: 'share',    label: 'Share',    hint: 'give X% — you keep the rest',
+    mainCol: p => `You Get @ ${pctOut(100 - p)}%`,
+    lastCol: p => `Given @ ${pctOut(p)}%`,
+    calc: (b, p) => b * (100 - p) / 100, last: (b, out) => b - out, signed: false },
   { key: 'increase', label: 'Increase', hint: 'fee + X%',
+    mainCol: p => `Increase @ ${pctOut(p)}%`,
     lastCol: () => 'Difference',
     calc: (b, p) => b * (1 + p / 100),  last: (b, out) => out - b, signed: true },
   { key: 'discount', label: 'Discount', hint: 'fee − X%',
+    mainCol: p => `Discount @ ${pctOut(p)}%`,
     lastCol: () => 'Difference',
     calc: (b, p) => b * (1 - p / 100),  last: (b, out) => out - b, signed: true },
 ]
@@ -102,7 +106,7 @@ export default function FeeCalculator({ semAmounts = [], grandTotal = 0 }) {
                     <th className="text-left text-white font-semibold px-4 py-2.5">Semester</th>
                     <th className="text-right text-white font-semibold px-4 py-2.5">Current Fee</th>
                     <th className="text-right text-white font-semibold px-4 py-2.5 whitespace-nowrap">
-                      {m.label} @ {p}%
+                      {m.mainCol(p)}
                     </th>
                     <th className="text-right text-white font-semibold px-4 py-2.5 whitespace-nowrap">{m.lastCol(p)}</th>
                   </tr>
