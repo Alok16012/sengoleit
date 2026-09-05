@@ -34,12 +34,19 @@ export default function SuperCenterDashboard() {
         setCenter(data)
         if (data) {
           Promise.all([
-            supabase.from('centers').select('id', { count: 'exact', head: true }).eq('super_center_id', data.id),
+            // Rows, not just a count: the balance card adds the centres' wallets
+            // to this one, the same way Wallet Summary does.
+            supabase.from('centers').select('id, virtual_balance').eq('super_center_id', data.id),
             supabase.from('students').select('id', { count: 'exact', head: true }).eq('center_id', data.id),
             supabase.from('recharge_requests').select('id', { count: 'exact', head: true }).eq('center_id', data.id).eq('status', 'pending'),
             supabase.from('centers').select('center_name, center_code, approval_status, approval_notes').eq('super_center_id', data.id).in('approval_status', ['hold', 'account_hold']),
           ]).then(([ctrs, studs, pending, held]) => {
-            setStats({ centers: ctrs.count, students: studs.count, pendingRecharges: pending.count, heldCenters: held.data || [] })
+            const kids = ctrs.data || []
+            setStats({
+              centers: kids.length,
+              childBalance: kids.reduce((s, c) => s + Number(c.virtual_balance || 0), 0),
+              students: studs.count, pendingRecharges: pending.count, heldCenters: held.data || [],
+            })
           })
         }
       })
@@ -121,7 +128,16 @@ export default function SuperCenterDashboard() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Virtual Balance" value={`₹${Number(center?.virtual_balance || 0).toLocaleString()}`} icon={Wallet} color="bg-[#933d18]" />
+        {/* The same figure Wallet Summary calls Available Balance: this centre
+            plus the ones under it. Showing only this centre's own wallet here
+            gave two different "balances" under two names, and the smaller one
+            read as money that had gone missing. The split is spelled out so the
+            spendable part is still clear. */}
+        <StatCard label="Virtual Balance"
+          value={`₹${(Number(center?.virtual_balance || 0) + Number(stats.childBalance || 0)).toLocaleString('en-IN')}`}
+          sub={`₹${Number(center?.virtual_balance || 0).toLocaleString('en-IN')} yours`
+            + (stats.centers ? ` + ₹${Number(stats.childBalance || 0).toLocaleString('en-IN')} across ${stats.centers} center${stats.centers > 1 ? 's' : ''}` : '')}
+          icon={Wallet} color="bg-[#933d18]" />
         <StatCard label="Centers Created" value={stats.centers ?? 0} icon={Building2} color="bg-indigo-500" />
         <StatCard label="Total Students" value={stats.students ?? 0} icon={Users} color="bg-blue-500" />
         <StatCard label="Pending Recharges" value={stats.pendingRecharges ?? 0} icon={Clock} color="bg-amber-500" sub="Awaiting verification" />
