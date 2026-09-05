@@ -181,8 +181,10 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
     if (!p) return
     const undo = !!p.sent_at
     if (!confirm(undo
-      ? `Take back ${fmt(p.amount)} from ${selectedSC.center_name}?\n\nIt will be removed from their wallet.`
-      : `Pay ${fmt(p.amount)} to ${selectedSC.center_name}?\n\nIt goes straight into their Available Balance.`
+      ? `Deactivate ${fmt(p.amount)} for ${selectedSC.center_name}?\n\n`
+        + `It comes back out of their wallet — they will not be able to spend it.`
+      : `Activate ${fmt(p.amount)} for ${selectedSC.center_name}?\n\n`
+        + `It goes into their Available Balance and they can spend it.`
     )) return
     setSentBusy(row.id)
     const { data, error } = await supabase.rpc('commission_set_sent', { p_id: p.id, p_sent: !undo })
@@ -196,7 +198,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
     }
     const g = Array.isArray(data) ? data[0] : data
     await fetchAll()
-    alert(`${undo ? 'Taken back' : 'Paid'} ${fmt(g?.amount)}.\n`
+    alert(`${undo ? 'Deactivated' : 'Activated'} ${fmt(g?.amount)}.\n`
       + `${selectedSC.center_name}'s wallet: ${fmt(g?.wallet_before)} → ${fmt(g?.wallet_after)}.`)
   }
 
@@ -232,7 +234,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
     const made = Array.isArray(data) ? data : data ? [data] : []
     alert(made.length
       ? made.map(g => `${g.super_center_name}: ${fmt(g.amount)} owed (${g.percent}%)`).join('\n')
-        + '\n\nUse "Send to SC" to pay it into their wallet.'
+        + '\n\nHit Activate to put it in their wallet — until then they cannot spend it.'
       : 'Nothing was generated.')
   }
 
@@ -479,12 +481,15 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                           {!done ? <span className="text-xs text-gray-400">Not generated</span>
                             : r.paid?.sent_at
                               ? <>
-                                  <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">Paid</span>
+                                  <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">Active</span>
                                   <span className="block text-[10px] text-gray-400 mt-0.5">
-                                    {new Date(r.paid.sent_at).toLocaleDateString('en-IN')}
+                                    in wallet since {new Date(r.paid.sent_at).toLocaleDateString('en-IN')}
                                   </span>
                                 </>
-                              : <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Owed</span>}
+                              : <>
+                                  <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">Deactive</span>
+                                  <span className="block text-[10px] text-gray-400 mt-0.5">not in their wallet</span>
+                                </>}
                           {r.paid?.coupon?.coupon_code && (
                             <span className="block text-[10px] text-gray-300 font-mono mt-0.5"
                               title="Minted before commission moved to the wallet; switched off">
@@ -492,18 +497,22 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                             </span>
                           )}
                         </td>
-                        {/* One action: pay it, or take it back. */}
+                        {/* Active/Deactive IS the money moving. Commission is
+                            paid as a wallet balance now, so there is no way to
+                            have it sitting there and unusable — activating
+                            credits it, deactivating takes it back out. One
+                            switch, and what it says is what is true. */}
                         <td className="px-3 py-2 text-center">
                           {!done ? <span className="text-gray-300 text-xs">—</span> : (
                             <button onClick={() => markSent(r)} disabled={sentBusy === r.id}
                               title={r.paid?.sent_at
-                                ? 'Paid into their wallet — click to take it back'
-                                : `Pay ${fmt(r.paid?.amount)} into ${selectedSC.center_name}'s wallet`}
+                                ? `Take ${fmt(r.paid?.amount)} back out — they can no longer spend it`
+                                : `Put ${fmt(r.paid?.amount)} into ${selectedSC.center_name}'s wallet so they can spend it`}
                               className={`px-2.5 py-1 rounded text-xs font-semibold disabled:opacity-40 ${
                                 r.paid?.sent_at
-                                  ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                  : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                              {sentBusy === r.id ? '…' : r.paid?.sent_at ? 'Undo' : 'Send to SC'}
+                                  ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                                  : 'bg-green-600 text-white hover:bg-green-700'}`}>
+                              {sentBusy === r.id ? '…' : r.paid?.sent_at ? 'Deactivate' : 'Activate'}
                             </button>
                           )}
                         </td>
