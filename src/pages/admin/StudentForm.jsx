@@ -405,6 +405,10 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, onRemove
 }
 
 const emptyForm = {
+  // The fee sharing in force when this admission was taken. Stamped at submit
+  // and never recomputed, so re-pricing a centre cannot re-price students it
+  // has already admitted.
+  fee_sharing_pct: '', original_fee: '', center_share: '', university_payable: '',
   date_of_submission: '',
   date_of_admission: '', entry_type: 'Regular',
   session_id: '', mode_id: '', university_id: '',
@@ -1043,16 +1047,19 @@ export default function StudentForm() {
     try {
       // Shared source of truth so the entry fee here exactly matches the fee held
       // at forward (StudentListReport) and collected at Account Dept.
-      const { courseFee, grossFee, commissionPct, dueSem, calendarActive } = await computeCumulativeCourseFee({
+      const { courseFee, grossFee, centerShare, sharingPct, dueSem, calendarActive } = await computeCumulativeCourseFee({
         programme_id: form.programme_id,
         session_id: form.session_id,
         semester_year: form.semester_year,
         semYear: progSemYear,
         duration: progDuration,
         programName: selectedProgram?.program_name,
-        // Named so the centre's commission comes off — this is what the CENTRE
-        // owes, not the whole fee.
+        // Named so the centre's sharing comes off — this is what the CENTRE
+        // owes the university, not the university's own full fee.
         center_id: form.center_id,
+        // An existing admission keeps the rate it was taken on; a new one uses
+        // the centre's rate today.
+        sharing_pct: isEdit ? form.fee_sharing_pct : undefined,
       })
 
       const { data: ctr } = await supabase
@@ -1066,7 +1073,7 @@ export default function StudentForm() {
       const half = Math.ceil(courseFee * 0.5)
       const minRequired = Math.max(half - (coupon.discount || 0), 0)
       const ok = courseFee === 0 || balance >= minRequired
-      setWalletInfo({ checking: false, balance, courseFee, grossFee, commissionPct, ok, checked: true, dueSem, calendarActive })
+      setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive })
       return ok
     } catch {
       setWalletInfo(w => ({ ...w, checking: false, checked: true, ok: true }))
@@ -1290,6 +1297,31 @@ export default function StudentForm() {
     Object.keys(payload).forEach(k => { if (!allowedKeys.has(k)) delete payload[k] })
     const fkFields = ['university_id', 'session_id', 'programme_id', 'department_id', 'mode_id', 'center_id']
     fkFields.forEach(k => { if (!payload[k]) delete payload[k] })
+
+    // Freeze the sharing on a NEW admission. Recomputed here rather than taken
+    // from the wallet check, so what is stored is what was true at the moment
+    // of saving even if the form sat open for a while. An edit leaves the
+    // stamp alone — that is the whole point of freezing it.
+    if (!isEdit && payload.center_id) {
+      try {
+        const snap = await computeCumulativeCourseFee({
+          programme_id: payload.programme_id,
+          session_id: payload.session_id,
+          semester_year: payload.semester_year,
+          semYear: progSemYear,
+          duration: progDuration,
+          programName: selectedProgram?.program_name,
+          center_id: payload.center_id,
+        })
+        payload.fee_sharing_pct    = snap.sharingPct
+        payload.original_fee       = snap.grossFee
+        payload.center_share       = snap.centerShare
+        payload.university_payable = snap.courseFee
+      } catch { /* the columns arrive with add_admission_fee_sharing_snapshot.sql */ }
+    } else if (isEdit) {
+      ;['fee_sharing_pct', 'original_fee', 'center_share', 'university_payable']
+        .forEach(k => delete payload[k])
+    }
 
     const saveStudent = (p) => isEdit
       ? supabase.from('students').update(p).eq('id', id).select('id').single()
@@ -1688,11 +1720,12 @@ export default function StudentForm() {
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
-                          {walletInfo.commissionPct > 0 && (
-                            // Show the working, or a fee that is suddenly 60%
-                            // smaller than the fee master reads as a mistake.
+                          {walletInfo.sharingPct > 0 && (
+                            // Show the working, or a fee suddenly 60% smaller
+                            // than the fee master reads as a mistake.
                             <span className="text-emerald-700 font-semibold">
-                              &nbsp;(₹{Number(walletInfo.grossFee || 0).toLocaleString('en-IN')} − {walletInfo.commissionPct}% your share)
+                              &nbsp;(₹{Number(walletInfo.grossFee || 0).toLocaleString('en-IN')} − {walletInfo.sharingPct}% your share
+                              = ₹{Number(walletInfo.centerShare || 0).toLocaleString('en-IN')} kept)
                             </span>
                           )}
                           &nbsp;·&nbsp;50%: ₹{Math.ceil(walletInfo.courseFee * 0.5).toLocaleString('en-IN')}

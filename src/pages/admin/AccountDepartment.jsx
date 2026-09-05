@@ -203,7 +203,7 @@ export default function AccountDepartment() {
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').in('approval_status', ['doc_verified', 'account_hold']).order('created_at', { ascending: false }),
       supabase.from('recharge_requests').select('*, centers(center_name, center_code, center_type, super_center:super_center_id(center_name, center_code))').order('created_at', { ascending: false }),
       supabase.from('centers').select('*, super_center:super_center_id(center_name, center_code), states:state_id(state_name)').not('approval_status', 'in', '(pending,doc_verified,hold,account_hold)').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, exam_forwarded_at, fee_held, coupon_discount, coupon_code, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year, programme_types(programme_type_name)), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
+      supabase.from('students').select('id, student_name, mobile_no, gender, status, remarks, admission_number, enrollment_no, registration_no, doc_verified_at, forwarded_at, exam_forwarded_at, fee_held, coupon_discount, coupon_code, fee_sharing_pct, created_at, programme_id, session_id, semester_year, programs(program_name, enrollment_code, duration, semester_year, programme_types(programme_type_name)), academic_sessions(session_name), centers(id, center_name, center_code, virtual_balance)').in('status', ['Hold', 'Approved', 'Rejected']).order('created_at', { ascending: false }),
       supabase.from('coupons').select('*, centers(center_name, center_code, center_type, payment_date, super_center:super_center_id(center_name, center_code))').eq('coupon_type', 'approval').order('created_at', { ascending: false }),
       supabase.from('re_registrations').select('id, student_id, center_id, from_term, to_term, fee_amount, status, remarks, requested_at, decided_at, held_at, students(id, student_name, enrollment_no, admission_number, mobile_no, semester_year, fee_collected, coupon_discount, programme_id, session_id, programs(program_name, duration, semester_year), academic_sessions(session_name)), centers(center_name, center_code)').order('requested_at', { ascending: false }),
     ])
@@ -765,6 +765,9 @@ export default function AccountDepartment() {
       // Same centre, same deduction — otherwise the Account Dept would collect
       // the whole fee the centre was never charged.
       center_id: student.center_id || student.centers?.id,
+      // The rate frozen when this admission was taken. Without it, changing a
+      // centre's sharing would silently re-price every student it ever admitted.
+      sharing_pct: student.fee_sharing_pct,
     })
 
     // Coupon discount applied at submission. Prefer the value stored directly on

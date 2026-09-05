@@ -48,30 +48,24 @@ export function dueSemesterFromElapsed(sessionStart, totalSems) {
 //   entry     → once (Sem 1)          divide → split evenly across all semesters
 //   multiply  → every semester        multiply2 → from Sem 2 onward
 // Returns { courseFee, dueSem, totalSems, calendarActive }.
-// What a centre keeps out of the course fee, as a percentage.
+// What a centre KEEPS out of the course fee, as a percentage — the "Center
+// Sharing %" in the Centers list, stored as centers.fee_sharing.
 //
-// Set in the Centers list under Commission. A centre may owe more than one
-// super centre, so the rows are summed — that is the whole share leaving the
-// university. Capped at 100 so a mis-typed rate can never make a fee negative,
-// and falls back to the legacy centers.commission column when the centre has
-// no rows yet.
+// Deliberately NOT centers.commission: that is the cut a SUPER centre earns on
+// this centre's recharges, a different agreement with a different counterparty.
+// The two were conflated once and produced a fee reduced by the wrong number.
 //
-// Returns 0 for an unknown centre, which is what keeps the fee whole for every
-// caller that does not know (or does not care) which centre is asking.
-export async function centerCommissionPct(center_id) {
+// Capped at 0..100 so a mis-typed rate can never drive a fee negative, and 0
+// for an unknown centre — which is what keeps the fee whole for every caller
+// that does not know (or care) which centre is asking.
+export async function centerSharingPct(center_id) {
   if (!center_id) return 0
-  const { data: rows } = await supabase
-    .from('center_commissions').select('percent').eq('center_id', center_id)
-  let pct = (rows || []).reduce((s, r) => s + (Number(r.percent) || 0), 0)
-  if (!pct) {
-    const { data: c } = await supabase
-      .from('centers').select('commission').eq('id', center_id).maybeSingle()
-    pct = Number(c?.commission) || 0
-  }
-  return Math.min(Math.max(pct, 0), 100)
+  const { data: c } = await supabase
+    .from('centers').select('fee_sharing').eq('id', center_id).maybeSingle()
+  return Math.min(Math.max(Number(c?.fee_sharing) || 0, 0), 100)
 }
 
-export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration, programName, center_id }) {
+export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration, programName, center_id, sharing_pct }) {
   const { data: structures } = await supabase
     .from('fee_structures')
     .select('id, session_id, total_semesters')
@@ -151,21 +145,29 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
     ? entryT + (totalSems > 0 ? divideT / totalSems : 0) * dueSem + mulT * dueSem + mul2T * Math.max(dueSem - 1, 0)
     : 0
 
-  // The centre keeps its commission and owes the university the rest:
-  //   fee due  ×  (100 − commission%)  ÷  100
+  // The centre keeps its share and owes the university the rest:
+  //   fee due  ×  (100 − Center Sharing %)  ÷  100
   // Rounded once, at the end, so the wallet check, the Account Dept's
   // collection and the reports all quote the same rupee figure.
   //
+  // `sharing_pct` is the rate FROZEN on an existing admission. It wins over the
+  // centre's current rate, so re-pricing a centre never re-prices students it
+  // already admitted. Pass nothing for a new admission and the centre's rate
+  // today is used.
+  //
   // Without a center_id nothing is deducted, so a caller that does not name a
-  // centre still gets the whole fee — the figure the university is owed in
-  // total, which is what the admin-side screens want.
-  const commissionPct = await centerCommissionPct(center_id)
-  const net = cumulative * (100 - commissionPct) / 100
+  // centre still gets the whole fee — what the university is owed in total,
+  // which is what the admin-side screens want.
+  const sharingPct = sharing_pct != null && sharing_pct !== ''
+    ? Math.min(Math.max(Number(sharing_pct) || 0, 0), 100)
+    : await centerSharingPct(center_id)
+  const payable = cumulative * (100 - sharingPct) / 100
 
   return {
-    courseFee: Math.round(net),
-    grossFee: Math.round(cumulative),   // before the centre's share
-    commissionPct,
+    courseFee: Math.round(payable),      // what the CENTRE owes the university
+    grossFee: Math.round(cumulative),    // the university's own full fee
+    centerShare: Math.round(cumulative) - Math.round(payable),
+    sharingPct,
     dueSem, totalSems, calendarActive,
   }
 }

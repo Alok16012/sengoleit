@@ -168,7 +168,7 @@ export default function StudentListReport({ status }) {
     if (!held.length) { setHoldDue({}); return }
     const groups = {}
     held.forEach(r => {
-      const key = `${r.center_id}|${r.programme_id}|${r.session_id}|${r.semester_year}`
+      const key = `${r.center_id}|${r.fee_sharing_pct}|${r.programme_id}|${r.session_id}|${r.semester_year}`
       ;(groups[key] ||= []).push(r)
     })
     const next = {}
@@ -182,6 +182,7 @@ export default function StudentListReport({ status }) {
         duration: s.programs?.duration,
         programName: s.programs?.program_name,
         center_id: s.center_id,
+        sharing_pct: s.fee_sharing_pct,
       })
       // The coupon is per student, so only the course fee is shared.
       members.forEach(m => { next[m.id] = holdAmount(courseFee, m.coupon_discount) })
@@ -236,6 +237,9 @@ export default function StudentListReport({ status }) {
       duration: student.programs?.duration,
       programName: student.programs?.program_name,
       center_id: student.center_id || student.centers?.id,
+      // The rate frozen when this admission was taken. Without it, changing a
+      // centre's sharing would silently re-price every student it ever admitted.
+      sharing_pct: student.fee_sharing_pct,
     })
 
     // Coupon discount applied at submission. Prefer the value stored on the
