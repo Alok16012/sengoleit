@@ -71,13 +71,25 @@ export default function CenterCourses() {
 
   const [busy, setBusy] = useState(null)
 
-  // Ticking every session by hand means the same as ticking none, so it
-  // normalises back to [] — otherwise the box reads "3 selected" when it is
-  // filtering nothing.
+  // [] means "no session filter", which is every session — so on screen every
+  // session is ticked, not none of them. The empty array is only how that is
+  // stored; showing it as nothing selected made "All Sessions" look like it had
+  // switched the others off.
+  const allSessionsOn = fSessions.length === 0
+  const sessionOn = (id) => allSessionsOn || fSessions.includes(id)
+
+  // Because they all read as ticked, clicking one has to UNtick it — the old
+  // code added it, so clicking a ticked session left it as the only one chosen,
+  // the opposite of what the tick said.
   const toggleSession = (id) =>
     setFSessions(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-      return next.length === sessions.length ? [] : next
+      const next = prev.length === 0
+        ? sessions.map(s => s.id).filter(x => x !== id)     // all but this one
+        : prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      // Every session ticked, or none left, both mean "not filtering by
+      // session" — and nothing is ever served by a filter that matches no
+      // session at all.
+      return (next.length === sessions.length || next.length === 0) ? [] : next
     })
 
   useEffect(() => {
@@ -494,14 +506,14 @@ export default function CenterCourses() {
               <button type="button" onClick={() => setFSessions([])}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
                 <span className={`w-4 h-4 rounded border flex items-center justify-center ${
-                  fSessions.length === 0 ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300'}`}>
-                  {fSessions.length === 0 && <Check size={11} className="text-white" />}
+                  allSessionsOn ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300'}`}>
+                  {allSessionsOn && <Check size={11} className="text-white" />}
                 </span>
                 All Sessions
               </button>
               <div className="h-px bg-gray-100 my-1" />
               {sessions.map(s => {
-                const on = fSessions.includes(s.id)
+                const on = sessionOn(s.id)
                 return (
                   <button key={s.id} type="button" onClick={() => toggleSession(s.id)}
                     className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
