@@ -140,12 +140,25 @@ export default function CenterForm() {
     })
     if (isEdit) {
       supabase.from('centers').select('*').eq('id', id).single()
-        .then(({ data }) => {
+        .then(async ({ data }) => {
           if (!data) return
           const clean = { ...data }
           // Strip nulls so inputs stay controlled, and normalise date for <input type="date">
           Object.keys(clean).forEach(k => { if (clean[k] === null) clean[k] = '' })
           if (clean.date_of_birth) clean.date_of_birth = String(clean.date_of_birth).slice(0, 10)
+          // Commission % is NOT centers.commission. The rate that is actually
+          // paid lives in center_commissions, and that is what the Centers list,
+          // the Commission Wallet and generate_commission_payables all read.
+          // Showing the column here meant the field went stale the moment the
+          // rate was edited from the Centers list — and saving the centre for
+          // any reason then wrote that stale number back over the real one.
+          if (clean.super_center_id) {
+            const { data: rate } = await supabase.from('center_commissions')
+              .select('percent').eq('center_id', id).eq('super_center_id', clean.super_center_id).maybeSingle()
+            clean.commission = rate ? String(rate.percent) : ''
+          } else {
+            clean.commission = ''
+          }
           setForm(prev => ({ ...prev, ...clean }))
         })
     }
@@ -308,18 +321,32 @@ export default function CenterForm() {
       if (err) throw err
 
       // Commission is a LIST — a centre may pay more than one super centre, and
-      // that list lives in center_commissions and is edited from the Centers
-      // page. This field only sets the PARENT's rate, so a centre created here
-      // does not read as "not set" over there.
+      // that list lives in center_commissions, which is what actually gets paid.
+      // This field only sets the PARENT's rate; other recipients are added from
+      // Commission on the Centers list and are never touched here.
       const centerId = saved?.id || id
-      const pct = Number(form.commission)
-      if (centerId && payload.super_center_id && pct > 0) {
-        const { error: cErr } = await supabase.from('center_commissions').upsert(
-          { center_id: centerId, super_center_id: payload.super_center_id, percent: pct },
-          { onConflict: 'center_id,super_center_id' }
-        )
-        // The centre itself saved fine; a missing migration must not lose that.
-        if (cErr) console.warn('Commission recipient not saved:', cErr.message)
+      const raw = String(form.commission ?? '').trim()
+      const pct = Number(raw)
+      if (centerId && payload.super_center_id) {
+        const { error: cErr } = pct > 0
+          ? await supabase.from('center_commissions').upsert(
+              { center_id: centerId, super_center_id: payload.super_center_id, percent: pct },
+              { onConflict: 'center_id,super_center_id' }
+            )
+          // Emptying the field has to actually stop the payment. It used to be
+          // ignored, so the old rate stayed live while the form showed blank.
+          : raw === '' || pct === 0
+            ? await supabase.from('center_commissions').delete()
+                .eq('center_id', centerId).eq('super_center_id', payload.super_center_id)
+            : { error: null }
+        // Losing the rate silently is how it drifts out of step with what the
+        // Commission Wallet pays, so this is said out loud. The centre itself is
+        // already saved either way.
+        if (cErr) {
+          setError(`The center was saved, but its commission was NOT: ${cErr.message}`)
+          setLoading(false)
+          return
+        }
       }
       navigate(form.center_type === 'super_center' ? '/admin/super-centers' : '/admin/centers')
     } catch (err) {

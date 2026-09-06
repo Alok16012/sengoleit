@@ -408,20 +408,36 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                     // empty ledger. The list is driven by RATES, not by which
                     // super centre a centre sits under.
                     <tr><td colSpan="11" className="text-center text-gray-400 py-8">
-                      {centerId ? (
-                        // With a centre picked, "nothing here" is almost always
-                        // that centre rather than the super centre's setup, so
-                        // it is named before the broader reasons.
-                        <>
-                          <p className="text-gray-500 font-semibold">
-                            Nothing for {centers.find(c => c.id === centerId)?.center_name || 'this center'}.
-                          </p>
-                          <p className="text-xs mt-1">
-                            Either {selectedSC.center_name} earns no commission on it, or it has no recharge yet.
-                            Clear the <strong>Center</strong> filter above to see them all.
-                          </p>
-                        </>
-                      ) : myRates.length === 0 ? (
+                      {centerId ? (() => {
+                        // "Either no rate, or no recharge" made the user guess
+                        // between two very different problems — one is a setting
+                        // that was lost, the other is nothing to do. Both facts
+                        // are already loaded, so say which it is.
+                        const cName = centers.find(c => c.id === centerId)?.center_name || 'this center'
+                        const rate = myRates.find(r => r.center_id === centerId)
+                        const theirRecharges = recharges.filter(r => r.center_id === centerId)
+                        return (
+                          <>
+                            <p className="text-gray-500 font-semibold">Nothing for {cName}.</p>
+                            {!rate ? (
+                              <p className="text-xs mt-1">
+                                <strong>{selectedSC.center_name} has no commission rate on {cName}</strong>
+                                {theirRecharges.length > 0 && <> — even though {cName} has {theirRecharges.length} recharge{theirRecharges.length > 1 ? 's' : ''}</>}.
+                                {' '}Set it in <strong>Centers → Commission</strong> on {cName}
+                                {' '}(the Commission % on the center's own edit form sets the same rate).
+                              </p>
+                            ) : (
+                              <p className="text-xs mt-1">
+                                The rate is set — <strong>{Number(rate.percent)}%</strong> — but {cName} has not made
+                                a recharge yet, and commission is earned on recharges.
+                              </p>
+                            )}
+                            <p className="text-xs mt-1 text-gray-400">
+                              Clear the <strong>Center</strong> filter above to see them all.
+                            </p>
+                          </>
+                        )
+                      })() : myRates.length === 0 ? (
                         <>
                           <p className="text-gray-500 font-semibold">No commission rate is set for {selectedSC.center_name}.</p>
                           <p className="text-xs mt-1">

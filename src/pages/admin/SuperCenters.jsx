@@ -22,7 +22,6 @@ export default function SuperCenters() {
   const [visiblePasswords, setVisiblePasswords] = useState({})
   const [editingPassword, setEditingPassword] = useState({})
   const [editingFeeSharing, setEditingFeeSharing] = useState({})
-  const [editingCommission, setEditingCommission] = useState({})
   const [savingField, setSavingField] = useState({})
   const navigate = useNavigate()
 
@@ -60,7 +59,6 @@ export default function SuperCenters() {
     if (error) { alert(`Failed to update ${field}: ${error.message}`); return }
     setData(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r))
     if (field === 'fee_sharing') setEditingFeeSharing(prev => { const n = { ...prev }; delete n[id]; return n })
-    if (field === 'commission') setEditingCommission(prev => { const n = { ...prev }; delete n[id]; return n })
   }
 
   async function savePassword(centerId) {
@@ -227,13 +225,18 @@ export default function SuperCenters() {
               <Th>Status</Th>
               <Th>Activate/Deactivate</Th>
               <Th>Fee Sharing</Th>
-              <Th>Commission</Th>
+              {/* No Commission column here. A rate is always a PAIR — this super
+                  centre earns X% on THAT centre — so it cannot be one number on
+                  a super centre. This cell wrote centers.commission, which no
+                  commission calculation reads, so editing it did nothing at all
+                  while looking like it saved. Set the rate on the centre:
+                  Centers → Commission. */}
               <Th>Actions</Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={13} className="text-center text-gray-400 py-12">No super centers found</Td></Tr>
+              <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No super centers found</Td></Tr>
             ) : filtered.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -332,30 +335,6 @@ export default function SuperCenters() {
                     <button onClick={() => setEditingFeeSharing(prev => ({ ...prev, [c.id]: c.fee_sharing ?? '' }))} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
                       <span className="text-xs font-medium text-gray-700">
                         {c.fee_sharing != null ? `${Number(c.fee_sharing).toFixed(0)}%` : <span className="text-gray-300">not set</span>}
-                      </span>
-                      <Pencil size={10} className="text-gray-300 group-hover:text-[#933d18] opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                  )}
-                </Td>
-                <Td>
-                  {editingCommission[c.id] !== undefined ? (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        autoFocus
-                        value={editingCommission[c.id]}
-                        onChange={e => setEditingCommission(prev => ({ ...prev, [c.id]: e.target.value }))}
-                        onKeyDown={e => { if (e.key === 'Enter') updateCenterField(c.id, 'commission', Number(editingCommission[c.id]) || 0); if (e.key === 'Escape') setEditingCommission(prev => { const n = { ...prev }; delete n[c.id]; return n }) }}
-                        onBlur={() => updateCenterField(c.id, 'commission', Number(editingCommission[c.id]) || 0)}
-                        className="border border-gray-200 rounded-lg px-2 py-0.5 text-xs w-16 text-right focus:outline-none focus:border-[#933d18]"
-                        placeholder="%"
-                      />
-                      {savingField[`commission-${c.id}`] ? <span className="text-[10px] text-gray-400">…</span> : <Check size={12} className="text-emerald-600" />}
-                    </div>
-                  ) : (
-                    <button onClick={() => setEditingCommission(prev => ({ ...prev, [c.id]: c.commission ?? '' }))} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
-                      <span className="text-xs font-medium text-gray-700">
-                        {c.commission != null ? `${Number(c.commission).toFixed(0)}%` : <span className="text-gray-300">not set</span>}
                       </span>
                       <Pencil size={10} className="text-gray-300 group-hover:text-[#933d18] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
