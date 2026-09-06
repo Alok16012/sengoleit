@@ -218,7 +218,11 @@ export default function AccountDepartment() {
     const rrRows = rr.error ? [] : (rr.data || [])
     const rrStudentIds = [...new Set(rrRows.map(r => r.student_id).filter(Boolean))]
     if (rrStudentIds.length) {
-      setAdmitCards(await admitCardsForMany(rrStudentIds) || {})
+      // null means the read failed / add_semester_admit_cards.sql was never
+      // run. `|| {}` turned that into "no student has a card", and since the
+      // list hides a request until its card exists, every pending
+      // re-registration silently disappeared. Keep the null and skip the gate.
+      setAdmitCards(await admitCardsForMany(rrStudentIds))
     }
 
     // Recharge requests need the center name. If the embedded join failed
@@ -1016,18 +1020,26 @@ export default function AccountDepartment() {
   const pendingSuperApprovals = approvals.filter(c => c.center_type === 'super_center' && c.approval_status === 'doc_verified').length
   const pendingRecharges = recharges.filter(r => r.status === 'pending').length
   const pendingReRegs = (reRegs || []).filter(r => r.status === 'Pending').length
-  const reRegsList = (reRegs || []).filter(r => {
-    const statusMatch = reRegStatusFilter === 'pending' ? r.status === 'Pending' : r.status !== 'Pending'
-    // A Pending re-registration only appears in the Verify list once the Exam
-    // Section has generated an admit card for this student. The admit card is
-    // the proof that the term's fee has been collected and the student is
-    // ready to move forward — verifying without it was cutting the centre's
-    // wallet for a term the student could not yet sit for.
-    if (statusMatch && r.status === 'Pending' && r.student_id) {
-      return (admitCards?.[r.student_id]?.length > 0) || false
-    }
-    return statusMatch
-  })
+  const reRegsList = (reRegs || []).filter(r =>
+    reRegStatusFilter === 'pending' ? r.status === 'Pending' : r.status !== 'Pending')
+
+  // A re-registration should not be approved before the Exam Section has issued
+  // the student's admit card — that card is the proof the term's fee is in and
+  // the student can actually sit for it.
+  //
+  // This used to HIDE such a request from the list, which was wrong twice over.
+  // The count beside "To Verify" never applied the same rule, so the tab read
+  // "(3)" above an empty table. And the fee leaves the centre's wallet when the
+  // request is RAISED, so a hidden request is money already taken with no way
+  // for the admin to approve it or reject it back. The request is shown now and
+  // only its Verify button is held back.
+  //
+  // admitCards === null means the read failed or the migration was never run;
+  // there is nothing to gate on then, so the gate stands down rather than
+  // blocking everything.
+  const awaitingAdmitCard = (r) =>
+    r.status === 'Pending' && !!r.student_id && admitCards != null
+    && !(admitCards[r.student_id]?.length > 0)
   // Recharge status sub-filter (To Verify / Hold / Approved / Rejected)
   const RECHARGE_STATUS_MATCH = {
     pending:  r => r.status === 'pending',
@@ -1653,10 +1665,17 @@ export default function AccountDepartment() {
                     <Td className="text-gray-500 text-xs whitespace-nowrap">{formatDate(r.requested_at)}</Td>
                     <Td>
                       <Badge status={r.status === 'Pending' ? 'pending' : r.status === 'Approved' ? 'approved' : 'rejected'}>{r.status}</Badge>
+                      {awaitingAdmitCard(r) && (
+                        <p className="text-[11px] text-amber-700 mt-1">Admit card not issued yet</p>
+                      )}
                     </Td>
                     <Td>
                       {r.status === 'Pending' && r.students ? (
-                        <Button size="sm" variant="primary" onClick={() => setReRegModal(r)}>
+                        <Button size="sm" variant="primary" disabled={awaitingAdmitCard(r)}
+                          title={awaitingAdmitCard(r)
+                            ? 'The Exam Section has not issued this student\'s admit card yet. The fee is already held from the centre — reject this request to give it back.'
+                            : undefined}
+                          onClick={() => setReRegModal(r)}>
                           <CheckCircle size={13} /> Verify
                         </Button>
                       ) : (
