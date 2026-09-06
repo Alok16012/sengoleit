@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import Button from '../../components/ui/Button'
@@ -28,7 +28,7 @@ export default function CenterCourses() {
   const [departments, setDepartments] = useState([])
   const [progTypes, setProgTypes]   = useState([])
   const [sessions, setSessions]     = useState([])
-  const [counts, setCounts]         = useState({})   // center_id -> allotted course count
+  const [ccRows, setCcRows]         = useState([])   // center_courses: { center_id, fee_structure_id }
   const [countsErr, setCountsErr]   = useState('')
   const [countsTotal, setCountsTotal] = useState(null) // rows read; null until loaded
   const [centersLoading, setCentersLoading] = useState(true)
@@ -99,12 +99,10 @@ export default function CenterCourses() {
   function loadCounts() {
     // The error was dropped here, so a failed read and an empty table both came
     // out as a column of zeroes with nothing on screen to tell them apart.
-    fetchAllRows(() => supabase.from('center_courses').select('center_id').order('id')).then(({ data, error }) => {
+    fetchAllRows(() => supabase.from('center_courses').select('center_id, fee_structure_id').order('id')).then(({ data, error }) => {
       setCountsErr(error ? error.message : '')
       const rows = data || []
-      const m = {}
-      rows.forEach(r => { m[r.center_id] = (m[r.center_id] || 0) + 1 })
-      setCounts(m)
+      setCcRows(rows)
       setCountsTotal(rows.length)
     })
   }
@@ -128,9 +126,37 @@ export default function CenterCourses() {
   const progMap = Object.fromEntries(programs.map(p => [p.id, p]))
 
   // ── Center list ──
-  // One single list: Pending and Approved used to be separate tabs, but a centre
-  // can have both kinds of course at once, so it appeared in both — splitting
-  // them only hid centres. Every centre is listed once with its course count.
+  // One single list — Pending and Approved used to be separate TABS, and a
+  // centre with both kinds of course appeared in both, so splitting the list
+  // only hid centres. They are columns now: every centre once, with the two
+  // numbers side by side.
+  //
+  // The columns mean exactly what the tabs inside the centre mean, counted the
+  // same way — per COURSE, not per fee structure — so opening Allot Courses
+  // shows the same two numbers rather than a larger pair counted per session:
+  //   Pending  = courses with a fee in Fee Master that this centre lacks
+  //   Approved = courses this centre has
+  // A course whose sessions are only partly allotted is genuinely in both.
+  const counts = useMemo(() => {
+    const progOf = new Map(structs.map(s => [s.id, s.program_id || s.id]))
+    const allottedByCenter = new Map()
+    for (const r of ccRows) {
+      if (!allottedByCenter.has(r.center_id)) allottedByCenter.set(r.center_id, new Set())
+      allottedByCenter.get(r.center_id).add(r.fee_structure_id)
+    }
+    const out = {}
+    for (const c of centers) {
+      const have = allottedByCenter.get(c.id) || new Set()
+      const pend = new Set(), appr = new Set()
+      for (const s of structs) {
+        const pid = progOf.get(s.id)
+        if (have.has(s.id)) appr.add(pid); else pend.add(pid)
+      }
+      out[c.id] = { pending: pend.size, approved: appr.size }
+    }
+    return out
+  }, [centers, structs, ccRows])
+
   const cq = centerSearch.toLowerCase()
   // Super centers rank before regular centers, then alphabetical by name.
   const typeRank = c => (c.center_type === 'super_center' ? 0 : 1)
@@ -149,7 +175,7 @@ export default function CenterCourses() {
     .filter(c => !cq || (c.center_name || '').toLowerCase().includes(cq) || (c.center_code || '').toLowerCase().includes(cq))
     // Centres with no course yet come first — those are the ones needing work.
     .sort((a, b) =>
-      ((counts[a.id] || 0) === 0 ? 0 : 1) - ((counts[b.id] || 0) === 0 ? 0 : 1)
+      ((counts[a.id]?.approved || 0) === 0 ? 0 : 1) - ((counts[b.id]?.approved || 0) === 0 ? 0 : 1)
       || typeRank(a) - typeRank(b)
       || (a.center_name || '').localeCompare(b.center_name || ''))
 
@@ -297,12 +323,13 @@ export default function CenterCourses() {
             to look identical either way. Say which one it is. */}
         {countsErr ? (
           <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-2.5 text-sm">
-            Course allotments could not be read: {countsErr} — the Courses counts
-            below are not real until this is fixed.
+            Course allotments could not be read: {countsErr} — the Pending and Approved
+            counts below are not real until this is fixed.
           </div>
         ) : countsTotal === 0 ? (
           <div className="mb-4 bg-blue-50 border border-blue-100 text-blue-800 rounded-xl px-4 py-2.5 text-sm">
-            No course has been allotted to any center yet, so every count reads 0.
+            No course has been allotted to any center yet, so every Approved count reads 0
+            and every center's whole catalog sits in Pending.
             Open a center with <strong>Allot Courses</strong> to give it its first course.
           </div>
         ) : null}
@@ -333,7 +360,9 @@ export default function CenterCourses() {
 
         <p className="text-xs text-gray-400 mb-3">
           All centers in one list — the ones with no course yet come first.
-          Courses is how many the center has been given.
+          <strong> Pending</strong> is the courses that have a fee in Fee Master but are not with
+          this center yet; <strong>Approved</strong> is the ones it has. Same two numbers you see
+          inside <strong>Allot Courses</strong>.
         </p>
 
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
@@ -345,17 +374,18 @@ export default function CenterCourses() {
                 <th className="text-left text-white font-semibold px-4 py-3">Type</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Code</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Email</th>
-                <th className="text-center text-white font-semibold px-4 py-3">Courses</th>
+                <th className="text-center text-white font-semibold px-4 py-3">Pending</th>
+                <th className="text-center text-white font-semibold px-4 py-3">Approved</th>
                 <th className="text-center text-white font-semibold px-4 py-3">Action</th>
               </tr>
             </thead>
             <tbody>
               {centersLoading ? (
-                <tr><td colSpan={7} className="text-center text-gray-400 py-12">Loading...</td></tr>
+                <tr><td colSpan={8} className="text-center text-gray-400 py-12">Loading...</td></tr>
               ) : listCenters.length === 0 ? (
-                <tr><td colSpan={7} className="text-center text-gray-400 py-12">No centers found</td></tr>
+                <tr><td colSpan={8} className="text-center text-gray-400 py-12">No centers found</td></tr>
               ) : listCenters.map((c, i) => {
-                const cnt = counts[c.id] || 0
+                const cnt = counts[c.id] || { pending: 0, approved: 0 }
                 return (
                   <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
                     <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
@@ -368,7 +398,10 @@ export default function CenterCourses() {
                     <td className="px-4 py-3 text-gray-500 font-mono text-xs">{c.center_code || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{c.email || '—'}</td>
                     <td className="px-4 py-3 text-center">
-                      {cnt > 0 ? <span className="bg-emerald-50 text-emerald-700 font-bold text-xs px-2.5 py-1 rounded-full">{cnt}</span> : <span className="text-gray-300 text-xs">0</span>}
+                      {cnt.pending > 0 ? <span className="bg-amber-50 text-amber-700 font-bold text-xs px-2.5 py-1 rounded-full">{cnt.pending}</span> : <span className="text-gray-300 text-xs">0</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {cnt.approved > 0 ? <span className="bg-emerald-50 text-emerald-700 font-bold text-xs px-2.5 py-1 rounded-full">{cnt.approved}</span> : <span className="text-gray-300 text-xs">0</span>}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button onClick={() => openCenter(c.id)}
