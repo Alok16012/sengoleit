@@ -190,9 +190,21 @@ export function holdAmount(courseFee, discount) {
 // the moment the admit card is issued, which is what finally clears it.
 //
 // Drives the per-semester admit-card gate in the Exam Section.
-// Returns { totalSems, collected, sems: [{ sem, cumFee, dueFee, cleared }] },
+// Returns { totalSems, collected, sharingPct, sems: [{ sem, cumFee, dueFee, cleared }] },
 // where cumFee is the course fee and dueFee is that fee less the coupon.
-export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected, coupon_discount }) {
+//
+// The figures are what the CENTRE owes the university — the fee less the
+// centre's sharing share, exactly like computeCumulativeCourseFee. They are
+// compared against `fee_collected`, which records what was taken from the
+// centre's wallet and is already net of sharing, so quoting the gross fee here
+// charged the centre for the university's own share as well: a 60%-sharing
+// centre saw a ₹4,000 semester and was held ₹2,000 instead of ₹800.
+//
+// `sharing_pct` is the rate FROZEN on the admission and wins over the centre's
+// current rate, so re-pricing a centre never re-prices its existing students.
+// With neither it nor center_id given nothing is deducted and the gross fee
+// comes back — which is what the university-wide screens want.
+export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected, coupon_discount, center_id, sharing_pct }) {
   const totalSems = Number(duration) || 1
   const { data: structures } = await supabase
     .from('fee_structures').select('id, session_id').eq('program_id', programme_id)
@@ -209,15 +221,28 @@ export async function computeSemesterFeeStatus({ programme_id, session_id, durat
       else if (it.category === 'multiply2') mul2T += a
     })
   }
-  const cumFee = n => entryT + (totalSems > 0 ? divideT / totalSems : 0) * n + mulT * n + mul2T * Math.max(n - 1, 0)
+  const gross = n => entryT + (totalSems > 0 ? divideT / totalSems : 0) * n + mulT * n + mul2T * Math.max(n - 1, 0)
   const collected = Number(fee_collected) || 0
+
+  const sharingPct = sharing_pct != null && sharing_pct !== ''
+    ? Math.min(Math.max(Number(sharing_pct) || 0, 0), 100)
+    : await centerSharingPct(center_id)
+  // Rounded once, at the end, so this quotes the same rupee figure as
+  // computeCumulativeCourseFee does for the same student.
+  const cumFee = n => gross(n) * (100 - sharingPct) / 100
 
   const sems = []
   for (let n = 1; n <= totalSems; n++) {
     const fee = cumFee(n)
     // The coupon is a discount on the fee itself, so it is never collected.
     const due = Math.max(Math.round(fee) - (Number(coupon_discount) || 0), 0)
-    sems.push({ sem: n, cumFee: Math.round(fee), dueFee: due, cleared: collected + 1 >= due })   // +1 = rounding tolerance
+    sems.push({
+      sem: n,
+      cumFee: Math.round(fee),
+      grossFee: Math.round(gross(n)),   // the university's own full fee, for display
+      dueFee: due,
+      cleared: collected + 1 >= due,    // +1 = rounding tolerance
+    })
   }
-  return { totalSems, collected: Math.round(collected), sems }
+  return { totalSems, collected: Math.round(collected), sharingPct, sems }
 }

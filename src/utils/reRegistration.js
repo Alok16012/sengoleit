@@ -58,12 +58,17 @@ export function nextTerm(student) {
 // only advances the term.
 export async function reRegistrationFee(student) {
   const t = nextTerm(student)
-  const { sems } = await computeSemesterFeeStatus({
+  const { sems, sharingPct } = await computeSemesterFeeStatus({
     programme_id: student.programme_id,
     session_id: student.session_id,
     duration: Number(student?.programs?.duration) || 1,
     fee_collected: student.fee_collected,
     coupon_discount: student.coupon_discount,
+    // The centre owes its share of the term, not the whole term — the same
+    // deduction admission takes. Frozen rate first, the centre's current rate
+    // only when this student predates the freeze.
+    center_id: student.center_id || student.centers?.id,
+    sharing_pct: student.fee_sharing_pct,
   })
   const cum = (n) => (n <= 0 ? 0 : (sems.find(s => s.sem === n)?.cumFee ?? 0))
   const due = (n) => (n <= 0 ? 0 : (sems.find(s => s.sem === n)?.dueFee ?? 0))
@@ -72,7 +77,17 @@ export async function reRegistrationFee(student) {
   const to = (t.current + 1) * perYear
   const fee = Math.max(cum(to) - cum(from), 0)
   const outstanding = Math.max(due(to) - (Number(student.fee_collected) || 0), 0)
-  return { fee, hold: Math.min(Math.ceil(fee * 0.5), outstanding), outstanding, ...t }
+  const grossOf = (n) => (n <= 0 ? 0 : (sems.find(s => s.sem === n)?.grossFee ?? 0))
+  return {
+    fee,
+    // What the university charges for the term before the centre's share, so
+    // the modal can show both instead of one figure that looks wrong either way.
+    grossFee: Math.max(grossOf(to) - grossOf(from), 0),
+    sharingPct,
+    hold: Math.min(Math.ceil(fee * 0.5), outstanding),
+    outstanding,
+    ...t,
+  }
 }
 
 // The Registration Certificate is issued once per YEAR of the course: a
@@ -89,6 +104,9 @@ export async function registrationYears(student) {
     duration: totalSems,
     fee_collected: student.fee_collected,
     coupon_discount: student.coupon_discount,
+    // Same units as fee_collected, or the year gate never clears.
+    center_id: student.center_id || student.centers?.id,
+    sharing_pct: student.fee_sharing_pct,
   })
   const years = []
   for (let y = 1; (y - 1) * 2 + 1 <= totalSems; y++) {
@@ -194,7 +212,7 @@ export async function approveReRegistration(req) {
   const req2 = await liveRequest(req)
   const { data: st } = await supabase
     .from('students')
-    .select('fee_collected, coupon_discount, programme_id, session_id, semester_year, programs(duration, semester_year)')
+    .select('fee_collected, coupon_discount, programme_id, session_id, semester_year, center_id, fee_sharing_pct, programs(duration, semester_year)')
     .eq('id', req2.student_id).maybeSingle()
   const collectedNow = Number(st?.fee_collected || 0)
 
@@ -211,6 +229,10 @@ export async function approveReRegistration(req) {
     duration: Number(st.programs?.duration) || 1,
     fee_collected: collectedNow,
     coupon_discount: st.coupon_discount,
+    // Must match what was quoted and held at request time, or approval credits
+    // a different number than the centre actually paid.
+    center_id: st.center_id || req2.center_id,
+    sharing_pct: st.fee_sharing_pct,
   })
   const termDue = sems.find(s => s.sem === toSem)?.dueFee ?? 0
   const remaining = Math.max(termDue - collectedNow, 0)
@@ -232,11 +254,22 @@ export async function approveReRegistration(req) {
     // New flow: money already left the wallet at request time. Credit only
     // what the term still lacks — the Exam Section may have collected part
     // of it from the same wallet while the request was pending.
-    const credit = Math.min(remaining, Number(req2.fee_amount || 0))
+    const held = Math.round(Number(req2.fee_amount || 0))
+    const credit = Math.min(remaining, held)
     if (credit > 0) {
       const { error: sErr } = await supabase.from('students')
         .update({ fee_collected: collectedNow + credit }).eq('id', req2.student_id)
       if (sErr) return { error: sErr }
+    }
+    // Whatever was held but is not owed goes back. The centre had it taken at
+    // request time, so keeping the excess would charge for nothing — it happens
+    // when the Exam Section collected part of the term meanwhile, and for every
+    // request raised before the fee was corrected to the centre's SHARE of the
+    // term rather than the university's whole fee.
+    const refund = held - credit
+    if (refund > 0) {
+      const { error: rErr } = await moveWallet(req2.center_id, -refund)
+      if (rErr) return { error: rErr }
     }
   }
 

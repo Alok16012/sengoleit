@@ -52,7 +52,7 @@ export default function CenterReRegistration() {
     // Only enrolled students can re-register — the rest are still in admission.
     const { data: rows } = await supabase
       .from('students')
-      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, semester_year, fee_collected, coupon_discount, center_id, programme_id, session_id, programs(program_name, duration, semester_year), academic_sessions(session_name)')
+      .select('id, student_name, enrollment_no, admission_number, mobile_no, gender, status, semester_year, fee_collected, coupon_discount, fee_sharing_pct, center_id, programme_id, session_id, programs(program_name, duration, semester_year), academic_sessions(session_name)')
       .eq('center_id', centerId)
       .eq('status', 'Approved')
       .not('is_hidden', 'is', true)

@@ -103,9 +103,21 @@ export default function ReRegistrationModal({ student, request, mode, onClose, o
                 ) : (
                   <>
                     {!request && (
-                      <p className="text-xs text-gray-500">
-                        {term.nextLabel} fee: <span className="font-semibold text-gray-700">{money(info?.fee)}</span>
-                      </p>
+                      <>
+                        {/* The centre's share is what it actually pays, so that
+                            is the headline. The university's full fee is shown
+                            under it only when sharing takes a cut — otherwise
+                            one number quietly stood for two different things. */}
+                        <p className="text-xs text-gray-500">
+                          {term.nextLabel} fee (your share): <span className="font-semibold text-gray-700">{money(info?.fee)}</span>
+                        </p>
+                        {Number(info?.sharingPct) > 0 && (
+                          <p className="text-[11px] text-gray-400">
+                            Full {term.nextLabel} fee {money(info?.grossFee)} — you keep {Number(info.sharingPct)}%,
+                            so {money(info?.fee)} is owed to the university.
+                          </p>
+                        )}
+                      </>
                     )}
                     {/* A ₹0 hold is the commonest thing a centre queries — it
                         looks like the deduction failed. Say which of the two

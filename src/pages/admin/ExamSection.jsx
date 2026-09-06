@@ -312,7 +312,7 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, fee_sharing_pct, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
     // Middle tier: everything except result_released_at, which needs
     // add_phd_portal_flow.sql. Without this tier a missing release column would
     // knock the whole result block down to MIN and hide declared results.
@@ -320,7 +320,7 @@ export default function ExamSection() {
     // Minimal fallback used when the exam-result / admit-card columns have not
     // been created yet (run_all_migrations.sql not applied). The forwarded
     // students still appear; only the result/release features stay inactive.
-    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
+    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, fee_sharing_pct, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
 
     let { data, error } = await supabase
       .from('students')
@@ -376,6 +376,11 @@ export default function ExamSection() {
         duration: student.programs?.duration,
         fee_collected: student.fee_collected,
         coupon_discount: student.coupon_discount,
+        // fee_collected is net of the centre's sharing share, so the gate it is
+        // measured against has to be too — otherwise "Collect ₹X" asks the
+        // centre for the university's share as well.
+        center_id: student.center_id || student.centers?.id,
+        sharing_pct: student.fee_sharing_pct,
       }),
       admitCardsFor(student.id),
     ])

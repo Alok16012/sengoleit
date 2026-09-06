@@ -14,6 +14,10 @@ export async function semesterResults(student) {
     duration: student.programs?.duration,
     fee_collected: student.fee_collected,
     coupon_discount: student.coupon_discount,
+    // Same units as fee_collected — a result follows the admit card, and that
+    // gate is the centre's payable, not the university's gross fee.
+    center_id: student.center_id || student.centers?.id,
+    sharing_pct: student.fee_sharing_pct,
   })
   const { data, error } = await supabase
     .from('student_results')
