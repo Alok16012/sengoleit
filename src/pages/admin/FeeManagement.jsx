@@ -103,6 +103,14 @@ export default function FeeManagement() {
   const [masterSession, setMasterSession] = useState('all')
   const [masterStatus, setMasterStatus] = useState('all')   // 'all' | 'done' | 'pending'
   const [viewStruct, setViewStruct] = useState(null)
+  // Multiple-select delete for the Done tab
+  const [doneSelected, setDoneSelected] = useState(new Set())
+  const [bulkDoneDeleting, setBulkDoneDeleting] = useState(false)
+  const toggleDoneSelected = (programId) => setDoneSelected(prev => {
+    const next = new Set(prev)
+    next.has(programId) ? next.delete(programId) : next.add(programId)
+    return next
+  })
 
   // editor state
   const [programs, setPrograms]             = useState([])
@@ -166,7 +174,34 @@ export default function FeeManagement() {
     const extra = count > 1 ? ` (all ${count} sessions)` : ''
     if (!confirm(`Delete fee for this course${extra}? This cannot be undone.`)) return
     await supabase.from('fee_structures').delete().eq('program_id', programId)
+    setDoneSelected(prev => { const n = new Set(prev); n.delete(programId); return n })
     fetchMaster()
+  }
+
+  // Bulk-delete all selected Done-tab programs.
+  async function handleBulkDeleteDone(feeRows) {
+    const selectedRows = feeRows.filter(r => doneSelected.has(r.program_id))
+    if (!selectedRows.length) return
+    const programIds = selectedRows.map(r => r.program_id)
+    const names = selectedRows.map(r => r.programs?.program_name || 'Unknown').join(', ')
+    // Count center_courses entries that will cascade-delete
+    const allStructIds = selectedRows.flatMap(r => (r.__sessions || [r]).map(s => s.id).filter(Boolean))
+    const { count } = await supabase.from('center_courses')
+      .select('id', { count: 'exact', head: true }).in('fee_structure_id', allStructIds)
+    if (!confirm(
+      `Delete fee structures for ${selectedRows.length} course${selectedRows.length > 1 ? 's' : ''}?\n${names}\n\n` +
+      (count ? `This also withdraws the course from ${count} centre allotment${count > 1 ? 's' : ''}.\n\n` : '') +
+      `This cannot be undone.`
+    )) return
+    setBulkDoneDeleting(true)
+    for (const pid of programIds) {
+      await supabase.from('fee_structures').delete().eq('program_id', pid)
+    }
+    setBulkDoneDeleting(false)
+    setDoneSelected(new Set())
+    await fetchMaster()
+    setFlash(`Deleted fee structures for ${selectedRows.length} course${selectedRows.length > 1 ? 's' : ''}.`)
+    setTimeout(() => setFlash(''), 4000)
   }
 
   // Auto-allot a newly created fee structure to every center that already
@@ -757,6 +792,25 @@ export default function FeeManagement() {
                 </div>
               </div>
             )}
+            {/* Bulk delete bar — shown only in Done tab when rows are ticked */}
+            {masterStatus === 'done' && doneSelected.size > 0 && (
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+                <p className="text-sm font-semibold text-red-700">
+                  {doneSelected.size} course{doneSelected.size > 1 ? 's' : ''} selected for deletion
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => setDoneSelected(new Set())}
+                    className="text-xs font-bold text-gray-500 hover:text-red-600 underline px-2">Clear</button>
+                  <button
+                    disabled={bulkDoneDeleting}
+                    onClick={() => handleBulkDeleteDone(feeRows)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 px-3.5 py-2 rounded-xl transition-colors">
+                    <Trash2 size={13} />
+                    {bulkDoneDeleting ? 'Deleting…' : `Delete ${doneSelected.size} Selected`}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
               {allRows.length === 0 && (masterSearch || masterDept !== 'all' || masterType !== 'all' || masterSession !== 'all' || masterStatus !== 'all') && (
                 <div className="flex flex-col items-center justify-center py-14 text-gray-300">
@@ -769,13 +823,25 @@ export default function FeeManagement() {
                 <thead>
                   <tr className="bg-[#933d18]">
                     <th className="px-4 py-3 w-10">
-                      <input type="checkbox"
-                        title="Select every course listed"
-                        checked={allRows.length > 0 && allRows.every(r => picked.has(r.program_id))}
-                        onChange={e => setPicked(e.target.checked
-                          ? new Set(allRows.map(r => r.program_id))
-                          : new Set())}
-                        className="accent-white w-4 h-4 align-middle" />
+                      {masterStatus === 'done' ? (
+                        // Done tab: header checkbox controls doneSelected
+                        <input type="checkbox"
+                          title="Select all for bulk delete"
+                          checked={feeRows.length > 0 && feeRows.every(r => doneSelected.has(r.program_id))}
+                          onChange={e => setDoneSelected(e.target.checked
+                            ? new Set(feeRows.map(r => r.program_id))
+                            : new Set())}
+                          className="accent-white w-4 h-4 align-middle" />
+                      ) : (
+                        // All / Pending / Expired: header checkbox controls picked (bulk fee set)
+                        <input type="checkbox"
+                          title="Select every course listed"
+                          checked={allRows.length > 0 && allRows.every(r => picked.has(r.program_id))}
+                          onChange={e => setPicked(e.target.checked
+                            ? new Set(allRows.map(r => r.program_id))
+                            : new Set())}
+                          className="accent-white w-4 h-4 align-middle" />
+                      )}
                     </th>
                     <th className="text-left text-white font-semibold px-4 py-3">#</th>
                     <th className="text-left text-white font-semibold px-4 py-3">Program</th>
@@ -831,11 +897,20 @@ export default function FeeManagement() {
                     }
                     const t = calcTotals(struct.fee_items, struct.total_semesters)
                     return (
-                      <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${picked.has(struct.program_id) ? 'bg-[#933d18]/5' : i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                      <tr key={struct.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                        masterStatus === 'done' && doneSelected.has(struct.program_id) ? 'bg-red-50'
+                        : picked.has(struct.program_id) ? 'bg-[#933d18]/5'
+                        : i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
                         <td className="px-4 py-3">
-                          <input type="checkbox" checked={picked.has(struct.program_id)}
-                            onChange={() => togglePicked(struct.program_id)}
-                            className="accent-[#933d18] w-4 h-4 align-middle" />
+                          {masterStatus === 'done' ? (
+                            <input type="checkbox" checked={doneSelected.has(struct.program_id)}
+                              onChange={() => toggleDoneSelected(struct.program_id)}
+                              className="accent-red-600 w-4 h-4 align-middle" />
+                          ) : (
+                            <input type="checkbox" checked={picked.has(struct.program_id)}
+                              onChange={() => togglePicked(struct.program_id)}
+                              className="accent-[#933d18] w-4 h-4 align-middle" />
+                          )}
                         </td>
                         <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
                         <td className="px-4 py-3">
