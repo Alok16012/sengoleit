@@ -34,7 +34,6 @@ export default function CenterCourses() {
   const [centersLoading, setCentersLoading] = useState(true)
 
   // List view state
-  const [listTab, setListTab]       = useState('pending') // 'pending' | 'approved'
   const [centerSearch, setCenterSearch] = useState('')
   const [superFilter, setSuperFilter] = useState('all')   // super_center id or 'all'
   const [centerFilter, setCenterFilter] = useState('all') // center id or 'all'
@@ -130,20 +129,11 @@ export default function CenterCourses() {
   const center  = centers.find(c => c.id === centerId)
   const progMap = Object.fromEntries(programs.map(p => [p.id, p]))
 
-  // ── Center list (status bar) ──
-  // "Pending" has to mean the same thing as the Pending COLUMN: courses waiting
-  // to be approved. It used to mean "this centre has no approved course", so a
-  // centre with 187 pending allotments sat in the Approved tab — because it also
-  // had approved ones — and the Pending tab showed only centres with nothing at
-  // all, every count reading 0.
-  //
-  // Centres with nothing yet still belong here (that is where a new centre gets
-  // its first course), but they come after the ones that actually need a
-  // decision.
-  const hasPending  = c => (counts[c.id]?.pending  || 0) > 0
-  const hasApproved = c => (counts[c.id]?.approved || 0) > 0
-  const pendingCenters  = centers.filter(c => hasPending(c) || !hasApproved(c))
-  const approvedCenters = centers.filter(hasApproved)
+  // ── Center list ──
+  // One single list: Pending and Approved used to be separate tabs, but a centre
+  // can have both kinds of course at once, so it appeared in both — splitting
+  // them only hid centres. Every centre is listed once, with its pending and
+  // approved counts side by side in the row.
   const cq = centerSearch.toLowerCase()
   // Super centers rank before regular centers, then alphabetical by name.
   const typeRank = c => (c.center_type === 'super_center' ? 0 : 1)
@@ -154,17 +144,16 @@ export default function CenterCourses() {
   const centersForDropdown = centers
     .filter(c => c.center_type === 'center' && (superFilter === 'all' || c.super_center_id === superFilter))
     .sort((a, b) => (a.center_name || '').localeCompare(b.center_name || ''))
-  const listCenters = (listTab === 'approved' ? approvedCenters : pendingCenters)
+  const listCenters = centers
     // Super Center filter → that super center's child centers (and the super
     // center row itself). Then optionally narrow to one specific center.
     .filter(c => superFilter === 'all' || c.super_center_id === superFilter || c.id === superFilter)
     .filter(c => centerFilter === 'all' || c.id === centerFilter)
     .filter(c => !cq || (c.center_name || '').toLowerCase().includes(cq) || (c.center_code || '').toLowerCase().includes(cq))
-    // On the Pending tab the centres with something to decide come first —
-    // otherwise the one centre with 187 waiting courses is buried under ten
-    // that have none.
+    // Centres with something to decide come first — otherwise the one centre
+    // with 187 waiting courses is buried under ten that have none.
     .sort((a, b) =>
-      (listTab === 'pending' ? (counts[b.id]?.pending || 0) - (counts[a.id]?.pending || 0) : 0)
+      (counts[b.id]?.pending || 0) - (counts[a.id]?.pending || 0)
       || typeRank(a) - typeRank(b)
       || (a.center_name || '').localeCompare(b.center_name || ''))
 
@@ -354,20 +343,6 @@ export default function CenterCourses() {
         ) : null}
 
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-            {[
-              { key: 'pending',  label: 'Pending',  count: pendingCenters.length,  icon: <Clock size={13} /> },
-              { key: 'approved', label: 'Approved', count: approvedCenters.length, icon: <CheckCircle2 size={13} /> },
-            ].map(t => (
-              <button key={t.key} onClick={() => setListTab(t.key)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  listTab === t.key ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}>
-                {t.icon} {t.label}
-                {t.count > 0 && <span className="bg-[#933d18] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{t.count}</span>}
-              </button>
-            ))}
-          </div>
           <div className="flex items-center gap-2 flex-wrap flex-1 justify-end min-w-[240px]">
             <select
               className="py-2.5 pl-3 pr-8 text-sm border border-gray-200 rounded-xl bg-white text-gray-700 focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 cursor-pointer"
@@ -392,9 +367,8 @@ export default function CenterCourses() {
         </div>
 
         <p className="text-xs text-gray-400 mb-3">
-          {listTab === 'pending'
-            ? 'Centers with courses waiting to be approved, listed first — then newly created centers with none yet. A center can appear in both tabs.'
-            : 'Centers that have at least one approved course.'}
+          All centers in one list — those with courses waiting to be approved come first.
+          The Pending and Approved columns show each center's course counts.
         </p>
 
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
@@ -415,7 +389,7 @@ export default function CenterCourses() {
               {centersLoading ? (
                 <tr><td colSpan={8} className="text-center text-gray-400 py-12">Loading...</td></tr>
               ) : listCenters.length === 0 ? (
-                <tr><td colSpan={8} className="text-center text-gray-400 py-12">No {listTab} centers</td></tr>
+                <tr><td colSpan={8} className="text-center text-gray-400 py-12">No centers found</td></tr>
               ) : listCenters.map((c, i) => {
                 const cnt = counts[c.id] || { pending: 0, approved: 0 }
                 return (
