@@ -60,6 +60,15 @@ export default function CenterCourses() {
   const [fSessions, setFSessions] = useState([])   // [] = all sessions (multi-select)
   const [sessOpen, setSessOpen]   = useState(false)
 
+  // Courses ticked in the Pending tab, by grouped-row key. Ticking a row takes
+  // the whole course — every session of it — exactly as its own button does.
+  const [picked, setPicked] = useState(new Set())
+  const togglePicked = (key) => setPicked(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
   const [busy, setBusy] = useState(null)
 
   // Ticking every session by hand means the same as ticking none, so it
@@ -223,6 +232,13 @@ export default function CenterCourses() {
   const visibleRows = structs.filter(s => (subTab === 'approved' ? !!allot[s.id] : !allot[s.id]) && matchesFilters(s))
   const groupedRows = groupByProgram(visibleRows)
 
+  // Only what is ticked AND on screen. A course ticked before the filters
+  // narrowed stays ticked but is not acted on — adding a course you cannot see
+  // is not what "Add 4 Selected" says it does.
+  const pickedRows = groupedRows.filter(g => picked.has(g.key))
+  const allShownPicked  = groupedRows.length > 0 && pickedRows.length === groupedRows.length
+  const someShownPicked = pickedRows.length > 0
+
   // Tab badges count COURSES and ignore the filters, so the numbers don't move
   // around as you search — the table below is what the filters narrow.
   const countCourses = (pred) => new Set(structs.filter(pred).map(s => s.program_id || s.id)).size
@@ -238,9 +254,17 @@ export default function CenterCourses() {
   const staleIds = Object.values(allot).filter(a => a.status !== 'approved').map(a => a.id)
 
   function openCenter(id) {
-    setCenterId(id); setSubTab('pending')
+    setCenterId(id); setSubTab('pending'); setPicked(new Set())
     setSearch(''); setFDept('all'); setFType('all'); setFSessions([]); setSessOpen(false)
   }
+
+  // Tick or clear every course the table is currently showing.
+  const toggleAllShown = () => setPicked(prev => {
+    const next = new Set(prev)
+    if (allShownPicked) groupedRows.forEach(g => next.delete(g.key))
+    else groupedRows.forEach(g => next.add(g.key))
+    return next
+  })
   function backToList() { setCenterId(''); loadCounts() }
 
   // ── Group actions: a grouped row bundles every session of one course, so the
@@ -267,13 +291,13 @@ export default function CenterCourses() {
     setBusy(null); loadCounts()
   }
 
-  // Add every course the Pending tab is currently showing, in one go — 180-odd
-  // courses one button at a time is not a workflow.
-  async function addAllVisible(groups) {
+  // Add every ticked course in one go — 300-odd courses one button at a time is
+  // not a workflow, and the header tick makes "all of them" one click.
+  async function addGroups(groups) {
     if (busy || !centerId) return
     const toAdd = groups.flatMap(g => g.items).filter(s => !allot[s.id])
     if (!toAdd.length) return
-    if (!confirm(`Add all ${groups.length} course(s) shown (${toAdd.length} session(s)) to this center?`)) return
+    if (!confirm(`Add ${groups.length} course(s) — ${toAdd.length} session(s) — to ${center?.center_name || 'this center'}?`)) return
     setBusy('all')
     const now = new Date().toISOString()
     // Chunked: one insert of several hundred rows trips Supabase's payload
@@ -288,6 +312,8 @@ export default function CenterCourses() {
         return next
       })
     }
+    // The rows just added leave the Pending tab, so their ticks go with them.
+    setPicked(prev => { const n = new Set(prev); groups.forEach(g => n.delete(g.key)); return n })
     setBusy(null); loadCounts()
   }
 
@@ -531,7 +557,7 @@ export default function CenterCourses() {
             { key: 'pending',  label: 'Pending',  count: pendingCount,  icon: <Clock size={13} /> },
             { key: 'approved', label: 'Approved', count: approvedCount, icon: <CheckCircle2 size={13} /> },
           ].map(t => (
-            <button key={t.key} onClick={() => setSubTab(t.key)}
+            <button key={t.key} onClick={() => { setSubTab(t.key); setPicked(new Set()) }}
               className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                 subTab === t.key ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}>
@@ -540,10 +566,16 @@ export default function CenterCourses() {
             </button>
           ))}
         </div>
-        {subTab === 'pending' && groupedRows.length > 0 && (
-          <Button onClick={() => addAllVisible(groupedRows)} disabled={busy != null}>
-            <Plus size={14} /> Add All {groupedRows.length} Shown
-          </Button>
+        {subTab === 'pending' && someShownPicked && (
+          <div className="flex items-center gap-2">
+            <button onClick={() => setPicked(new Set())}
+              className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2 py-2">
+              Clear
+            </button>
+            <Button onClick={() => addGroups(pickedRows)} disabled={busy != null}>
+              <Plus size={14} /> {busy === 'all' ? 'Adding…' : `Add ${pickedRows.length} Selected`}
+            </Button>
+          </div>
         )}
       </div>
 
@@ -564,7 +596,7 @@ export default function CenterCourses() {
 
       <p className="text-xs text-gray-400 mb-3">
         {subTab === 'pending'
-          ? <>Every course that has a fee in Fee Master and is not with this center yet. <strong>Add Course</strong> gives it to <strong>{center?.center_name}</strong> straight away — no approval step, it appears under Approved and goes live for the center.</>
+          ? <>Every course that has a fee in Fee Master and is not with this center yet. <strong>Add Course</strong> on a row gives it to <strong>{center?.center_name}</strong> straight away — no approval step, it appears under Approved and goes live for the center. Tick several (or the box in the header for all of them) to add them together.</>
           : <>Courses this center can offer right now. Removing one takes it back to the Pending tab.</>}
       </p>
 
@@ -572,6 +604,21 @@ export default function CenterCourses() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#933d18]">
+              {subTab === 'pending' && (
+                <th className="text-center text-white font-semibold px-4 py-3 w-12">
+                  <button onClick={toggleAllShown} disabled={busy != null || groupedRows.length === 0}
+                    title={allShownPicked ? 'Untick all shown' : 'Tick all shown'}
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mx-auto
+                      ${allShownPicked ? 'bg-white border-white'
+                        : someShownPicked ? 'bg-white/30 border-white'
+                        : 'border-white/70 bg-transparent hover:bg-white/20'}
+                      ${busy != null ? 'opacity-50' : ''}`}>
+                    {allShownPicked
+                      ? <Check size={13} className="text-[#933d18]" />
+                      : someShownPicked ? <span className="block w-2.5 h-0.5 bg-white rounded" /> : null}
+                  </button>
+                </th>
+              )}
               <th className="text-left text-white font-semibold px-4 py-3">#</th>
               <th className="text-left text-white font-semibold px-4 py-3">Program</th>
               <th className="text-left text-white font-semibold px-4 py-3">Department</th>
@@ -583,9 +630,9 @@ export default function CenterCourses() {
           </thead>
           <tbody>
             {loadingAllot ? (
-              <tr><td colSpan={7} className="text-center text-gray-400 py-12">Loading...</td></tr>
+              <tr><td colSpan={subTab === 'pending' ? 8 : 7} className="text-center text-gray-400 py-12">Loading...</td></tr>
             ) : groupedRows.length === 0 ? (
-              <tr><td colSpan={7} className="text-center text-gray-400 py-12">
+              <tr><td colSpan={subTab === 'pending' ? 8 : 7} className="text-center text-gray-400 py-12">
                 {subTab === 'pending'
                   ? (catalogFilterActive
                       ? 'No course matches these filters — the rest are already with this center (see Approved), or try clearing the filters.'
@@ -604,8 +651,20 @@ export default function CenterCourses() {
               const sessions = [...new Set(g.items.map(s => s.academic_sessions?.session_name || 'All Sessions'))].join(', ')
               const semSet = [...new Set(g.items.map(s => s.total_semesters).filter(v => v != null))]
               const totalSet = [...new Set(g.items.map(s => fmt(grandTotal(s.fee_items, s.total_semesters))))]
+              const isPicked = picked.has(g.key)
               return (
-                <tr key={g.key} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
+                <tr key={g.key} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${
+                  isPicked && subTab === 'pending' ? 'bg-[#933d18]/5' : i % 2 ? 'bg-gray-50/50' : ''}`}>
+                  {subTab === 'pending' && (
+                    <td className="px-4 py-3 text-center align-top">
+                      <button onClick={() => togglePicked(g.key)} disabled={busy != null}
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mx-auto
+                          ${isPicked ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300 bg-white hover:border-[#933d18]'}
+                          ${busy != null ? 'opacity-50' : ''}`}>
+                        {isPicked && <Check size={13} className="text-white" />}
+                      </button>
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-gray-400 text-xs align-top">{i + 1}</td>
                   <td className="px-4 py-3 font-semibold text-gray-900 align-top">
                     {g.program_name}
