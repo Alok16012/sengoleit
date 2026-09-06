@@ -353,6 +353,31 @@ export default function CenterCourses() {
     setBusy(null); loadCounts()
   }
 
+  // The Approved tab's counterpart to addGroups — take every ticked course off
+  // the center at once. Removing means the center can no longer offer it, so
+  // the confirm names the size of it rather than just asking.
+  async function removeGroups(groups) {
+    if (busy) return
+    const items = groups.flatMap(g => g.items)
+    const ids = items.map(s => allot[s.id]?.id).filter(Boolean)
+    if (!ids.length) return
+    if (!confirm(
+      `Remove ${groups.length} course(s) — ${ids.length} session(s) — from ${center?.center_name || 'this center'}?\n\n`
+      + `The center will no longer be able to offer them.`
+    )) return
+    setBusy('all')
+    // Chunked for the same reason the insert is: a few hundred ids in one
+    // .in() blows past the URL length limit and the delete quietly matches
+    // nothing.
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await supabase.from('center_courses').delete().in('id', ids.slice(i, i + 200))
+      if (error) { setBusy(null); alert('Could not remove these:\n\n' + error.message); loadCounts(); return }
+    }
+    setAllot(prev => { const next = { ...prev }; items.forEach(s => delete next[s.id]); return next })
+    setPicked(prev => { const n = new Set(prev); groups.forEach(g => n.delete(g.key)); return n })
+    setBusy(null); loadCounts()
+  }
+
   // ═══════════════ CENTER LIST VIEW ═══════════════
   if (!centerId) {
     return (
@@ -578,15 +603,24 @@ export default function CenterCourses() {
             </button>
           ))}
         </div>
-        {subTab === 'pending' && someShownPicked && (
+        {someShownPicked && (
           <div className="flex items-center gap-2">
             <button onClick={() => setPicked(new Set())}
               className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2 py-2">
               Clear
             </button>
-            <Button onClick={() => addGroups(pickedRows)} disabled={busy != null}>
-              <Plus size={14} /> {busy === 'all' ? 'Adding…' : `Add ${pickedRows.length} Selected`}
-            </Button>
+            {subTab === 'pending' ? (
+              <Button onClick={() => addGroups(pickedRows)} disabled={busy != null}>
+                <Plus size={14} /> {busy === 'all' ? 'Adding…' : `Add ${pickedRows.length} Selected`}
+              </Button>
+            ) : (
+              // Not the primary button: removing takes courses away from a
+              // center, so it should not look like the thing to click.
+              <button onClick={() => removeGroups(pickedRows)} disabled={busy != null}
+                className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50">
+                <Trash2 size={14} /> {busy === 'all' ? 'Removing…' : `Remove ${pickedRows.length} Selected`}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -609,28 +643,26 @@ export default function CenterCourses() {
       <p className="text-xs text-gray-400 mb-3">
         {subTab === 'pending'
           ? <>Every course that has a fee in Fee Master and is not with this center yet. <strong>Add Course</strong> on a row gives it to <strong>{center?.center_name}</strong> straight away — no approval step, it appears under Approved and goes live for the center. Tick several (or the box in the header for all of them) to add them together.</>
-          : <>Courses this center can offer right now. Removing one takes it back to the Pending tab.</>}
+          : <>Courses this center can offer right now. <strong>Remove</strong> takes one back to the Pending tab — tick several (or the box in the header for all of them) to remove them together.</>}
       </p>
 
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#933d18]">
-              {subTab === 'pending' && (
-                <th className="text-center text-white font-semibold px-4 py-3 w-12">
-                  <button onClick={toggleAllShown} disabled={busy != null || groupedRows.length === 0}
-                    title={allShownPicked ? 'Untick all shown' : 'Tick all shown'}
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mx-auto
-                      ${allShownPicked ? 'bg-white border-white'
-                        : someShownPicked ? 'bg-white/30 border-white'
-                        : 'border-white/70 bg-transparent hover:bg-white/20'}
-                      ${busy != null ? 'opacity-50' : ''}`}>
-                    {allShownPicked
-                      ? <Check size={13} className="text-[#933d18]" />
-                      : someShownPicked ? <span className="block w-2.5 h-0.5 bg-white rounded" /> : null}
-                  </button>
-                </th>
-              )}
+              <th className="text-center text-white font-semibold px-4 py-3 w-12">
+                <button onClick={toggleAllShown} disabled={busy != null || groupedRows.length === 0}
+                  title={allShownPicked ? 'Untick all shown' : 'Tick all shown'}
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mx-auto
+                    ${allShownPicked ? 'bg-white border-white'
+                      : someShownPicked ? 'bg-white/30 border-white'
+                      : 'border-white/70 bg-transparent hover:bg-white/20'}
+                    ${busy != null ? 'opacity-50' : ''}`}>
+                  {allShownPicked
+                    ? <Check size={13} className="text-[#933d18]" />
+                    : someShownPicked ? <span className="block w-2.5 h-0.5 bg-white rounded" /> : null}
+                </button>
+              </th>
               <th className="text-left text-white font-semibold px-4 py-3">#</th>
               <th className="text-left text-white font-semibold px-4 py-3">Program</th>
               <th className="text-left text-white font-semibold px-4 py-3">Department</th>
@@ -642,9 +674,9 @@ export default function CenterCourses() {
           </thead>
           <tbody>
             {loadingAllot ? (
-              <tr><td colSpan={subTab === 'pending' ? 8 : 7} className="text-center text-gray-400 py-12">Loading...</td></tr>
+              <tr><td colSpan={8} className="text-center text-gray-400 py-12">Loading...</td></tr>
             ) : groupedRows.length === 0 ? (
-              <tr><td colSpan={subTab === 'pending' ? 8 : 7} className="text-center text-gray-400 py-12">
+              <tr><td colSpan={8} className="text-center text-gray-400 py-12">
                 {subTab === 'pending'
                   ? (catalogFilterActive
                       ? 'No course matches these filters — the rest are already with this center (see Approved), or try clearing the filters.'
@@ -666,17 +698,15 @@ export default function CenterCourses() {
               const isPicked = picked.has(g.key)
               return (
                 <tr key={g.key} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${
-                  isPicked && subTab === 'pending' ? 'bg-[#933d18]/5' : i % 2 ? 'bg-gray-50/50' : ''}`}>
-                  {subTab === 'pending' && (
-                    <td className="px-4 py-3 text-center align-top">
-                      <button onClick={() => togglePicked(g.key)} disabled={busy != null}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mx-auto
-                          ${isPicked ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300 bg-white hover:border-[#933d18]'}
-                          ${busy != null ? 'opacity-50' : ''}`}>
-                        {isPicked && <Check size={13} className="text-white" />}
-                      </button>
-                    </td>
-                  )}
+                  isPicked ? 'bg-[#933d18]/5' : i % 2 ? 'bg-gray-50/50' : ''}`}>
+                  <td className="px-4 py-3 text-center align-top">
+                    <button onClick={() => togglePicked(g.key)} disabled={busy != null}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors mx-auto
+                        ${isPicked ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300 bg-white hover:border-[#933d18]'}
+                        ${busy != null ? 'opacity-50' : ''}`}>
+                      {isPicked && <Check size={13} className="text-white" />}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-gray-400 text-xs align-top">{i + 1}</td>
                   <td className="px-4 py-3 font-semibold text-gray-900 align-top">
                     {g.program_name}
