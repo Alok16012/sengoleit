@@ -205,9 +205,11 @@ export default function FeeManagement() {
   }
 
   // Auto-allot a newly created fee structure to every center that already
-  // offers this program (for any of its other sessions), added as Pending — so
-  // a session added in Fee Master shows up in those centers' Center Courses
-  // lists automatically, without re-adding it per center by hand.
+  // offers this program (for any of its other sessions) — so a session added in
+  // Fee Master reaches those centers automatically, without re-adding it per
+  // center by hand. Allotted courses have no approval step any more, and
+  // 'pending' rows are invisible to the center portal and to admission, so it
+  // goes in live like a hand-added one.
   async function autoAllotToProgramCenters(programId, newStructureId) {
     const { data: progStructs } = await supabase.from('fee_structures')
       .select('id').eq('program_id', programId)
@@ -221,8 +223,9 @@ export default function FeeManagement() {
     const { data: onNew } = await supabase.from('center_courses')
       .select('center_id').eq('fee_structure_id', newStructureId)
     const have = new Set((onNew || []).map(r => r.center_id))
+    const now = new Date().toISOString()
     const rows = centerIds.filter(cid => !have.has(cid))
-      .map(cid => ({ center_id: cid, fee_structure_id: newStructureId, status: 'pending' }))
+      .map(cid => ({ center_id: cid, fee_structure_id: newStructureId, status: 'approved', approved_at: now }))
     if (rows.length) await supabase.from('center_courses').insert(rows)
   }
 
