@@ -6,7 +6,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Edit, Trash2, Plus, Search, X } from 'lucide-react'
+import { Edit, Trash2, Plus, Search, X, Check } from 'lucide-react'
 
 const calcSemesters = (p) => {
   if (!p.duration) return p.semester_year || '—'
@@ -32,6 +32,14 @@ export default function Programs() {
   const [deptFilter, setDeptFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [modeFilter, setModeFilter] = useState('all')
+  // Programs ticked for deletion, by id.
+  const [picked, setPicked] = useState(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const togglePicked = (id) => setPicked(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
   const navigate = useNavigate()
 
   useEffect(() => { fetchData() }, [])
@@ -50,6 +58,65 @@ export default function Programs() {
   async function handleDelete(id) {
     if (!confirm('Delete this program?')) return
     await supabase.from('programs').delete().eq('id', id)
+    setPicked(prev => { const n = new Set(prev); n.delete(id); return n })
+    fetchData()
+  }
+
+  // Count rows in `table` pointing at these programs, asked in chunks — a few
+  // hundred ids in one .in() blows past the URL length limit and comes back 0,
+  // which would read as "nothing depends on these".
+  async function countBy(table, column, ids) {
+    let total = 0
+    for (let i = 0; i < ids.length; i += 150) {
+      const { count, error } = await supabase.from(table)
+        .select('id', { count: 'exact', head: true }).in(column, ids.slice(i, i + 150))
+      if (error) return null
+      total += count || 0
+    }
+    return total
+  }
+
+  // Deleting a programme is not a small thing: its fee structures go with it
+  // (ON DELETE CASCADE), and a fee structure leaving withdraws the course from
+  // every centre allotted it. So the confirm says the size of it, and a
+  // programme that still has students is refused outright — a student whose
+  // programme is deleted either blocks the delete on the foreign key or is left
+  // pointing at nothing, and neither is worth risking in a bulk action.
+  async function handleBulkDelete() {
+    const ids = filtered.filter(p => picked.has(p.id)).map(p => p.id)
+    if (!ids.length || bulkDeleting) return
+    const names = filtered.filter(p => picked.has(p.id)).map(p => p.program_name).filter(Boolean)
+
+    const students = await countBy('students', 'programme_id', ids)
+    if (students === null) { alert('Could not check which programs have students, so nothing was deleted.'); return }
+    if (students > 0) {
+      alert(
+        `${students} student${students > 1 ? 's are' : ' is'} admitted in the selected program${ids.length > 1 ? 's' : ''}, `
+        + `so they cannot be deleted here.\n\nMove or remove those students first.`
+      )
+      return
+    }
+    const fees = await countBy('fee_structures', 'program_id', ids)
+
+    if (!confirm(
+      `Delete ${ids.length} program${ids.length > 1 ? 's' : ''}?\n`
+      + names.slice(0, 8).join(', ') + (names.length > 8 ? `, +${names.length - 8} more` : '') + '\n\n'
+      + (fees ? `This also deletes ${fees} fee structure${fees > 1 ? 's' : ''}, withdrawing the course from every center allotted it.\n\n` : '')
+      + `This cannot be undone.`
+    )) return
+
+    setBulkDeleting(true)
+    for (let i = 0; i < ids.length; i += 150) {
+      const { error } = await supabase.from('programs').delete().in('id', ids.slice(i, i + 150))
+      if (error) {
+        setBulkDeleting(false)
+        alert('Deletion stopped:\n\n' + error.message)
+        setPicked(new Set()); fetchData()
+        return
+      }
+    }
+    setBulkDeleting(false)
+    setPicked(new Set())
     fetchData()
   }
 
@@ -81,6 +148,19 @@ export default function Programs() {
 
   const anyFilter = !!search || deptFilter !== 'all' || typeFilter !== 'all' || modeFilter !== 'all'
   const clearFilters = () => { setSearch(''); setDeptFilter('all'); setTypeFilter('all'); setModeFilter('all') }
+
+  // Only what is ticked AND on screen. Tick ten, then filter down to two, and
+  // the button says two and deletes two — deleting a program you cannot see is
+  // not what it offers to do.
+  const pickedShown = filtered.filter(p => picked.has(p.id))
+  const allShownPicked  = filtered.length > 0 && pickedShown.length === filtered.length
+  const someShownPicked = pickedShown.length > 0
+  const toggleAllShown = () => setPicked(prev => {
+    const next = new Set(prev)
+    if (allShownPicked) filtered.forEach(p => next.delete(p.id))
+    else filtered.forEach(p => next.add(p.id))
+    return next
+  })
 
   return (
     <div className="p-6">
@@ -163,12 +243,39 @@ export default function Programs() {
           ]} />
       </div>
 
+      {someShownPicked && (
+        <div className="flex items-center gap-3 flex-wrap mb-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+          <span className="text-sm font-semibold text-red-800">
+            {pickedShown.length} program{pickedShown.length > 1 ? 's' : ''} selected
+          </span>
+          <button onClick={() => setPicked(new Set())}
+            className="text-xs font-semibold text-gray-500 hover:text-gray-700">Clear</button>
+          <button onClick={handleBulkDelete} disabled={bulkDeleting}
+            className="ml-auto flex items-center gap-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3.5 py-2 rounded-lg transition-colors disabled:opacity-50">
+            <Trash2 size={13} /> {bulkDeleting ? 'Deleting…' : `Delete ${pickedShown.length} Selected`}
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
         <Table>
           <Thead>
             <tr>
+              <Th className="w-10">
+                <button onClick={toggleAllShown} disabled={bulkDeleting || filtered.length === 0}
+                  title={allShownPicked ? 'Untick all shown' : 'Tick all shown'}
+                  className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors
+                    ${allShownPicked ? 'bg-[#933d18] border-[#933d18]'
+                      : someShownPicked ? 'bg-[#933d18]/30 border-[#933d18]'
+                      : 'border-gray-300 bg-white hover:border-[#933d18]'}
+                    ${bulkDeleting ? 'opacity-50' : ''}`}>
+                  {allShownPicked
+                    ? <Check size={11} className="text-white" />
+                    : someShownPicked ? <span className="block w-2 h-0.5 bg-[#933d18] rounded" /> : null}
+                </button>
+              </Th>
               <Th>#</Th>
               <Th>Program Name</Th>
               <Th>Course Code</Th>
@@ -192,11 +299,19 @@ export default function Programs() {
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={18} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={20} className="text-center text-gray-400 py-12">
                 {anyFilter ? 'No programs match the current filters — try clearing them.' : 'No programs found'}
               </Td></Tr>
             ) : filtered.map((p, i) => (
-              <Tr key={p.id}>
+              <Tr key={p.id} className={picked.has(p.id) ? 'bg-[#933d18]/5' : undefined}>
+                <Td className="w-10">
+                  <button onClick={() => togglePicked(p.id)} disabled={bulkDeleting}
+                    className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors
+                      ${picked.has(p.id) ? 'bg-[#933d18] border-[#933d18]' : 'border-gray-300 bg-white hover:border-[#933d18]'}
+                      ${bulkDeleting ? 'opacity-50' : ''}`}>
+                    {picked.has(p.id) && <Check size={11} className="text-white" />}
+                  </button>
+                </Td>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td><p className="font-semibold text-gray-900 whitespace-nowrap">{p.program_name}</p></Td>
                 <Td className="text-gray-500 text-xs whitespace-nowrap">{p.course_code || '—'}</Td>
