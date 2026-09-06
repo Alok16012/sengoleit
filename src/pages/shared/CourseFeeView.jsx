@@ -6,6 +6,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import { generateCourseFeeListPDF } from '../../utils/generateCourseFeeListPDF'
 import { isOfferable } from '../../utils/feeValidity'
+import { fetchAllRows } from '../../utils/fetchAllRows'
 import { isCharged } from '../../utils/feeItems'
 
 // ── Searchable single-select dropdown ──────────────────────────────────────
@@ -123,6 +124,10 @@ export default function CourseFeeView() {
   const [centerRowId, setCenterRowId] = useState(null) // null = admin/unrestricted
   const [scoped,      setScoped]      = useState(false) // true once we know this is a center
   const [allotRows,   setAllotRows]   = useState(null)  // null = unrestricted (admin); else the center's approved courses
+  // Why a centre has nothing to pick from. Every one of these used to look
+  // identical on screen — five empty dropdowns and a dead Search button — so a
+  // centre could not tell "nothing allotted" from "the read failed".
+  const [allotWhy,    setAllotWhy]    = useState('')
 
   const [sessions,    setSessions]    = useState([])
   const [departments, setDepartments] = useState([])
@@ -151,27 +156,51 @@ export default function CourseFeeView() {
         if (!data) { setCenterRowId(null); setScoped(false); setAllotRows(null); return }
         setCenterRowId(data.id); setScoped(true)
 
-        const { data: cc } = await supabase.from('center_courses')
-          .select('fee_structure_id').eq('center_id', data.id).eq('status', 'approved')
-        const fsIds = [...new Set((cc || []).map(r => r.fee_structure_id).filter(Boolean))]
-        if (!fsIds.length) { setAllotRows([]); return }
+        // Everything in ONE read, embedded through the foreign keys.
+        //
+        // This used to fetch the ids, then ask fee_structures for .in(id, …),
+        // then programs for .in(id, …). A centre with 960 allotted courses
+        // turned that into a 35,000-character query string, far past the URL
+        // length limit — the request came back with nothing, so every dropdown
+        // was empty and Search could never be enabled. Embedding sends the
+        // centre id and nothing else, whatever the count.
+        //
+        // The error was dropped here too, so a blocked read and a centre with
+        // no courses looked identical: an empty list and no way to tell.
+        const { data: cc, error: ccErr } = await fetchAllRows(() => supabase
+          .from('center_courses')
+          .select('fee_structures(id, program_id, session_id, valid_from, valid_to, programs(program_name, department_id, programme_type_id, semester_year))')
+          .eq('center_id', data.id).eq('status', 'approved')
+          .order('id'))
+        if (ccErr) {
+          setAllotWhy(`Your allotted courses could not be read: ${ccErr.message}`)
+          setAllotRows([]); return
+        }
+        // De-duplicated: the same fee structure can be allotted only once, but
+        // the embed is defensive about it.
+        const byId = new Map()
+        for (const r of cc || []) if (r.fee_structures?.id) byId.set(r.fee_structures.id, r.fee_structures)
+        const fsAll = [...byId.values()]
+        if (!fsAll.length) {
+          setAllotWhy('No course has been allotted to your center yet. Please ask the university administrator to allot your courses.')
+          setAllotRows([]); return
+        }
 
         // A fee whose validity window has passed is no longer offered, so it
         // does not belong in the centre's own course list either. The window is
         // about OFFERING — students already admitted keep their fee.
-        const { data: fsAll } = await supabase.from('fee_structures')
-          .select('id, program_id, session_id, valid_from, valid_to').in('id', fsIds)
-        const fs = (fsAll || []).filter(isOfferable)
-        const progIds = [...new Set((fs || []).map(f => f.program_id).filter(Boolean))]
-        const { data: progs } = progIds.length
-          ? await supabase.from('programs').select('id, program_name, department_id, programme_type_id, semester_year').in('id', progIds)
-          : { data: [] }
-        const progMap = Object.fromEntries((progs || []).map(p => [p.id, p]))
+        const fs = fsAll.filter(isOfferable)
+        if (!fs.length) {
+          // Allotted, but every one of them has lapsed. Saying "nothing
+          // allotted" here would send the centre to the admin for the wrong fix.
+          setAllotWhy(`Your center has ${fsAll.length} allotted course fee(s), but none can be offered today — their validity window has passed. Please ask the administrator to update the fee validity.`)
+          setAllotRows([]); return
+        }
 
         // One row per allotted+approved fee structure, carrying its facets so the
         // filter dropdowns can cascade (e.g. a session shows only its own depts).
-        const rows = (fs || []).map(f => {
-          const p = progMap[f.program_id] || {}
+        const rows = fs.map(f => {
+          const p = f.programs || {}
           return {
             fee_structure_id:  f.id,
             session_id:        f.session_id,
@@ -297,11 +326,15 @@ export default function CourseFeeView() {
       // an expired fee is exactly what they need to see to revise it.
       if (centerRowId) {
         fsList = fsList.filter(isOfferable)
-        const { data: cc, error: ccErr } = await supabase
+        // Paged: a single select stops at 1000 rows, and a centre allotted more
+        // than that would silently lose the courses past the cut — they would
+        // simply not appear in its own fee list.
+        const { data: cc, error: ccErr } = await fetchAllRows(() => supabase
           .from('center_courses')
           .select('fee_structure_id')
           .eq('center_id', centerRowId)
           .eq('status', 'approved')
+          .order('id'))
         if (ccErr) throw ccErr
         const allow = new Set((cc || []).map(r => r.fee_structure_id))
         fsList = fsList.filter(f => allow.has(f.id))
@@ -435,9 +468,40 @@ export default function CourseFeeView() {
     programOpts = programs.map(p   => ({ id: p.id, label: p.program_name }))
   }
 
+  // A required dropdown with no options is a dead end: Search can never be
+  // enabled, and the screen gives no clue why. It happens when the allotted
+  // courses carry no department / programme type, or when no study_mode maps to
+  // their Semester-or-Year setting — none of which the centre can guess at.
+  const emptyRequired = isCenter && allotRows.length > 0 ? [
+    !deptOpts.length    && 'Department',
+    !typeOpts.length    && 'Program Type',
+    !modeOpts.length    && 'Mode',
+    !programOpts.length && 'Program Name',
+  ].filter(Boolean) : []
+
   return (
     <div className="p-6 space-y-5">
       <PageHeader title="Center Course Fee" subtitle="Search fee structure by session, department and program" />
+
+      {/* Why there is nothing to pick. Without this the page looks the same
+          whether the centre simply has not chosen yet or has no courses at
+          all — five placeholders and a Search button that never enables. */}
+      {allotWhy && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          <span>{allotWhy}</span>
+        </div>
+      )}
+      {!allotWhy && emptyRequired.length > 0 && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+          <AlertCircle size={16} className="shrink-0 mt-0.5" />
+          <span>
+            Your allotted courses do not fill in <strong>{emptyRequired.join(', ')}</strong>, so
+            that filter has nothing to choose and the search cannot run. Please ask the
+            administrator to check these courses in Programs.
+          </span>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-2xl border border-gray-200 p-5">
