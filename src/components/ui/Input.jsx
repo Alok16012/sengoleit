@@ -1,3 +1,18 @@
+// Writing to an input's .value puts the caret at the END of the field, so
+// auto-capitalising mid-word threw the cursor to the end and the next keystroke
+// landed there — typing into the middle of a name was impossible.
+//
+// Capitalising only changes a letter's case, never the length, so the offsets
+// read before the write are still the right ones afterwards.
+function capitaliseInPlace(el, cap) {
+  const start = el.selectionStart
+  const end = el.selectionEnd
+  el.value = cap
+  // Inputs that do not support a text selection (number, email…) throw here.
+  // Only text fields are capitalised, but the guard costs nothing.
+  try { el.setSelectionRange(start, end) } catch { /* no selection to restore */ }
+}
+
 export default function Input({ label, error, hint, className = '', type, onChange, capitalize, ...props }) {
   // Auto-capitalise the first letter of every word in plain text fields
   // (names, addresses…) — e.g. "alok kumar" -> "Alok Kumar".
@@ -6,9 +21,10 @@ export default function Input({ label, error, hint, className = '', type, onChan
   const handleChange = onChange
     ? (e) => {
         if (shouldCap && e.target.value) {
-          const v = e.target.value
+          const el = e.target
+          const v = el.value
           const cap = v.replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
-          if (cap !== v) e.target.value = cap
+          if (cap !== v) capitaliseInPlace(el, cap)
         }
         onChange(e)
       }
@@ -68,9 +84,10 @@ export function Textarea({ label, error, hint, className = '', onChange, capital
   const handleChange = onChange
     ? (e) => {
         if (capitalize !== false && e.target.value) {
-          const v = e.target.value
+          const el = e.target
+          const v = el.value
           const cap = v.replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase())
-          if (cap !== v) e.target.value = cap
+          if (cap !== v) capitaliseInPlace(el, cap)
         }
         onChange(e)
       }
