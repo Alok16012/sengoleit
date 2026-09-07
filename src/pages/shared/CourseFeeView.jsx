@@ -128,6 +128,10 @@ export default function CourseFeeView() {
   // identical on screen — five empty dropdowns and a dead Search button — so a
   // centre could not tell "nothing allotted" from "the read failed".
   const [allotWhy,    setAllotWhy]    = useState('')
+  // What this centre KEEPS out of the course fee — centers.fee_sharing, the
+  // same number computeCumulativeCourseFee deducts by. 0 for an admin, who is
+  // not a centre and keeps nothing.
+  const [sharingPct,  setSharingPct]  = useState(0)
 
   const [sessions,    setSessions]    = useState([])
   const [departments, setDepartments] = useState([])
@@ -151,10 +155,13 @@ export default function CourseFeeView() {
   // and derive the dropdown options from the center's allotted+approved courses.
   useEffect(() => {
     if (!user?.email) return
-    supabase.from('centers').select('id').eq('email', user.email).maybeSingle()
+    supabase.from('centers').select('id, fee_sharing').eq('email', user.email).maybeSingle()
       .then(async ({ data }) => {
-        if (!data) { setCenterRowId(null); setScoped(false); setAllotRows(null); return }
+        if (!data) { setCenterRowId(null); setScoped(false); setAllotRows(null); setSharingPct(0); return }
         setCenterRowId(data.id); setScoped(true)
+        // Capped 0..100 like centerSharingPct does, so a mis-typed rate can
+        // never make a share bigger than the fee.
+        setSharingPct(Math.min(Math.max(Number(data.fee_sharing) || 0, 0), 100))
 
         // Everything in ONE read, embedded through the foreign keys.
         //
@@ -420,6 +427,13 @@ export default function CourseFeeView() {
   })
   const grandTotal = groupedRows.reduce((s, g) => s + g.grandTotal, 0)
 
+  // The centre keeps `sharingPct` of the fee and the university is owed the
+  // rest — the same split computeCumulativeCourseFee applies when a student is
+  // admitted, so what the centre reads here is what it is actually billed.
+  // Rounded once per amount, so the two parts always add back to the total.
+  const showShare = scoped && sharingPct > 0
+  const shareOf = (amount) => Math.round((Number(amount) || 0) * sharingPct / 100)
+
   // Expand the (grouped) representative structures back to per-semester rows for
   // the detailed PDF export.
   const buildPdfRows = () => {
@@ -576,6 +590,10 @@ export default function CourseFeeView() {
                     <Th className="text-right">Entry Fees</Th>
                     <Th className="text-right">Per Sem</Th>
                     <Th className="text-right">Grand Total</Th>
+                    {/* What the centre keeps out of that total. Shown only to a
+                        centre with a rate set — an admin is not a centre, and a
+                        centre on 0% would just read a column of zeroes. */}
+                    {showShare && <Th className="text-right">Your Share ({sharingPct}%)</Th>}
                     <Th className="text-center">Actions</Th>
                   </tr>
                 </Thead>
@@ -598,6 +616,14 @@ export default function CourseFeeView() {
                       <Td className="text-right font-mono font-semibold text-amber-700 whitespace-nowrap text-xs">{fmt(row.entryTotal)}</Td>
                       <Td className="text-right font-mono font-semibold text-[#933d18] whitespace-nowrap text-xs">{fmt(row.perSem)}</Td>
                       <Td className="text-right font-mono font-black text-gray-900 whitespace-nowrap">{fmt(row.grandTotal)}</Td>
+                      {showShare && (
+                        <Td className="text-right whitespace-nowrap">
+                          <span className="font-mono font-black text-emerald-700">{fmt(shareOf(row.grandTotal))}</span>
+                          <span className="block text-[11px] text-gray-400 font-mono">
+                            university {fmt(row.grandTotal - shareOf(row.grandTotal))}
+                          </span>
+                        </Td>
+                      )}
                       <Td className="text-center">
                         <button
                           onClick={() => setViewRow(row)}
@@ -612,9 +638,23 @@ export default function CourseFeeView() {
                 </Tbody>
               </Table>
             </div>
-            <div className="flex justify-end items-center gap-3 px-5 py-3 border-t border-gray-100 bg-[#933d18]/5">
-              <span className="text-xs font-black text-gray-500 uppercase tracking-wider">Grand Total</span>
-              <span className="font-black text-[#933d18] text-base font-mono">{fmt(grandTotal)}</span>
+            <div className="flex justify-end items-center gap-5 flex-wrap px-5 py-3 border-t border-gray-100 bg-[#933d18]/5">
+              {showShare && (
+                <>
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs font-black text-gray-500 uppercase tracking-wider">Your Share ({sharingPct}%)</span>
+                    <span className="font-black text-emerald-700 text-base font-mono">{fmt(shareOf(grandTotal))}</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs font-black text-gray-500 uppercase tracking-wider">To University</span>
+                    <span className="font-black text-gray-700 text-base font-mono">{fmt(grandTotal - shareOf(grandTotal))}</span>
+                  </span>
+                </>
+              )}
+              <span className="flex items-center gap-2">
+                <span className="text-xs font-black text-gray-500 uppercase tracking-wider">Grand Total</span>
+                <span className="font-black text-[#933d18] text-base font-mono">{fmt(grandTotal)}</span>
+              </span>
             </div>
           </div>
         )
