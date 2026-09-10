@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight, Lock, Check } from 'lucide-react'
 import CommissionRecipients from '../../components/admin/CommissionRecipients'
+import { ENTRY_TYPES } from '../../utils/entryTypes'
 
 const APPROVAL_COLORS = {
   pending: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -60,6 +61,26 @@ export default function Centers() {
     const map = {}
     for (const r of data || []) (map[r.center_id] ||= []).push(r)
     setCommissions(map)
+  }
+
+  // Tick / untick one entry type for a centre. Ticking the last remaining one
+  // off stores an empty array, which reads as "no restriction" — the same as a
+  // centre that was never configured.
+  async function toggleEntryType(center, type) {
+    const key = `entry_types-${center.id}`
+    if (savingField[key]) return
+    const current = center.entry_types || []
+    const next = current.includes(type) ? current.filter(t => t !== type) : [...current, type]
+    setSavingField(prev => ({ ...prev, [key]: true }))
+    const { error } = await supabase.from('centers').update({ entry_types: next }).eq('id', center.id)
+    setSavingField(prev => ({ ...prev, [key]: false }))
+    if (error) {
+      alert(/entry_types|column/i.test(error.message || '')
+        ? 'This needs a database update — nothing was saved.\n\nPlease run add_center_entry_types.sql in Supabase.'
+        : 'Could not save: ' + error.message)
+      return
+    }
+    setData(prev => prev.map(r => r.id === center.id ? { ...r, entry_types: next } : r))
   }
 
   async function handleDelete(id, name) {
@@ -289,6 +310,7 @@ export default function Centers() {
             { header: 'Commission', value: c => (commissions[c.id] || []).map(r => `${Number(r.percent)}%`).join(' + ') },
             { header: 'Commission Paid To', value: c => (commissions[c.id] || [])
               .map(r => data.find(s => s.id === r.super_center_id)?.center_name || '').filter(Boolean).join(', ') },
+            { header: 'Entry Type', value: c => ((c.entry_types || []).length ? c.entry_types.join(', ') : 'All') },
             { header: 'Approval', value: c => c.approval_status || 'Pending' },
             { header: 'Status', value: c => c.status || 'Pending' },
           ]} />
@@ -314,11 +336,12 @@ export default function Centers() {
               <Th className="min-w-[160px]">Fee Sharing</Th>
               <Th className="min-w-[160px]">Commission</Th>
               <Th>Actions</Th>
+              <Th className="min-w-[200px]">Entry Type</Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={14} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
+              <Tr><Td colSpan={15} className="text-center text-gray-400 py-12">No centers found</Td></Tr>
             ) : filtered.map((c, i) => (
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -472,6 +495,31 @@ export default function Centers() {
                       <Trash2 size={14} className="text-red-500" />
                     </Button>
                   </div>
+                </Td>
+                {/* Which entry types this centre may admit under. Nothing ticked
+                    means no restriction — the dropdown keeps all three — rather
+                    than a centre that cannot admit anyone. */}
+                <Td>
+                  <div className="flex flex-wrap gap-1">
+                    {ENTRY_TYPES.map(t => {
+                      const on = (c.entry_types || []).includes(t)
+                      const none = !(c.entry_types || []).length
+                      return (
+                        <button key={t} onClick={() => toggleEntryType(c, t)}
+                          disabled={savingField[`entry_types-${c.id}`]}
+                          title={none ? 'No restriction — all entry types allowed' : on ? `${t} allowed — click to remove` : `Click to allow ${t}`}
+                          className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-colors disabled:opacity-40 ${
+                            on ? 'bg-[#933d18] text-white border-[#933d18]'
+                               : none ? 'bg-gray-50 text-gray-400 border-dashed border-gray-300'
+                               : 'bg-white text-gray-400 border-gray-200 hover:border-[#933d18]'}`}>
+                          {t}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {!(c.entry_types || []).length && (
+                    <span className="block text-[10px] text-gray-400 mt-1">All allowed</span>
+                  )}
                 </Td>
               </Tr>
             ))}

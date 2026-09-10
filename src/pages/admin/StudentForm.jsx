@@ -14,6 +14,7 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { findFreeNumber, countIssued } from '../../utils/uniqueNumbers'
 import { isOfferable } from '../../utils/feeValidity'
 import { docUrls, signDocUrl, openDocUrl } from '../../utils/studentDocs'
+import { ENTRY_TYPES } from '../../utils/entryTypes'
 import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, EyeOff,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft,
@@ -571,6 +572,17 @@ export default function StudentForm() {
   const [programmeTypes, setProgrammeTypes] = useState([])
   const [departments, setDepartments] = useState([])
   const [centers, setCenters] = useState([])
+  // The entry types the logged-in CENTRE is allowed to admit under, set by the
+  // admin on the Centers list. null = never restricted, which is every centre
+  // until someone says otherwise.
+  const [myEntryTypes, setMyEntryTypes] = useState(null)
+  // Empty = no restriction. An admin picks the centre from a dropdown, so the
+  // restriction is read off whichever centre is selected; a centre user is
+  // always its own. Declared here, below the state it reads — above it, the
+  // consts are still in their dead zone and the page throws on first render.
+  const allowedEntryTypes = (isAdmin
+    ? centers.find(c => c.id === form?.center_id)?.entry_types
+    : myEntryTypes) || []
   const [sessions, setSessions] = useState([])
   const [studyModes, setStudyModes] = useState([])
   const [boards, setBoards] = useState([])
@@ -629,6 +641,16 @@ export default function StudentForm() {
       setUniversities(unis.data || [])
       setPrograms(progs.data || [])
       setDepartments(depts.data || [])
+      // entry_types arrives with add_center_entry_types.sql. Asked for
+      // separately so a database without it still loads the centre list —
+      // naming a missing column fails the WHOLE select, which would leave
+      // the centre dropdown empty and no student could be entered at all.
+      supabase.from('centers').select('id, entry_types')
+        .then(({ data }) => {
+          if (!data) return
+          const byId = Object.fromEntries(data.map(c => [c.id, c.entry_types]))
+          setCenters(prev => prev.map(c => ({ ...c, entry_types: byId[c.id] || null })))
+        })
       // Programme types drive the minimum required prior education when a program
       // has no explicit required_education_level set. Loaded resiliently.
       supabase.from('programme_types').select('id, programme_type_name')
@@ -661,6 +683,10 @@ export default function StudentForm() {
             if (cd) {
               setForm(f => ({ ...f, center_id: cd.id, center_name: cd.center_name }))
               setIsStagingCenter(!!cd.is_staging)
+              // Same reason as above: kept out of the main select so a
+              // missing column cannot stop a centre filling its own id in.
+              supabase.from('centers').select('entry_types').eq('id', cd.id).maybeSingle()
+                .then(({ data: et }) => setMyEntryTypes(et?.entry_types || null))
             }
           })
       }
@@ -1511,10 +1537,14 @@ export default function StudentForm() {
                 className="bg-gray-50 text-gray-700 font-medium cursor-not-allowed"
                 hint="Set automatically from the programme"
               />
+              {/* Narrowed to what this centre is allowed to admit under. An
+                  admin, or a centre with nothing set, sees all three. The
+                  value already on an existing student is always kept, so a
+                  later restriction cannot make a saved record unselectable. */}
               <Select label="Entry Type *" value={form.entry_type} onChange={set('entry_type')} disabled={isReadOnly || isLocked('entry_type')}>
-                <option value="Regular">Regular</option>
-                <option value="Lateral">Lateral</option>
-                <option value="External">External</option>
+                {ENTRY_TYPES
+                  .filter(t => !allowedEntryTypes.length || allowedEntryTypes.includes(t) || t === form.entry_type)
+                  .map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
