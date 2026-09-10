@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button'
 import { formatDate, approvalPaymentDate } from '../../utils/formatDate'
 import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2, Clock } from 'lucide-react'
 import CommissionWallet from '../../components/admin/CommissionWallet'
+import { fetchAllRows } from '../../utils/fetchAllRows'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -183,38 +184,35 @@ export default function CouponManagement() {
 
   useEffect(() => { fetchData() }, [])
 
-  // Fetch coupons for the Pending tab (Generate / Unused / Used sub-tabs)
-  async function fetchPending(subTab) {
+  // Every coupon the Pending tab works from. Fetched RAW — the sub-tab used to
+  // be applied here, which made each sub-tab's count meaningless: the list was
+  // already narrowed to the open tab, so "Used" counted the used rows inside a
+  // list that had just excluded them and always read 0.
+  //
+  // Paged rather than capped at 200: past that a centre's coupons simply were
+  // not in the list, which read as the centre having none.
+  async function fetchPending() {
     setPendingLoading(true)
-    setPendingCoupons([])
     try {
-      const { data, error } = await supabase
+      const { data, error } = await fetchAllRows(() => supabase
         .from('coupons')
         .select('*, centers(center_name, center_code, center_type, super_center_id)')
         .is('application_id', null)
         .order('created_at', { ascending: false })
-        .limit(200)
-      if (!error && data) {
-        const filtered = data.filter(c => {
-          if (subTab === 'generate') return !(c.is_used || c.used_at) && !c.is_rejected
-          if (subTab === 'unused') return !(c.is_used || c.used_at) && !c.is_rejected && c.coupon_type === 'discount'
-          if (subTab === 'used') return !!(c.is_used || c.used_at) && c.coupon_type === 'discount'
-          return true
-        })
-        setPendingCoupons(filtered)
-      }
+        .order('id'))
+      if (error) console.error('pending fetch error:', error)
+      setPendingCoupons(data || [])
     } catch (e) {
       console.error('pending fetch error:', e)
     }
     setPendingLoading(false)
   }
 
-  // Load pending coupons when the Pending tab or sub-tab changes
+  // Only when the tab is opened. Switching sub-tab no longer refetches — it is
+  // the same set of rows, sliced differently.
   useEffect(() => {
-    if (directType === 'pending') {
-      fetchPending(pendingSubTab)
-    }
-  }, [directType, pendingSubTab])
+    if (directType === 'pending') fetchPending()
+  }, [directType])
 
   // Super Center / Center scope, applied to every tab. A coupon's owning super
   // center = the center itself if it IS a super center (approval codes), else its
@@ -227,6 +225,14 @@ export default function CouponManagement() {
     if (centerFilter && c.center_id !== centerFilter) return false
     return true
   }
+  // What each Pending sub-tab means, in one place — the tab counts and the
+  // table used to carry their own copies of these tests and drift apart.
+  const PENDING_MATCH = {
+    generate: c => !(c.is_used || c.used_at) && !c.is_rejected,
+    unused:   c => !(c.is_used || c.used_at) && !c.is_rejected && c.coupon_type === 'discount',
+    used:     c => !!(c.is_used || c.used_at) && c.coupon_type === 'discount',
+  }
+
   // Same scope test for a plain center row (used by the Coupon Wallet tab).
   function centerScopeMatch(ctr) {
     if (superFilter !== 'all') {
@@ -236,6 +242,11 @@ export default function CouponManagement() {
     if (centerFilter && ctr.id !== centerFilter) return false
     return true
   }
+
+  // The Pending tab's rows, narrowed by the page's Super Center / Center
+  // dropdowns like every other tab already was.
+  const pendingInScope = pendingCoupons.filter(scopeMatch)
+  const pendingRows = pendingInScope.filter(PENDING_MATCH[pendingSubTab] || (() => true))
 
   const filtered = coupons.filter(c => {
     const isUsed = !!(c.is_used || c.used_at)
@@ -500,12 +511,11 @@ export default function CouponManagement() {
               { k: 'used', label: 'Used' },
             ].map(t => {
               const isActive = pendingSubTab === t.k
-              const count = pendingCoupons.filter(c => {
-                if (t.k === 'generate') return !(c.is_used || c.used_at) && !c.is_rejected
-                if (t.k === 'unused') return !(c.is_used || c.used_at) && !c.is_rejected && c.coupon_type === 'discount'
-                if (t.k === 'used') return !!(c.is_used || c.used_at) && c.coupon_type === 'discount'
-                return true
-              }).length
+              // Counted off the SAME scoped set the table draws from, so the
+              // number beside a tab is the number of rows it opens. The Super
+              // Center / Center dropdowns were skipped here entirely, so the
+              // counts stayed global while the filters said otherwise.
+              const count = pendingInScope.filter(PENDING_MATCH[t.k]).length
               return (
                 <button key={t.k} onClick={() => setPendingSubTab(t.k)}
                   className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
@@ -518,7 +528,7 @@ export default function CouponManagement() {
           </div>
           {pendingLoading ? (
             <p className="text-sm text-gray-400 py-8 text-center">Loading…</p>
-          ) : pendingCoupons.length === 0 ? (
+          ) : pendingRows.length === 0 ? (
             <p className="text-sm text-gray-400 py-4 text-center">No coupons in this category.</p>
           ) : (
             <div className="border border-gray-100 rounded-xl overflow-x-auto">
@@ -534,7 +544,7 @@ export default function CouponManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pendingCoupons.map((c, i) => {
+                  {pendingRows.map((c, i) => {
                     const isUsed = !!(c.is_used || c.used_at)
                     return (
                       <tr key={c.id} className={`border-t ${i % 2 ? 'bg-gray-50/50' : ''}`}>

@@ -42,7 +42,9 @@ export default function BalanceView() {
 
   useEffect(() => {
     if (!user) return
-    supabase.from('centers').select('id, center_name, center_code, virtual_balance, center_type').eq('email', user.email).maybeSingle()
+    supabase.from('centers')
+      .select('id, center_name, center_code, virtual_balance, center_type, amount_paid, payment_date, payment_paid_at, utr_number, payment_screenshot_url, payment_status, created_at')
+      .eq('email', user.email).maybeSingle()
       .then(async ({ data, error }) => {
         if (error) { setCenterErr(`Center lookup failed: ${error.message}`); setLoading(false); return }
         if (!data) { setCenterErr('No center found linked to your account. Contact admin.'); setLoading(false); return }
@@ -251,13 +253,39 @@ export default function BalanceView() {
     verified: r => r.status === 'verified',
     rejected: r => r.status === 'rejected',
   }
+  // The fee the centre paid to be set up. It never reached virtual_balance —
+  // it was taken as an admission coupon instead — so it is deliberately kept
+  // out of every figure above and appears only as a line in the history, which
+  // otherwise read "No recharge requests yet" for a centre that had in fact
+  // paid ₹15,000. Built from the centre's own row; there is no recharge request
+  // behind it and there should not be one.
+  const signupPayment = Number(center?.amount_paid || 0) > 0 ? {
+    id: '__signup__',
+    amount: Number(center.amount_paid),
+    utr_number: center.utr_number,
+    payment_date: center.payment_date,
+    utr_screenshot_url: center.payment_screenshot_url,
+    notes: 'For new center create',
+    created_at: center.payment_paid_at || center.created_at,
+    verified_at: center.payment_paid_at,
+    status: center.payment_status === 'paid' ? 'verified' : (center.payment_status || 'pending'),
+    admin_remarks: 'Paid at registration — issued as an admission coupon, not added to the wallet.',
+    __signup: true,
+  } : null
+
+  // Counted in the tabs like any other line, so the numbers match what the
+  // table shows.
+  const withSignup = signupPayment ? [...requests, signupPayment] : requests
   const statusCounts = {
-    pending:  requests.filter(STATUS_MATCH.pending).length,
-    hold:     requests.filter(STATUS_MATCH.hold).length,
-    verified: requests.filter(STATUS_MATCH.verified).length,
-    rejected: requests.filter(STATUS_MATCH.rejected).length,
+    pending:  withSignup.filter(STATUS_MATCH.pending).length,
+    hold:     withSignup.filter(STATUS_MATCH.hold).length,
+    verified: withSignup.filter(STATUS_MATCH.verified).length,
+    rejected: withSignup.filter(STATUS_MATCH.rejected).length,
   }
-  const filteredRequests = requests.filter(STATUS_MATCH[statusFilter] || (() => true))
+  // Newest first, same as the recharge list arrives in.
+  const filteredRequests = withSignup
+    .filter(STATUS_MATCH[statusFilter] || (() => true))
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 
   // Sub-centers' recharge history, for the super center's oversight section.
   const filteredChildRequests = childRequests.filter(r => centerFilter === 'all' || r.center_id === centerFilter)
@@ -424,7 +452,14 @@ export default function BalanceView() {
             ) : filteredRequests.map((r, i) => (
               <Tr key={r.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                <Td><span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span></Td>
+                <Td>
+                  <span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span>
+                  {/* Said on the row itself, because this amount is the one
+                      thing in the table that is NOT in the balance above. */}
+                  {r.__signup && (
+                    <span className="block text-[10px] font-semibold text-[#933d18] mt-0.5">Center registration</span>
+                  )}
+                </Td>
                 <Td className="font-mono text-sm text-gray-700">{r.utr_number || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{formatDate(r.payment_date)}</Td>
                 <Td>
@@ -438,7 +473,9 @@ export default function BalanceView() {
                 <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
                 <Td className="text-gray-500 text-xs max-w-[200px]">{r.admin_remarks || '—'}</Td>
                 <Td>
-                  {r.status === 'hold' ? (
+                  {r.__signup ? (
+                    <span className="text-gray-300 text-xs">—</span>
+                  ) : r.status === 'hold' ? (
                     <button
                       onClick={() => openEditModal(r)}
                       className="inline-flex items-center gap-1.5 text-xs font-bold text-[#933d18] bg-[#933d18]/8 border border-[#933d18]/20 px-3 py-1.5 rounded-lg hover:bg-[#933d18]/15 transition-colors"
