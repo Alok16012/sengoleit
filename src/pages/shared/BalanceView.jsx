@@ -8,7 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import DateInput from '../../components/ui/DateInput'
-import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2, Pencil, TrendingDown } from 'lucide-react'
+import { Wallet, Plus, Upload, RefreshCw, AlertCircle, CheckCircle2, Pencil, TrendingDown, Ticket } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 
 export default function BalanceView() {
@@ -19,6 +19,10 @@ export default function BalanceView() {
   const [statusFilter, setStatusFilter] = useState('all')
   // Super center only: list of its sub-centers + their recharge history, for
   // the "My Centers" oversight section (separate from its own wallet above).
+  // This centre's own coupons. A coupon never passes through virtual_balance —
+  // it discounts a student's fee directly — so the wallet figures cannot see it
+  // without this.
+  const [coupons, setCoupons] = useState([])
   const [subCenters, setSubCenters] = useState([])
   const [childRequests, setChildRequests] = useState([])
   // Commission earned by this super centre: what is owed, and what has already
@@ -49,6 +53,10 @@ export default function BalanceView() {
         if (error) { setCenterErr(`Center lookup failed: ${error.message}`); setLoading(false); return }
         if (!data) { setCenterErr('No center found linked to your account. Contact admin.'); setLoading(false); return }
         setCenter(data)
+        supabase.from('coupons')
+          .select('face_value, coupon_type, is_used, used_at, is_disabled, is_rejected')
+          .eq('center_id', data.id)
+          .then(({ data: cpns }) => setCoupons(cpns || []))
         if (data.center_type === 'super_center') {
           // Super center also has its own wallet + recharge history (fetched
           // below via fetchRequests), plus visibility into its centers' recharges.
@@ -237,8 +245,24 @@ export default function BalanceView() {
   const childBalanceSum = subCenters.reduce((s, c) => s + Number(c.virtual_balance || 0), 0)
 
   const totalPending = isSuperCenter ? ownTotalPending + childTotalPending : ownTotalPending
+
+  // Coupons. A wallet coupon is spending power the centre holds OUTSIDE
+  // virtual_balance: redeeming one discounts a student's fee, so the wallet
+  // never moves and none of the figures below could see it.
+  //
+  // Unspent coupons are shown on their own card and deliberately left out of
+  // the balances — the money has not been spent yet. A SPENT coupon is added
+  // to what the centre has recharged, and since used = recharged − available,
+  // and available did not change, the same amount lands in Used Balance too.
+  const couponSum = (pred) => coupons
+    .filter(c => (c.coupon_type || 'discount').toLowerCase() !== 'approval')
+    .filter(pred)
+    .reduce((s, c) => s + Number(c.face_value || 0), 0)
+  const couponUsed = couponSum(c => !!(c.is_used || c.used_at))
+  const couponAvailable = couponSum(c => !(c.is_used || c.used_at) && !c.is_disabled && !c.is_rejected)
+
   // Total recharged (all verified) vs currently available vs used (spent).
-  const totalRecharged = isSuperCenter ? ownTotalRecharged + childTotalVerified : ownTotalRecharged
+  const totalRecharged = (isSuperCenter ? ownTotalRecharged + childTotalVerified : ownTotalRecharged) + couponUsed
   const availableBalance = isSuperCenter
     ? Number(center?.virtual_balance || 0) + childBalanceSum
     : Number(center?.virtual_balance || 0)
@@ -321,7 +345,7 @@ export default function BalanceView() {
       )}
 
       {/* Balance Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 mb-6">
         <div className="bg-gradient-to-br from-[#933d18] to-[#7d3314] rounded-2xl p-4 text-white">
           <div className="flex items-center gap-2 mb-2">
             <Wallet size={16} className="opacity-80" />
@@ -342,13 +366,29 @@ export default function BalanceView() {
           <p className="text-[11px] text-orange-500 mt-1">Spent so far</p>
         </div>
 
+        {/* Spending power the centre holds outside the wallet. Kept OUT of the
+            three figures above until a coupon is actually redeemed — an unused
+            coupon is not money spent. */}
+        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Ticket size={16} className="text-emerald-600" />
+            <p className="text-xs font-semibold text-emerald-700">Available Coupon</p>
+          </div>
+          <p className="text-2xl font-bold text-emerald-800">₹{couponAvailable.toLocaleString()}</p>
+          <p className="text-[11px] text-emerald-500 mt-1">
+            {couponUsed > 0 ? `₹${couponUsed.toLocaleString()} used so far` : 'Not yet used'}
+          </p>
+        </div>
+
         <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-2">
             <Wallet size={16} className="text-blue-500" />
             <p className="text-xs font-semibold text-blue-700">Total Balance</p>
           </div>
           <p className="text-2xl font-bold text-blue-800">₹{totalRecharged.toLocaleString()}</p>
-          <p className="text-[11px] text-blue-500 mt-1">Total recharged</p>
+          <p className="text-[11px] text-blue-500 mt-1">
+            {couponUsed > 0 ? 'Recharged + coupons used' : 'Total recharged'}
+          </p>
         </div>
 
         <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
