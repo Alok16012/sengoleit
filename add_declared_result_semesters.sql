@@ -20,8 +20,12 @@
 -- portal_results is left exactly as it is — result VIEWING still waits for
 -- Activate everywhere.
 --
--- Run once in Supabase -> SQL Editor. Safe to re-run.
--- Depends on: fix_center_portal_reads.sql (portal_center_ids).
+-- Run once in Supabase -> SQL Editor. Safe to re-run. Stands alone: the centre
+-- lookup is inlined rather than calling portal_center_ids(), which lives in
+-- fix_center_portal_reads.sql and is not present on every database. A plpgsql
+-- body is not checked for missing functions when it is created, so depending on
+-- it would have compiled fine here and then failed at runtime for every centre
+-- — the gate would have silently stayed exactly as it was.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION portal_declared_semesters(p_students uuid[])
@@ -46,7 +50,18 @@ BEGIN
     RETURN payload;
   END IF;
 
-  ids := portal_center_ids();
+  -- The centres the caller speaks for: its own, plus every sub-centre when the
+  -- caller is a super centre. Same rule as portal_center_ids(), inlined so this
+  -- file does not depend on that one having been run.
+  SELECT coalesce(array_agg(DISTINCT t.id), '{}'::uuid[]) INTO ids
+  FROM (
+    SELECT c.id FROM centers c
+     WHERE c.email = (auth.jwt() ->> 'email')
+    UNION
+    SELECT child.id FROM centers child
+      JOIN centers parent ON parent.id = child.super_center_id
+     WHERE parent.email = (auth.jwt() ->> 'email')
+  ) t;
   IF coalesce(array_length(ids, 1), 0) = 0 THEN RETURN '[]'::jsonb; END IF;
 
   -- No released_at condition on purpose: a declared result opens
