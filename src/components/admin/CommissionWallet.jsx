@@ -55,7 +55,9 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
     // found nothing and printed a slice of its uuid instead.
     const { data: ctr } = await supabase
       .from('centers')
-      .select('id, center_name, center_code, center_type, commission_balance, base_fee')
+      // amount_paid is the fee the centre paid to be created — the first money
+      // it ever hands over, and commission is earned on it like any recharge.
+      .select('id, center_name, center_code, center_type, commission_balance, base_fee, amount_paid, payment_date, created_at')
       .order('center_name')
 
     const { data: led } = await supabase
@@ -78,8 +80,14 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
     // error.
     const { data: rates, error: rateErr } = await supabase
       .from('center_commissions').select('center_id, super_center_id, percent')
-    const { data: paid } = await supabase
-      .from('recharge_commissions').select('id, recharge_id, super_center_id, coupon_id, percent, amount, sent_at')
+    // source / center_id arrive with add_registration_commission.sql; retry
+    // without them so the tab still works on a database that has not run it.
+    let { data: paid } = await supabase
+      .from('recharge_commissions').select('id, recharge_id, center_id, source, super_center_id, coupon_id, percent, amount, sent_at')
+    if (!paid) {
+      ;({ data: paid } = await supabase
+        .from('recharge_commissions').select('id, recharge_id, super_center_id, coupon_id, percent, amount, sent_at'))
+    }
 
     const couponIds = [...new Set((paid || []).map(p => p.coupon_id).filter(Boolean))]
     let couponMap = {}
@@ -145,22 +153,46 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
       rates.filter(r => r.super_center_id === selectedSC.id).map(r => [r.center_id, Number(r.percent)])
     )
     const centerById = new Map(centers.map(c => [c.id, c]))
-    return recharges
+    const build = (row) => ({
+      ...row,
+      center: centerById.get(row.center_id),
+      pct: rateFor.get(row.center_id) || 0,
+      commission: Math.round((Number(row.amount) || 0) * (rateFor.get(row.center_id) || 0) / 100),
+      // Everyone this money owes, so the confirm can name them.
+      owedTo: rates.filter(x => x.center_id === row.center_id),
+    })
+
+    const rechargeRows = recharges
       .filter(r => rateFor.has(r.center_id))
+      .map(r => ({
+        ...build(r),
+        kind: 'recharge',
+        paid: paidRows.find(p => p.recharge_id === r.id && p.super_center_id === selectedSC.id) || null,
+      }))
+
+    // The fee a centre paid to be created earns the same rate. It is not a
+    // recharge_requests row — it was taken as an admission coupon, never a
+    // wallet top-up — so it is built from the centre itself and matched on
+    // (centre, super centre) rather than on a recharge id.
+    const registrationRows = centers
+      .filter(c => rateFor.has(c.id) && Number(c.amount_paid || 0) > 0)
+      .map(c => ({
+        ...build({
+          id: `reg-${c.id}`,
+          center_id: c.id,
+          amount: Number(c.amount_paid),
+          notes: 'Center registration fee',
+          created_at: c.payment_date || c.created_at,
+          status: 'verified',
+        }),
+        kind: 'registration',
+        paid: paidRows.find(p =>
+          p.source === 'registration' && p.center_id === c.id && p.super_center_id === selectedSC.id) || null,
+      }))
+
+    return [...registrationRows, ...rechargeRows]
       .filter(r => !centerId || r.center_id === centerId)
-      .map(r => {
-        const pct = rateFor.get(r.center_id) || 0
-        const mine = paidRows.find(p => p.recharge_id === r.id && p.super_center_id === selectedSC.id)
-        return {
-          ...r,
-          center: centerById.get(r.center_id),
-          pct,
-          commission: Math.round((Number(r.amount) || 0) * pct / 100),
-          paid: mine || null,
-          // Everyone this recharge owes, so the confirm can name them.
-          owedTo: rates.filter(x => x.center_id === r.center_id),
-        }
-      })
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
   }, [recharges, centers, rates, paidRows, selectedSC, centerId])
 
   // Until a tab is picked, land on the one with something to act on. The
@@ -212,20 +244,26 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
     // separately would be a way to forget one.
     const others = row.owedTo.filter(o => o.super_center_id !== selectedSC.id)
     const nameOf = id => centers.find(c => c.id === id)?.center_name || 'another super center'
+    const isReg = row.kind === 'registration'
+    const what = isReg ? 'registration fee' : 'recharge'
     if (!confirm(
-      `Generate the commission on ${row.center?.center_name || 'this center'}'s recharge of ${fmt(row.amount)}?\n\n` +
+      `Generate the commission on ${row.center?.center_name || 'this center'}'s ${what} of ${fmt(row.amount)}?\n\n` +
       `${selectedSC.center_name}: ${row.pct}% = ${fmt(row.commission)}\n` +
       others.map(o => `${nameOf(o.super_center_id)}: ${o.percent}% = ${fmt(Math.round((Number(row.amount) || 0) * Number(o.percent) / 100))}`).join('\n') +
       (others.length ? '\n\nAll of the above are recorded — the commission is owed to each.' : '') +
       `\n\nThis records what is OWED. Nothing reaches a wallet until you send it.`
     )) return
     setGenBusy(row.id)
-    const { data, error } = await supabase.rpc('generate_commission_payables', { p_recharge: row.id })
+    // A registration fee has no recharge row behind it, so it goes through its
+    // own function, keyed on the centre.
+    const { data, error } = isReg
+      ? await supabase.rpc('generate_registration_commission', { p_center: row.center_id })
+      : await supabase.rpc('generate_commission_payables', { p_recharge: row.id })
     setGenBusy(null)
     if (error) {
-      const missing = /generate_commission_payables|PGRST202|42883|schema cache/i.test(error.message || '')
+      const missing = /generate_commission_payables|generate_registration_commission|PGRST202|42883|schema cache/i.test(error.message || '')
       alert(missing
-        ? 'This needs a database update — nothing was created.\n\nPlease run add_commission_payout.sql in Supabase.'
+        ? `This needs a database update — nothing was created.\n\nPlease run ${isReg ? 'add_registration_commission.sql' : 'add_commission_payout.sql'} in Supabase.`
         : 'Nothing was created:\n\n' + error.message)
       await fetchAll()
       return
@@ -465,7 +503,14 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                           <p className="font-semibold text-gray-900">{r.center?.center_name || '—'}</p>
                           {r.center?.center_code && <span className="text-[10px] text-gray-400 font-mono">{r.center.center_code}</span>}
                         </td>
-                        <td className="px-3 py-2 text-right font-bold">{fmt(r.amount)}</td>
+                        <td className="px-3 py-2 text-right font-bold">
+                          {fmt(r.amount)}
+                          {/* Said on the row: this one is not a recharge, and
+                              it never went through the centre's wallet. */}
+                          {r.kind === 'registration' && (
+                            <span className="block text-[10px] font-bold text-[#933d18]">Registration</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-xs text-gray-500">{r.notes || '—'}</td>
                         <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
                           {r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '—'}
