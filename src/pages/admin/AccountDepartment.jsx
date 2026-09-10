@@ -63,6 +63,9 @@ export default function AccountDepartment() {
   const [rejectNotes, setRejectNotes] = useState('')
   const [approvedModal, setApprovedModal] = useState(null)
   const [studentActionModal, setStudentActionModal] = useState(null)
+  // True while an approve/reject is actually running, so a second click cannot
+  // start it again — the money moves in here.
+  const [savingAction, setSavingAction] = useState(false)
   const [studentRemarks, setStudentRemarks] = useState('')
   // Course fee + center wallet info for the student being approved. The fee is
   // collected here (in full, less any reserved coupon) at approval time.
@@ -870,18 +873,49 @@ export default function AccountDepartment() {
     return `${prefix}${n}`
   }
 
+  // The busy flag is set here rather than inside, because the body returns
+  // early in a dozen places and every one of them has to release it.
   async function confirmStudentAction() {
+    if (savingAction) return
+    setSavingAction(true)
+    try { await runStudentAction() } finally { setSavingAction(false) }
+  }
+
+  async function runStudentAction() {
     const { student, type } = studentActionModal
     if (type === 'reject' && !studentRemarks.trim()) {
       alert('A reason for rejection is required')
       return
     }
     if (type === 'approve') {
+      // Approving is several awaits long — wallet, two number generators, the
+      // student row, the ledger — and the button was live throughout, so a
+      // second click ran the whole thing again against the SAME stale student
+      // object. fee_held still read as it did before, so the shortfall was
+      // charged twice and the Payment Summary grew two identical Admission
+      // lines, while fee_collected was simply overwritten with the same figure.
+      //
+      // The status is re-read from the database rather than trusted from the
+      // modal: that also stops a second tab, or a reload, approving again.
+      const { data: fresh, error: freshErr } = await supabase
+        .from('students').select('status, fee_held').eq('id', student.id).maybeSingle()
+      if (freshErr) {
+        alert('Could not check this application\'s current status, so nothing was changed:\n\n' + freshErr.message)
+        return
+      }
+      if (fresh?.status === 'Approved') {
+        alert('This application has already been approved — the fee was collected then. Nothing was charged again.')
+        setStudentActionModal(null)
+        await fetchData()
+        return
+      }
       // The fee was already HELD (deducted from the wallet) when the center
       // forwarded the student. Approving simply converts that hold into a
       // collected fee — no second deduction. Older records that were forwarded
       // before the hold mechanism (fee_held null) fall back to deducting now.
-      const held = Number(student.fee_held || 0)
+      // From the row just read, not the list's copy — the hold is what the
+      // whole calculation below turns on.
+      const held = Number(fresh?.fee_held ?? student.fee_held ?? 0)
       // One rate for every student: half the fee due so far, less any coupon.
       // A record forwarded before holds existed (fee_held null) used to be
       // charged the FULL course fee here — twice what everyone else pays for
@@ -912,11 +946,31 @@ export default function AccountDepartment() {
       // Take the money BEFORE issuing numbers. A failed wallet write used to go
       // unchecked here, which approved the student and left the fee uncollected.
       if (toDeduct > 0 && student.centers?.id) {
-        const { error: wErr } = await supabase.from('centers')
-          .update({ virtual_balance: studentFee.balance - toDeduct })
-          .eq('id', student.centers.id)
+        // Read the balance again and make the write conditional on it. This
+        // used to put back an absolute figure worked out from a balance read
+        // when the modal opened, so anything that touched the wallet in
+        // between — another approval, a recharge — was silently overwritten.
+        const { data: ctr, error: balErr } = await supabase.from('centers')
+          .select('virtual_balance').eq('id', student.centers.id).maybeSingle()
+        if (balErr) {
+          alert('Could not read the center wallet, so the student has NOT been approved:\n\n' + balErr.message)
+          return
+        }
+        const balance = Math.round(Number(ctr?.virtual_balance || 0))
+        if (balance < toDeduct) {
+          alert(`The center's wallet holds ₹${balance.toLocaleString('en-IN')} — ₹${toDeduct.toLocaleString('en-IN')} is needed. Nothing was charged.`)
+          return
+        }
+        const { data: hit, error: wErr } = await supabase.from('centers')
+          .update({ virtual_balance: balance - toDeduct })
+          .eq('id', student.centers.id).eq('virtual_balance', ctr?.virtual_balance ?? balance)
+          .select('id')
         if (wErr) {
           alert('Could not collect the fee from the center wallet, so the student has NOT been approved:\n\n' + wErr.message)
+          return
+        }
+        if (!hit || !hit.length) {
+          alert('The center wallet changed while this was being saved, so nothing was charged. Please try again.')
           return
         }
       }
@@ -2178,13 +2232,13 @@ export default function AccountDepartment() {
             <Button
               variant={studentActionModal?.type === 'approve' ? 'success' : 'danger'}
               onClick={confirmStudentAction}
-              disabled={studentActionModal?.type === 'approve' && studentFee.loading}
+              disabled={savingAction || (studentActionModal?.type === 'approve' && studentFee.loading)}
             >
               {studentActionModal?.type === 'approve'
-                ? (studentFee.loading ? 'Calculating…' : 'Confirm Approve')
-                : 'Confirm Reject'}
+                ? (studentFee.loading ? 'Calculating…' : savingAction ? 'Approving…' : 'Confirm Approve')
+                : (savingAction ? 'Rejecting…' : 'Confirm Reject')}
             </Button>
-            <Button variant="outline" onClick={() => setStudentActionModal(null)}>Cancel</Button>
+            <Button variant="outline" disabled={savingAction} onClick={() => setStudentActionModal(null)}>Cancel</Button>
           </div>
         </div>
       </Modal>
