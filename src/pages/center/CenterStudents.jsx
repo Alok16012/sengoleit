@@ -7,7 +7,9 @@ import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import { Plus, Search, Download, Send, RefreshCw, PencilLine } from 'lucide-react'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
-import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
+import { fetchReRegistrations, nextTerm, reRegBlocker } from '../../utils/reRegistration'
+import { admitCardsForMany } from '../../utils/semesterAdmitCards'
+import { fetchResultsForMany } from '../../utils/semesterResults'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -60,6 +62,11 @@ export default function CenterStudents() {
   // Re-Registration: latest request per student ({} = none, null = table missing)
   const [reReg, setReReg] = useState({})
   const [reRegStudent, setReRegStudent] = useState(null)
+  // What the Exam Section has done for each enrolled student — the admit cards
+  // it has issued and the results it has declared. Re-Registration opens off
+  // these, not off enrolment. null = migration not run, so the gate stands down.
+  const [admitCards, setAdmitCards] = useState({})
+  const [results, setResults] = useState({})
   const [myCenterId, setMyCenterId] = useState(null)
   const { user } = useAuth()
   // The header search bar lands here as ?q=… — adopt it as the list filter.
@@ -98,8 +105,17 @@ export default function CenterStudents() {
       .eq('center_id', centerId)
       .order('created_at', { ascending: false })
     setData(data || [])
-    // null = add_re_registration.sql not run yet, so the feature stays hidden.
-    setReReg(await fetchReRegistrations((data || []).map(s => s.id)))
+    // Cards and results are only asked for the enrolled students — they are the
+    // only rows that can carry a Re-Reg button, and the whole list would send
+    // every id of the centre into the filter for nothing.
+    const enrolled = (data || []).filter(s => s.status === 'Approved').map(s => s.id)
+    const [rr, cards, res] = await Promise.all([
+      // null = add_re_registration.sql not run yet, so the feature stays hidden.
+      fetchReRegistrations((data || []).map(s => s.id)),
+      admitCardsForMany(enrolled),
+      fetchResultsForMany(enrolled),
+    ])
+    setReReg(rr); setAdmitCards(cards); setResults(res)
     setLoading(false)
   }
 
@@ -232,18 +248,31 @@ export default function CenterStudents() {
                         term to register into. A 1-year (2-semester) course
                         with both semesters already re-registered has nothing
                         left, and offering the button just to have the modal
-                        say so is noise the centre has no use for. */}
+                        say so is noise the centre has no use for.
+                        Enrolment on its own is NOT enough: the term the student
+                        is in has to have been examined first, which is why the
+                        row can say what is still owed instead of the button. */}
                     {s.status === 'Approved' && reReg !== null && (
                       reReg[s.id]?.status === 'Pending' ? (
                         <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded whitespace-nowrap">
                           Re-Reg pending
                         </span>
-                      ) : !nextTerm(s).atEnd ? (
-                        <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)} title="Request Re-Registration">
-                          <RefreshCw size={13} className="text-[#933d18]" />
-                          <span className="text-xs ml-1 text-[#933d18]">Re-Reg</span>
-                        </Button>
-                      ) : null
+                      ) : nextTerm(s).atEnd ? null : (() => {
+                        const blocked = reRegBlocker(s, { admitCards, results })
+                        return blocked ? (
+                          <span
+                            className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded whitespace-nowrap"
+                            title="Re-Registration opens once the Exam Section has issued this semester's admit card and declared its result."
+                          >
+                            {blocked.label}
+                          </span>
+                        ) : (
+                          <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)} title="Request Re-Registration">
+                            <RefreshCw size={13} className="text-[#933d18]" />
+                            <span className="text-xs ml-1 text-[#933d18]">Re-Reg</span>
+                          </Button>
+                        )
+                      })()
                     )}
                   </div>
                 </Td>

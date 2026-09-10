@@ -6,7 +6,9 @@ import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import { Search, RefreshCw, CheckCircle, Clock } from 'lucide-react'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
-import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
+import { fetchReRegistrations, nextTerm, reRegBlocker } from '../../utils/reRegistration'
+import { admitCardsForMany } from '../../utils/semesterAdmitCards'
+import { fetchResultsForMany } from '../../utils/semesterResults'
 import { fetchExamEndDates, examEndDateFor } from '../../utils/examSettings'
 import { formatDate } from '../../utils/formatDate'
 
@@ -21,6 +23,7 @@ import { formatDate } from '../../utils/formatDate'
 const FILTERS = [
   { key: 'due', label: 'Can Re-Register' },
   { key: 'waiting', label: 'Exams Not Over' },
+  { key: 'blocked', label: 'Exam / Result Pending' },
   { key: 'pending', label: 'Awaiting Verification' },
   { key: 'final', label: 'Course Complete' },
   { key: 'all', label: 'All Enrolled' },
@@ -40,6 +43,11 @@ export default function CenterReRegistration() {
   // Examination end dates, keyed `${session_id}:${semester}` — the gate that
   // decides when a student turns up as due.
   const [endDates, setEndDates] = useState({})
+  // What the Exam Section has actually done for the term the student is in:
+  // the admit cards it issued and the results it declared. null = migration not
+  // run, which stands the gate down rather than emptying the queue.
+  const [admitCards, setAdmitCards] = useState({})
+  const [results, setResults] = useState({})
 
   useEffect(() => {
     if (!user) return
@@ -58,24 +66,34 @@ export default function CenterReRegistration() {
       .not('is_hidden', 'is', true)
       .order('created_at', { ascending: false })
     setData(rows || [])
-    setReReg(await fetchReRegistrations((rows || []).map(s => s.id)))
-    setEndDates(await fetchExamEndDates((rows || []).map(s => s.session_id)))
+    const ids = (rows || []).map(s => s.id)
+    const [rr, ends, cards, res] = await Promise.all([
+      fetchReRegistrations(ids),
+      fetchExamEndDates((rows || []).map(s => s.session_id)),
+      admitCardsForMany(ids),
+      fetchResultsForMany(ids),
+    ])
+    setReReg(rr); setEndDates(ends); setAdmitCards(cards); setResults(res)
     setLoading(false)
   }
 
   // A student is "due" whenever they are not waiting on a decision, the course
-  // still has a term left, and their current term's exams are over — including
-  // one who re-registered last term, since a 4-semester course re-registers
-  // three times. Only the final term is an end state.
+  // still has a term left, and their current term is actually finished —
+  // including one who re-registered last term, since a 4-semester course
+  // re-registers three times. Only the final term is an end state.
   //
-  // No end date in the Examination Calendar means no signal to wait for, so
-  // the student stays available rather than being frozen out by a blank
-  // calendar; the row says which it is.
+  // Two things have to say the term is over. The Examination Calendar's end
+  // date is the softer of them: no date means no signal to wait for, so it
+  // cannot be the only gate — a blank calendar used to make a freshly enrolled
+  // student due on day one. The Exam Section's own record is the real one, and
+  // that is what 'blocked' reads: the admit card issued for this semester and
+  // the result declared against it.
   const stateOf = (s) => {
     if (reReg?.[s.id]?.status === 'Pending') return 'pending'
     if (nextTerm(s).atEnd) return 'final'
     const end = examEndDateFor(s, endDates)
     if (end && new Date(end) > new Date()) return 'waiting'
+    if (reRegBlocker(s, { admitCards, results })) return 'blocked'
     return 'due'
   }
 
@@ -124,7 +142,7 @@ export default function CenterReRegistration() {
           </div>
 
           <p className="text-[11px] text-gray-400 mb-3">
-            A student becomes available once their current term's examinations are over. Raise the request here — the university's Account Dept verifies it and collects the fee, and the admit card for that semester opens only after that.
+            A student becomes available once their current term is finished — its admit card issued and its result declared by the Examination Section. Raise the request here; the university's Account Dept verifies it and collects the fee, and the admit card for the next semester opens only after that.
           </p>
 
           {loading ? (
@@ -188,6 +206,16 @@ export default function CenterReRegistration() {
                           // something the centre has left undone.
                           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded-lg whitespace-nowrap">
                             <Clock size={11} /> Exams end {formatDate(examEndDateFor(s, endDates))}
+                          </span>
+                        ) : st === 'blocked' ? (
+                          // Which of the two the university still owes, so the
+                          // centre chases the right thing instead of reading a
+                          // missing button as the page being broken.
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-gray-600 bg-gray-100 px-2 py-1 rounded-lg whitespace-nowrap"
+                            title="The current term has to be examined before the next one can be registered into."
+                          >
+                            <Clock size={11} /> {reRegBlocker(s, { admitCards, results })?.label}
                           </span>
                         ) : req?.status === 'Approved' ? (
                           // Context, not a blocker: last term's re-registration

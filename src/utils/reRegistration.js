@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase'
 import { computeSemesterFeeStatus } from './courseFee'
 import { recordFeeDeduction } from './feeLedger'
+import { admitCardsForMany } from './semesterAdmitCards'
+import { fetchResultsForMany } from './semesterResults'
 
 // Re-Registration — moving a student into their next semester / year.
 // The centre raises the request, and the fee is held from its wallet there and
@@ -23,6 +25,50 @@ export function termForSemester(student, sem) {
   const unit = /year/i.test(String(student?.semester_year || student?.programs?.semester_year || '')) ? 'Year' : 'Semester'
   const n = unit === 'Year' ? Math.ceil(Number(sem) / 2) : Number(sem)
   return { unit, n, label: `${ORD(n)} ${unit}` }
+}
+
+// The semester a student's CURRENT term closes on — the one the Exam Section
+// owes them a card for. A Year-based term covers two semesters, so Year 2
+// closes on Semester 4.
+export function currentSemOf(student) {
+  const label = String(student?.semester_year || '')
+  const n = Math.max(parseInt(label, 10) || 1, 1)
+  const isYear = /year/i.test(label || String(student?.programs?.semester_year || ''))
+  const total = Number(student?.programs?.duration) || 0
+  const sem = isYear ? n * 2 : n
+  return total ? Math.min(sem, total) : sem
+}
+
+// Why this student cannot be re-registered yet, or null when they can.
+//
+// A re-registration moves a student OUT of the term they are in, so that term
+// has to be finished first, and the two things that say it is are the Exam
+// Section's own: the admit card issued for the term's closing semester, and the
+// result declared against that semester. Enrolment alone used to be enough, so
+// a centre could push a student into Semester 2 before Semester 1 had been
+// examined at all. And because the fee leaves the centre's wallet the moment
+// the request is RAISED — while the admin's Verify button is itself held back
+// until that admit card exists — the money went out against a request nobody
+// could approve.
+//
+// `admitCards` (admitCardsForMany) and `results` (fetchResultsForMany) are null
+// when their migration has not been run or the read failed: the codebase's
+// signal for "nothing to gate on". The gate stands down then rather than
+// freezing every centre out of re-registration over a missing table.
+export function reRegBlocker(student, { admitCards, results } = {}) {
+  const sem = currentSemOf(student)
+  if (admitCards != null && !(admitCards[student.id] || []).some(c => Number(c.semester) === sem)) {
+    return { code: 'admit_card', sem, label: `Semester ${sem} admit card not issued` }
+  }
+  if (results != null) {
+    // 'Pending' is the Exam Section's own not-yet-declared marker — the same
+    // test it uses to decide whether a semester's result is done.
+    const r = results[`${student.id}__${sem}`]
+    if (!r?.status || r.status === 'Pending') {
+      return { code: 'result', sem, label: `Semester ${sem} result not declared` }
+    }
+  }
+  return null
 }
 
 // `students.semester_year` holds a label like "1st Semester" / "2nd Year".
@@ -175,6 +221,19 @@ async function canHoldAtRequest() {
 export async function requestReRegistration({ student, remarks }) {
   const t = nextTerm(student)
   const centerId = student.center_id || student.centers?.id || null
+
+  // The buttons that open the modal are gated already, but this is where the
+  // money moves — re-check here rather than trust the screen it was raised
+  // from, since a stale list is enough to take a fee for a term the student
+  // has not finished.
+  const [admitCards, results] = await Promise.all([
+    admitCardsForMany([student.id]),
+    fetchResultsForMany([student.id]),
+  ])
+  const blocked = reRegBlocker(student, { admitCards, results })
+  if (blocked) {
+    return { error: { message: `${blocked.label}. A student can be re-registered only after the Exam Section has issued the current semester's admit card and declared its result.` } }
+  }
   const { hold } = await reRegistrationFee(student)
   const charge = Math.max(Math.round(Number(hold) || 0), 0)
   const holding = charge > 0 && centerId && (await canHoldAtRequest())

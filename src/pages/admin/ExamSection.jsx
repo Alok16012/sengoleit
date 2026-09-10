@@ -14,7 +14,7 @@ import { fetchResultsForMany } from '../../utils/semesterResults'
 import MasterMarksEntry from '../../components/MasterMarksEntry'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
 import { admitCardsFor, admitCardsForMany, pickCardRows, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
-import { termForSemester } from '../../utils/reRegistration'
+import { termForSemester, currentSemOf } from '../../utils/reRegistration'
 import { paperKeyOf } from '../../utils/fetchSyllabus'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { recordFeeDeduction } from '../../utils/feeLedger'
@@ -635,14 +635,10 @@ export default function ExamSection() {
     return !isNaN(d.getTime()) && Date.now() < d.getTime()
   }
 
-  // The semester a student is IN — what the Exam Section owes them a card for.
-  // A Year-based term covers two semesters, so its closing one is the current.
-  const currentSemOf = (s) => {
-    const n = Math.max(parseInt(String(s.semester_year || ''), 10) || 1, 1)
-    const isYear = /year/i.test(String(s.semester_year || s.programs?.semester_year || ''))
-    const total = Number(s.programs?.duration) || 0
-    return total ? Math.min(isYear ? n * 2 : n, total) : (isYear ? n * 2 : n)
-  }
+  // The semester a student is IN — what the Exam Section owes them a card for —
+  // lives in utils/reRegistration as currentSemOf, since the centre's
+  // Re-Registration gate now reads exactly the same semester off it.
+  //
   // Has THIS semester's card been issued? Cards for earlier semesters do not
   // count — the whole point is to spot who is waiting after a re-registration.
   const currentCardDone = (s) =>
