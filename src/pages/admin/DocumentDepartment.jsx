@@ -10,6 +10,7 @@ import { CheckCircle, XCircle, Download, Eye, ExternalLink, PauseCircle } from '
 
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
+import { docUrls, openDocUrl } from '../../utils/studentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { findFreeNumber, countIssued } from '../../utils/uniqueNumbers'
@@ -1596,18 +1597,31 @@ export default function DocumentDepartment() {
                   ...(viewStudent.ug_institute_name || viewStudent.ug_marksheet_url ? [{ label: 'UG Marksheet', url: viewStudent.ug_marksheet_url }] : []),
                   ...(viewStudent.pg_institute_name || viewStudent.pg_marksheet_url ? [{ label: 'PG Marksheet', url: viewStudent.pg_marksheet_url }] : []),
                   ...(viewStudent.diploma_institute_name || viewStudent.diploma_marksheet_url ? [{ label: 'Diploma Marksheet', url: viewStudent.diploma_marksheet_url }] : []),
-                ].map(doc => (
-                  <div key={doc.label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${doc.url ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+                ].map(doc => {
+                  // Same two traps as the verify rows: the bucket is private,
+                  // so a stored URL has to be signed, and a marksheet field can
+                  // hold several files joined by commas.
+                  const files = docUrls(doc.url)
+                  return (
+                  <div key={doc.label} className={`flex items-center justify-between px-3 py-2 rounded-lg border ${files.length ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${doc.url ? 'bg-emerald-500' : 'bg-gray-300'}`} />
+                      <span className={`w-2 h-2 rounded-full ${files.length ? 'bg-emerald-500' : 'bg-gray-300'}`} />
                       <span className="text-xs font-medium text-gray-700">{doc.label}</span>
                     </div>
-                    {doc.url
-                      ? <a href={doc.url} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#933d18] hover:underline flex items-center gap-1"><Eye size={11} /> View</a>
+                    {files.length
+                      ? <span className="flex items-center gap-2">
+                          {files.map((f, i) => (
+                            <button key={i} type="button" onClick={() => openDocUrl(f)}
+                              className="text-xs font-bold text-[#933d18] hover:underline flex items-center gap-1">
+                              <Eye size={11} /> View{files.length > 1 ? ` ${i + 1}` : ''}
+                            </button>
+                          ))}
+                        </span>
                       : <span className="text-xs text-gray-400">Not uploaded</span>
                     }
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 

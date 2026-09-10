@@ -1,4 +1,5 @@
 import { CheckCircle, ExternalLink, Lock } from 'lucide-react'
+import { docUrls, openDocUrl } from '../../utils/studentDocs'
 
 // Single verifiable field/document row used in the Document & Account
 // department verify modals. Kept at module scope (stable identity) so that
@@ -9,7 +10,11 @@ export default function VerifyRow({ fkey, label, val, url, checks, setChecks }) 
   const isVerified = check?.ok
   const isLocked = check?.locked
   const isDoc = url !== undefined
-  const missing = isDoc ? !url : !val
+  // A marksheet field can hold several files as one comma-joined string. It
+  // used to go into <a href> whole, so two marksheets made a single broken URL
+  // whose token read "…,https://…" and Storage answered "Invalid Compact JWS".
+  const files = isDoc ? docUrls(url) : []
+  const missing = isDoc ? files.length === 0 : !val
   return (
     <div className={`rounded-xl border transition-all duration-150 ${
       isVerified
@@ -25,11 +30,17 @@ export default function VerifyRow({ fkey, label, val, url, checks, setChecks }) 
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider leading-tight">{label}</p>
           <div className="mt-1">
             {isDoc
-              ? url
-                ? <a href={url} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
-                    <ExternalLink size={11} /> View Document
-                  </a>
+              ? files.length
+                // Signed on click, not linked directly: the bucket is private,
+                // so the stored URL on its own does not open.
+                ? <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {files.map((f, i) => (
+                      <button key={i} type="button" onClick={() => openDocUrl(f)}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
+                        <ExternalLink size={11} /> View Document{files.length > 1 ? ` ${i + 1}` : ''}
+                      </button>
+                    ))}
+                  </div>
                 : <span className="text-xs font-medium text-amber-600">Not uploaded</span>
               : <p className="text-sm font-semibold text-gray-900 break-words leading-snug">
                   {val || <span className="text-gray-400 font-normal text-xs italic">Not provided</span>}

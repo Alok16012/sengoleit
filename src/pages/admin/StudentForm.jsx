@@ -13,6 +13,7 @@ import { computeCumulativeCourseFee } from '../../utils/courseFee'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { findFreeNumber, countIssued } from '../../utils/uniqueNumbers'
 import { isOfferable } from '../../utils/feeValidity'
+import { docUrls, signDocUrl, openDocUrl } from '../../utils/studentDocs'
 import {
   ClipboardList, User, Users, MapPin, BookOpen, FileText, Upload, Eye, EyeOff,
   ChevronDown, CheckCircle2, AlertCircle, Wallet, ArrowRight, ArrowLeft,
@@ -335,20 +336,8 @@ function EduRow({ prefix, label, boardType, boards, form, onChange, onUpload, on
   )
 }
 
-// Docs live in the PRIVATE `student-docs` bucket, so the stored public URLs 404
-// ("Bucket not found"). Convert a stored URL to a short-lived signed URL on the fly.
-async function signDocUrl(u) {
-  try {
-    const m = String(u).match(/student-docs\/([^?]+)/)
-    const path = m ? decodeURIComponent(m[1]) : null
-    if (!path) return u
-    const { data } = await supabase.storage.from('student-docs').createSignedUrl(path, 3600)
-    return data?.signedUrl || u
-  } catch { return u }
-}
-
 function FileField({ label, fieldKey, accept, isImage, value, onUpload, onRemove, isUploading, readOnly, multiple }) {
-  const urls = value ? String(value).split(',').filter(Boolean) : []
+  const urls = docUrls(value)
   const [thumb, setThumb] = useState('')
 
   // Resolve a signed URL for the image thumbnail preview.
@@ -359,10 +348,7 @@ function FileField({ label, fieldKey, accept, isImage, value, onUpload, onRemove
     return () => { cancelled = true }
   }, [value])
 
-  async function openDoc(u) {
-    const su = await signDocUrl(u)
-    window.open(su, '_blank', 'noopener')
-  }
+  const openDoc = openDocUrl
 
   return (
     <div className="flex flex-col gap-1.5">
