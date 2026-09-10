@@ -9,7 +9,7 @@ import { Plus, Search, Download, Send, RefreshCw, PencilLine } from 'lucide-reac
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { fetchReRegistrations, nextTerm, reRegBlocker } from '../../utils/reRegistration'
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
-import { fetchResultsForMany } from '../../utils/semesterResults'
+import { fetchDeclaredSemesters } from '../../utils/semesterResults'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 
@@ -113,7 +113,7 @@ export default function CenterStudents() {
       // null = add_re_registration.sql not run yet, so the feature stays hidden.
       fetchReRegistrations((data || []).map(s => s.id)),
       admitCardsForMany(enrolled),
-      fetchResultsForMany(enrolled),
+      fetchDeclaredSemesters(enrolled),
     ])
     setReReg(rr); setAdmitCards(cards); setResults(res)
     setLoading(false)

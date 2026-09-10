@@ -2,7 +2,7 @@ import { supabase } from '../lib/supabase'
 import { computeSemesterFeeStatus } from './courseFee'
 import { recordFeeDeduction } from './feeLedger'
 import { admitCardsForMany } from './semesterAdmitCards'
-import { fetchResultsForMany } from './semesterResults'
+import { fetchDeclaredSemesters } from './semesterResults'
 
 // Re-Registration — moving a student into their next semester / year.
 // The centre raises the request, and the fee is held from its wallet there and
@@ -51,10 +51,16 @@ export function currentSemOf(student) {
 // until that admit card exists — the money went out against a request nobody
 // could approve.
 //
-// `admitCards` (admitCardsForMany) and `results` (fetchResultsForMany) are null
-// when their migration has not been run or the read failed: the codebase's
-// signal for "nothing to gate on". The gate stands down then rather than
-// freezing every centre out of re-registration over a missing table.
+// `results` comes from fetchDeclaredSemesters, NOT fetchResultsForMany. What
+// matters here is that the semester was declared; whether the admin has
+// released the marks to the student is a separate decision and must not move
+// this gate. The centre's own view of portal_results is still released-only,
+// so it learns the semester is over without learning the score.
+//
+// `admitCards` (admitCardsForMany) and `results` are null when their migration
+// has not been run or the read failed: the codebase's signal for "nothing to
+// gate on". The gate stands down then rather than freezing every centre out of
+// re-registration over a missing table.
 export function reRegBlocker(student, { admitCards, results } = {}) {
   const sem = currentSemOf(student)
   if (admitCards != null && !(admitCards[student.id] || []).some(c => Number(c.semester) === sem)) {
@@ -228,7 +234,7 @@ export async function requestReRegistration({ student, remarks }) {
   // has not finished.
   const [admitCards, results] = await Promise.all([
     admitCardsForMany([student.id]),
-    fetchResultsForMany([student.id]),
+    fetchDeclaredSemesters([student.id]),
   ])
   const blocked = reRegBlocker(student, { admitCards, results })
   if (blocked) {

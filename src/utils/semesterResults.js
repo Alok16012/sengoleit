@@ -81,6 +81,30 @@ export async function fetchResultsForMany(studentIds) {
   return keyed(res.data || [])
 }
 
+// Which semesters have a DECLARED result, with no marks attached.
+//
+// Re-Registration needs to know a semester is finished; it has no business
+// knowing what the student scored. fetchResultsForMany cannot answer it,
+// because for a centre portal_results returns only RELEASED rows — so a
+// declared-but-deactivated result read as "not declared" and Activate ended up
+// deciding whether Re-Registration opened.
+//
+// Returns the same `${student_id}__${semester}` keying as fetchResultsForMany,
+// or null when it cannot be read at all, which callers treat as "nothing to
+// gate on" rather than blocking everyone.
+export async function fetchDeclaredSemesters(studentIds) {
+  if (!studentIds?.length) return {}
+  const keyed = rows => Object.fromEntries(rows.map(r => [`${r.student_id}__${r.semester}`, r]))
+
+  const { data, error } = await supabase.rpc('portal_declared_semesters', { p_students: studentIds })
+  if (!error) return keyed(Array.isArray(data) ? data : [])
+
+  // add_declared_result_semesters.sql not run yet — fall back to the previous
+  // source, which still works for the admin and for a centre whose RLS allows
+  // the direct read. Behaviour then is exactly what it was before.
+  return fetchResultsForMany(studentIds)
+}
+
 // Remove a semester's declared result. The paper-wise marks are left alone —
 // they are what was typed in, and an admin deleting a wrongly-declared result
 // should not have to key every paper again to re-declare it. Deleting the row

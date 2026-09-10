@@ -8,7 +8,7 @@ import { Search, RefreshCw, CheckCircle, Clock } from 'lucide-react'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { fetchReRegistrations, nextTerm, reRegBlocker } from '../../utils/reRegistration'
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
-import { fetchResultsForMany } from '../../utils/semesterResults'
+import { fetchDeclaredSemesters } from '../../utils/semesterResults'
 import { fetchExamEndDates, examEndDateFor } from '../../utils/examSettings'
 import { formatDate } from '../../utils/formatDate'
 
@@ -71,7 +71,7 @@ export default function CenterReRegistration() {
       fetchReRegistrations(ids),
       fetchExamEndDates((rows || []).map(s => s.session_id)),
       admitCardsForMany(ids),
-      fetchResultsForMany(ids),
+      fetchDeclaredSemesters(ids),
     ])
     setReReg(rr); setEndDates(ends); setAdmitCards(cards); setResults(res)
     setLoading(false)
