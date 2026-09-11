@@ -72,7 +72,12 @@ export default function Centers() {
     const current = center.entry_types || []
     const next = current.includes(type) ? current.filter(t => t !== type) : [...current, type]
     setSavingField(prev => ({ ...prev, [key]: true }))
-    const { error } = await supabase.from('centers').update({ entry_types: next }).eq('id', center.id)
+    // .select() so the row actually comes back. Without it an update that
+    // matched NOTHING — RLS, a wrong id — returns no error and no data, and the
+    // optimistic state change below made it look saved until the next reload.
+    const { data: saved, error } = await supabase.from('centers')
+      .update({ entry_types: next }).eq('id', center.id)
+      .select('id, entry_types')
     setSavingField(prev => ({ ...prev, [key]: false }))
     if (error) {
       alert(/entry_types|column/i.test(error.message || '')
@@ -80,7 +85,12 @@ export default function Centers() {
         : 'Could not save: ' + error.message)
       return
     }
-    setData(prev => prev.map(r => r.id === center.id ? { ...r, entry_types: next } : r))
+    if (!saved || !saved.length) {
+      alert('Nothing was saved — the database accepted the request but changed no row.\n\nThis is usually a permissions rule on the centers table. Please tell the developer.')
+      return
+    }
+    // Taken from what came BACK, not from what was sent.
+    setData(prev => prev.map(r => r.id === center.id ? { ...r, entry_types: saved[0].entry_types } : r))
   }
 
   async function handleDelete(id, name) {
