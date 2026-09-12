@@ -5,8 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Plus, Search, Download, Send, RefreshCw, PencilLine } from 'lucide-react'
-import ReRegistrationModal from '../../components/ReRegistrationModal'
+import { Plus, Search, Download, Send, PencilLine } from 'lucide-react'
 import { fetchReRegistrations, nextTerm, reRegBlocker } from '../../utils/reRegistration'
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
 import { fetchDeclaredSemesters } from '../../utils/semesterResults'
@@ -61,7 +60,6 @@ export default function CenterStudents() {
   const [downloading, setDownloading] = useState(null)
   // Re-Registration: latest request per student ({} = none, null = table missing)
   const [reReg, setReReg] = useState({})
-  const [reRegStudent, setReRegStudent] = useState(null)
   // What the Exam Section has done for each enrolled student — the admit cards
   // it has issued and the results it has declared. Re-Registration opens off
   // these, not off enrolment. null = migration not run, so the gate stands down.
@@ -267,10 +265,16 @@ export default function CenterStudents() {
                             {blocked.label}
                           </span>
                         ) : (
-                          <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)} title="Request Re-Registration">
-                            <RefreshCw size={13} className="text-[#933d18]" />
-                            <span className="text-xs ml-1 text-[#933d18]">Re-Reg</span>
-                          </Button>
+                          // Status only, like the Status column beside it. This
+                          // list is for reading; a re-registration is raised
+                          // from the Re-Registration page, so there is one place
+                          // the fee ever leaves the wallet from.
+                          <span
+                            className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded whitespace-nowrap"
+                            title="Ready to re-register — raise it from the Re-Registration page."
+                          >
+                            Re-Reg open
+                          </span>
                         )
                       })()
                     )}
@@ -282,14 +286,6 @@ export default function CenterStudents() {
         </Table>
       )}
 
-      {reRegStudent && (
-        <ReRegistrationModal
-          student={{ ...reRegStudent, center_id: reRegStudent.center_id || myCenterId }}
-          mode="request"
-          onClose={() => setReRegStudent(null)}
-          onDone={() => { setReRegStudent(null); if (myCenterId) fetchStudents(myCenterId) }}
-        />
-      )}
     </div>
   )
 }
