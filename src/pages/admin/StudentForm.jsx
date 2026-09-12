@@ -1737,11 +1737,17 @@ export default function StudentForm() {
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
-                          {walletInfo.sharingPct > 0 && (
-                            // Show the working, or a fee suddenly 60% smaller
-                            // than the fee master reads as a mistake.
+                          {/* Always shown, including 0%. Hiding it at zero hid
+                              the one number that explains the fee: a centre on
+                              60% that is being charged the full amount looked
+                              exactly like a centre with no sharing at all. */}
+                          {walletInfo.sharingPct > 0 ? (
                             <span className="text-emerald-700 font-semibold">
-                              &nbsp;(your share is {walletInfo.sharingPct}%)
+                              &nbsp;(your share is {walletInfo.sharingPct}% of ₹{(walletInfo.grossFee || 0).toLocaleString('en-IN')})
+                            </span>
+                          ) : (
+                            <span className="text-amber-700 font-semibold">
+                              &nbsp;(no sharing applied — full university fee)
                             </span>
                           )}
                           &nbsp;·&nbsp;50%: ₹{Math.ceil(walletInfo.courseFee * 0.5).toLocaleString('en-IN')}
