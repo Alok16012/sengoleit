@@ -1750,7 +1750,8 @@ export default function StudentForm() {
                               exactly like a centre with no sharing at all. */}
                           {walletInfo.sharingPct > 0 ? (
                             <span className="text-emerald-700 font-semibold">
-                              &nbsp;(your share is {walletInfo.sharingPct}% of ₹{(walletInfo.grossFee || 0).toLocaleString('en-IN')})
+                              &nbsp;(₹{Number(walletInfo.grossFee || 0).toLocaleString('en-IN')} − {walletInfo.sharingPct}% your share
+                              = ₹{Number(walletInfo.centerShare || 0).toLocaleString('en-IN')} kept)
                             </span>
                           ) : (
                             <span className="text-amber-700 font-semibold">
