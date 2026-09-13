@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { supabase, supabaseAdmin } from '../../lib/supabase'
+import { supabase } from '../../lib/supabase'
 import PageHeader from '../../components/ui/PageHeader'
 import Input, { Select, Textarea } from '../../components/ui/Input'
 import DateInput from '../../components/ui/DateInput'
@@ -1387,15 +1387,24 @@ export default function StudentForm() {
         // alert). The student linkage lives on the student row itself
         // (coupon_code / coupon_discount below), which is what the Account
         // Dept reads at fee collection.
-        const db = supabaseAdmin || supabase
-        // is_disabled is guarded HERE, in the same statement that flips
-        // is_used. This update is the real redemption chokepoint — the app
-        // does not call reserve_coupon() — so the WHERE clause is what makes
-        // a deactivated coupon genuinely unusable rather than merely hidden.
-        const { data: reserved, error: reserveErr } = await db.from('coupons')
-          .update({ is_used: true, used_at: new Date().toISOString() })
-          .eq('id', coupon.applied.id).eq('is_used', false).eq('is_disabled', false).select('id')
-        couponReserveFailed = !!reserveErr || !reserved || reserved.length === 0
+        // Through reserve_coupon(), which is SECURITY DEFINER — and that is the
+        // whole point. A centre cannot UPDATE coupons under RLS, so the direct
+        // update this used to do matched ZERO rows on every submission once
+        // supabaseAdmin became null. It is null by design: the service key must
+        // never ship inside a browser bundle. The failure was silent in the
+        // worst way — the coupon stayed unused, the discount was wiped off the
+        // student row, and the centre was charged the full fee at forward even
+        // though the entry screen had shown the discount coming off.
+        //
+        // p_application_id is null on purpose: coupons.application_id is a FK to
+        // center_applications, so writing a students.id there fails with 23503.
+        // The student linkage lives on the student row (coupon_code below).
+        //
+        // The function returns true only when it actually flipped a still-unused
+        // coupon, so two students cannot claim the same one.
+        const { data: reserved, error: reserveErr } = await supabase
+          .rpc('reserve_coupon', { p_coupon_id: coupon.applied.id, p_application_id: null })
+        couponReserveFailed = !!reserveErr || reserved !== true
       }
       // Persist (or clear) the discount on the student row itself. The center
       // always has write access to its own student records, so this survives
@@ -1412,7 +1421,7 @@ export default function StudentForm() {
           .eq('id', saved.id)
       }
       if (couponReserveFailed) {
-        alert('This coupon was already used (by another student submitted just now) and could not be applied. The student has been saved WITHOUT the discount — please collect the full fee.')
+        alert('This coupon could not be claimed — it may have been used by another student submitted moments ago, or switched off. The student has been saved WITHOUT the discount, so the full fee will be held at forward.')
       }
       navigate(backPath)
     } else {
