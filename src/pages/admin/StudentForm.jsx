@@ -1088,9 +1088,15 @@ export default function StudentForm() {
       const ok = courseFee === 0 || balance >= minRequired
       setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive })
       return ok
-    } catch {
-      setWalletInfo(w => ({ ...w, checking: false, checked: true, ok: true }))
-      return true
+    } catch (err) {
+      // Fail closed. Passing the check because it could not be RUN is how a
+      // centre gets charged the wrong fee, or none at all — the failure has to
+      // stop the admission and say so, not wave it through.
+      setWalletInfo(w => ({
+        ...w, checking: false, checked: true, ok: false,
+        error: err?.message || 'Could not check the wallet. Please try again.',
+      }))
+      return false
     }
   }
 
@@ -1254,7 +1260,8 @@ export default function StudentForm() {
     if (step === 1 && !isAdmin && !isEdit && !isStagingCenter) {
       const ok = walletInfo.checked ? walletInfo.ok : await runWalletCheck()
       if (!ok) {
-        setStepError('Insufficient wallet balance. Please recharge your wallet before proceeding.')
+        setStepError(walletInfo.error
+          || 'Insufficient wallet balance. Please recharge your wallet before proceeding.')
         return
       }
     }
@@ -1803,11 +1810,21 @@ export default function StudentForm() {
                   <p className="text-xs text-gray-400 italic">Balance check will run automatically...</p>
                 ) : null}
                 {walletInfo.checked && !walletInfo.ok && (
-                  <p className="text-xs text-red-600 mt-2 px-1">
-                    Please recharge your wallet to proceed.{' '}
-                    <a href={role === 'center' ? '/center/balance' : '/super-center/balance'}
-                      className="underline font-semibold">Recharge Now →</a>
-                  </p>
+                  // A check that could not RUN is not an empty wallet, and
+                  // telling the centre to recharge would send it to top up a
+                  // balance that was never the problem.
+                  walletInfo.error ? (
+                    <p className="text-xs text-red-600 mt-2 px-1">
+                      {walletInfo.error} The fee has not been worked out, so the
+                      admission cannot go ahead until this succeeds.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-red-600 mt-2 px-1">
+                      Please recharge your wallet to proceed.{' '}
+                      <a href={role === 'center' ? '/center/balance' : '/super-center/balance'}
+                        className="underline font-semibold">Recharge Now →</a>
+                    </p>
+                  )
                 )}
               </div>
             )}

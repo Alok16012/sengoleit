@@ -59,10 +59,19 @@ export function dueSemesterFromElapsed(sessionStart, totalSems) {
 // for an unknown centre — which is what keeps the fee whole for every caller
 // that does not know (or care) which centre is asking.
 export async function centerSharingPct(center_id) {
+  // No centre named — the admin-side screens want the university's whole fee.
   if (!center_id) return 0
-  const { data: c } = await supabase
+  const { data: c, error } = await supabase
     .from('centers').select('fee_sharing').eq('id', center_id).maybeSingle()
-  return Math.min(Math.max(Number(c?.fee_sharing) || 0, 0), 100)
+  // A read that FAILED is not a centre on 0% sharing, and the two must never
+  // collapse into the same answer. Returning 0 here quietly billed the centre
+  // the university's ENTIRE fee — 21,500 instead of 8,600 on a 60% rate — and
+  // nothing on screen said the rate had never been read, because a 0% share is
+  // exactly what a centre with no sharing configured looks like. Refuse, so
+  // the caller stops instead of overcharging.
+  if (error) throw new Error(`Could not read the centre's fee sharing: ${error.message}`)
+  if (!c) throw new Error('Could not read the centre\'s fee sharing — no such centre, or it is not visible to this login.')
+  return Math.min(Math.max(Number(c.fee_sharing) || 0, 0), 100)
 }
 
 export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration, programName, center_id, sharing_pct }) {
