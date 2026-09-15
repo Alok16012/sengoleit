@@ -400,9 +400,13 @@ export default function Students() {
       m.push(`Entered: ${fromDate ? formatDate(fromDate) : 'start'} to ${toDate ? formatDate(toDate) : 'today'}`)
     }
     if (statusFilter !== 'All') m.push(`Status: ${statusFilter}`)
-    if (programFilter !== 'all') m.push(`Program: ${programs.find(p => p.id === programFilter)?.program_name || ''}`)
-    if (sessionFilter !== 'all') m.push(`Session: ${sessions.find(s => s.id === sessionFilter)?.session_name || ''}`)
-    if (centerFilter !== 'all') m.push(`Center: ${centers.find(c => c.id === centerFilter)?.center_name || ''}`)
+    // programList / sessionList / centerList are what this page actually holds.
+    // These lines named programs / sessions / centers, which do not exist here,
+    // so choosing any of those filters made Export PDF throw on click and do
+    // nothing — Excel kept working only because it never builds this header.
+    if (programFilter !== 'all') m.push(`Program: ${programList.find(p => p.id === programFilter)?.program_name || ''}`)
+    if (sessionFilter !== 'all') m.push(`Session: ${sessionList.find(s => s.id === sessionFilter)?.session_name || ''}`)
+    if (centerFilter !== 'all') m.push(`Center: ${centerList.find(c => c.id === centerFilter)?.center_name || ''}`)
     return m
   }
   const exportName = () => {
