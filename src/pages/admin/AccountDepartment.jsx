@@ -911,7 +911,7 @@ export default function AccountDepartment() {
       if (fresh?.status === 'Approved') {
         alert('This application has already been approved — the fee was collected then. Nothing was charged again.')
         setStudentActionModal(null)
-        await fetchData()
+        await fetchAll()   // this page's loader — fetchData does not exist here
         return
       }
       // The fee was already HELD (deducted from the wallet) when the center
