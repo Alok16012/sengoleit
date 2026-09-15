@@ -1008,6 +1008,20 @@ export default function ExamSection() {
           student={resultModalStudent}
           special={resultTab === 'special'}
           onClose={() => setResultModalStudent(null)}
+          // The modal calls this after every save, but nothing was listening, so
+          // the list kept its old results and a student just declared stayed in
+          // Pending until the page was reloaded. Only this student's rows are
+          // fetched and swapped in — no full reload, no loading flash.
+          onSaved={async () => {
+            const id = resultModalStudent.id
+            const fresh = await fetchResultsForMany([id])
+            if (!fresh) return
+            setResults(prev => {
+              const kept = Object.fromEntries(Object.entries(prev || {})
+                .filter(([k]) => k !== id && !k.startsWith(`${id}__`)))
+              return { ...kept, ...fresh }
+            })
+          }}
         />
       )}
 
