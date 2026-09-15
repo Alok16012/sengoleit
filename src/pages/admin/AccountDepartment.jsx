@@ -38,6 +38,11 @@ export default function AccountDepartment() {
   const [tab, setTab] = useState('students')
   const [appStatusFilter, setAppStatusFilter] = useState('pending')
   const [rechargeStatusFilter, setRechargeStatusFilter] = useState('pending')
+  // Recharge Requests can be narrowed to one centre and a date range.
+  // '' = no restriction. Dates are YYYY-MM-DD, compared on the local calendar day.
+  const [rechargeCenter, setRechargeCenter] = useState('')
+  const [rechargeFrom, setRechargeFrom] = useState('')
+  const [rechargeTo, setRechargeTo] = useState('')
   const [studentStatusFilter, setStudentStatusFilter] = useState('pending')
   // Approval Code requests (centers request an approval-code amount; verified
   // here credits the coupon wallet). Same shape as recharge requests.
@@ -1101,13 +1106,40 @@ export default function AccountDepartment() {
     approved: r => r.status === 'verified',
     rejected: r => r.status === 'rejected',
   }
-  const rechargeStatusCounts = {
-    pending:  recharges.filter(RECHARGE_STATUS_MATCH.pending).length,
-    hold:     recharges.filter(RECHARGE_STATUS_MATCH.hold).length,
-    approved: recharges.filter(RECHARGE_STATUS_MATCH.approved).length,
-    rejected: recharges.filter(RECHARGE_STATUS_MATCH.rejected).length,
+  // The day a request was raised, on the LOCAL calendar. Slicing the ISO string
+  // would use UTC, and a request made at 1 a.m. IST would land on the day before.
+  const localDay = iso => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }
-  const rechargesList = recharges.filter(RECHARGE_STATUS_MATCH[rechargeStatusFilter] || (() => true))
+  const inRechargeScope = r => {
+    if (rechargeCenter && r.center_id !== rechargeCenter) return false
+    const day = localDay(r.created_at)
+    if (rechargeFrom && day < rechargeFrom) return false
+    if (rechargeTo && day > rechargeTo) return false
+    return true
+  }
+  const rechargeFiltersOn = !!(rechargeCenter || rechargeFrom || rechargeTo)
+  // The centre list comes from the requests themselves, so every centre that has
+  // ever raised one is offered — not just the ones currently approved.
+  const rechargeCenterOptions = Object.values(recharges.reduce((acc, r) => {
+    if (r.center_id && !acc[r.center_id]) {
+      acc[r.center_id] = { id: r.center_id, name: r.centers?.center_name || 'Unknown centre', code: r.centers?.center_code || '' }
+    }
+    return acc
+  }, {})).sort((a, b) => a.name.localeCompare(b.name))
+  // Counts follow the centre/date filter too, so each tab's badge matches what
+  // clicking it will show.
+  const scopedRecharges = recharges.filter(inRechargeScope)
+  const rechargeStatusCounts = {
+    pending:  scopedRecharges.filter(RECHARGE_STATUS_MATCH.pending).length,
+    hold:     scopedRecharges.filter(RECHARGE_STATUS_MATCH.hold).length,
+    approved: scopedRecharges.filter(RECHARGE_STATUS_MATCH.approved).length,
+    rejected: scopedRecharges.filter(RECHARGE_STATUS_MATCH.rejected).length,
+  }
+  const rechargesList = scopedRecharges.filter(RECHARGE_STATUS_MATCH[rechargeStatusFilter] || (() => true))
+  const rechargesTotal = rechargesList.reduce((sum, r) => sum + Number(r.amount || 0), 0)
   // Approval code coupons status sub-filter.
   //  all      = no filter
   //  used     = code consumed to create a center
@@ -1252,6 +1284,11 @@ export default function AccountDepartment() {
     if (tab === 'students' && studentStatusFilter !== 'all') m.push(`Status: ${studentStatusFilter}`)
     if ((tab === 'approvals' || tab === 'super_approvals') && appStatusFilter !== 'all') m.push(`Status: ${appStatusFilter}`)
     if (tab === 'recharges' && rechargeStatusFilter !== 'all') m.push(`Status: ${rechargeStatusFilter}`)
+    if (tab === 'recharges' && rechargeCenter) {
+      const c = rechargeCenterOptions.find(o => o.id === rechargeCenter)
+      m.push(`Center: ${c ? c.name : rechargeCenter}`)
+    }
+    if (tab === 'recharges' && (rechargeFrom || rechargeTo)) m.push(`Date: ${rechargeFrom || '…'} to ${rechargeTo || '…'}`)
     if (tab === 'approval_codes' && approvalReqStatusFilter !== 'all') m.push(`Status: ${approvalReqStatusFilter}`)
     return m
   }
@@ -1571,6 +1608,54 @@ export default function AccountDepartment() {
                 </button>
               ))}
             </div>
+            <div className="flex flex-wrap items-end gap-3 mb-4">
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Center</span>
+                <select
+                  value={rechargeCenter}
+                  onChange={e => setRechargeCenter(e.target.value)}
+                  className="min-w-[240px] px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15"
+                >
+                  <option value="">All centers</option>
+                  {rechargeCenterOptions.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ''}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">From</span>
+                <input
+                  type="date"
+                  value={rechargeFrom}
+                  max={rechargeTo || undefined}
+                  onChange={e => setRechargeFrom(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">To</span>
+                <input
+                  type="date"
+                  value={rechargeTo}
+                  min={rechargeFrom || undefined}
+                  onChange={e => setRechargeTo(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15"
+                />
+              </label>
+              {rechargeFiltersOn && (
+                <button
+                  type="button"
+                  onClick={() => { setRechargeCenter(''); setRechargeFrom(''); setRechargeTo('') }}
+                  className="px-3 py-2 text-sm font-semibold text-gray-500 hover:text-[#933d18] underline"
+                >
+                  Clear filters
+                </button>
+              )}
+              <p className="ml-auto text-sm text-gray-500 pb-2">
+                {rechargesList.length} request{rechargesList.length === 1 ? '' : 's'}
+                {' · '}<span className="font-bold text-gray-800">₹{rechargesTotal.toLocaleString('en-IN')}</span>
+              </p>
+            </div>
             <Table>
               <Thead>
                 <tr>
@@ -1591,7 +1676,9 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {rechargesList.length === 0 ? (
-                  <Tr><Td colSpan={13} className="text-center text-gray-400 py-12">No {rechargeStatusFilter === 'approved' ? 'approved' : rechargeStatusFilter} recharge requests</Td></Tr>
+                  <Tr><Td colSpan={13} className="text-center text-gray-400 py-12">{rechargeFiltersOn
+                    ? 'No recharge requests match these filters'
+                    : `No ${rechargeStatusFilter === 'approved' ? 'approved' : rechargeStatusFilter} recharge requests`}</Td></Tr>
                 ) : rechargesList.map((r, i) => (
                   <Tr key={r.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
