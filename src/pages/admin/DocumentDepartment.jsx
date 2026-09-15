@@ -540,11 +540,20 @@ export default function DocumentDepartment() {
   async function handleHold() {
     if (!holdRemarks.trim()) { alert('A remark is required to put this on hold'); return }
     setSaving(true)
-    await supabase.from('students').update({
+    // Checked, and read back. This used to fire and forget: a failed update
+    // still closed the modal, so the admin believed the student was held while
+    // it sat exactly where it was — and the centre never saw it under Hold.
+    const { data: held, error: holdErr } = await supabase.from('students').update({
       status: 'Hold',
       doc_verified_at: null,
       remarks: holdRemarks.trim(),
-    }).eq('id', holdModal.id)
+    }).eq('id', holdModal.id).select('id')
+    if (holdErr || !held?.length) {
+      setSaving(false)
+      alert('Could not put this student on hold: ' + (holdErr?.message || 'no record was changed')
+        + '\n\nNothing was saved — the student is still where it was.')
+      return
+    }
     // Record exactly which fields were flagged, so on resubmit the center can only
     // edit those. Done as a separate best-effort update so a missing column (if the
     // add_student_correction_fields.sql migration hasn't run yet) doesn't block the hold.
