@@ -534,6 +534,14 @@ function fieldsFromStudentRemark(remark) {
   return [...out]
 }
 
+// A timestamp's day on the LOCAL calendar, as YYYY-MM-DD. Slicing the ISO string
+// would give the UTC day and shift anything entered after midnight IST back one.
+function toLocalDay(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function StudentForm() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -597,6 +605,9 @@ export default function StudentForm() {
   const activeStepRef = useRef(null)
   const [showPassword, setShowPassword] = useState(false)
   const [stepError, setStepError] = useState('')
+  // "Entered On" — the record's created_at — is editable by an admin on an
+  // existing student. null = untouched, so the stored value is shown and kept.
+  const [enteredOn, setEnteredOn] = useState(null)
   const [walletInfo, setWalletInfo] = useState({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false, dueSem: 1, calendarActive: false })
   // A Staging (draft) center collects no fee at entry — the fee is charged from
   // the destination center only when the student is transferred/forwarded.
@@ -1343,6 +1354,18 @@ export default function StudentForm() {
         .forEach(k => delete payload[k])
     }
 
+    // An admin correcting Entered On. created_at was stripped above with the
+    // other system columns, and it is not a form key, so it is set back here —
+    // after that filtering — and only when the date was actually changed. The
+    // original time of day is kept, so the student keeps its place among the
+    // others entered that day.
+    if (isAdmin && isEdit && enteredOn && form.created_at && enteredOn !== toLocalDay(form.created_at)) {
+      const [y, m, d] = enteredOn.split('-').map(Number)
+      const next = new Date(form.created_at)
+      next.setFullYear(y, m - 1, d)
+      payload.created_at = next.toISOString()
+    }
+
     const saveStudent = (p) => isEdit
       ? supabase.from('students').update(p).eq('id', id).select('id').single()
       : supabase.from('students').insert(p).select('id').single()
@@ -1563,6 +1586,17 @@ export default function StudentForm() {
                   .map(t => <option key={t} value={t}>{t}</option>)}
               </Select>
             </div>
+            {isAdmin && isEdit && form.created_at && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <DateInput
+                  label="Entered On"
+                  value={enteredOn ?? toLocalDay(form.created_at)}
+                  onChange={v => setEnteredOn(v?.target ? v.target.value : v)}
+                  max={toLocalDay(new Date().toISOString())}
+                  hint="The day this record was entered in the system. It sets where the student sorts and which date filters include it."
+                />
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <DateInput
                 label="Date of Submission *"
