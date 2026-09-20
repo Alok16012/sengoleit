@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Award, Lock, BadgeCheck, FileText, Trash2, Maximize2, Minimize2, Eye, EyeOff } from 'lucide-react'
+import { X, Award, Lock, BadgeCheck, FileText, Trash2, Maximize2, Minimize2, Eye, EyeOff, Send } from 'lucide-react'
 import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
 import { semesterResults, saveSemesterResult, setSemesterResultVisible, deleteSemesterResult } from '../utils/semesterResults'
@@ -195,7 +195,11 @@ export default function SemesterResultModal({ student, special = false, onClose,
     // CGPA spans every semester up to this one, not just this one.
     const cgpa = sgpaOf(await fetchPaperMarksUpto(student, row.sem))
     generateMarksStatement(resolved, rowsForSem, {
-      dmcNo: resolved.enrollment_no ? `${resolved.enrollment_no}/S${row.sem}` : '',
+      // The number issued when the result was forwarded for printing, not one
+      // derived from the enrolment number: a reprint must carry the same Dmc
+      // No. as the first copy, and a corrected enrolment number must not
+      // silently renumber a sheet already in circulation.
+      dmcNo: row.result?.dmc_no ? String(row.result.dmc_no) : '',
       semester: `Semester ${row.sem}`,
       examHeld: dates.examSession || '',
       resultStatus: row.result?.status === 'Fail' ? 'Failed' : 'Passed',
@@ -205,6 +209,26 @@ export default function SemesterResultModal({ student, special = false, onClose,
       cgpa,
     })
     setPrinting(null)
+  }
+
+  // Send a declared result to the Exam Section's Print tab. The DMC number is
+  // issued by the database at this moment and comes back here; forwarding the
+  // same result again returns the number already issued rather than a new one.
+  async function sendToPrint(row) {
+    const r = row.result
+    if (!r?.id) return
+    setPrinting(row.sem)
+    const { data: dmc, error } = await supabase.rpc('forward_result_to_print', { p_result: r.id })
+    setPrinting(null)
+    if (error) {
+      alert(/forward_result_to_print|PGRST202|42883|schema cache/i.test(error.message || '')
+        ? 'This needs a database update — nothing was sent.\n\nPlease run add_result_print_flow.sql in Supabase.'
+        : 'Could not send this result for printing:\n\n' + error.message)
+      return
+    }
+    await load()
+    onSaved?.()
+    alert(`Sent to the Print tab. DMC No. ${dmc}`)
   }
 
   async function save() {
@@ -535,6 +559,23 @@ export default function SemesterResultModal({ student, special = false, onClose,
                               onClick={() => printStatement(row)}>
                               <FileText size={12} /> {printing === row.sem ? '…' : 'Marks Statement'}
                             </Button>
+                          )}
+                          {/* Forwarding is what puts the result in the Print
+                              tab, and what issues its DMC number. Once sent,
+                              the number is shown rather than the button. */}
+                          {r && r.status !== 'Pending' && (
+                            r.print_forwarded_at ? (
+                              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded whitespace-nowrap"
+                                title="Already in the Print tab">
+                                In Print · DMC {r.dmc_no ?? '—'}
+                              </span>
+                            ) : (
+                              <Button size="sm" variant="secondary" disabled={printing === row.sem}
+                                title="Send to the Exam Section's Print tab and issue a DMC number"
+                                onClick={() => sendToPrint(row)}>
+                                <Send size={12} /> Send to Print
+                              </Button>
+                            )
                           )}
                           {/* Reads the state, like the admit card's: Active
                               when the student can see the result. */}

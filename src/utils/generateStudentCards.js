@@ -1203,3 +1203,224 @@ export function generateMarksStatement(s, rows = [], meta = {}) {
 </body></html>`
   openWindow(html, 'Statement of Marks')
 }
+
+// ============================================================
+//  8. PRINT-TAB CERTIFICATES
+//  Provisional, Migration, Degree and the Consolidated Marksheet. All four
+//  print from the Exam Section's Print tab, once a result has been forwarded
+//  from the Result section. They share the university band, the print button
+//  and the base style with every other card here, so a set printed together
+//  reads as one set.
+// ============================================================
+
+// The shell every one-page certificate below sits in: bordered card, band
+// header, a title, then whatever body is passed in.
+function certificateShell({ title, subtitle = '', body, footer = '', width = 680 }) {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+  <title>${v(title)}</title>${baseStyle}
+  <style>
+    .cert-body { font-size:12.5px; line-height:2.1; color:#111; padding:26px 34px; text-align:justify; }
+    .cert-body b { color:#000; }
+    .fill { display:inline-block; border-bottom:1px dotted #555; min-width:170px; padding:0 6px;
+            font-weight:700; text-align:center; }
+    .sign-row { display:flex; justify-content:space-between; padding:38px 34px 26px; }
+    .sign { text-align:center; font-size:10px; font-weight:700; color:#222; }
+    .sign span { display:block; border-top:1.2px solid #333; padding-top:5px; min-width:150px; }
+    .serial { font-size:10px; font-weight:700; color:${BRAND}; }
+  </style>
+</head>
+<body>
+<div style="max-width:${width}px;margin:24px auto;">
+  ${printBtn()}
+  <div style="border:2.5px solid #333;background:#fff;box-shadow:0 4px 20px rgba(0,0,0,0.12);">
+    ${uniBandHeader({ logo: 52, name: 19, estd: 8 })}
+    <div style="text-align:center;padding:9px;border-bottom:2px solid #333;background:#fafafa;">
+      <span style="font-size:18px;font-weight:900;color:${BRAND};letter-spacing:0.1em;">${v(title).toUpperCase()}</span>
+      ${subtitle ? `<div style="font-size:9.5px;color:#666;margin-top:3px;font-style:italic;">${v(subtitle)}</div>` : ''}
+    </div>
+    ${body}
+    <div class="sign-row">
+      <div class="sign"><span>Registrar</span></div>
+      <div class="sign"><span>Controller of Examinations</span></div>
+    </div>
+    ${footer}
+  </div>
+</div>
+</body></html>`
+}
+
+// The line every certificate opens with — who the student is.
+function certHeadRow(s, rightLabel, rightValue) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  return `
+    <table style="width:100%;border-collapse:collapse;border-bottom:2px solid #333;">
+      <tr>
+        <td style="font-size:9.5px;font-weight:700;color:#fff;background:${BRAND};padding:5px 8px;width:50%;border-right:2px solid #333;text-align:center;">Enrollment No.</td>
+        <td style="font-size:9.5px;font-weight:700;color:#fff;background:${BRAND};padding:5px 8px;text-align:center;">${v(rightLabel)}</td>
+      </tr>
+      <tr>
+        <td style="font-size:11px;font-weight:700;text-align:center;padding:6px 8px;border-right:2px solid #333;">${v(s.enrollment_no)}</td>
+        <td style="font-size:11px;font-weight:700;text-align:center;padding:6px 8px;">${v(rightValue)}</td>
+      </tr>
+    </table>
+    <div style="font-size:10px;color:#444;padding:10px 34px 0;font-style:italic;">Programme: <b>${v(prog)}</b></div>`
+}
+
+// ---- Provisional Certificate -------------------------------------------
+// Issued while the degree itself is being prepared; it says the student has
+// completed the programme and is qualified for the award.
+// opts: { serialNo, passingYear, division, cgpa }
+export function generateProvisionalCertificate(s, opts = {}) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  const body = `
+    ${certHeadRow(s, 'Serial No.', opts.serialNo || '—')}
+    <div class="cert-body">
+      This is to certify that <b>${v(s.student_name)}</b>,
+      ${s.father_name ? `son / daughter of <b>${v(s.father_name)}</b>, ` : ''}
+      bearing Enrollment No. <b>${v(s.enrollment_no)}</b>, has completed the
+      programme <b>${v(prog)}</b> of this University
+      ${opts.passingYear ? `in the year <b>${v(opts.passingYear)}</b>` : ''}
+      and has been declared <b>PASSED</b>
+      ${opts.division ? `in <b>${v(opts.division)}</b>` : ''}
+      ${opts.cgpa ? `with a CGPA of <b>${v(opts.cgpa)}</b>` : ''}.
+      <br/><br/>
+      This provisional certificate is issued on the candidate's request pending
+      the formal award of the degree, and remains valid until the degree
+      certificate is issued.
+    </div>`
+  openWindow(certificateShell({
+    title: 'Provisional Certificate',
+    subtitle: 'Valid until the degree certificate is issued',
+    body,
+  }), 'Provisional Certificate')
+}
+
+// ---- Migration Certificate ---------------------------------------------
+// The university's no-objection to the student joining another university.
+// opts: { serialNo, passingYear }
+export function generateMigrationCertificate(s, opts = {}) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  const sess = s.academic_sessions?.session_name || s.session_name || '—'
+  const body = `
+    ${certHeadRow(s, 'Migration No.', opts.serialNo || '—')}
+    <div class="cert-body">
+      This is to certify that <b>${v(s.student_name)}</b>,
+      ${s.father_name ? `son / daughter of <b>${v(s.father_name)}</b>, ` : ''}
+      bearing Enrollment No. <b>${v(s.enrollment_no)}</b>, was a bona fide
+      student of this University in the session <b>${v(sess)}</b> and has
+      completed <b>${v(prog)}</b>
+      ${opts.passingYear ? `in the year <b>${v(opts.passingYear)}</b>` : ''}.
+      <br/><br/>
+      The University has <b>no objection</b> to the candidate migrating to any
+      other University or Board of examination. This certificate is issued on
+      the candidate's own request and does not by itself confer any right of
+      admission elsewhere.
+    </div>`
+  openWindow(certificateShell({
+    title: 'Migration Certificate',
+    subtitle: 'No objection to migration to another University or Board',
+    body,
+  }), 'Migration Certificate')
+}
+
+// ---- Degree Certificate -------------------------------------------------
+// The award itself. Landscape-ish proportions and a wider card, so it does
+// not read like the one-page office certificates above.
+// opts: { serialNo, passingYear, division, convocationDate }
+export function generateDegreeCertificate(s, opts = {}) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  const body = `
+    ${certHeadRow(s, 'Degree No.', opts.serialNo || '—')}
+    <div class="cert-body" style="text-align:center;line-height:2.4;">
+      The Board of Management of this University, on the recommendation of the
+      Academic Council, hereby confers upon
+      <br/>
+      <span style="display:block;font-size:20px;font-weight:900;color:${BRAND};letter-spacing:0.04em;margin:14px 0 4px;">
+        ${v(s.student_name)}
+      </span>
+      ${s.father_name ? `<span style="font-size:11px;color:#444;">son / daughter of ${v(s.father_name)}</span><br/>` : ''}
+      the degree of
+      <span style="display:block;font-size:16px;font-weight:900;margin:12px 0 4px;">${v(prog)}</span>
+      ${opts.division ? `having been placed in <b>${v(opts.division)}</b>` : ''}
+      ${opts.passingYear ? `in the year <b>${v(opts.passingYear)}</b>` : ''},
+      with all the rights, privileges and responsibilities pertaining thereto.
+    </div>
+    ${opts.convocationDate ? `<div style="text-align:center;font-size:10px;color:#555;padding-bottom:6px;font-style:italic;">Awarded at the convocation held on ${v(opts.convocationDate)}</div>` : ''}`
+  openWindow(certificateShell({
+    title: 'Degree Certificate',
+    body,
+    width: 760,
+  }), 'Degree Certificate')
+}
+
+// ---- Consolidated Marksheet --------------------------------------------
+// Every semester on one sheet, with the overall total and division. The
+// per-semester Statement of Marks stays the authority for a single semester;
+// this is the summary across all of them.
+// sems: [{ sem, obtained, total, status, dmcNo }]
+// opts: { serialNo, cgpa }
+export function generateConsolidatedMarksheet(s, sems = [], opts = {}) {
+  const num = x => Number(String(x ?? '').replace(/[^\d.]/g, '')) || 0
+  const totObt = sems.reduce((a, r) => a + num(r.obtained), 0)
+  const totMax = sems.reduce((a, r) => a + num(r.total), 0)
+  const pct = totMax > 0 ? (totObt / totMax) * 100 : 0
+  const failed = sems.some(r => String(r.status || '').toLowerCase() === 'fail')
+
+  const rows = sems.map(r => {
+    const o = num(r.obtained), t = num(r.total)
+    const p = t > 0 ? (o / t) * 100 : 0
+    return `<tr>
+      <td style="text-align:center;">Semester ${v(r.sem)}</td>
+      <td style="text-align:center;font-family:monospace;">${r.dmcNo ? v(r.dmcNo) : '—'}</td>
+      <td style="text-align:center;">${t ? o : '—'}</td>
+      <td style="text-align:center;">${t || '—'}</td>
+      <td style="text-align:center;">${t ? p.toFixed(2) + '%' : '—'}</td>
+      <td style="text-align:center;">${t ? gradeFor(p) : '—'}</td>
+      <td style="text-align:center;font-weight:700;color:${String(r.status).toLowerCase() === 'fail' ? '#b91c1c' : '#047857'};">${v(r.status || '—')}</td>
+    </tr>`
+  }).join('')
+
+  const body = `
+    ${certHeadRow(s, 'Serial No.', opts.serialNo || '—')}
+    <div style="padding:16px 22px 4px;">
+      <table style="width:100%;border-collapse:collapse;font-size:10.5px;" border="0">
+        <thead>
+          <tr style="background:${BRAND};color:#fff;">
+            <th style="padding:6px;">Semester</th>
+            <th style="padding:6px;">DMC No.</th>
+            <th style="padding:6px;">Obtained</th>
+            <th style="padding:6px;">Maximum</th>
+            <th style="padding:6px;">Percentage</th>
+            <th style="padding:6px;">Grade</th>
+            <th style="padding:6px;">Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows || `<tr><td colspan="7" style="text-align:center;padding:16px;color:#888;">No semester has been forwarded for printing yet.</td></tr>`}
+        </tbody>
+        <tfoot>
+          <tr style="background:#fafafa;font-weight:800;">
+            <td style="padding:7px;text-align:center;" colspan="2">Total</td>
+            <td style="padding:7px;text-align:center;">${totObt || '—'}</td>
+            <td style="padding:7px;text-align:center;">${totMax || '—'}</td>
+            <td style="padding:7px;text-align:center;">${totMax ? pct.toFixed(2) + '%' : '—'}</td>
+            <td style="padding:7px;text-align:center;">${totMax ? gradeFor(pct) : '—'}</td>
+            <td style="padding:7px;text-align:center;color:${failed ? '#b91c1c' : '#047857'};">${failed ? 'FAIL' : (totMax ? 'PASS' : '—')}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div style="font-size:10.5px;color:#222;padding:12px 4px 0;">
+        ${totMax ? `Division: <b>${v(divisionFor(pct))}</b>` : ''}
+        ${opts.cgpa ? ` &nbsp;·&nbsp; CGPA: <b>${v(opts.cgpa)}</b>` : ''}
+      </div>
+      <p style="font-size:9px;color:#777;font-style:italic;padding:8px 4px 0;">
+        This sheet consolidates the semesters forwarded for printing. The
+        Statement of Marks issued for a semester remains the authority for it.
+      </p>
+    </div>`
+  openWindow(certificateShell({
+    title: 'Consolidated Marksheet',
+    body,
+    width: 820,
+  }), 'Consolidated Marksheet')
+}

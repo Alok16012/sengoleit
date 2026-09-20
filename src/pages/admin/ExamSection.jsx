@@ -3,10 +3,15 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange, Users } from 'lucide-react'
+import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange, Users, Printer, FileText } from 'lucide-react'
 import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
 import ExaminationCalendar from './ExaminationCalendar'
-import { generateAdmitCard } from '../../utils/generateStudentCards'
+import {
+  generateAdmitCard, generateMarksStatement, sgpaOf, divisionFor,
+  generateProvisionalCertificate, generateMigrationCertificate,
+  generateDegreeCertificate, generateConsolidatedMarksheet,
+} from '../../utils/generateStudentCards'
+import { fetchPaperMarks, fetchPaperMarksUpto } from '../../utils/paperMarks'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
 import { fetchExamDates, fetchExamEndDates, examEndDateFor } from '../../utils/examSettings'
@@ -364,6 +369,73 @@ export default function ExamSection() {
 
   const [releasing, setReleasing] = useState(null)
   const [resultModalStudent, setResultModalStudent] = useState(null)
+  const [printBusy, setPrintBusy] = useState(null)
+
+  // A result reaches the Print tab only once it has been forwarded, so the
+  // tab reads off print_forwarded_at rather than off "declared".
+  const forwardedSems = (s) => Object.entries(results || {})
+    .filter(([k, r]) => k.startsWith(`${s.id}__`) && r?.print_forwarded_at)
+    .map(([, r]) => r)
+    .sort((a, b) => Number(a.semester) - Number(b.semester))
+  const printList = data.filter(s => forwardedSems(s).length > 0)
+
+  // The full record, with the joins the certificates print from.
+  async function fullStudent(s) {
+    const { data: full } = await supabase.from('students')
+      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
+      .eq('id', s.id).single()
+    return full ? await resolveStudentDocUrls(full) : s
+  }
+
+  // Totals across the forwarded semesters — what the division on the
+  // provisional, the degree and the consolidated sheet is worked out from.
+  function printSummary(sems) {
+    const num = x => Number(String(x ?? '').replace(/[^\d.]/g, '')) || 0
+    const obtained = sems.reduce((a, r) => a + num(r.obtained_marks), 0)
+    const maximum  = sems.reduce((a, r) => a + num(r.total_marks), 0)
+    const pct = maximum > 0 ? (obtained / maximum) * 100 : 0
+    const last = sems.map(r => r.declared_at).filter(Boolean).sort().pop()
+    return {
+      division: maximum > 0 ? divisionFor(pct) : '',
+      passingYear: last ? new Date(last).getFullYear() : '',
+    }
+  }
+
+  async function printSemMarksheet(s, r) {
+    setPrintBusy(`${s.id}__${r.semester}`)
+    try {
+      const resolved = await fullStudent(s)
+      const rowsForSem = await fetchPaperMarks(s, r.semester)
+      const dates = await fetchExamDates(resolved, r.semester)
+      const cgpa = sgpaOf(await fetchPaperMarksUpto(s, r.semester))
+      generateMarksStatement(resolved, rowsForSem, {
+        dmcNo: r.dmc_no ? String(r.dmc_no) : '',
+        semester: `Semester ${r.semester}`,
+        examHeld: dates.examSession || '',
+        resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
+        cgpa,
+      })
+    } finally { setPrintBusy(null) }
+  }
+
+  async function printCertificate(s, kind) {
+    const sems = forwardedSems(s)
+    if (!sems.length) return
+    setPrintBusy(`${s.id}__${kind}`)
+    try {
+      const resolved = await fullStudent(s)
+      const { division, passingYear } = printSummary(sems)
+      const upto = Math.max(...sems.map(r => Number(r.semester) || 0))
+      const cgpa = sgpaOf(await fetchPaperMarksUpto(s, upto))
+      if (kind === 'provisional') generateProvisionalCertificate(resolved, { passingYear, division, cgpa })
+      else if (kind === 'migration') generateMigrationCertificate(resolved, { passingYear })
+      else if (kind === 'degree') generateDegreeCertificate(resolved, { passingYear, division })
+      else generateConsolidatedMarksheet(resolved, sems.map(r => ({
+        sem: r.semester, obtained: r.obtained_marks, total: r.total_marks,
+        status: r.status, dmcNo: r.dmc_no,
+      })), { cgpa })
+    } finally { setPrintBusy(null) }
+  }
 
   // Open the per-semester admit-card picker — computes which semesters' fee is
   // cleared (fee_collected covers the cumulative fee up to that semester).
@@ -692,6 +764,7 @@ export default function ExamSection() {
         subtitle={
           view === 'calendar' ? 'Set examination start & end dates per session and semester' :
           view === 'result' ? `${resultList.length} student${resultList.length === 1 ? '' : 's'} — declare or edit results` :
+          view === 'print' ? `${printList.length} student${printList.length === 1 ? '' : 's'} — results forwarded from the Result section` :
           `${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`
         }
       />
@@ -704,6 +777,7 @@ export default function ExamSection() {
           { key: 'schedule', label: 'Date Sheet', icon: CalendarClock },
           { key: 'calendar', label: 'Examination Calendar', icon: CalendarRange },
           { key: 'result', label: 'Result', icon: Award },
+          { key: 'print', label: 'Print', icon: Printer },
         ].map(t => {
           const Icon = t.icon
           const active = t.key === 'schedule' ? settingsOpen : (!settingsOpen && view === t.key)
@@ -1002,6 +1076,77 @@ export default function ExamSection() {
       )}
       </>)}
       </>)}
+
+      {/* PRINT — only results FORWARDED from the Result section appear here,
+          each carrying the DMC number issued at that moment. Forwarding is
+          what separates "declared" from "ready to print". */}
+      {view === 'print' && (
+        <Table>
+          <Thead>
+            <tr>
+              <Th>#</Th>
+              <Th>Student</Th>
+              <Th>Programme</Th>
+              <Th>Enrollment No</Th>
+              <Th>Forwarded Semesters · DMC No.</Th>
+              <Th className="min-w-[420px]">Print</Th>
+            </tr>
+          </Thead>
+          <Tbody>
+            {printList.length === 0 ? (
+              <Tr><Td colSpan={6} className="text-center text-gray-400 py-12">
+                Nothing forwarded yet — send a declared result from the Result tab.
+              </Td></Tr>
+            ) : printList.map((s, i) => {
+              const sems = forwardedSems(s)
+              return (
+                <Tr key={s.id}>
+                  <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                  <Td>
+                    <p className="font-semibold text-gray-900">{s.student_name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{s.gender} • {s.mobile_no || '—'}</p>
+                  </Td>
+                  <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
+                  <Td className="font-mono text-xs font-bold text-emerald-700">{s.enrollment_no || '—'}</Td>
+                  <Td>
+                    <div className="flex flex-wrap gap-1">
+                      {sems.map(r => (
+                        <span key={r.semester}
+                          className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded whitespace-nowrap">
+                          Sem {r.semester} · {r.dmc_no ?? '—'}
+                        </span>
+                      ))}
+                    </div>
+                  </Td>
+                  <Td>
+                    <div className="flex flex-wrap gap-1.5">
+                      {/* One marksheet per forwarded semester — each is its own
+                          issued document with its own number. */}
+                      {sems.map(r => (
+                        <Button key={r.semester} size="sm" variant="secondary"
+                          disabled={printBusy === `${s.id}__${r.semester}`}
+                          title={`Statement of Marks for Semester ${r.semester}`}
+                          onClick={() => printSemMarksheet(s, r)}>
+                          <FileText size={12} /> {printBusy === `${s.id}__${r.semester}` ? '…' : `Marksheet S${r.semester}`}
+                        </Button>
+                      ))}
+                      {['provisional', 'migration', 'degree', 'consolidated'].map(kind => (
+                        <Button key={kind} size="sm" variant="outline"
+                          disabled={printBusy === `${s.id}__${kind}`}
+                          onClick={() => printCertificate(s, kind)}>
+                          <Printer size={12} /> {printBusy === `${s.id}__${kind}` ? '…' : (
+                            kind === 'consolidated' ? 'Consolidated' : kind[0].toUpperCase() + kind.slice(1)
+                          )}
+                        </Button>
+                      ))}
+                    </div>
+                  </Td>
+                </Tr>
+              )
+            })}
+          </Tbody>
+        </Table>
+      )}
 
       {resultModalStudent && (
         <SemesterResultModal

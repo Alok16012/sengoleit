@@ -21,7 +21,7 @@ export async function semesterResults(student) {
   })
   const { data, error } = await supabase
     .from('student_results')
-    .select('id, semester, status, obtained_marks, total_marks, remarks, marksheet_url, declared_at, released_at')
+    .select('id, semester, status, obtained_marks, total_marks, remarks, marksheet_url, declared_at, released_at, print_forwarded_at, dmc_no')
     .eq('student_id', student.id)
   if (error) return null
   const bySem = Object.fromEntries((data || []).map(r => [r.semester, r]))
@@ -75,7 +75,7 @@ export async function fetchResultsForMany(studentIds) {
   // fix_center_portal_reads.sql not run yet — fall back to the direct read.
   const res = await supabase
     .from('student_results')
-    .select('student_id, semester, status, obtained_marks, total_marks, declared_at, released_at')
+    .select('id, student_id, semester, status, obtained_marks, total_marks, declared_at, released_at, print_forwarded_at, dmc_no')
     .in('student_id', studentIds)
   if (res.error) return null
   return keyed(res.data || [])
