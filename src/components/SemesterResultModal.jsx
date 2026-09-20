@@ -194,12 +194,30 @@ export default function SemesterResultModal({ student, special = false, onClose,
     const dates = await fetchExamDates(resolved, row.sem)
     // CGPA spans every semester up to this one, not just this one.
     const cgpa = sgpaOf(await fetchPaperMarksUpto(student, row.sem))
+    // The sheet must carry a number. If this result has not been given one
+    // yet, issuing happens here — printing an official copy is exactly the
+    // moment a DMC number starts to mean something. It does NOT forward the
+    // result to the Print tab; that stays a separate, deliberate act.
+    let dmc = row.result?.dmc_no
+    if (!dmc && row.result?.id) {
+      const { data: issued, error: issueErr } = await supabase
+        .rpc('issue_dmc_no', { p_result: row.result.id })
+      if (issueErr) {
+        setPrinting(null)
+        alert(/issue_dmc_no|PGRST202|42883|schema cache/i.test(issueErr.message || '')
+          ? 'This needs a database update — nothing was printed.\n\nPlease run add_issue_dmc_no.sql in Supabase.'
+          : 'Could not issue a DMC number:\n\n' + issueErr.message)
+        return
+      }
+      dmc = issued
+      await load()
+    }
     generateMarksStatement(resolved, rowsForSem, {
       // The number issued when the result was forwarded for printing, not one
       // derived from the enrolment number: a reprint must carry the same Dmc
       // No. as the first copy, and a corrected enrolment number must not
       // silently renumber a sheet already in circulation.
-      dmcNo: row.result?.dmc_no ? String(row.result.dmc_no) : '',
+      dmcNo: dmc ? String(dmc) : '',
       semester: `Semester ${row.sem}`,
       examHeld: dates.examSession || '',
       resultStatus: row.result?.status === 'Fail' ? 'Failed' : 'Passed',
@@ -533,11 +551,11 @@ export default function SemesterResultModal({ student, special = false, onClose,
                   const r = row.result
                   return (
                     <div key={row.sem}
-                      className={`flex items-center justify-between rounded-xl border px-4 py-2.5 gap-3 ${row.cleared ? 'border-gray-200' : 'border-gray-100 bg-gray-50'}`}>
-                      <div className="min-w-0">
-                        <p className={`text-sm font-bold ${row.cleared ? 'text-gray-900' : 'text-gray-400'}`}>Semester {row.sem}</p>
+                      className={`flex flex-wrap items-center justify-between rounded-xl border px-4 py-2.5 gap-x-3 gap-y-2 ${row.cleared ? 'border-gray-200' : 'border-gray-100 bg-gray-50'}`}>
+                      <div className="min-w-0 flex-1 basis-[150px]">
+                        <p className={`text-sm font-bold whitespace-nowrap ${row.cleared ? 'text-gray-900' : 'text-gray-400'}`}>Semester {row.sem}</p>
                         {r && r.status !== 'Pending' ? (
-                          <p className="text-[11px] text-gray-500">
+                          <p className="text-[11px] text-gray-500 whitespace-nowrap overflow-hidden text-ellipsis">
                             <span className={r.status === 'Pass' ? 'text-emerald-700 font-bold' : 'text-red-700 font-bold'}>{r.status}</span>
                             {' · '}{r.obtained_marks || '—'}/{r.total_marks || '—'} · {pct(r.obtained_marks, r.total_marks)}
                             {r.released_at ? ' · active for student' : ' · deactive'}
@@ -549,7 +567,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                       {!row.cleared ? (
                         <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 shrink-0"><Lock size={12} /> Fee pending</span>
                       ) : (
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex flex-wrap items-center justify-end gap-1.5 ml-auto">
                           <Button size="sm" variant="secondary" onClick={() => edit(row)}>
                             {r && r.status !== 'Pending' ? 'Edit' : 'Enter'}
                           </Button>
