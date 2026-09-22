@@ -888,10 +888,20 @@ export function sgpaOf(rows) {
   let pts = 0, creds = 0
   for (const r of rows) {
     const credit = Number(r.credits) || 0
-    if (!credit) continue
     const max = Number(r.total_marks) || 0
-    const got = (Number(r.theory_obtained) || 0) + (Number(r.internal_obtained) || 0)
-    if (!max) continue
+    if (!credit || !max) continue
+
+    // A paper whose marks have not been ENTERED is not a paper scored zero.
+    // Both used to read as 0 here, so every not-yet-marked paper counted as an
+    // F and brought its credits into the average. Across a whole course that
+    // is most of the papers, which is how a CGPA of 2.76 sat under an SGPA of
+    // 7.25. An entered 0 still counts — that is a real fail.
+    const t = r.theory_obtained, i = r.internal_obtained
+    const hasT = t !== '' && t != null
+    const hasI = i !== '' && i != null
+    if (!hasT && !hasI) continue
+
+    const got = (hasT ? Number(t) || 0 : 0) + (hasI ? Number(i) || 0 : 0)
     pts += gradeFor((got / max) * 100).point * credit
     creds += credit
   }
