@@ -1057,16 +1057,23 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
     <div style="padding:11px 12px 12px;">
       <table style="width:100%;border-collapse:collapse;">
         <thead>
+          <!-- Internal and External each head two columns — Min/Max and Marks
+               Obtained — so the pair reads as one component rather than four
+               separate columns repeating the word. -->
           <tr>
-            <th style="${mh}white-space:nowrap;">Subject Code</th>
-            <th style="${mh}text-align:left;">Subject Name</th>
-            <th style="${mh}">Credit</th>
-            <th style="${mh}">Internal<br/>Min/Max</th>
-            <th style="${mh}">Internal Marks<br/>Obtained</th>
-            <th style="${mh}">External<br/>Min/Max</th>
-            <th style="${mh}">External Marks<br/>Obtained</th>
-            <th style="${mh}">Total Marks</th>
-            <th style="${mh}">Earned Credit<br/>(EC)</th>
+            <th rowspan="2" style="${mh}white-space:nowrap;">Subject Code</th>
+            <th rowspan="2" style="${mh}text-align:left;">Subject Name</th>
+            <th rowspan="2" style="${mh}">Credit</th>
+            <th colspan="2" style="${mh}">Internal</th>
+            <th colspan="2" style="${mh}">External</th>
+            <th rowspan="2" style="${mh}">Total Marks</th>
+            <th rowspan="2" style="${mh}">Earned Credit<br/>(EC)</th>
+          </tr>
+          <tr>
+            <th style="${mh}">Min/Max</th>
+            <th style="${mh}">Marks<br/>Obtained</th>
+            <th style="${mh}">Min/Max</th>
+            <th style="${mh}">Marks<br/>Obtained</th>
           </tr>
         </thead>
         <tbody>
