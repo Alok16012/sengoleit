@@ -974,11 +974,14 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
     : (failedPaper || /fail/i.test(String(meta.resultStatus || ''))) ? 'Fail'
     : divisionFor(totMax ? (totGot / totMax) * 100 : null)
 
-  const hasTheory = marked.some(r => r.maxT || r.gotT !== '')
-  const hasInternal = marked.some(r => r.maxI || r.gotI !== '')
-  const showTheory = hasTheory
-  const showInternal = hasInternal
-  const showTotals = showTheory || showInternal || marked.some(r => r.maxTot || r.gotTot)
+  // The sheet quotes a Min alongside each Maximum — the 16 in "16/40". No
+  // minimum is stored per paper (an early scheme_papers draft had one and it
+  // was dropped), so it is the university's 40% pass mark applied to that
+  // component's maximum, which is exactly what 16/40 and 24/60 are.
+  const PASS_PCT = 40
+  const minOf = (max) => (Number(max) ? Math.round((Number(max) * PASS_PCT) / 100) : 0)
+  const sumMin = (k) => marked.reduce((a, r) => a + minOf(r[k]), 0)
+  const pair = (min, max) => (max ? `${min}/${max}` : '\u2014')
 
 
   const cell = `border:1px dashed ${SHEET_DASH};padding:6px 9px;font-size:10px;color:#111;`
@@ -989,8 +992,7 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
   const mh = `${mc}font-size:9px;font-weight:700;background:#f7faf9;`
   const bar = `background:${SHEET_LINE};color:#fff;padding:8px 9px;font-size:10.5px;font-weight:700;`
 
-  const markColCount = (showTheory ? 1 : 0) + (showInternal ? 1 : 0) + (showTotals ? 1 : 0)
-  const marksCols = 5 + markColCount * 2
+  const marksCols = 9
 
   // The one column ruling the particulars block and the totals bar both follow,
   // so label edges and value edges line up straight down the sheet.
@@ -1056,21 +1058,15 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
       <table style="width:100%;border-collapse:collapse;">
         <thead>
           <tr>
-            <th rowspan="2" style="${mh}white-space:nowrap;">Subject Code</th>
-            <th rowspan="2" style="${mh}text-align:left;">Subject Name</th>
-            <th rowspan="2" style="${mh}">Total<br/>Credit</th>
-            ${markColCount > 0 ? `<th colspan="${markColCount}" style="${mh}">Maximum Marks</th>` : ''}
-            ${markColCount > 0 ? `<th colspan="${markColCount}" style="${mh}">Obtained Marks</th>` : ''}
-            <th rowspan="2" style="${mh}">Grade</th>
-            <th rowspan="2" style="${mh}">Earned<br/>Credit</th>
-          </tr>
-          <tr>
-            ${showTheory  ? `<th style="${mh}">External</th>` : ''}
-            ${showInternal ? `<th style="${mh}">Internal</th>` : ''}
-            ${showTotals  ? `<th style="${mh}">Total</th>` : ''}
-            ${showTheory  ? `<th style="${mh}">External</th>` : ''}
-            ${showInternal ? `<th style="${mh}">Internal</th>` : ''}
-            ${showTotals  ? `<th style="${mh}">Total</th>` : ''}
+            <th style="${mh}white-space:nowrap;">Subject Code</th>
+            <th style="${mh}text-align:left;">Subject Name</th>
+            <th style="${mh}">Credit</th>
+            <th style="${mh}">Internal<br/>Min/Max</th>
+            <th style="${mh}">Internal Marks<br/>Obtained</th>
+            <th style="${mh}">External<br/>Min/Max</th>
+            <th style="${mh}">External Marks<br/>Obtained</th>
+            <th style="${mh}">Total Marks</th>
+            <th style="${mh}">Earned Credit<br/>(EC)</th>
           </tr>
         </thead>
         <tbody>
@@ -1078,14 +1074,12 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
             let h = '<tr>'
             h += `<td style="${mc}white-space:nowrap;">${v(r.subject_code)}</td>`
             h += `<td style="${mc}text-align:left;">${v(r.subject_name)}</td>`
-            h += `<td style="${mc}">${r.credit || '—'}</td>`
-            if (showTheory)  h += `<td style="${mc}">${r.maxT || '\u2014'}</td>`
-            if (showInternal) h += `<td style="${mc}">${r.maxI || '\u2014'}</td>`
-            if (showTotals)  h += `<td style="${mc}">${r.maxTot || '\u2014'}</td>`
-            if (showTheory)  h += `<td style="${mc}">${r.gotT === '' || r.gotT == null ? '\u2014' : r.gotT}</td>`
-            if (showInternal) h += `<td style="${mc}">${r.gotI === '' || r.gotI == null ? '\u2014' : r.gotI}</td>`
-            if (showTotals)  h += `<td style="${mc}">${r.entered ? (r.gotTot || '\u2014') : '\u2014'}</td>`
-            h += `<td style="${mc}font-weight:700;">${r.g.letter}</td>`
+            h += `<td style="${mc}">${r.credit || '\u2014'}</td>`
+            h += `<td style="${mc}">${pair(minOf(r.maxI), r.maxI)}</td>`
+            h += `<td style="${mc}">${r.gotI === '' || r.gotI == null ? '\u2014' : r.gotI}</td>`
+            h += `<td style="${mc}">${pair(minOf(r.maxT), r.maxT)}</td>`
+            h += `<td style="${mc}">${r.gotT === '' || r.gotT == null ? '\u2014' : r.gotT}</td>`
+            h += `<td style="${mc}">${r.entered ? (r.gotTot || '\u2014') : '\u2014'}</td>`
             h += `<td style="${mc}">${r.earned || '\u2014'}</td>`
             h += '</tr>'
             return h
@@ -1094,14 +1088,12 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
             let h = ''
             h += `<td style="${mc}"></td>`
             h += `<td style="${mc}text-align:left;font-weight:700;">Total</td>`
-            h += `<td style="${mc}font-weight:700;">${sum('credit') || '—'}</td>`
-            if (showTheory)  h += `<td style="${mc}font-weight:700;">${sum('maxT') || '\u2014'}</td>`
-            if (showInternal) h += `<td style="${mc}font-weight:700;">${sum('maxI') || '\u2014'}</td>`
-            if (showTotals)  h += `<td style="${mc}font-weight:700;">${totMax || '\u2014'}</td>`
-            if (showTheory)  h += `<td style="${mc}font-weight:700;">${sum('gotT') || '\u2014'}</td>`
-            if (showInternal) h += `<td style="${mc}font-weight:700;">${sum('gotI') || '\u2014'}</td>`
-            if (showTotals)  h += `<td style="${mc}font-weight:700;">${totGot || '\u2014'}</td>`
-            h += `<td style="${mc}"></td>`
+            h += `<td style="${mc}font-weight:700;">${sum('credit') || '\u2014'}</td>`
+            h += `<td style="${mc}font-weight:700;">${pair(sumMin('maxI'), sum('maxI'))}</td>`
+            h += `<td style="${mc}font-weight:700;">${sum('gotI') || '\u2014'}</td>`
+            h += `<td style="${mc}font-weight:700;">${pair(sumMin('maxT'), sum('maxT'))}</td>`
+            h += `<td style="${mc}font-weight:700;">${sum('gotT') || '\u2014'}</td>`
+            h += `<td style="${mc}font-weight:700;">${totGot || '\u2014'}</td>`
             h += `<td style="${mc}font-weight:700;">${sum('earned') || '\u2014'}</td>`
             return h
           })()}</tr>
