@@ -992,7 +992,7 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
   const mh = `${mc}font-size:9px;font-weight:700;background:#f7faf9;`
   const bar = `background:${SHEET_LINE};color:#fff;padding:8px 9px;font-size:10.5px;font-weight:700;`
 
-  const marksCols = 9
+  const marksCols = 10
 
   // The one column ruling the particulars block and the totals bar both follow,
   // so label edges and value edges line up straight down the sheet.
@@ -1067,6 +1067,7 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
             <th colspan="2" style="${mh}">Internal</th>
             <th colspan="2" style="${mh}">External</th>
             <th rowspan="2" style="${mh}">Total Marks</th>
+            <th rowspan="2" style="${mh}">Grade Point<br/>(GP)<br/><span style="font-weight:400;">(out of 10)</span></th>
             <th rowspan="2" style="${mh}">Earned Credit<br/>(EC)</th>
           </tr>
           <tr>
@@ -1087,6 +1088,9 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
             h += `<td style="${mc}">${pair(minOf(r.maxT), r.maxT)}</td>`
             h += `<td style="${mc}">${r.gotT === '' || r.gotT == null ? '\u2014' : r.gotT}</td>`
             h += `<td style="${mc}">${r.entered ? (r.gotTot || '\u2014') : '\u2014'}</td>`
+            // The paper's own grade point, the figure the SGPA is the
+            // credit-weighted average of.
+            h += `<td style="${mc}">${r.entered ? r.g.point : '\u2014'}</td>`
             h += `<td style="${mc}">${r.earned || '\u2014'}</td>`
             h += '</tr>'
             return h
@@ -1101,6 +1105,9 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
             h += `<td style="${mc}font-weight:700;">${pair(sumMin('maxT'), sum('maxT'))}</td>`
             h += `<td style="${mc}font-weight:700;">${sum('gotT') || '\u2014'}</td>`
             h += `<td style="${mc}font-weight:700;">${totGot || '\u2014'}</td>`
+            // Grade points are averaged, not added — the average is the SGPA
+            // on the line below, so nothing is totalled in this column.
+            h += `<td style="${mc}"></td>`
             h += `<td style="${mc}font-weight:700;">${sum('earned') || '\u2014'}</td>`
             return h
           })()}</tr>
