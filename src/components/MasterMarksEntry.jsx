@@ -10,7 +10,7 @@ import { savePaperMarks } from '../utils/paperMarks'
 //
 // Entering marks student by student means opening a modal per student; a
 // semester's papers are the same for all of them, so they belong in one grid:
-// students down, papers across, theory and internal under each.
+// students down, papers across, external and internal under each.
 //
 // Maximums and credits come from the course's scheme, so a paper the scheme
 // has not set yet still accepts marks — it just prints without a maximum.
@@ -197,7 +197,7 @@ export default function MasterMarksEntry({ students, programs }) {
                 <tr className="bg-gray-50 text-gray-400 text-[10px] uppercase tracking-wider">
                   {papers.map(p => (
                     <Fragment key={p.paper_key}>
-                      <th className="font-semibold px-2 py-1.5 border-l border-gray-200 w-14">Th</th>
+                      <th className="font-semibold px-2 py-1.5 border-l border-gray-200 w-14">Ext</th>
                       <th className="font-semibold px-2 py-1.5 w-14">Int</th>
                     </Fragment>
                   ))}
