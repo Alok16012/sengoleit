@@ -145,6 +145,28 @@ const baseStyle = `
 /* ───────────────────────────────────────────────────
    1. STUDENT IDENTITY CARD
 ─────────────────────────────────────────────────── */
+// The years a course runs: admission year → admission year + its length.
+// A 2-year B.Ed admitted in 2025 reads "2025-2027". Taken from
+// complete_duration when it names years, else from `duration`, which is in
+// SEMESTERS for every mode and so is halved. Falls back to the batch name
+// when neither the length nor the start year can be worked out.
+export function courseValidity(s = {}) {
+  const named = String(s.programs?.complete_duration || '').match(/(\d+)\s*year/i)
+  const dur = Number(s.programs?.duration) || 0
+  const years = named ? parseInt(named[1], 10) : (dur ? Math.max(Math.round(dur / 2), 1) : 0)
+
+  const ay = String(s.academic_year || '').match(/(20\d{2})/)
+  let start = ay ? parseInt(ay[1], 10) : null
+  if (start == null) {
+    const d = s.academic_sessions?.start_date || s.date_of_admission || s.date_of_submission
+    const y = d ? new Date(d).getFullYear() : NaN
+    start = Number.isFinite(y) ? y : null
+  }
+  return start && years
+    ? `${start}-${start + years}`
+    : (s.academic_year || s.academic_sessions?.session_name || s.session_name || '—')
+}
+
 export function generateIDCard(s) {
   const prog = s.programs?.program_name || s.program_name || '—'
   // The ID card is an enrolled student's document — without an enrollment
@@ -159,26 +181,9 @@ export function generateIDCard(s) {
     ? (s.admission_number || s.enrollment_no)
     : (s.registration_no || s.enrollment_no || s.admission_number)
   const contact = s.mobile_no || s.whatsapp_no
-  // Validity spans the whole course: start year → start year + course years.
-  // e.g. a 2-year B.Ed starting 2025 → "2025-2027".
-  const courseYears = () => {
-    const m = String(s.programs?.complete_duration || '').match(/(\d+)\s*year/i)
-    if (m) return parseInt(m[1], 10)
-    const dur = Number(s.programs?.duration) || 0
-    if (!dur) return 0
-    // duration is in semesters for every mode — halve it for years. The old
-    // Year branch returned semesters-as-years, doubling a Ph.D's validity.
-    return Math.max(Math.round(dur / 2), 1)
-  }
-  const startYear = () => {
-    const ay = String(s.academic_year || '').match(/(20\d{2})/)
-    if (ay) return parseInt(ay[1], 10)
-    const d = s.academic_sessions?.start_date || s.date_of_admission || s.date_of_submission
-    const y = d ? new Date(d).getFullYear() : NaN
-    return Number.isFinite(y) ? y : null
-  }
-  const vStart = startYear(), vYears = courseYears()
-  const validity = vStart && vYears ? `${vStart}-${vStart + vYears}` : (s.academic_year || s.academic_sessions?.session_name || '—')
+  // Shared with the Statement of Marks, so a card and a marksheet can never
+  // quote different years for the same course.
+  const validity = courseValidity(s)
   // The Ph.D pipeline has no registration number — it identifies a candidate by
   // the application number until the enrollment number is issued.
   const regLabel = isPhdProgram(prog) ? 'Application No.' : 'Registration No.'
@@ -928,7 +933,6 @@ const SHEET_DASH = '#9fb3b3'
 // what the university prints cannot drift apart.
 export function marksStatementHTML(s, rows = [], meta = {}) {
   const prog = s.programs?.program_name || s.program_name || '—'
-  const sess = s.academic_sessions?.session_name || s.session_name || '—'
   const num = (x) => (x == null || x === '' ? '' : Number(x))
   const show = (x) => (x == null || x === '' ? '—' : String(x))
 
@@ -1038,7 +1042,7 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
       </tr>
       <tr>
         <td style="${cell}white-space:nowrap;">Session :</td>
-        <td style="${cell}font-weight:600;">${sess}</td>
+        <td style="${cell}font-weight:600;">${v(courseValidity(s))}</td>
         <td style="${cell}white-space:nowrap;">Examination held:</td>
         <td style="${cell}font-weight:600;">${v(meta.examHeld)}</td>
       </tr>
