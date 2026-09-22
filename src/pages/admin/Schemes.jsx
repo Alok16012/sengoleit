@@ -27,7 +27,7 @@ const calcSemesters = (p) => (p ? Number(p.duration) || 0 : 0)
 const ENTRY_FIELDS = [
   { key: 'credits',        label: 'Credit' },
   { key: 'internal_marks', label: 'Internal' },
-  { key: 'theory_marks',   label: 'Theory' },
+  { key: 'theory_marks',   label: 'External' },
 ]
 const totalOf = (r) => {
   const i = Number(r.internal_marks), t = Number(r.theory_marks)
@@ -254,7 +254,7 @@ export default function Schemes() {
         ) : (
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
-              {/* Internal / Theory / Total sit under one "Maximum Marks"
+              {/* Internal / External / Total sit under one "Maximum Marks"
                   heading, the way the university writes its scheme; the
                   syllabus columns beside them span both header rows. */}
               <thead>
@@ -269,7 +269,7 @@ export default function Schemes() {
                 </tr>
                 <tr className="bg-gray-50 text-gray-500 text-[11px] uppercase tracking-wider">
                   <th className="text-left font-semibold px-3 py-2 w-24">Internal</th>
-                  <th className="text-left font-semibold px-3 py-2 w-24">Theory</th>
+                  <th className="text-left font-semibold px-3 py-2 w-24">External</th>
                   <th className="text-left font-semibold px-3 py-2 w-24">Total</th>
                 </tr>
               </thead>
@@ -289,7 +289,7 @@ export default function Schemes() {
                           className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#933d18] focus:ring-1 focus:ring-[#933d18]/20" />
                       </td>
                     ))}
-                    {/* Internal + Theory — computed, so it can never drift. */}
+                    {/* Internal + External — computed, so it can never drift. */}
                     <td className="px-3 py-2">
                       <span className="inline-block w-20 px-2 py-1.5 rounded-lg text-xs font-bold text-gray-700 bg-gray-50 border border-gray-100">
                         {totalOf(r) === '' ? '—' : totalOf(r)}
@@ -302,7 +302,7 @@ export default function Schemes() {
           </div>
         )}
         <p className="text-[11px] text-gray-400 mt-3">
-          Paper No, Subject Code, Subject Name and Criteria come from this course's syllabus and can't be edited here — change them on the Syllabus page. Total is Internal + Theory and is worked out for you.
+          Paper No, Subject Code, Subject Name and Criteria come from this course's syllabus and can't be edited here — change them on the Syllabus page. Total is Internal + External and is worked out for you.
         </p>
       </div>
     )
@@ -470,7 +470,7 @@ export default function Schemes() {
                               </tr>
                               <tr className="bg-white border-b border-gray-100 text-gray-400">
                                 <th className="text-center font-semibold px-3 py-1.5">Internal</th>
-                                <th className="text-center font-semibold px-3 py-1.5">Theory</th>
+                                <th className="text-center font-semibold px-3 py-1.5">External</th>
                                 <th className="text-center font-semibold px-3 py-1.5">Total</th>
                               </tr>
                             </thead>
