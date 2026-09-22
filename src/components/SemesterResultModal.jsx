@@ -471,10 +471,10 @@ export default function SemesterResultModal({ student, special = false, onClose,
                           <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-20">Earned<br/>Credit</th>
                         </tr>
                         <tr className="bg-gray-50 text-gray-500 text-[10px] uppercase tracking-wider">
-                          <th className="text-center font-semibold px-2 py-1.5 w-16">Theory</th>
+                          <th className="text-center font-semibold px-2 py-1.5 w-16">External</th>
                           <th className="text-center font-semibold px-2 py-1.5 w-16">Internal</th>
                           <th className="text-center font-semibold px-2 py-1.5 w-16">Total</th>
-                          <th className="text-center font-semibold px-2 py-1.5 w-20">Theory</th>
+                          <th className="text-center font-semibold px-2 py-1.5 w-20">External</th>
                           <th className="text-center font-semibold px-2 py-1.5 w-20">Internal</th>
                           <th className="text-center font-semibold px-2 py-1.5 w-16">Total</th>
                         </tr>

@@ -1061,10 +1061,10 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
             <th rowspan="2" style="${mh}">Earned<br/>Credit</th>
           </tr>
           <tr>
-            ${showTheory  ? `<th style="${mh}">Theory</th>` : ''}
+            ${showTheory  ? `<th style="${mh}">External</th>` : ''}
             ${showInternal ? `<th style="${mh}">Internal</th>` : ''}
             ${showTotals  ? `<th style="${mh}">Total</th>` : ''}
-            ${showTheory  ? `<th style="${mh}">Theory</th>` : ''}
+            ${showTheory  ? `<th style="${mh}">External</th>` : ''}
             ${showInternal ? `<th style="${mh}">Internal</th>` : ''}
             ${showTotals  ? `<th style="${mh}">Total</th>` : ''}
           </tr>

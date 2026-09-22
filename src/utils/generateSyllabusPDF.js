@@ -136,7 +136,7 @@ export function generateSyllabusPDF(meta = {}, subjects = []) {
 
 // Per-semester examination-scheme PDF — the same sheet the Schemes editor
 // fills in: the syllabus columns, the credit, and the maximum marks split
-// Internal / Theory / Total.
+// Internal / External / Total.
 //   meta:   { programName, session, semester }
 //   papers: [{ paper_no, subject_code, subject_name, criteria, credits,
 //              internal_marks, theory_marks, total_marks }]
@@ -244,7 +244,7 @@ export function generateSchemePDF(meta = {}, papers = []) {
         </tr>
         <tr style="background:#933d18;">
           <th style="${th}text-align:center;">Internal</th>
-          <th style="${th}text-align:center;">Theory</th>
+          <th style="${th}text-align:center;">External</th>
           <th style="${th}text-align:center;">Total</th>
         </tr>
       </thead>
