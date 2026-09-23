@@ -8,9 +8,18 @@ import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStude
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
 
-// Internal is marked within its own band, not as a flat share of the paper:
-// 20 to 25 out of 30, as a fraction so a paper marked out of 50 or 20 scales.
-const INTERNAL_BAND = { lo: 20 / 30, hi: 25 / 30 }
+// Every component — internal and external alike — is marked inside one
+// window: never under the 40% pass mark, never over 70% of its own maximum.
+// The old band put internal at 20-25 out of 30, which is 83% and broke the
+// ceiling. Capping each component at 70% caps the paper at 70% as well, so a
+// subject out of 100 can never total more than 70.
+const COMPONENT_BAND = { lo: 0.40, hi: 0.70 }
+// The marks a component may take: 12-21 for an internal out of 30, 28-49 for
+// an external out of 70. Rounded inwards, so neither edge is ever crossed.
+const bandOf = (max) => ({
+  lo: max ? Math.ceil(max * COMPONENT_BAND.lo) : 0,
+  hi: max ? Math.floor(max * COMPONENT_BAND.hi) : 0,
+})
 // How far a single paper may sit either side of the percentage asked for.
 const PAPER_SPREAD = 4
 
@@ -104,37 +113,46 @@ export default function SemesterResultModal({ student, special = false, onClose,
       if (!fillable.length) return list
 
       const rand = (lo, hi) => lo + Math.random() * (hi - lo)
+      const randInt = (lo, hi) => (hi <= lo ? lo : lo + Math.floor(Math.random() * (hi - lo + 1)))
       const draw = fillable.map(x => {
+        const bi = bandOf(x.maxI), bt = bandOf(x.maxT)
+        // What the paper may total at all, once both components are held
+        // inside their window.
+        const lo = bi.lo + bt.lo, hi = bi.hi + bt.hi
         // A few points either side of the figure asked for, so papers differ.
-        const want = Math.round(x.max * (pct + rand(-PAPER_SPREAD, PAPER_SPREAD)) / 100)
-        // A paper with no theory (a project marked wholly internally) has
-        // nothing to split: its internal IS the paper, so it takes the target
-        // rather than the internal band, which would float it well above the
-        // percentage asked for.
-        if (!x.maxT) return { ...x, t: 0, i: Math.min(Math.max(want, 0), x.maxI) }
-        // Otherwise internal keeps to the university's band — 20 to 25 out of
-        // 30 — as a fraction, so an internal out of 50 or 20 scales with it.
-        const i = x.maxI
-          ? Math.min(Math.round(x.maxI * rand(INTERNAL_BAND.lo, INTERNAL_BAND.hi)), x.maxI)
-          : 0
-        return { ...x, t: Math.min(Math.max(want - i, 0), x.maxT), i: Math.min(i, x.max) }
+        const want = Math.min(Math.max(
+          Math.round(x.max * (pct + rand(-PAPER_SPREAD, PAPER_SPREAD)) / 100), lo), hi)
+
+        // Internal is drawn anywhere in its window that still leaves external
+        // a legal share of the rest — not at a fixed fraction, which is what
+        // made paper after paper come out on the same mark.
+        const iLo = Math.max(bi.lo, want - bt.hi)
+        const iHi = Math.min(bi.hi, want - bt.lo)
+        const i = x.maxI ? randInt(iLo, iHi) : 0
+        const t = x.maxT ? Math.min(Math.max(want - i, bt.lo), bt.hi) : 0
+        return { ...x, i, t, bi, bt }
       })
 
-      // Nudge a mark at a time until the semester lands on the target. Papers
-      // that have theory are corrected THERE, which is what keeps internal
-      // inside its band; a theory-less paper is corrected on its internal,
-      // where no band applies.
-      const canStep = (x, step) => (x.maxT
-        ? (step > 0 ? x.t < x.maxT : x.t > 0)
-        : (step > 0 ? x.i < x.maxI : x.i > 0))
-      const target = Math.round(draw.reduce((a, x) => a + x.max, 0) * pct / 100)
+      // Nudge a mark at a time until the semester lands on the target, never
+      // stepping a component outside its own window — so the correction can
+      // never push a paper past 70% or under the pass mark.
+      const canStep = (x, step) => (step > 0
+        ? (x.t < x.bt.hi || x.i < x.bi.hi)
+        : (x.t > x.bt.lo || x.i > x.bi.lo))
+      const floorSum = draw.reduce((a, x) => a + x.bi.lo + x.bt.lo, 0)
+      const ceilSum  = draw.reduce((a, x) => a + x.bi.hi + x.bt.hi, 0)
+      const target = Math.min(Math.max(
+        Math.round(draw.reduce((a, x) => a + x.max, 0) * pct / 100), floorSum), ceilSum)
       let diff = target - draw.reduce((a, x) => a + x.t + x.i, 0)
-      for (let guard = 0; diff !== 0 && guard < 2000; guard++) {
+      for (let guard = 0; diff !== 0 && guard < 4000; guard++) {
         const step = diff > 0 ? 1 : -1
         const room = draw.filter(x => canStep(x, step))
         if (!room.length) break
-        const x = room[guard % room.length]
-        if (x.maxT) x.t += step; else x.i += step
+        // Picked at random, not in turn: stepping the same papers in order is
+        // what drove three of them onto the identical mark.
+        const x = room[Math.floor(Math.random() * room.length)]
+        if (step > 0) { if (x.t < x.bt.hi) x.t += 1; else x.i += 1 }
+        else          { if (x.t > x.bt.lo) x.t -= 1; else x.i -= 1 }
         diff -= step
       }
 
