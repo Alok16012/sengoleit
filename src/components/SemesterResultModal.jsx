@@ -20,9 +20,9 @@ const pct = (o, t) => {
 // Results are entered per SEMESTER, for the same semesters the admit card is
 // issued for — a semester whose fee isn't cleared has no exam, so no result.
 // `special` widens the band the auto-fill accepts: an ordinary result is
-// filled between 65% and 70%, a special one between 70% and 90%.
+// filled between 63% and 70%, a special one between 70% and 90%.
 export default function SemesterResultModal({ student, special = false, onClose, onSaved }) {
-  const BAND = special ? { min: 70, max: 90 } : { min: 65, max: 70 }
+  const BAND = special ? { min: 70, max: 90 } : { min: 63, max: 70 }
   const [rows, setRows] = useState(null)     // null = loading, [] = none
   const [missing, setMissing] = useState(false)
   const [pick, setPick] = useState(null)     // the semester being edited
