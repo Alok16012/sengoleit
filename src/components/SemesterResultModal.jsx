@@ -5,23 +5,12 @@ import { supabase } from '../lib/supabase'
 import { semesterResults, saveSemesterResult, setSemesterResultVisible, deleteSemesterResult } from '../utils/semesterResults'
 import { fetchPaperMarks, fetchPaperMarksUpto, savePaperMarks } from '../utils/paperMarks'
 import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStudentCards'
+import { generateSemesterMarks } from '../utils/marksFill'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
 
-// Every component — internal and external alike — is marked inside one
-// window: never under the 40% pass mark, never over 70% of its own maximum.
-// The old band put internal at 20-25 out of 30, which is 83% and broke the
-// ceiling. Capping each component at 70% caps the paper at 70% as well, so a
-// subject out of 100 can never total more than 70.
-const COMPONENT_BAND = { lo: 0.40, hi: 0.70 }
-// The marks a component may take: 12-21 for an internal out of 30, 28-49 for
-// an external out of 70. Rounded inwards, so neither edge is ever crossed.
-const bandOf = (max) => ({
-  lo: max ? Math.ceil(max * COMPONENT_BAND.lo) : 0,
-  hi: max ? Math.floor(max * COMPONENT_BAND.hi) : 0,
-})
-// How far a single paper may sit either side of the percentage asked for.
-const PAPER_SPREAD = 4
+// The Fill rules — 40% floors, the 73 ceiling for 63-70%, distinct totals —
+// live in utils/marksFill.js, where they are tested on their own.
 
 const pct = (o, t) => {
   const a = parseFloat(o), b = parseFloat(t)
@@ -97,76 +86,34 @@ export default function SemesterResultModal({ student, special = false, onClose,
           : 'For anything above 70%, use the Special Result tab.'))
       return
     }
-    setPapers(prev => {
-      const list = prev || []
-      // Marks must not come out identical on every paper — a marksheet where
-      // each subject scores exactly alike is obviously machine-made. Each
-      // paper is drawn around the percentage asked for, then the set is
-      // corrected so the SEMESTER still totals it exactly.
-      const sized = list.map(p => ({
-        p,
-        maxT: Number(p.theory_marks) || 0,
-        maxI: Number(p.internal_marks) || 0,
-        max: (Number(p.total_marks) || (Number(p.theory_marks) || 0) + (Number(p.internal_marks) || 0)),
-      }))
-      const fillable = sized.filter(x => x.maxT || x.maxI)
-      if (!fillable.length) return list
+    const list = papers || []
+    // Generated from what is on screen now, not inside the state updater: an
+    // updater may run twice, and a random fill run twice is two different
+    // sets. The marks on screen are also what "different from last time"
+    // is measured against.
+    const res = generateSemesterMarks(
+      list.map(p => ({ key: p.paper_key, maxI: p.internal_marks, maxT: p.theory_marks })),
+      pct,
+      { previous: Object.fromEntries(list.map(p => [p.paper_key, { i: p.internal_obtained, t: p.theory_obtained }])) },
+    )
+    if (!res.ok) { alert(res.reason); return }
 
-      const rand = (lo, hi) => lo + Math.random() * (hi - lo)
-      const randInt = (lo, hi) => (hi <= lo ? lo : lo + Math.floor(Math.random() * (hi - lo + 1)))
-      const draw = fillable.map(x => {
-        const bi = bandOf(x.maxI), bt = bandOf(x.maxT)
-        // What the paper may total at all, once both components are held
-        // inside their window.
-        const lo = bi.lo + bt.lo, hi = bi.hi + bt.hi
-        // A few points either side of the figure asked for, so papers differ.
-        const want = Math.min(Math.max(
-          Math.round(x.max * (pct + rand(-PAPER_SPREAD, PAPER_SPREAD)) / 100), lo), hi)
-
-        // Internal is drawn anywhere in its window that still leaves external
-        // a legal share of the rest — not at a fixed fraction, which is what
-        // made paper after paper come out on the same mark.
-        const iLo = Math.max(bi.lo, want - bt.hi)
-        const iHi = Math.min(bi.hi, want - bt.lo)
-        const i = x.maxI ? randInt(iLo, iHi) : 0
-        const t = x.maxT ? Math.min(Math.max(want - i, bt.lo), bt.hi) : 0
-        return { ...x, i, t, bi, bt }
-      })
-
-      // Nudge a mark at a time until the semester lands on the target, never
-      // stepping a component outside its own window — so the correction can
-      // never push a paper past 70% or under the pass mark.
-      const canStep = (x, step) => (step > 0
-        ? (x.t < x.bt.hi || x.i < x.bi.hi)
-        : (x.t > x.bt.lo || x.i > x.bi.lo))
-      const floorSum = draw.reduce((a, x) => a + x.bi.lo + x.bt.lo, 0)
-      const ceilSum  = draw.reduce((a, x) => a + x.bi.hi + x.bt.hi, 0)
-      const target = Math.min(Math.max(
-        Math.round(draw.reduce((a, x) => a + x.max, 0) * pct / 100), floorSum), ceilSum)
-      let diff = target - draw.reduce((a, x) => a + x.t + x.i, 0)
-      for (let guard = 0; diff !== 0 && guard < 4000; guard++) {
-        const step = diff > 0 ? 1 : -1
-        const room = draw.filter(x => canStep(x, step))
-        if (!room.length) break
-        // Picked at random, not in turn: stepping the same papers in order is
-        // what drove three of them onto the identical mark.
-        const x = room[Math.floor(Math.random() * room.length)]
-        if (step > 0) { if (x.t < x.bt.hi) x.t += 1; else x.i += 1 }
-        else          { if (x.t > x.bt.lo) x.t -= 1; else x.i -= 1 }
-        diff -= step
+    setPapers(list.map(p => {
+      const m = res.marks[p.paper_key]
+      if (!m) return p
+      return {
+        ...p,
+        theory_obtained: Number(p.theory_marks) ? String(m.t) : '',
+        internal_obtained: Number(p.internal_marks) ? String(m.i) : '',
       }
+    }))
 
-      const byKey = Object.fromEntries(draw.map(x => [x.p.paper_key, x]))
-      return list.map(p => {
-        const d = byKey[p.paper_key]
-        if (!d) return p
-        return {
-          ...p,
-          theory_obtained: d.maxT ? String(d.t) : '',
-          internal_obtained: d.maxI ? String(d.i) : '',
-        }
-      })
-    })
+    // Exactness is only given up when whole-number marks inside the limits
+    // cannot reach the figure — say so, rather than let it pass unnoticed.
+    if (!res.exact) {
+      alert(`${pct}% cannot be reached exactly within the 40% minimums and the paper limits.\n\n` +
+        `Filled at the nearest possible: ${res.achieved}/${res.total} = ${res.achievedPct.toFixed(2)}%.`)
+    }
   }
 
   // What one paper is worth once its marks are in: the obtained total, the
@@ -485,6 +432,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                           <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-24">Credit</th>
                           <th colSpan={3} className="text-center font-semibold px-2 py-1.5 border-b border-gray-100">Maximum</th>
                           <th colSpan={3} className="text-center font-semibold px-2 py-1.5 border-b border-gray-100">Obtained</th>
+                          <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-16">%</th>
                           <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-16">Grade</th>
                           <th rowSpan={2} className="text-center font-semibold px-2 py-2 w-20">Earned<br/>Credit</th>
                         </tr>
@@ -502,7 +450,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                           // Same rule as the scheme: a total is never typed, it
                           // is the two beside it added up — and the grade and
                           // earned credit follow from it.
-                          const { entered, got, g, earned } = paperRow(p)
+                          const { entered, got, max, g, earned } = paperRow(p)
                           return (
                           <tr key={p.paper_key} className="border-t border-gray-50">
                             <td className="px-3 py-1.5">
@@ -523,6 +471,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                               </td>
                             ))}
                             <td className="px-2 py-1.5 text-center font-bold text-gray-700">{entered ? got : '—'}</td>
+                            <td className="px-2 py-1.5 text-center text-gray-600">{entered && max ? `${((got / max) * 100).toFixed(1)}%` : '—'}</td>
                             {/* The scale's own wording, so "B+" is readable
                                 without looking the table up. */}
                             <td className={`px-2 py-1.5 text-center font-bold ${g.letter === 'F' ? 'text-red-600' : 'text-gray-700'}`}
@@ -540,7 +489,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                 {papers?.length > 0 && (
                   <p className="text-[11px] text-gray-400 mt-2">
                     Auto-fill accepts {BAND.min}%–{BAND.max}% in this tab
-                    {special ? '.' : ' — use the Special Result tab for anything above 70%.'} Every paper is set to that share of its own maximum; correct any of them by hand afterwards.
+                    {special ? '.' : ' — use the Special Result tab for anything above 70%.'} Each press gives a new set: every internal and external is at least 40% of its maximum, the semester lands on the percentage exactly, and papers get different totals wherever that is possible{!special ? ' (none above 73 for 63–70%)' : ''}. Correct any mark by hand afterwards.
                   </p>
                 )}
                 {papers?.length > 0 && !papers.some(p => p.total_marks) && (
