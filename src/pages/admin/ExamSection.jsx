@@ -1113,12 +1113,14 @@ export default function ExamSection() {
               <Th>Registration / Application No</Th>
               <Th>Status</Th>
               <Th>Result</Th>
-              <Th>Print</Th>
+              {/* Only the Done tab: a student still Pending or Awaiting has no
+                  declared result for this term to send. */}
+              {resTab === 'done' && <Th>Print</Th>}
             </tr>
           </Thead>
           <Tbody>
             {resultList.length === 0 ? (
-              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={resTab === 'done' ? 9 : 8} className="text-center text-gray-400 py-12">
                 {search ? 'No students match your search.' : 'No students here.'}
               </Td></Tr>
             ) : resultList.map((s, i) => (
@@ -1158,7 +1160,7 @@ export default function ExamSection() {
                 {/* Print, semester by semester: which declared results have
                     gone to the Print tab (with their DMC number) and which are
                     still waiting. One button sends every waiting semester. */}
-                <Td>
+                {resTab === 'done' && <Td>
                   {(() => {
                     const sems = declaredSemsOf(s)
                     if (!sems.length) return <span className="text-xs text-gray-400">—</span>
@@ -1187,7 +1189,7 @@ export default function ExamSection() {
                       </div>
                     )
                   })()}
-                </Td>
+                </Td>}
               </Tr>
             ))}
           </Tbody>
