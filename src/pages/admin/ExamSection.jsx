@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange, Users, Printer, FileText } from 'lucide-react'
+import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange, Users, Printer, FileText, FileSpreadsheet } from 'lucide-react'
 import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
 import ExaminationCalendar from './ExaminationCalendar'
 import {
@@ -12,6 +12,7 @@ import {
   generateDegreeCertificate, generateConsolidatedMarksheet,
 } from '../../utils/generateStudentCards'
 import { fetchPaperMarks, fetchPaperMarksUpto } from '../../utils/paperMarks'
+import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
 import { fetchExamDates, fetchExamEndDates, examEndDateFor } from '../../utils/examSettings'
@@ -370,6 +371,7 @@ export default function ExamSection() {
   const [releasing, setReleasing] = useState(null)
   const [resultModalStudent, setResultModalStudent] = useState(null)
   const [printBusy, setPrintBusy] = useState(null)
+  const [sendingId, setSendingId] = useState(null)   // student whose results are being sent to Print
 
   // A result reaches the Print tab only once it has been forwarded, so the
   // tab reads off print_forwarded_at rather than off "declared".
@@ -378,6 +380,78 @@ export default function ExamSection() {
     .map(([, r]) => r)
     .sort((a, b) => Number(a.semester) - Number(b.semester))
   const printList = data.filter(s => forwardedSems(s).length > 0)
+
+  // Every semester of a student with a DECLARED result, sent to Print or not —
+  // what the Result list shows semester by semester.
+  const declaredSemsOf = (s) => Object.entries(results || {})
+    .filter(([k, r]) => k.startsWith(`${s.id}__`) && r?.status && r.status !== 'Pending')
+    .map(([, r]) => r)
+    .sort((a, b) => Number(a.semester) - Number(b.semester))
+
+  // Send every declared-but-unsent semester of one student to the Print tab.
+  // Each is its own call so each gets its own DMC number; one that fails does
+  // not stop the rest, and the list is refreshed from the database afterwards
+  // so what it shows is what was actually recorded.
+  async function sendStudentToPrint(s) {
+    const pending = declaredSemsOf(s).filter(r => !r.print_forwarded_at && r.id)
+    if (!pending.length) return
+    setSendingId(s.id)
+    const failed = []
+    for (const r of pending) {
+      const { error } = await supabase.rpc('forward_result_to_print', { p_result: r.id })
+      if (error) failed.push({ sem: r.semester, message: error.message || '' })
+    }
+    const fresh = await fetchResultsForMany([s.id])
+    if (fresh) {
+      setResults(prev => {
+        const kept = Object.fromEntries(Object.entries(prev || {})
+          .filter(([k]) => !k.startsWith(`${s.id}__`)))
+        return { ...kept, ...fresh }
+      })
+    }
+    setSendingId(null)
+    if (failed.length) {
+      const missing = failed.some(x => /forward_result_to_print|PGRST202|42883|schema cache/i.test(x.message))
+      alert(missing
+        ? 'This needs a database update — nothing was sent.\n\nPlease run add_result_print_flow.sql in Supabase.'
+        : 'Some semesters could not be sent:\n\n' + failed.map(x => `Sem ${x.sem}: ${x.message}`).join('\n'))
+    }
+  }
+
+  // The Result list as it stands — tab, search and filters applied.
+  const resultStatusText = (s) => {
+    const st = resultStateOf(s)
+    return `Sem ${currentSemOf(s)} · ${st === 'done' ? 'declared' : st}`
+  }
+  const resultPct = (r) => {
+    const o = parseFloat(r.obtained_marks), t = parseFloat(r.total_marks)
+    return o && t ? `${((o / t) * 100).toFixed(1)}%` : ''
+  }
+  const RESULT_EXPORT_COLUMNS = [
+    { header: 'Student Name', value: s => s.student_name || '' },
+    { header: 'Gender', value: s => s.gender || '' },
+    { header: 'Mobile', value: s => s.mobile_no || '' },
+    { header: 'Program', value: s => s.programs?.program_name || '' },
+    { header: 'Session', value: s => s.academic_sessions?.session_name || '' },
+    { header: 'Enrollment No', value: s => s.enrollment_no || '' },
+    { header: 'Registration / Application No', value: s => s.registration_no || s.admission_number || '' },
+    { header: 'Status', value: s => resultStatusText(s) },
+    { header: 'Results', value: s => declaredSemsOf(s)
+        .map(r => `Sem ${r.semester}: ${r.status}${resultPct(r) ? ' ' + resultPct(r) : ''}`).join('; ') },
+    { header: 'Print', value: s => declaredSemsOf(s)
+        .map(r => r.print_forwarded_at ? `Sem ${r.semester}: Sent (DMC ${r.dmc_no ?? '—'})` : `Sem ${r.semester}: Pending`).join('; ') },
+  ]
+  const resultExportMeta = () => {
+    const tabName = { pending: 'Pending', awaiting: 'Awaiting', done: 'Done', all: 'All' }[resTab] || resTab
+    const m = [`${resultTab === 'special' ? 'Special Result' : 'Student Entry'} · ${tabName}`]
+    if (search) m.push(`Search: ${search}`)
+    if (fDept && fDept !== 'all') m.push(`Department: ${departments.find(d => d.id === fDept)?.name || ''}`)
+    if (fType && fType !== 'all') m.push(`Program Type: ${progTypes.find(t => t.id === fType)?.programme_type_name || ''}`)
+    if (Array.isArray(fSession) && fSession.length) {
+      m.push(`Session: ${fSession.map(id => sessions.find(se => se.id === id)?.session_name).filter(Boolean).join(', ')}`)
+    }
+    return m
+  }
 
   // The full record, with the joins the certificates print from.
   async function fullStudent(s) {
@@ -994,7 +1068,7 @@ export default function ExamSection() {
 
       {/* Awaiting = the semester's exams are not over, so no result is due yet;
           Pending = they are over and none is entered; Done = declared. */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         {[
           { key: 'pending',  label: 'Pending',  on: 'bg-amber-500 text-white',   off: 'bg-amber-50 text-amber-700' },
           { key: 'awaiting', label: 'Awaiting', on: 'bg-blue-500 text-white',    off: 'bg-blue-50 text-blue-700' },
@@ -1012,6 +1086,17 @@ export default function ExamSection() {
             </button>
           )
         })}
+        {/* Exports exactly the list below — its tab, search and filters. */}
+        <div className="flex gap-2 ml-auto">
+          <Button size="sm" variant="outline" disabled={!resultList.length}
+            onClick={() => exportCsv('exam-results', RESULT_EXPORT_COLUMNS, resultList)}>
+            <FileSpreadsheet size={14} /> Export Excel
+          </Button>
+          <Button size="sm" variant="outline" disabled={!resultList.length}
+            onClick={() => exportPdf('Examination Results', RESULT_EXPORT_COLUMNS, resultList, resultExportMeta())}>
+            <FileText size={14} /> Export PDF
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -1028,11 +1113,12 @@ export default function ExamSection() {
               <Th>Registration / Application No</Th>
               <Th>Status</Th>
               <Th>Result</Th>
+              <Th>Print</Th>
             </tr>
           </Thead>
           <Tbody>
             {resultList.length === 0 ? (
-              <Tr><Td colSpan={8} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">
                 {search ? 'No students match your search.' : 'No students here.'}
               </Td></Tr>
             ) : resultList.map((s, i) => (
@@ -1068,6 +1154,39 @@ export default function ExamSection() {
                   <Button size="sm" variant="outline" onClick={() => setResultModalStudent(s)}>
                     <Award size={13} /> Results
                   </Button>
+                </Td>
+                {/* Print, semester by semester: which declared results have
+                    gone to the Print tab (with their DMC number) and which are
+                    still waiting. One button sends every waiting semester. */}
+                <Td>
+                  {(() => {
+                    const sems = declaredSemsOf(s)
+                    if (!sems.length) return <span className="text-xs text-gray-400">—</span>
+                    const waiting = sems.filter(r => !r.print_forwarded_at).length
+                    return (
+                      <div className="flex flex-col gap-1.5 min-w-[180px]">
+                        <div className="flex flex-wrap gap-1">
+                          {sems.map(r => r.print_forwarded_at ? (
+                            <span key={r.semester}
+                              className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded whitespace-nowrap">
+                              Sem {r.semester} · Sent · DMC {r.dmc_no ?? '—'}
+                            </span>
+                          ) : (
+                            <span key={r.semester}
+                              className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded whitespace-nowrap">
+                              Sem {r.semester} · Pending
+                            </span>
+                          ))}
+                        </div>
+                        {waiting > 0 && (
+                          <Button size="sm" variant="outline" disabled={sendingId === s.id}
+                            onClick={() => sendStudentToPrint(s)}>
+                            <Send size={12} /> {sendingId === s.id ? 'Sending…' : `Send to Print${waiting > 1 ? ` (${waiting})` : ''}`}
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </Td>
               </Tr>
             ))}
