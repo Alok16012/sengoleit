@@ -4,7 +4,7 @@ import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
 import { semesterResults, saveSemesterResult, setSemesterResultVisible, deleteSemesterResult } from '../utils/semesterResults'
 import { fetchPaperMarks, fetchPaperMarksUpto, savePaperMarks } from '../utils/paperMarks'
-import { generateMarksStatement, gradeFor, sgpaOf, sgpaBySemester } from '../utils/generateStudentCards'
+import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStudentCards'
 import { generateSemesterMarks } from '../utils/marksFill'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
@@ -184,10 +184,6 @@ export default function SemesterResultModal({ student, special = false, onClose,
       // No. as the first copy, and a corrected enrolment number must not
       // silently renumber a sheet already in circulation.
       dmcNo: dmc ? String(dmc) : '',
-      // Every semester's SGPA for the strip under the marks, and the date the
-      // result went to Print — so a reprint carries the first copy's date.
-      semSgpas: sgpaBySemester(upto),
-      issueDate: row.result?.print_forwarded_at || null,
       semester: `Semester ${row.sem}`,
       examHeld: dates.examSession || '',
       resultStatus: row.result?.status === 'Fail' ? 'Failed' : 'Passed',

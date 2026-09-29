@@ -1203,9 +1203,49 @@ export const MARKS_STATEMENT_STYLE = `
 
 // The Exam Section's printable Statement of Marks: the same sheet, wrapped in
 // a document with the buttons that choose which copy is printed.
+// The Result section's Statement of Marks — the on-screen sheet with the
+// university letterhead, opened to check or print a result. The Print tab
+// prints the Statement of Grades below instead, on the office stationery.
+export function generateMarksStatement(s, rows = [], meta = {}) {
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+  <title>Statement of Marks — ${v(s.student_name)}</title>${baseStyle}</head>
+<body class="${meta.studentCopy ? 'student-copy' : ''}">
+<div style="max-width:760px;margin:24px auto;">
+  <!-- Two copies of one sheet. The office copy carries the DMC number and the
+       signature blocks; the student's copy does not, so publishing cannot hand
+       out a signed-looking statement. The office-only class is what separates
+       them — both print through the same page, the buttons set the mode. -->
+  ${meta.studentCopy ? `
+  <div class="no-print" style="text-align:center;padding:12px 0 18px;">
+    <button onclick="window.print()" style="background:${BRAND};color:#fff;border:none;padding:10px 34px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.04em;">⬇ Download / Print</button>
+  </div>` : `
+  <div class="no-print" style="text-align:center;padding:12px 0 18px;display:flex;gap:10px;justify-content:center;">
+    <button onclick="setMode(false)" style="background:${BRAND};color:#fff;border:none;padding:10px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">🖨 Print (Office Copy)</button>
+    <button onclick="setMode(true)" style="background:#fff;color:${BRAND};border:2px solid ${BRAND};padding:8px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">📤 Publish (Student Copy)</button>
+  </div>
+  <div class="no-print" id="modeNote" style="text-align:center;font-size:11px;color:#666;margin:-10px 0 14px;"></div>`}
+
+  ${marksStatementHTML(s, rows, meta)}
+</div>
+<style>${MARKS_STATEMENT_STYLE}</style>
+<script>
+  function setMode(student) {
+    document.body.classList.toggle('student-copy', student)
+    document.getElementById('modeNote').textContent = student
+      ? 'Student copy — no DMC number and no signature blocks.'
+      : 'Office copy — with DMC number and signature blocks.'
+    window.print()
+  }
+</script>
+</body></html>`
+  openWindow(html, 'Statement of Marks')
+}
+
 // ============================================================
 //  STATEMENT OF GRADES — the printed marksheet
-//  Laid out on A4 in millimetres to land on the university's pre-printed
+//  Printed from the Exam Section's Print tab only — the Result section keeps
+//  its Statement of Marks. Laid out on A4 in millimetres to land on the
+//  university's pre-printed
 //  stationery: the top 60mm is left blank for the printed letterhead, and
 //  every block sits where the office's own print setup puts it.
 // ============================================================
@@ -1476,7 +1516,7 @@ export const STATEMENT_OF_GRADES_STYLE = `
   body.student-copy .office-only { display:none !important; }
 `
 
-export function generateMarksStatement(s, rows = [], meta = {}) {
+export function generateStatementOfGrades(s, rows = [], meta = {}) {
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
   <title>Statement of Grades — ${v(s.student_name)}</title>
   <style>
