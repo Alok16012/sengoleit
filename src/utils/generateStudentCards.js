@@ -1364,26 +1364,22 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
 
   const ROMAN_10 = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
 
-  // One compact line, so the code stays as open as the office sample's and
-  // scans easily at 25mm: who, which sheet, what it says, and when.
-  const idLines = (withDmc) => [
-    s.student_name, s.enrollment_no,
-    `Sem ${romanSemester(meta.semester)}`,
-    withDmc && meta.dmcNo ? `DMC ${meta.dmcNo}` : null,
-    semSgpas[semNo] != null ? `SGPA ${Number(semSgpas[semNo]).toFixed(2)}` : null,
-    result || null,
-    issued,
-  ].filter(Boolean).join(' | ')
-  const barcodeText = (withDmc) =>
-    [s.enrollment_no, withDmc ? meta.dmcNo : null, issued].filter(Boolean).join(' ')
+  // The barcode carries the DMC number alone; the QR says whose sheet it is.
+  const qrText = [
+    `Name of Student: ${s.student_name || ''}`,
+    `Enrollment No.: ${s.enrollment_no || ''}`,
+    `Programme: ${prog}`,
+    `Session: ${courseValidity(s)}`,
+  ].join('\n')
 
   const info = (label, value, extra = '') =>
     `<tr${extra}><td class="k">${label}</td><td class="c">:</td><td class="val">${v(value)}</td></tr>`
 
   return `
   <div class="sog-sheet">
-    <div class="sog-barcode office-only">${code128Svg(barcodeText(true))}</div>
-    <div class="sog-barcode student-only">${code128Svg(barcodeText(false))}</div>
+    <!-- DMC number only, so it goes wherever the number goes: not on the
+         student copy, and not on a sheet that has not been numbered. -->
+    ${meta.dmcNo ? `<div class="sog-barcode office-only">${code128Svg(String(meta.dmcNo))}</div>` : ''}
 
     <div class="sog-title">STATEMENT OF GRADES</div>
 
@@ -1468,8 +1464,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
       </div>
     </div>
 
-    <div class="sog-qr office-only">${qrSvg(idLines(true))}</div>
-    <div class="sog-qr student-only">${qrSvg(idLines(false))}</div>
+    <div class="sog-qr">${qrSvg(qrText)}</div>
     <div class="sog-issue">Date of issue: ${issued}</div>
     <img class="sog-sign office-only" src="${CONTROLLER_SIGNATURE_URL}" alt="" onerror="this.style.display='none'"/>
     <div class="sog-signlabel">Registrar/Exam Of Controller</div>
@@ -1514,8 +1509,6 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-issue { position:absolute; left:13mm; top:262.5mm; font-size:8.6pt; font-weight:700; }
   .sog-sign { position:absolute; left:152mm; top:251.4mm; width:32mm; height:auto; }
   .sog-signlabel { position:absolute; left:145.8mm; top:267.1mm; font-size:8.6pt; font-weight:700; }
-  .student-only { display:none; }
-  body.student-copy .student-only { display:block; }
   body.student-copy .office-only { display:none !important; }
 `
 
