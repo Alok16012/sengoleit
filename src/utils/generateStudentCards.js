@@ -1360,9 +1360,6 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
   const result = marked.some(r => r.entered) ? (failed ? 'Fail' : 'Pass') : ''
   const issued = ddmmyyyy(meta.issueDate)
 
-  // The office sample leaves room below its six papers; pad to seven rows so
-  // the grid keeps its shape however many papers a semester has.
-  const blanks = Math.max(0, 7 - marked.length)
   const ROMAN_10 = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
 
   // One compact line, so the code stays as open as the office sample's and
@@ -1439,7 +1436,9 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
             <td>${r.entered ? cell(r.g.point) : ''}</td>
             <td>${r.entered ? cell(r.earned) : ''}</td>
           </tr>`).join('')}
-          ${'<tr class="blank"><td colspan="10"></td></tr>'.repeat(blanks)}
+          <!-- One row per paper, then a single merged spacer before the
+               total — the grid is as long as the semester, no longer. -->
+          <tr class="blank"><td colspan="10"></td></tr>
           <tr class="total">
             <td colspan="2">Total</td>
             <td>${sum('credit') || ''}</td>
@@ -1492,16 +1491,18 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-right { left:135.6mm; } .sog-right td.k { width:29mm; }
   .sog-right td.val { font-size:9pt; }
   .sog-left td.val { white-space:normal; max-width:82mm; }
-  .sog-body { position:absolute; left:11.4mm; top:111mm; width:187.3mm; }
+  .sog-body { position:absolute; left:11.4mm; top:111mm; width:187.3mm;
+               min-height:118mm; display:flex; flex-direction:column; }
+  .sog-marks { margin-bottom:4.3mm; }
   .sog-marks { width:100%; border-collapse:collapse; table-layout:fixed; font-size:7.6pt; font-weight:700; }
   .sog-marks th, .sog-marks td { border:0.3mm solid #000; text-align:center; vertical-align:middle; padding:0.4mm 0.6mm; line-height:1.15; }
   .sog-marks thead tr.h1 th { height:5.3mm; }
   .sog-marks thead tr.h2 th { height:8.1mm; }
   .sog-marks thead .sm { font-size:6.4pt; }
   .sog-marks tbody tr { height:6.35mm; }
-  .sog-marks td.name { text-align:left; padding-left:1mm; }
+  .sog-marks td.name { text-align:left; padding-left:1mm; white-space:normal; overflow-wrap:anywhere; }
   .sog-marks tr.total td { font-size:8.6pt; }
-  .sog-strip { display:flex; justify-content:space-between; align-items:flex-start; margin-top:4.3mm; }
+  .sog-strip { display:flex; justify-content:space-between; align-items:flex-start; margin-top:auto; }
   .sog-sem, .sog-res { border-collapse:collapse; font-size:7.6pt; font-weight:700; table-layout:fixed; }
   .sog-sem { width:150.6mm; } .sog-res { width:31.5mm; }
   .sog-sem th, .sog-sem td, .sog-res th, .sog-res td { border:0.3mm solid #000; height:5.1mm; text-align:center; padding:0 0.5mm; }
