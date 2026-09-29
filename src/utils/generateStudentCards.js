@@ -1618,91 +1618,170 @@ function certHeadRow(s, rightLabel, rightValue) {
     <div style="font-size:10px;color:#444;padding:10px 34px 0;font-style:italic;">Programme: <b>${v(prog)}</b></div>`
 }
 
-// ---- Provisional Certificate -------------------------------------------
-// Issued while the degree itself is being prepared; it says the student has
-// completed the programme and is qualified for the award.
-// opts: { serialNo, passingYear, division, cgpa }
-export function generateProvisionalCertificate(s, opts = {}) {
-  const prog = s.programs?.program_name || s.program_name || '—'
-  const body = `
-    ${certHeadRow(s, 'Serial No.', opts.serialNo || '—')}
-    <div class="cert-body">
-      This is to certify that <b>${v(s.student_name)}</b>,
-      ${s.father_name ? `son / daughter of <b>${v(s.father_name)}</b>, ` : ''}
-      bearing Enrollment No. <b>${v(s.enrollment_no)}</b>, has completed the
-      programme <b>${v(prog)}</b> of this University
-      ${opts.passingYear ? `in the year <b>${v(opts.passingYear)}</b>` : ''}
-      and has been declared <b>PASSED</b>
-      ${opts.division ? `in <b>${v(opts.division)}</b>` : ''}
-      ${opts.cgpa ? `with a CGPA of <b>${v(opts.cgpa)}</b>` : ''}.
-      <br/><br/>
-      This provisional certificate is issued on the candidate's request pending
-      the formal award of the degree, and remains valid until the degree
-      certificate is issued.
-    </div>`
-  openWindow(certificateShell({
-    title: 'Provisional Certificate',
-    subtitle: 'Valid until the degree certificate is issued',
-    body,
-  }), 'Provisional Certificate')
+// ---- Provisional, Migration and Degree — on certificate stationery -------
+// A4 landscape, printed onto the university's pre-printed certificate paper.
+// Every position is the office print setup's, measured off its own PDFs in
+// millimetres: text sits on its BASELINE, as the setup places it, which is
+// why these are drawn as SVG rather than flowed as HTML.
+
+const CERT_SIGNATURE_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/certificate-signature.png'
+const CERT_FONT = {
+  script: "'Brush Script MT','Brush Script Std','Lucida Handwriting',cursive",
+  value: "Georgia,'Times New Roman',serif",
+  arial: 'Arial,Helvetica,sans-serif',
+  calibri: 'Calibri,Carlito,Arial,sans-serif',
+}
+const PT = (p) => +(p * 25.4 / 72).toFixed(3)   // points to millimetres
+
+function certText(x, y, text, { font, size, bold, italic, max } = {}) {
+  return `<text x="${x}" y="${y}" font-family="${font}" font-size="${PT(size)}"`
+    + (bold ? ' font-weight="700"' : '') + (italic ? ' font-style="italic"' : '')
+    + (max ? ` data-max="${max}"` : '') + `>${esc(String(text ?? ''))}</text>`
+}
+const certRule = (x1, x2, y) => `<line x1="${x1}" x2="${x2}" y1="${y}" y2="${y}" stroke="#000" stroke-width="0.3"/>`
+// The printed wording, in the setup's script face.
+const certLabel = (x, y, text) => certText(x, y, text, { font: CERT_FONT.script, size: 20 })
+// What is filled in: Georgia bold italic, capitals. `max` is the room left on
+// its line — a longer value is squeezed to fit rather than running off it.
+const certValue = (x, y, text, max) =>
+  certText(x, y, String(text || '').toUpperCase(), { font: CERT_FONT.value, size: 16, bold: true, italic: true, max })
+
+const ddmmyyyyDots = (d) => {
+  const x = d ? new Date(d) : new Date()
+  const t = Number.isNaN(x.getTime()) ? new Date() : x
+  return `${String(t.getDate()).padStart(2, '0')}.${String(t.getMonth() + 1).padStart(2, '0')}.${t.getFullYear()}`
 }
 
-// ---- Migration Certificate ---------------------------------------------
-// The university's no-objection to the student joining another university.
-// opts: { serialNo, passingYear }
-export function generateMigrationCertificate(s, opts = {}) {
-  const prog = s.programs?.program_name || s.program_name || '—'
-  const sess = s.academic_sessions?.session_name || s.session_name || '—'
+// A QR placed inside the certificate's own coordinate system.
+function certQr(text, x, y, size) {
+  return qrSvg(text).replace('<svg ', `<svg x="${x}" y="${y}" width="${size}" height="${size}" `)
+}
+
+// The parts every one of the three shares: registration number, date and
+// place of issue, and the signature.
+function certificateSheet(s, body, { qr } = {}) {
+  const issued = ddmmyyyyDots()
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" preserveAspectRatio="xMidYMid meet">
+    ${certText(14.6, 18.4, 'Regn No.:', { font: CERT_FONT.script, size: 18 })}
+    ${certText(43.2, 19.3, s.registration_no || '', { font: CERT_FONT.arial, size: 15, bold: true, italic: true })}
+    ${qr ? certQr(qr.replace('{issued}', issued), 255.3, 15.2, 25.6) : ''}
+    ${body}
+    ${certText(15.6, 184.3, 'Date of Issue:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
+    ${certText(49.5, 185.3, issued, { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
+    ${certText(15.6, 190.9, 'Place:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
+    ${certText(34.9, 190.9, 'Sikkim', { font: CERT_FONT.script, size: 16 })}
+    <image href="${CERT_SIGNATURE_URL}" x="220.3" y="173.2" width="32.4" height="14.8" preserveAspectRatio="xMidYMid meet"/>
+    ${certText(202.2, 192.3, 'Registrar / Controller of Examination', { font: CERT_FONT.calibri, size: 14, bold: true })}
+  </svg>`
+}
+
+function openCertificate(title, svg) {
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+  <title>${esc(title)}</title>
+  <style>
+    @page { size: A4 landscape; margin: 0; }
+    html, body { margin:0; padding:0; background:#e5e7eb; }
+    .cert-page { width:297mm; height:210mm; margin:0 auto 12mm; background:#fff; box-shadow:0 4px 20px rgba(0,0,0,0.18); }
+    .cert-page svg { width:297mm; height:210mm; display:block; }
+    @media print {
+      html, body { background:#fff; }
+      .no-print { display:none !important; }
+      .cert-page { margin:0; box-shadow:none; }
+    }
+  </style></head>
+<body>
+  <div class="no-print" style="text-align:center;padding:14px 0 8px;font-family:Arial,sans-serif;">
+    <button onclick="window.print()" style="background:${BRAND};color:#fff;border:none;padding:10px 34px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">🖨 Print</button>
+    <div style="font-size:11px;color:#555;margin-top:8px;">Print on A4 landscape certificate stationery at 100% scale, margins None, headers and footers off.</div>
+  </div>
+  <div class="cert-page">${svg}</div>
+<script>
+  // Squeeze any filled-in value that would run past the end of its line.
+  function fit() {
+    document.querySelectorAll('text[data-max]').forEach(function (t) {
+      t.removeAttribute('textLength'); t.removeAttribute('lengthAdjust')
+      var max = parseFloat(t.getAttribute('data-max'))
+      if (t.getComputedTextLength() > max) {
+        t.setAttribute('textLength', max); t.setAttribute('lengthAdjust', 'spacingAndGlyphs')
+      }
+    })
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit)
+  window.addEventListener('load', fit)
+</script>
+</body></html>`
+  openWindow(html, title)
+}
+
+// Roll number as the admit card has it: the enrollment number.
+const rollNoOf = (s) => s.enrollment_no || s.registration_no || ''
+
+// The four lines Provisional and Degree share, word for word.
+function passedLines(s, year, progBaseline) {
+  const prog = s.programs?.program_name || s.program_name || ''
+  return `
+    ${certLabel(21.1, 96.0, 'This is to certify that Mr./Ms.')}
+    ${certRule(94.9, 274.8, 96.4)}
+    ${certValue(109.3, 95.2, s.student_name, 164.5)}
+    ${certLabel(21.1, 109.7, 'Son/Daughter of')}
+    ${certRule(62.1, 273.8, 110.1)}
+    ${certValue(73.9, 109.0, s.fathers_name, 198.9)}
+    ${certLabel(21.1, 123.5, 'has passed')}
+    ${certRule(47.4, 273.2, 124.0)}
+    ${certValue(53.0, progBaseline, prog, 219.2)}
+    ${certLabel(21.1, 137.0, 'in')}
+    ${certRule(29.2, 106.8, 137.4)}
+    ${certValue(46.9, 136.2, year, 58.9)}
+    ${certLabel(110.9, 137.0, 'Examination bearing Roll No.')}
+    ${certRule(180.0, 275.2, 137.4)}
+    ${certValue(189.8, 134.8, rollNoOf(s), 84.4)}`
+}
+
+// ---- Provisional Certificate -------------------------------------------
+// opts: { passingYear, conduct }
+export function generateProvisionalCertificate(s, opts = {}) {
   const body = `
-    ${certHeadRow(s, 'Migration No.', opts.serialNo || '—')}
-    <div class="cert-body">
-      This is to certify that <b>${v(s.student_name)}</b>,
-      ${s.father_name ? `son / daughter of <b>${v(s.father_name)}</b>, ` : ''}
-      bearing Enrollment No. <b>${v(s.enrollment_no)}</b>, was a bona fide
-      student of this University in the session <b>${v(sess)}</b> and has
-      completed <b>${v(prog)}</b>
-      ${opts.passingYear ? `in the year <b>${v(opts.passingYear)}</b>` : ''}.
-      <br/><br/>
-      The University has <b>no objection</b> to the candidate migrating to any
-      other University or Board of examination. This certificate is issued on
-      the candidate's own request and does not by itself confer any right of
-      admission elsewhere.
-    </div>`
-  openWindow(certificateShell({
-    title: 'Migration Certificate',
-    subtitle: 'No objection to migration to another University or Board',
-    body,
-  }), 'Migration Certificate')
+    ${passedLines(s, opts.passingYear, 122.5)}
+    ${certLabel(22.7, 150.7, 'His / Her conduct was')}
+    ${certRule(76.5, 171.7, 151.1)}
+    ${certValue(93.7, 149.4, opts.conduct || 'Good', 77)}`
+  openCertificate(`Provisional Certificate — ${s.student_name || ''}`, certificateSheet(s, body))
 }
 
 // ---- Degree Certificate -------------------------------------------------
-// The award itself. Landscape-ish proportions and a wider card, so it does
-// not read like the one-page office certificates above.
-// opts: { serialNo, passingYear, division, convocationDate }
+// opts: { passingYear }
 export function generateDegreeCertificate(s, opts = {}) {
-  const prog = s.programs?.program_name || s.program_name || '—'
+  const prog = s.programs?.program_name || s.program_name || ''
   const body = `
-    ${certHeadRow(s, 'Degree No.', opts.serialNo || '—')}
-    <div class="cert-body" style="text-align:center;line-height:2.4;">
-      The Board of Management of this University, on the recommendation of the
-      Academic Council, hereby confers upon
-      <br/>
-      <span style="display:block;font-size:20px;font-weight:900;color:${BRAND};letter-spacing:0.04em;margin:14px 0 4px;">
-        ${v(s.student_name)}
-      </span>
-      ${s.father_name ? `<span style="font-size:11px;color:#444;">son / daughter of ${v(s.father_name)}</span><br/>` : ''}
-      the degree of
-      <span style="display:block;font-size:16px;font-weight:900;margin:12px 0 4px;">${v(prog)}</span>
-      ${opts.division ? `having been placed in <b>${v(opts.division)}</b>` : ''}
-      ${opts.passingYear ? `in the year <b>${v(opts.passingYear)}</b>` : ''},
-      with all the rights, privileges and responsibilities pertaining thereto.
-    </div>
-    ${opts.convocationDate ? `<div style="text-align:center;font-size:10px;color:#555;padding-bottom:6px;font-style:italic;">Awarded at the convocation held on ${v(opts.convocationDate)}</div>` : ''}`
-  openWindow(certificateShell({
-    title: 'Degree Certificate',
-    body,
-    width: 760,
-  }), 'Degree Certificate')
+    ${passedLines(s, opts.passingYear, 123.0)}
+    ${certLabel(22.7, 152.3, 'He/She successfully completed all requirements and criteria for the said certification through examination.')}
+    ${certLabel(21.1, 162.1, 'His/Her conduct as per our Official record is satisfactory.')}`
+  // One compact line, kept short so the code stays open and scans at 25mm.
+  const qr = [s.student_name, s.registration_no, prog, opts.passingYear, 'Degree', '{issued}']
+    .filter(Boolean).join(' | ')
+  openCertificate(`Degree Certificate — ${s.student_name || ''}`, certificateSheet(s, body, { qr }))
+}
+
+// ---- Migration Certificate ---------------------------------------------
+// opts: { passingYear }
+export function generateMigrationCertificate(s, opts = {}) {
+  const body = `
+    ${certLabel(21.1, 96.0, 'Shri/Smt/Km')}
+    ${certRule(54.6, 273.3, 96.4)}
+    ${certValue(67.8, 95.2, s.student_name, 204.5)}
+    ${certLabel(21.1, 109.7, 'Son/Daughter of Shri')}
+    ${certRule(77.0, 274.4, 110.1)}
+    ${certValue(87.9, 109.2, s.fathers_name, 185.5)}
+    ${certLabel(21.1, 124.0, 'bearing Roll No.')}
+    ${certRule(61.8, 166.2, 124.5)}
+    ${certValue(75.2, 122.7, rollNoOf(s), 90)}
+    ${certLabel(166.3, 124.0, 'in')}
+    ${certRule(174.4, 248.5, 124.5)}
+    ${certValue(200.9, 123.5, opts.passingYear, 46.6)}
+    ${certLabel(250.1, 124.0, 'is informed')}
+    ${certLabel(21.1, 139.1, 'That this University has no Objection of his/her Continuing studies at another University.')}
+    ${certLabel(21.1, 162.1, 'He/She is permitted to migrate from this university on his/her request.')}`
+  openCertificate(`Migration Certificate — ${s.student_name || ''}`, certificateSheet(s, body))
 }
 
 // ---- Consolidated Marksheet --------------------------------------------
