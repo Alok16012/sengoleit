@@ -6,12 +6,10 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X, Award } from 'lucide-react'
+import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, generateHallTicket, isPhdProgram } from '../../utils/generateStudentCards'
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
-import { fetchResultsForMany } from '../../utils/semesterResults'
-import SemesterResultViewModal from '../../components/SemesterResultViewModal'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
@@ -38,7 +36,6 @@ export default function StudentListReport({ status }) {
   const [myCenterId, setMyCenterId] = useState(null)
   const [forwardModal, setForwardModal] = useState(null) // { student, courseFee, discount, net, balance, loading, staging, targetId }
   const [forwarding, setForwarding] = useState(false)
-  const [resultStudent, setResultStudent] = useState(null)
   // Every issued (and, for a centre, released) semester card, keyed by
   // student id — lets the Admit Card action open a picker instead of always
   // downloading just the latest semester.
@@ -46,8 +43,6 @@ export default function StudentListReport({ status }) {
   const [admitListStudent, setAdmitListStudent] = useState(null)
   // Released semester results, keyed `${student}__${semester}`. RLS already
   // limits a centre to its own students' released rows.
-  const [semResults, setSemResults] = useState({})
-  const [semResultStudent, setSemResultStudent] = useState(null)
   // Target centers for a Staging-center transfer (super center → center cascade).
   const [allCenters, setAllCenters] = useState([])
   const [superCentersList, setSuperCentersList] = useState([])
@@ -154,7 +149,6 @@ export default function StudentListReport({ status }) {
     // centre to its students' RELEASED cards, so no extra filtering is needed
     // here — an unreleased (hidden) semester simply never comes back.
     setAdmitCards(await admitCardsForMany(rows.map(r => r.id)))
-    setSemResults(await fetchResultsForMany(rows.map(r => r.id)) || {})
   }
 
   // Recompute today's required hold for every student whose fee is still held.
@@ -570,30 +564,9 @@ export default function StudentListReport({ status }) {
                           <ClipboardList size={14} className="text-[#933d18]" />
                           <span className="text-xs ml-1 text-[#933d18]">Admit Card</span>
                         </Button>
-                        {(() => {
-                          // Semester-wise results first — the flow the Exam
-                          // Section actually uses. exam_result_status is the
-                          // old single-result column, which that flow never
-                          // touches, so reading only it left the centre
-                          // looking at a permanently greyed-out button.
-                          const mine = Object.values(semResults).filter(r => r.student_id === s.id)
-                          const legacy = s.exam_result_status && s.exam_result_status !== 'Pending' && !!s.result_released_at
-                          const hasResult = mine.length > 0 || legacy
-                          const failed = mine.length ? mine.some(r => r.status === 'Fail') : s.exam_result_status === 'Fail'
-                          const clr = !hasResult ? 'text-gray-400' : failed ? 'text-red-500' : 'text-emerald-600'
-                          return (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => (mine.length ? setSemResultStudent(s) : setResultStudent(s))}
-                              disabled={!hasResult}
-                              title={hasResult ? 'View Result' : 'Result not declared yet'}
-                            >
-                              <Award size={14} className={clr} />
-                              <span className={`text-xs ml-1 ${clr}`}>Result</span>
-                            </Button>
-                          )
-                        })()}
+                        {/* No Result here. The university issues results; a centre does
+                            not see them in its portal, so no button and no result data
+                            are fetched for this list. */}
                       </>
                     )}
                   </div>
@@ -701,64 +674,9 @@ export default function StudentListReport({ status }) {
         </div>
       )}
 
-      {resultStudent && (
-        <ResultViewModal student={resultStudent} onClose={() => setResultStudent(null)} />
-      )}
-
-      {semResultStudent && (
-        <SemesterResultViewModal student={semResultStudent} onClose={() => setSemResultStudent(null)} />
-      )}
-
       {admitListStudent && (
         <AdmitCardListModal student={admitListStudent} onClose={() => setAdmitListStudent(null)} />
       )}
-    </div>
-  )
-}
-
-function ResultViewModal({ student, onClose }) {
-  const pct = (o, t) => (o && t ? `${((Number(o) / Number(t)) * 100).toFixed(1)}%` : '—')
-  const pass = student.exam_result_status === 'Pass'
-  const Field = ({ label, value }) => (
-    <div>
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-bold text-gray-800">{value}</p>
-    </div>
-  )
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <Award size={18} className={pass ? 'text-emerald-600' : 'text-red-500'} />
-            <div>
-              <h3 className="font-bold text-gray-900 leading-tight">Exam Result</h3>
-              <p className="text-xs text-gray-400">{student.student_name}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
-        </div>
-        <div className="p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-500">Status</span>
-            <span className={`text-xs font-black px-3 py-1 rounded-lg ${pass ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-              {student.exam_result_status}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Obtained Marks" value={student.exam_result_obtained_marks ?? '—'} />
-            <Field label="Total Marks" value={student.exam_result_total_marks ?? '—'} />
-            <Field label="Percentage" value={pct(student.exam_result_obtained_marks, student.exam_result_total_marks)} />
-          </div>
-          {student.exam_result_remarks && (
-            <p className="text-sm text-gray-600 italic bg-gray-50 rounded-xl px-3 py-2">"{student.exam_result_remarks}"</p>
-          )}
-          {/* No marksheet download: a centre reads the result, the university
-              issues the printed statement. This modal is the fallback for a
-              record that predates semester-wise results and so has no papers
-              behind it — the sheet itself opens from the per-semester view. */}
-        </div>
-      </div>
     </div>
   )
 }
