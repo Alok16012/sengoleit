@@ -1492,7 +1492,7 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-right td.val { font-size:9pt; }
   .sog-left td.val { white-space:normal; max-width:82mm; }
   .sog-body { position:absolute; left:11.4mm; top:111mm; width:187.3mm;
-               min-height:118mm; display:flex; flex-direction:column; }
+               min-height:110mm; display:flex; flex-direction:column; }
   .sog-marks { margin-bottom:4.3mm; }
   .sog-marks { width:100%; border-collapse:collapse; table-layout:fixed; font-size:7.6pt; font-weight:700; }
   .sog-marks th, .sog-marks td { border:0.3mm solid #000; text-align:center; vertical-align:middle; padding:0.4mm 0.6mm; line-height:1.15; }
