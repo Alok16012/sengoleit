@@ -7,9 +7,11 @@ import qrcode from 'qrcode-generator'
 const LOGO_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/logo.png'
 const LETTERHEAD_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/letterhead.jpg'
 const SIGNATURE_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/registrar-signature.png'
-// The signature printed on the Statement of Grades, taken from the office's
-// own print setup — a different hand from the Registrar's letter signature.
-const MARKSHEET_SIGNATURE_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/marksheet-signature.png'
+// The Controller of Examinations' signature, from the office's own print
+// setups — on the Statement of Grades and on the Provisional, Degree and
+// Migration certificates alike. A different hand from the Registrar's letter
+// signature above.
+const CONTROLLER_SIGNATURE_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/certificate-signature.png'
 
 // The Registrar's signature block — used on every letter signed by the Registrar.
 function registrarSignBlock(bold) {
@@ -1469,7 +1471,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
     <div class="sog-qr office-only">${qrSvg(idLines(true))}</div>
     <div class="sog-qr student-only">${qrSvg(idLines(false))}</div>
     <div class="sog-issue">Date of issue: ${issued}</div>
-    <img class="sog-sign office-only" src="${MARKSHEET_SIGNATURE_URL}" alt="" onerror="this.style.display='none'"/>
+    <img class="sog-sign office-only" src="${CONTROLLER_SIGNATURE_URL}" alt="" onerror="this.style.display='none'"/>
     <div class="sog-signlabel">Registrar/Exam Of Controller</div>
   </div>`
 }
@@ -1510,7 +1512,7 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-qr { position:absolute; left:16.5mm; top:233.1mm; width:25.6mm; height:25.6mm; }
   .sog-qr svg { width:100%; height:100%; display:block; }
   .sog-issue { position:absolute; left:13mm; top:262.5mm; font-size:8.6pt; font-weight:700; }
-  .sog-sign { position:absolute; left:149.8mm; top:253.2mm; width:38mm; height:auto; }
+  .sog-sign { position:absolute; left:152mm; top:251.4mm; width:32mm; height:auto; }
   .sog-signlabel { position:absolute; left:145.8mm; top:267.1mm; font-size:8.6pt; font-weight:700; }
   .student-only { display:none; }
   body.student-copy .student-only { display:block; }
@@ -1624,7 +1626,6 @@ function certHeadRow(s, rightLabel, rightValue) {
 // millimetres: text sits on its BASELINE, as the setup places it, which is
 // why these are drawn as SVG rather than flowed as HTML.
 
-const CERT_SIGNATURE_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/certificate-signature.png'
 const CERT_FONT = {
   script: "'Brush Script MT','Brush Script Std','Lucida Handwriting',cursive",
   value: "Georgia,'Times New Roman',serif",
@@ -1670,7 +1671,7 @@ function certificateSheet(s, body, { qr } = {}) {
     ${certText(49.5, 185.3, issued, { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
     ${certText(15.6, 190.9, 'Place:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
     ${certText(34.9, 190.9, 'Sikkim', { font: CERT_FONT.script, size: 16 })}
-    <image href="${CERT_SIGNATURE_URL}" x="220.3" y="173.2" width="32.4" height="14.8" preserveAspectRatio="xMidYMid meet"/>
+    <image href="${CONTROLLER_SIGNATURE_URL}" x="220.3" y="173.2" width="32.4" height="14.8" preserveAspectRatio="xMidYMid meet"/>
     ${certText(202.2, 192.3, 'Registrar / Controller of Examination', { font: CERT_FONT.calibri, size: 14, bold: true })}
   </svg>`
 }
