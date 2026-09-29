@@ -218,6 +218,7 @@ export default function ExamSection() {
   const [fDept, setFDept] = useState('all')
   const [fType, setFType] = useState('all')
   const [fSession, setFSession] = useState([])   // multi-select; [] = all
+  const [fPrintCenter, setFPrintCenter] = useState('all')   // Print tab only
   // Which students still need THIS semester's admit card. After a
   // re-registration is verified the student moves into a new term with no card
   // yet, and the list gave no way to tell who was waiting.
@@ -379,7 +380,6 @@ export default function ExamSection() {
     .filter(([k, r]) => k.startsWith(`${s.id}__`) && r?.print_forwarded_at)
     .map(([, r]) => r)
     .sort((a, b) => Number(a.semester) - Number(b.semester))
-  const printList = data.filter(s => forwardedSems(s).length > 0)
 
   // Every semester of a student with a DECLARED result, sent to Print or not —
   // what the Result list shows semester by semester.
@@ -837,6 +837,20 @@ export default function ExamSection() {
   const filterActive = !!search || fDept !== 'all' || fType !== 'all' || fSession.length > 0
   const clearFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSession([]) }
 
+  // The Print tab: forwarded results only, through the same filters as the
+  // other lists plus a centre filter of its own. Declared here, below
+  // byFilters — above it, byFilters is still in its dead zone.
+  const printable = data.filter(s => forwardedSems(s).length > 0)
+  const printCenterOptions = Object.values(printable.reduce((acc, s) => {
+    const c = s.centers
+    if (c?.id && !acc[c.id]) acc[c.id] = { id: c.id, label: c.center_code ? `${c.center_name} (${c.center_code})` : c.center_name }
+    return acc
+  }, {})).sort((a, b) => a.label.localeCompare(b.label))
+  const printList = byFilters.filter(s =>
+    forwardedSems(s).length > 0 && (fPrintCenter === 'all' || s.centers?.id === fPrintCenter))
+  const printFilterActive = filterActive || fPrintCenter !== 'all'
+  const clearPrintFilters = () => { clearFilters(); setFPrintCenter('all') }
+
   return (
     <div className="p-6">
       <PageHeader
@@ -1202,13 +1216,44 @@ export default function ExamSection() {
       {/* PRINT — only results FORWARDED from the Result section appear here,
           each carrying the DMC number issued at that moment. Forwarding is
           what separates "declared" from "ready to print". */}
-      {view === 'print' && (
+      {view === 'print' && (<>
+      <div className="flex flex-wrap gap-3 mb-4 items-end">
+        <div className="relative max-w-sm flex-1 min-w-[220px]">
+          <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>
+          <Search size={15} className="absolute left-3 top-[34px] -translate-y-1/2 text-gray-400" />
+          <input
+            className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white"
+            placeholder="Search by name, enrollment, center..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <SearchableSelect label="Center" allLabel="All Centers" minWidth={200}
+          value={fPrintCenter} onChange={setFPrintCenter}
+          options={printCenterOptions} />
+        <SearchableSelect label="Department" allLabel="All Departments" minWidth={180}
+          value={fDept} onChange={setFDept}
+          options={departments.map(d => ({ id: d.id, label: d.name }))} />
+        <SearchableSelect label="Program Type" allLabel="All Types" minWidth={150}
+          value={fType} onChange={setFType}
+          options={progTypes.map(t => ({ id: t.id, label: t.programme_type_name }))} />
+        <MultiSearchSelect label="Session" allLabel="All Sessions" minWidth={160}
+          values={fSession} onChange={setFSession}
+          options={sessions.map(se => ({ id: se.id, label: se.session_name }))} />
+        {printFilterActive && (
+          <button onClick={clearPrintFilters}
+            className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
+            <X size={14} /> Clear
+          </button>
+        )}
+      </div>
         <Table>
           <Thead>
             <tr>
               <Th>#</Th>
               <Th>Student</Th>
               <Th>Programme</Th>
+              <Th>Center</Th>
               <Th>Enrollment No</Th>
               <Th>Forwarded Semesters · DMC No.</Th>
               <Th className="min-w-[420px]">Print</Th>
@@ -1216,8 +1261,10 @@ export default function ExamSection() {
           </Thead>
           <Tbody>
             {printList.length === 0 ? (
-              <Tr><Td colSpan={6} className="text-center text-gray-400 py-12">
-                Nothing forwarded yet — send a declared result from the Result tab.
+              <Tr><Td colSpan={7} className="text-center text-gray-400 py-12">
+                {printFilterActive
+                  ? 'No forwarded results match these filters.'
+                  : 'Nothing forwarded yet — send a declared result from the Result tab.'}
               </Td></Tr>
             ) : printList.map((s, i) => {
               const sems = forwardedSems(s)
@@ -1229,6 +1276,10 @@ export default function ExamSection() {
                     <p className="text-xs text-gray-400 mt-0.5">{s.gender} • {s.mobile_no || '—'}</p>
                   </Td>
                   <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
+                  <Td className="text-gray-700 text-xs min-w-[150px] whitespace-normal break-words">
+                    {s.centers?.center_name || '—'}
+                    {s.centers?.center_code && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{s.centers.center_code}</p>}
+                  </Td>
                   <Td className="font-mono text-xs font-bold text-emerald-700">{s.enrollment_no || '—'}</Td>
                   <Td>
                     <div className="flex flex-wrap gap-1">
@@ -1268,7 +1319,7 @@ export default function ExamSection() {
             })}
           </Tbody>
         </Table>
-      )}
+      </>)}
 
       {resultModalStudent && (
         <SemesterResultModal
