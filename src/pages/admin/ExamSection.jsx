@@ -7,7 +7,7 @@ import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarCl
 import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
 import ExaminationCalendar from './ExaminationCalendar'
 import {
-  generateAdmitCard, generateMarksStatement, sgpaOf, divisionFor,
+  generateAdmitCard, generateMarksStatement, sgpaOf, sgpaBySemester, divisionFor,
   generateProvisionalCertificate, generateMigrationCertificate,
   generateDegreeCertificate, generateConsolidatedMarksheet,
 } from '../../utils/generateStudentCards'
@@ -484,9 +484,12 @@ export default function ExamSection() {
       const resolved = await fullStudent(s)
       const rowsForSem = await fetchPaperMarks(s, r.semester)
       const dates = await fetchExamDates(resolved, r.semester)
-      const cgpa = sgpaOf(await fetchPaperMarksUpto(s, r.semester))
+      const upto = await fetchPaperMarksUpto(s, r.semester)
+      const cgpa = sgpaOf(upto)
       generateMarksStatement(resolved, rowsForSem, {
         dmcNo: r.dmc_no ? String(r.dmc_no) : '',
+        semSgpas: sgpaBySemester(upto),
+        issueDate: r.print_forwarded_at || null,
         semester: `Semester ${r.semester}`,
         examHeld: dates.examSession || '',
         resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',

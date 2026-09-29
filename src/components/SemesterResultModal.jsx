@@ -4,7 +4,7 @@ import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
 import { semesterResults, saveSemesterResult, setSemesterResultVisible, deleteSemesterResult } from '../utils/semesterResults'
 import { fetchPaperMarks, fetchPaperMarksUpto, savePaperMarks } from '../utils/paperMarks'
-import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStudentCards'
+import { generateMarksStatement, gradeFor, sgpaOf, sgpaBySemester } from '../utils/generateStudentCards'
 import { generateSemesterMarks } from '../utils/marksFill'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
@@ -158,7 +158,8 @@ export default function SemesterResultModal({ student, special = false, onClose,
     const rowsForSem = await fetchPaperMarks(student, row.sem)
     const dates = await fetchExamDates(resolved, row.sem)
     // CGPA spans every semester up to this one, not just this one.
-    const cgpa = sgpaOf(await fetchPaperMarksUpto(student, row.sem))
+    const upto = await fetchPaperMarksUpto(student, row.sem)
+    const cgpa = sgpaOf(upto)
     // The sheet must carry a number. If this result has not been given one
     // yet, issuing happens here — printing an official copy is exactly the
     // moment a DMC number starts to mean something. It does NOT forward the
@@ -183,6 +184,10 @@ export default function SemesterResultModal({ student, special = false, onClose,
       // No. as the first copy, and a corrected enrolment number must not
       // silently renumber a sheet already in circulation.
       dmcNo: dmc ? String(dmc) : '',
+      // Every semester's SGPA for the strip under the marks, and the date the
+      // result went to Print — so a reprint carries the first copy's date.
+      semSgpas: sgpaBySemester(upto),
+      issueDate: row.result?.print_forwarded_at || null,
       semester: `Semester ${row.sem}`,
       examHeld: dates.examSession || '',
       resultStatus: row.result?.status === 'Fail' ? 'Failed' : 'Passed',

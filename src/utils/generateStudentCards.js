@@ -1,4 +1,5 @@
 import { formatDate } from './formatDate'
+import qrcode from 'qrcode-generator'
 
 // Use the app's own bundled logo. Cards render in a window.open popup whose
 // base URL is about:blank, so a root-relative path won't resolve — build an
@@ -6,6 +7,9 @@ import { formatDate } from './formatDate'
 const LOGO_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/logo.png'
 const LETTERHEAD_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/letterhead.jpg'
 const SIGNATURE_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/registrar-signature.png'
+// The signature printed on the Statement of Grades, taken from the office's
+// own print setup — a different hand from the Registrar's letter signature.
+const MARKSHEET_SIGNATURE_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/assets/marksheet-signature.png'
 
 // The Registrar's signature block — used on every letter signed by the Registrar.
 function registrarSignBlock(bold) {
@@ -941,18 +945,17 @@ const SHEET_DASH = '#9fb3b3'
 // the centre and the student portal render it straight into the page, inside a
 // .student-copy wrapper. One markup, so what a student reads on screen and
 // what the university prints cannot drift apart.
-export function marksStatementHTML(s, rows = [], meta = {}) {
-  const prog = s.programs?.program_name || s.program_name || '—'
+// Paper rows as a marksheet prints them: maxima, marks obtained, the grade
+// and the credit earned. A statement lists the papers the student SAT — a
+// semester offers alternatives (MS-ACCESS or MS-SQL) and the ones not taken
+// have no marks — unless nothing at all is entered, when the full list stands
+// so a blank pro-forma still prints. Shared by both sheets so they can never
+// grade the same paper differently.
+export function markRowsOf(rows = []) {
   const num = (x) => (x == null || x === '' ? '' : Number(x))
-  const show = (x) => (x == null || x === '' ? '—' : String(x))
-
-  // A statement of marks lists the papers the student SAT. A semester offers
-  // alternatives — MS-ACCESS or MS-SQL — and the ones not taken have no marks,
-  // so they do not belong on the sheet. If nothing at all has been entered the
-  // full list stands, so a blank pro-forma still prints something.
   const entered = rows.filter(r => r.theory_obtained !== '' && r.theory_obtained != null
     || r.internal_obtained !== '' && r.internal_obtained != null)
-  const marked = (entered.length ? entered : rows).map(r => {
+  return (entered.length ? entered : rows).map(r => {
     const maxT = num(r.theory_marks) || 0
     const maxI = num(r.internal_marks) || 0
     const maxTot = num(r.total_marks) || (maxT + maxI)
@@ -965,6 +968,17 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
     return { ...r, maxT, maxI, maxTot, gotT, gotI, gotTot, entered, credit, g,
              earned: g.point > 0 ? credit : 0 }
   })
+}
+
+export function marksStatementHTML(s, rows = [], meta = {}) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  const show = (x) => (x == null || x === '' ? '—' : String(x))
+
+  // A statement of marks lists the papers the student SAT. A semester offers
+  // alternatives — MS-ACCESS or MS-SQL — and the ones not taken have no marks,
+  // so they do not belong on the sheet. If nothing at all has been entered the
+  // full list stands, so a blank pro-forma still prints something.
+  const marked = markRowsOf(rows)
 
   // A CGPA is a running average, so there is nothing to average in the first
   // semester — its SGPA IS the whole record, and the university's own grade
@@ -1189,39 +1203,316 @@ export const MARKS_STATEMENT_STYLE = `
 
 // The Exam Section's printable Statement of Marks: the same sheet, wrapped in
 // a document with the buttons that choose which copy is printed.
+// ============================================================
+//  STATEMENT OF GRADES — the printed marksheet
+//  Laid out on A4 in millimetres to land on the university's pre-printed
+//  stationery: the top 60mm is left blank for the printed letterhead, and
+//  every block sits where the office's own print setup puts it.
+// ============================================================
+
+// Code 128 — the symbol widths for values 0-106 (106 is the stop pattern).
+const CODE128 = `212222 222122 222221 121223 121322 131222 122213 122312 132212 221213
+221312 231212 112232 122132 122231 113222 123122 123221 223211 221132
+221231 213212 223112 312131 311222 321122 321221 312212 322112 322211
+212123 212321 232121 111323 131123 131321 112313 132113 132311 211313
+231113 231311 112133 112331 132131 113123 113321 133121 313121 211331
+231131 213113 213311 213131 311123 311321 331121 312113 312311 332111
+314111 221411 431111 111224 111422 121124 121421 141122 141221 112214
+112412 122114 122411 142112 142211 241211 221114 413111 241112 134111
+111242 121142 121241 114212 124112 124211 411212 421112 421211 212141
+214121 412121 111143 111341 131141 114113 114311 411113 411311 113141
+114131 311141 411131 211412 211214 211232 2331112`.split(/\s+/)
+
+// Text to Code 128 values: set B for text, switching to set C for runs of
+// four or more digits, which packs two digits into one symbol. Verified to
+// reproduce the office sample's barcode symbol for symbol.
+function code128Values(text) {
+  const s = String(text ?? '').replace(/[^\x20-\x7e]/g, ' ')
+  const isD = c => c >= '0' && c <= '9'
+  const run = k => { let n = 0; while (k + n < s.length && isD(s[k + n])) n++; return n }
+  const out = []
+  const r0 = run(0)
+  let set = (r0 >= 4 && r0 % 2 === 0) || (r0 === s.length && r0 >= 2 && r0 % 2 === 0) ? 'C' : 'B'
+  out.push(set === 'C' ? 105 : 104)
+  let i = 0
+  while (i < s.length) {
+    const r = run(i)
+    if (set === 'C') {
+      if (r >= 2) { out.push(parseInt(s.substr(i, 2), 10)); i += 2 } else { out.push(100); set = 'B' }
+      continue
+    }
+    if (r >= 4) {
+      // An odd run takes its first digit in set B so the rest pairs up.
+      if (r % 2) { out.push(s.charCodeAt(i) - 32); i += 1 } else { out.push(99); set = 'C' }
+      continue
+    }
+    out.push(s.charCodeAt(i) - 32); i += 1
+  }
+  out.push((out[0] + out.slice(1).reduce((acc, x, k) => acc + x * (k + 1), 0)) % 103, 106)
+  return out
+}
+
+function code128Svg(text) {
+  const widths = code128Values(text).map(x => CODE128[x]).join('')
+  const quiet = 6, height = 40
+  let x = quiet, bars = ''
+  for (let k = 0; k < widths.length; k++) {
+    const w = Number(widths[k])
+    if (k % 2 === 0) bars += `<rect x="${x}" y="0" width="${w}" height="${height}"/>`
+    x += w
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${x + quiet} ${height}" preserveAspectRatio="none" shape-rendering="crispEdges" style="width:100%;height:100%;display:block;">${bars}</svg>`
+}
+
+// The QR library reads each character as one byte (Latin-1), which would
+// garble a name in any other script. Hand it the UTF-8 bytes instead.
+function qrSvg(text) {
+  const bytes = new TextEncoder().encode(String(text ?? ''))
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  const qr = qrcode(0, 'M')
+  qr.addData(bin)
+  qr.make()
+  return qr.createSvgTag({ cellSize: 2, margin: 0, scalable: true })
+}
+
+// SGPA for each semester present in a set of paper rows (each row carrying
+// its `semester`), as { 1: 7.5, 2: 7.25 }.
+export function sgpaBySemester(rows = []) {
+  const bySem = {}
+  for (const r of rows) (bySem[r.semester] ||= []).push(r)
+  const out = {}
+  for (const [sem, list] of Object.entries(bySem)) {
+    const g = sgpaOf(list)
+    if (g != null) out[sem] = g
+  }
+  return out
+}
+
+const ddmmyyyy = (d) => {
+  const x = d ? new Date(d) : new Date()
+  const t = Number.isNaN(x.getTime()) ? new Date() : x
+  return `${String(t.getDate()).padStart(2, '0')}/${String(t.getMonth() + 1).padStart(2, '0')}/${t.getFullYear()}`
+}
+
+// meta: { dmcNo, semester, resultStatus, cgpa, semSgpas: { 1: 7.5 }, issueDate }
+export function statementOfGradesHTML(s, rows = [], meta = {}) {
+  const prog = s.programs?.program_name || s.program_name || '—'
+  const marked = markRowsOf(rows)
+  const semNo = parseInt(String(meta.semester || '').match(/\d+/)?.[0] || '', 10)
+  const sum = (k) => marked.reduce((a, r) => a + (Number(r[k]) || 0), 0)
+  const PASS_PCT = 40
+  const minOf = (max) => (Number(max) ? Math.round((Number(max) * PASS_PCT) / 100) : 0)
+  const sumMin = (k) => marked.reduce((a, r) => a + minOf(r[k]), 0)
+  const pair = (min, max) => (max ? `${min}/${max}` : '')
+  const cell = (x) => (x === '' || x == null ? '' : esc(String(x)))
+
+  const semSgpas = { ...(meta.semSgpas || {}) }
+  // Without the per-semester figures, at least this semester's own.
+  if (semNo && semSgpas[semNo] == null) {
+    const own = sgpaOf(marked.map(r => ({ ...r, theory_obtained: r.gotT, internal_obtained: r.gotI })))
+    if (own != null) semSgpas[semNo] = own
+  }
+  // A CGPA is a running average — nothing to average in the first semester.
+  const cgpa = semNo === 1 ? '—' : (meta.cgpa != null && meta.cgpa !== '' ? Number(meta.cgpa).toFixed(2) : '—')
+  const failed = /fail/i.test(String(meta.resultStatus || ''))
+    || marked.some(r => r.entered && r.maxTot && (r.gotTot / r.maxTot) * 100 < PASS_PCT)
+  const result = marked.some(r => r.entered) ? (failed ? 'Fail' : 'Pass') : ''
+  const issued = ddmmyyyy(meta.issueDate)
+
+  // The office sample leaves room below its six papers; pad to seven rows so
+  // the grid keeps its shape however many papers a semester has.
+  const blanks = Math.max(0, 7 - marked.length)
+  const ROMAN_10 = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X']
+
+  // One compact line, so the code stays as open as the office sample's and
+  // scans easily at 25mm: who, which sheet, what it says, and when.
+  const idLines = (withDmc) => [
+    s.student_name, s.enrollment_no,
+    `Sem ${romanSemester(meta.semester)}`,
+    withDmc && meta.dmcNo ? `DMC ${meta.dmcNo}` : null,
+    semSgpas[semNo] != null ? `SGPA ${Number(semSgpas[semNo]).toFixed(2)}` : null,
+    result || null,
+    issued,
+  ].filter(Boolean).join(' | ')
+  const barcodeText = (withDmc) =>
+    [s.enrollment_no, withDmc ? meta.dmcNo : null, issued].filter(Boolean).join(' ')
+
+  const info = (label, value, extra = '') =>
+    `<tr${extra}><td class="k">${label}</td><td class="c">:</td><td class="val">${v(value)}</td></tr>`
+
+  return `
+  <div class="sog-sheet">
+    <div class="sog-barcode office-only">${code128Svg(barcodeText(true))}</div>
+    <div class="sog-barcode student-only">${code128Svg(barcodeText(false))}</div>
+
+    <div class="sog-title">STATEMENT OF GRADES</div>
+
+    <table class="sog-info sog-left">
+      ${info('Name of Student', s.student_name)}
+      ${info("Father's Name", s.fathers_name)}
+      ${info("Mother's Name", s.mothers_name)}
+      ${info('Session', courseValidity(s))}
+      ${info('Programme', prog)}
+    </table>
+    <table class="sog-info sog-right">
+      ${info('Enrollment No.', s.enrollment_no)}
+      ${info('Registration No.', s.registration_no)}
+      ${info('Semester', romanSemester(meta.semester))}
+      ${info('DMC No.', meta.dmcNo, ' class="office-only"')}
+    </table>
+
+    <div class="sog-body">
+      <table class="sog-marks">
+        <colgroup>
+          <col style="width:14mm"/><col/><col style="width:12mm"/>
+          <col style="width:12.7mm"/><col style="width:14.7mm"/>
+          <col style="width:14mm"/><col style="width:14.5mm"/>
+          <col style="width:10.2mm"/><col style="width:15.2mm"/><col style="width:10.9mm"/>
+        </colgroup>
+        <thead>
+          <tr class="h1">
+            <th rowspan="2">Subject<br/>Code</th>
+            <th rowspan="2">Subject Name</th>
+            <th rowspan="2">Credit</th>
+            <th colspan="2">Internal</th>
+            <th colspan="2">External</th>
+            <th rowspan="2">Total<br/>Marks</th>
+            <th rowspan="2">Grade<br/>Point<br/>(GP)<br/><span class="sm">(out of 10)</span></th>
+            <th rowspan="2">Earned<br/>Credit<br/>(EC)</th>
+          </tr>
+          <tr class="h2">
+            <th>Min/Max</th><th>Marks<br/>Obtained</th>
+            <th>Min/Max</th><th>Marks<br/>Obtained</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${marked.map(r => `<tr>
+            <td>${cell(r.subject_code)}</td>
+            <td class="name">${cell(r.subject_name)}</td>
+            <td>${cell(r.credit || '')}</td>
+            <td>${pair(minOf(r.maxI), r.maxI)}</td>
+            <td>${cell(r.gotI)}</td>
+            <td>${pair(minOf(r.maxT), r.maxT)}</td>
+            <td>${cell(r.gotT)}</td>
+            <td>${r.entered ? cell(r.gotTot) : ''}</td>
+            <td>${r.entered ? cell(r.g.point) : ''}</td>
+            <td>${r.entered ? cell(r.earned) : ''}</td>
+          </tr>`).join('')}
+          ${'<tr class="blank"><td colspan="10"></td></tr>'.repeat(blanks)}
+          <tr class="total">
+            <td colspan="2">Total</td>
+            <td>${sum('credit') || ''}</td>
+            <td>${pair(sumMin('maxI'), sum('maxI'))}</td>
+            <td>${sum('gotI') || ''}</td>
+            <td>${pair(sumMin('maxT'), sum('maxT'))}</td>
+            <td>${sum('gotT') || ''}</td>
+            <td>${sum('gotTot') || ''}</td>
+            <td></td>
+            <td>${sum('earned') || ''}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="sog-strip">
+        <table class="sog-sem">
+          <tr><th class="lbl">Semester</th>${ROMAN_10.map(r => `<th>${r}</th>`).join('')}</tr>
+          <tr><th class="lbl">SGPA</th>${ROMAN_10.map((_, k) =>
+            `<td>${semSgpas[k + 1] != null ? Number(semSgpas[k + 1]).toFixed(2) : ''}</td>`).join('')}</tr>
+        </table>
+        <table class="sog-res">
+          <tr><th>Result</th><th>CGPA</th></tr>
+          <tr><td>${result}</td><td>${cgpa}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="sog-qr office-only">${qrSvg(idLines(true))}</div>
+    <div class="sog-qr student-only">${qrSvg(idLines(false))}</div>
+    <div class="sog-issue">Date of issue: ${issued}</div>
+    <img class="sog-sign office-only" src="${MARKSHEET_SIGNATURE_URL}" alt="" onerror="this.style.display='none'"/>
+    <div class="sog-signlabel">Registrar/Exam Of Controller</div>
+  </div>`
+}
+
+// Positions are the office print setup's, measured off its A4 page.
+export const STATEMENT_OF_GRADES_STYLE = `
+  @page { size: A4; margin: 0; }
+  .sog-sheet { position:relative; width:210mm; height:297mm; background:#fff; color:#000;
+               font-family: Arial, Helvetica, sans-serif; box-sizing:border-box; overflow:hidden; }
+  .sog-sheet * { box-sizing:border-box; }
+  .sog-barcode { position:absolute; left:155.4mm; top:11.9mm; width:40.9mm; height:10.2mm; }
+  .sog-title { position:absolute; left:0; right:0; top:64.5mm; text-align:center;
+               font-family:"Times New Roman", Times, serif; font-weight:700; font-size:16.5pt; line-height:1; }
+  .sog-info { position:absolute; top:80.6mm; border-collapse:collapse; font-size:10pt; }
+  .sog-info td { padding:0; height:6.1mm; vertical-align:middle; white-space:nowrap; }
+  .sog-info td.k { font-weight:700; }
+  .sog-info td.c { font-weight:700; padding:0 1.2mm 0 0; }
+  .sog-left  { left:11.4mm; }  .sog-left td.k  { width:30mm; }
+  .sog-right { left:135.6mm; } .sog-right td.k { width:29mm; }
+  .sog-right td.val { font-size:9pt; }
+  .sog-left td.val { white-space:normal; max-width:82mm; }
+  .sog-body { position:absolute; left:11.4mm; top:111mm; width:187.3mm; }
+  .sog-marks { width:100%; border-collapse:collapse; table-layout:fixed; font-size:7.6pt; font-weight:700; }
+  .sog-marks th, .sog-marks td { border:0.3mm solid #000; text-align:center; vertical-align:middle; padding:0.4mm 0.6mm; line-height:1.15; }
+  .sog-marks thead tr.h1 th { height:5.3mm; }
+  .sog-marks thead tr.h2 th { height:8.1mm; }
+  .sog-marks thead .sm { font-size:6.4pt; }
+  .sog-marks tbody tr { height:6.35mm; }
+  .sog-marks td.name { text-align:left; padding-left:1mm; }
+  .sog-marks tr.total td { font-size:8.6pt; }
+  .sog-strip { display:flex; justify-content:space-between; align-items:flex-start; margin-top:4.3mm; }
+  .sog-sem, .sog-res { border-collapse:collapse; font-size:7.6pt; font-weight:700; table-layout:fixed; }
+  .sog-sem { width:150.6mm; } .sog-res { width:31.5mm; }
+  .sog-sem th, .sog-sem td, .sog-res th, .sog-res td { border:0.3mm solid #000; height:5.1mm; text-align:center; padding:0 0.5mm; }
+  .sog-sem th.lbl { width:25.6mm; text-align:left; padding-left:1mm; }
+  .sog-qr { position:absolute; left:16.5mm; top:233.1mm; width:25.6mm; height:25.6mm; }
+  .sog-qr svg { width:100%; height:100%; display:block; }
+  .sog-issue { position:absolute; left:13mm; top:262.5mm; font-size:8.6pt; font-weight:700; }
+  .sog-sign { position:absolute; left:149.8mm; top:253.2mm; width:38mm; height:auto; }
+  .sog-signlabel { position:absolute; left:145.8mm; top:267.1mm; font-size:8.6pt; font-weight:700; }
+  .student-only { display:none; }
+  body.student-copy .student-only { display:block; }
+  body.student-copy .office-only { display:none !important; }
+`
+
 export function generateMarksStatement(s, rows = [], meta = {}) {
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-  <title>Statement of Marks — ${v(s.student_name)}</title>${baseStyle}</head>
-<body class="${meta.studentCopy ? 'student-copy' : ''}">
-<div style="max-width:760px;margin:24px auto;">
+  <title>Statement of Grades — ${v(s.student_name)}</title>
+  <style>
+    html, body { margin:0; padding:0; background:#e5e7eb; }
+    ${STATEMENT_OF_GRADES_STYLE}
+    .sog-sheet { margin:0 auto 12mm; box-shadow:0 4px 20px rgba(0,0,0,0.18); }
+    @media print {
+      html, body { background:#fff; }
+      .no-print { display:none !important; }
+      .sog-sheet { margin:0; box-shadow:none; }
+      * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    }
+  </style></head>
+<body>
   <!-- Two copies of one sheet. The office copy carries the DMC number and the
-       signature blocks; the student's copy does not, so publishing cannot hand
-       out a signed-looking statement. The office-only class is what separates
-       them — both print through the same page, the buttons set the mode. -->
-  ${meta.studentCopy ? `
-  <div class="no-print" style="text-align:center;padding:12px 0 18px;">
-    <button onclick="window.print()" style="background:${BRAND};color:#fff;border:none;padding:10px 34px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.04em;">⬇ Download / Print</button>
-  </div>` : `
-  <div class="no-print" style="text-align:center;padding:12px 0 18px;display:flex;gap:10px;justify-content:center;">
-    <button onclick="setMode(false)" style="background:${BRAND};color:#fff;border:none;padding:10px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">🖨 Print (Office Copy)</button>
-    <button onclick="setMode(true)" style="background:#fff;color:${BRAND};border:2px solid ${BRAND};padding:8px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.03em;">📤 Publish (Student Copy)</button>
+       signature; the student's copy does not, so publishing cannot hand out a
+       signed-looking statement. Both print through the same page. -->
+  <div class="no-print" style="text-align:center;padding:14px 0 6px;display:flex;gap:10px;justify-content:center;font-family:Arial,sans-serif;">
+    <button onclick="setMode(false)" style="background:${BRAND};color:#fff;border:none;padding:10px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">🖨 Print (Office Copy)</button>
+    <button onclick="setMode(true)" style="background:#fff;color:${BRAND};border:2px solid ${BRAND};padding:8px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 Publish (Student Copy)</button>
   </div>
-  <div class="no-print" id="modeNote" style="text-align:center;font-size:11px;color:#666;margin:-10px 0 14px;"></div>`}
-
-  ${marksStatementHTML(s, rows, meta)}
-</div>
-<style>${MARKS_STATEMENT_STYLE}</style>
+  <div class="no-print" id="modeNote" style="text-align:center;font-size:11px;color:#555;margin:0 0 12px;font-family:Arial,sans-serif;">
+    Print on A4 marksheet stationery at 100% scale, margins None, headers and footers off.
+  </div>
+  ${statementOfGradesHTML(s, rows, meta)}
 <script>
   function setMode(student) {
     document.body.classList.toggle('student-copy', student)
     document.getElementById('modeNote').textContent = student
-      ? 'Student copy — no DMC number and no signature blocks.'
-      : 'Office copy — with DMC number and signature blocks.'
+      ? 'Student copy — no DMC number and no signature.'
+      : 'Office copy — with DMC number and signature.'
     window.print()
   }
 </script>
 </body></html>`
-  openWindow(html, 'Statement of Marks')
+  openWindow(html, 'Statement of Grades')
 }
 
 // ============================================================
