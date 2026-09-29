@@ -243,14 +243,18 @@ export default function SemesterResultModal({ student, special = false, onClose,
     // Examination Calendar holds — not on whichever day somebody pressed Save.
     // Re-saving a correction used to move the date every time.
     const cal = await fetchExamDates(student, pick.sem)
-    const declaredAt = cal.resultPublishedRaw
+    // The calendar's Result Published Date. Before it existed the Marksheet
+    // Printing Date stood in for it, so a calendar without the new date keeps
+    // declaring results exactly as it did.
+    const declaredOn = cal.resultDeclaredRaw || cal.resultPublishedRaw
+    const declaredAt = declaredOn
       // Midday UTC rather than midnight: stored at midnight, the same instant
       // reads as the previous day anywhere west of UTC, which is how a result
       // published on the 5th showed as the 4th. Midday holds the date from
       // UTC-11 through UTC+11, which covers India and every browser likely to
       // open this. (declared_at is a timestamp; a date-only column would not
       // need the trick at all.)
-      ? new Date(`${cal.resultPublishedRaw}T12:00:00Z`).toISOString()
+      ? new Date(`${declaredOn}T12:00:00Z`).toISOString()
       : new Date().toISOString()
 
     const { error } = await saveSemesterResult(student.id, pick.sem, {

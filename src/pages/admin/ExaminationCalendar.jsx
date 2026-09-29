@@ -26,6 +26,7 @@ export default function ExaminationCalendar() {
   const [missingTable, setMissingTable] = useState(false)
   const [needsPhdSql, setNeedsPhdSql] = useState(false)
   const [needsHeldSql, setNeedsHeldSql] = useState(false)
+  const [needsDeclaredSql, setNeedsDeclaredSql] = useState(false)
 
   const periods = mode === 'phd' ? PHD : REGULAR
   const nums = periods.map(p => p.n)
@@ -47,8 +48,15 @@ export default function ExaminationCalendar() {
     setLoading(true); setSaved(false); setMissingTable(false)
     async function load() {
       let { data, error } = await supabase.from('exam_calendar')
-        .select('semester, start_date, end_date, exam_held, result_published')
+        .select('semester, start_date, end_date, exam_held, result_published, result_declared_on')
         .eq('session_id', sessionId)
+      // result_declared_on arrives with add_exam_calendar_result_declared.sql.
+      if (error && /result_declared_on/.test(error.message || '')) {
+        setNeedsDeclaredSql(true)
+        ;({ data, error } = await supabase.from('exam_calendar')
+          .select('semester, start_date, end_date, exam_held, result_published')
+          .eq('session_id', sessionId))
+      }
       if (error) {
         setNeedsHeldSql(true)
         ;({ data, error } = await supabase.from('exam_calendar')
@@ -57,19 +65,19 @@ export default function ExaminationCalendar() {
       }
       if (error) { setMissingTable(true); setCal({}); setLoading(false); return }
       const m = {}
-      ;(data || []).forEach(r => { m[r.semester] = { start_date: r.start_date || '', end_date: r.end_date || '', exam_held: r.exam_held || '', result_published: r.result_published || '' } })
+      ;(data || []).forEach(r => { m[r.semester] = { start_date: r.start_date || '', end_date: r.end_date || '', exam_held: r.exam_held || '', result_published: r.result_published || '', result_declared_on: r.result_declared_on || '' } })
       setCal(m); setLoading(false)
     }
     load()
   }, [sessionId])
 
-  const cur = cal[activeSem] || { start_date: '', end_date: '', exam_held: '', result_published: '' }
+  const cur = cal[activeSem] || { start_date: '', end_date: '', exam_held: '', result_published: '', result_declared_on: '' }
   const setCur = (field, val) => setCal(p => ({
     ...p,
-    [activeSem]: { ...(p[activeSem] || { start_date: '', end_date: '', exam_held: '', result_published: '' }), [field]: val },
+    [activeSem]: { ...(p[activeSem] || { start_date: '', end_date: '', exam_held: '', result_published: '', result_declared_on: '' }), [field]: val },
   }))
 
-  const semHasDates = n => cal[n] && (cal[n].start_date || cal[n].end_date || cal[n].exam_held || cal[n].result_published)
+  const semHasDates = n => cal[n] && (cal[n].start_date || cal[n].end_date || cal[n].exam_held || cal[n].result_published || cal[n].result_declared_on)
   const rangeInvalid = cur.start_date && cur.end_date && cur.end_date < cur.start_date
 
   async function save() {
@@ -92,12 +100,20 @@ export default function ExaminationCalendar() {
         end_date: cal[n].end_date || null,
         exam_held: (cal[n].exam_held || '').trim() || null,
         result_published: cal[n].result_published || null,
+        result_declared_on: cal[n].result_declared_on || null,
       }))
     // Replace only THIS mode's rows for the session (scoped by its period range).
     const del = await supabase.from('exam_calendar').delete().eq('session_id', sessionId).in('semester', nums)
     if (del.error) { setMissingTable(true); setSaving(false); return }
     if (rows.length) {
       let ins = await supabase.from('exam_calendar').insert(rows)
+      // Without add_exam_calendar_result_declared.sql, save everything but
+      // the new date rather than lose the calendar to one column.
+      if (ins.error && /result_declared_on/.test(ins.error.message || '')) {
+        setNeedsDeclaredSql(true)
+        ins = await supabase.from('exam_calendar').insert(rows.map(r =>
+          Object.fromEntries(Object.entries(r).filter(([k]) => k !== 'result_declared_on'))))
+      }
       // exam_held column missing (add_exam_calendar_held.sql not run) — save
       // the dates anyway rather than losing the whole calendar to one column.
       if (ins.error && /exam_held|result_published/.test(ins.error.message || '')) {
@@ -174,6 +190,16 @@ export default function ExaminationCalendar() {
         </div>
       )}
 
+      {needsDeclaredSql && (
+        <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+          <CalendarDays size={16} className="mt-0.5 shrink-0" />
+          <div>
+            <p className="font-semibold">"Result Published Date" needs a one-time database update.</p>
+            <p className="text-xs mt-0.5">Run <code className="font-mono">add_exam_calendar_result_declared.sql</code> once in Supabase → SQL Editor. Everything else keeps saving; only this date is skipped until then.</p>
+          </div>
+        </div>
+      )}
+
       {needsPhdSql && (
         <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
           <CalendarDays size={16} className="mt-0.5 shrink-0" />
@@ -215,7 +241,7 @@ export default function ExaminationCalendar() {
                 <Save size={14} /> {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Calendar'}
               </Button>
             </div>
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-600 ml-0.5">Start Examination Date</label>
                 <DateInput value={cur.start_date} onChange={e => setCur('start_date', e.target.value)} bare
@@ -236,6 +262,12 @@ export default function ExaminationCalendar() {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-gray-600 ml-0.5">Result Published Date</label>
+                <DateInput value={cur.result_declared_on} onChange={e => setCur('result_declared_on', e.target.value)} bare
+                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]" />
+                <p className="text-[11px] text-gray-400 ml-0.5">The day the result is declared. Recorded on each result when it is saved.</p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold text-gray-600 ml-0.5">Marksheet Printing Date</label>
                 <DateInput value={cur.result_published} onChange={e => setCur('result_published', e.target.value)} bare
                   className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]" />
                 <p className="text-[11px] text-gray-400 ml-0.5">Printed on the marksheet as the Date of Issue, so every copy carries the same date.</p>
@@ -254,6 +286,7 @@ export default function ExaminationCalendar() {
                       <th className="text-left font-semibold px-4 py-2">End Date</th>
                       <th className="text-left font-semibold px-4 py-2">Exam. Held</th>
                       <th className="text-left font-semibold px-4 py-2">Result Published</th>
+                      <th className="text-left font-semibold px-4 py-2">Marksheet Printing</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -263,6 +296,7 @@ export default function ExaminationCalendar() {
                         <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.start_date) || <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.end_date) || <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-2 text-gray-600">{cal[n]?.exam_held || <span className="text-gray-300">—</span>}</td>
+                        <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.result_declared_on) || <span className="text-gray-300">—</span>}</td>
                         <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.result_published) || <span className="text-gray-300">—</span>}</td>
                       </tr>
                     ))}

@@ -42,7 +42,8 @@ export async function fetchExamDates(student, sem, token) {
       // keep printing on an unmigrated database.
       const build = (cols) => supabase.from('exam_calendar').select(cols)
         .eq('session_id', sid).gt('semester', offset).lte('semester', offset + 12)
-      ;({ data, error } = await build('semester, start_date, end_date, exam_held, result_published'))
+      ;({ data, error } = await build('semester, start_date, end_date, exam_held, result_published, result_declared_on'))
+      if (error) ({ data, error } = await build('semester, start_date, end_date, exam_held, result_published'))
       if (error) ({ data } = await build('semester, start_date, end_date'))
     }
     if (error && !data) return { examDates: '', examTerm: '' }
@@ -78,6 +79,9 @@ export async function fetchExamDates(student, sem, token) {
       resultPublished: semMatch ? formatDayMonthYear(row.result_published) : '',
       // The raw 'YYYY-MM-DD', for storing rather than printing.
       resultPublishedRaw: semMatch ? (row.result_published || '') : '',
+      // The calendar's Result Published Date — the day the result was
+      // declared, as opposed to the day marksheets are printed (above).
+      resultDeclaredRaw: semMatch ? (row.result_declared_on || '') : '',
     }
   } catch {
     return { examDates: '', examTerm: '' }

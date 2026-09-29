@@ -489,7 +489,10 @@ export default function ExamSection() {
       generateStatementOfGrades(resolved, rowsForSem, {
         dmcNo: r.dmc_no ? String(r.dmc_no) : '',
         semSgpas: sgpaBySemester(upto),
-        issueDate: r.print_forwarded_at || null,
+        // The calendar's Marksheet Printing Date, so every copy of the
+        // semester carries the date the office set; the day the result went
+        // to Print when the calendar has none.
+        issueDate: dates.resultPublishedRaw ? `${dates.resultPublishedRaw}T12:00:00` : (r.print_forwarded_at || null),
         semester: `Semester ${r.semester}`,
         examHeld: dates.examSession || '',
         resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
