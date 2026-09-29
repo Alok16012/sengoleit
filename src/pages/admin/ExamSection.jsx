@@ -371,7 +371,7 @@ export default function ExamSection() {
   const [releasing, setReleasing] = useState(null)
   const [resultModalStudent, setResultModalStudent] = useState(null)
   const [printBusy, setPrintBusy] = useState(null)
-  const [sendingId, setSendingId] = useState(null)   // student whose results are being sent to Print
+  const [sendingId, setSendingId] = useState(null)   // `${studentId}__${semester}` being sent to Print
 
   // A result reaches the Print tab only once it has been forwarded, so the
   // tab reads off print_forwarded_at rather than off "declared".
@@ -388,14 +388,17 @@ export default function ExamSection() {
     .map(([, r]) => r)
     .sort((a, b) => Number(a.semester) - Number(b.semester))
 
-  // Send every declared-but-unsent semester of one student to the Print tab.
-  // Each is its own call so each gets its own DMC number; one that fails does
-  // not stop the rest, and the list is refreshed from the database afterwards
+  // Send ONE semester of one student to the Print tab. Semester by semester
+  // on purpose: DMC numbers are issued in the order results are sent, and
+  // sending a student's semesters together gave that one student consecutive
+  // numbers across terms (10036, 10037) instead of keeping each semester's
+  // batch in its own run. The list is refreshed from the database afterwards,
   // so what it shows is what was actually recorded.
-  async function sendStudentToPrint(s) {
-    const pending = declaredSemsOf(s).filter(r => !r.print_forwarded_at && r.id)
+  async function sendStudentToPrint(s, semester) {
+    const pending = declaredSemsOf(s)
+      .filter(r => !r.print_forwarded_at && r.id && String(r.semester) === String(semester))
     if (!pending.length) return
-    setSendingId(s.id)
+    setSendingId(`${s.id}__${semester}`)
     const failed = []
     for (const r of pending) {
       const { error } = await supabase.rpc('forward_result_to_print', { p_result: r.id })
@@ -1164,28 +1167,23 @@ export default function ExamSection() {
                   {(() => {
                     const sems = declaredSemsOf(s)
                     if (!sems.length) return <span className="text-xs text-gray-400">—</span>
-                    const waiting = sems.filter(r => !r.print_forwarded_at).length
+                    // One line per semester: sent ones show their DMC number,
+                    // waiting ones get their own button, so each semester is
+                    // sent — and numbered — on its own.
                     return (
-                      <div className="flex flex-col gap-1.5 min-w-[180px]">
-                        <div className="flex flex-wrap gap-1">
-                          {sems.map(r => r.print_forwarded_at ? (
-                            <span key={r.semester}
-                              className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded whitespace-nowrap">
-                              Sem {r.semester} · Sent · DMC {r.dmc_no ?? '—'}
-                            </span>
-                          ) : (
-                            <span key={r.semester}
-                              className="text-[10px] font-bold bg-amber-50 text-amber-700 px-2 py-0.5 rounded whitespace-nowrap">
-                              Sem {r.semester} · Pending
-                            </span>
-                          ))}
-                        </div>
-                        {waiting > 0 && (
-                          <Button size="sm" variant="outline" disabled={sendingId === s.id}
-                            onClick={() => sendStudentToPrint(s)}>
-                            <Send size={12} /> {sendingId === s.id ? 'Sending…' : `Send to Print${waiting > 1 ? ` (${waiting})` : ''}`}
+                      <div className="flex flex-col gap-1.5 min-w-[190px]">
+                        {sems.map(r => r.print_forwarded_at ? (
+                          <span key={r.semester}
+                            className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-1 rounded whitespace-nowrap w-fit">
+                            Sem {r.semester} · Sent · DMC {r.dmc_no ?? '—'}
+                          </span>
+                        ) : (
+                          <Button key={r.semester} size="sm" variant="outline"
+                            disabled={sendingId === `${s.id}__${r.semester}`}
+                            onClick={() => sendStudentToPrint(s, r.semester)}>
+                            <Send size={12} /> {sendingId === `${s.id}__${r.semester}` ? 'Sending…' : `Send Sem ${r.semester} to Print`}
                           </Button>
-                        )}
+                        ))}
                       </div>
                     )
                   })()}
