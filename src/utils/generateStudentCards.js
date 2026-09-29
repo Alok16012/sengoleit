@@ -1377,9 +1377,8 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
 
   return `
   <div class="sog-sheet">
-    <!-- DMC number only, so it goes wherever the number goes: not on the
-         student copy, and not on a sheet that has not been numbered. -->
-    ${meta.dmcNo ? `<div class="sog-barcode office-only">${code128Svg(String(meta.dmcNo))}</div>` : ''}
+    <!-- DMC number only, so a sheet that has not been numbered has none. -->
+    ${meta.dmcNo ? `<div class="sog-barcode">${code128Svg(String(meta.dmcNo))}</div>` : ''}
 
     <div class="sog-title">STATEMENT OF GRADES</div>
 
@@ -1394,7 +1393,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
       ${info('Enrollment No.', s.enrollment_no)}
       ${info('Registration No.', s.registration_no)}
       ${info('Semester', romanSemester(meta.semester))}
-      ${info('DMC No.', meta.dmcNo, ' class="office-only"')}
+      ${info('DMC No.', meta.dmcNo)}
     </table>
 
     <div class="sog-body">
@@ -1466,7 +1465,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
 
     <div class="sog-qr">${qrSvg(qrText)}</div>
     <div class="sog-issue">Date of issue: ${issued}</div>
-    <img class="sog-sign office-only" src="${CONTROLLER_SIGNATURE_URL}" alt="" onerror="this.style.display='none'"/>
+    <img class="sog-sign" src="${CONTROLLER_SIGNATURE_URL}" alt="" onerror="this.style.display='none'"/>
     <div class="sog-signlabel">Registrar/Exam Of Controller</div>
   </div>`
 }
@@ -1509,7 +1508,6 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-issue { position:absolute; left:13mm; top:262.5mm; font-size:8.6pt; font-weight:700; }
   .sog-sign { position:absolute; left:152mm; top:251.4mm; width:32mm; height:auto; }
   .sog-signlabel { position:absolute; left:145.8mm; top:267.1mm; font-size:8.6pt; font-weight:700; }
-  body.student-copy .office-only { display:none !important; }
 `
 
 export function generateStatementOfGrades(s, rows = [], meta = {}) {
@@ -1527,26 +1525,10 @@ export function generateStatementOfGrades(s, rows = [], meta = {}) {
     }
   </style></head>
 <body>
-  <!-- Two copies of one sheet. The office copy carries the DMC number and the
-       signature; the student's copy does not, so publishing cannot hand out a
-       signed-looking statement. Both print through the same page. -->
-  <div class="no-print" style="text-align:center;padding:14px 0 6px;display:flex;gap:10px;justify-content:center;font-family:Arial,sans-serif;">
-    <button onclick="setMode(false)" style="background:${BRAND};color:#fff;border:none;padding:10px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">🖨 Print (Office Copy)</button>
-    <button onclick="setMode(true)" style="background:#fff;color:${BRAND};border:2px solid ${BRAND};padding:8px 30px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">📤 Publish (Student Copy)</button>
-  </div>
-  <div class="no-print" id="modeNote" style="text-align:center;font-size:11px;color:#555;margin:0 0 12px;font-family:Arial,sans-serif;">
-    Print on A4 marksheet stationery at 100% scale, margins None, headers and footers off.
+  <div class="no-print" style="text-align:center;padding:14px 0 12px;font-family:Arial,sans-serif;">
+    <button onclick="window.print()" style="background:${BRAND};color:#fff;border:none;padding:10px 34px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">⬇ Download PDF</button>
   </div>
   ${statementOfGradesHTML(s, rows, meta)}
-<script>
-  function setMode(student) {
-    document.body.classList.toggle('student-copy', student)
-    document.getElementById('modeNote').textContent = student
-      ? 'Student copy — no DMC number and no signature.'
-      : 'Office copy — with DMC number and signature.'
-    window.print()
-  }
-</script>
 </body></html>`
   openWindow(html, 'Statement of Grades')
 }
