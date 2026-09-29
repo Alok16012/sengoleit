@@ -445,7 +445,7 @@ export default function ExamSection() {
         .map(r => r.print_forwarded_at ? `Sem ${r.semester}: Sent (DMC ${r.dmc_no ?? '—'})` : `Sem ${r.semester}: Pending`).join('; ') },
   ]
   const resultExportMeta = () => {
-    const tabName = { pending: 'Pending', awaiting: 'Awaiting', done: 'Done', all: 'All' }[resTab] || resTab
+    const tabName = { pending: 'Pending', awaiting: 'Awaiting', done: 'Done', print: 'Print', all: 'All' }[resTab] || resTab
     const m = [`${resultTab === 'special' ? 'Special Result' : 'Student Entry'} · ${tabName}`]
     if (search) m.push(`Search: ${search}`)
     if (fDept && fDept !== 'all') m.push(`Department: ${departments.find(d => d.id === fDept)?.name || ''}`)
@@ -833,9 +833,23 @@ export default function ExamSection() {
   // card has been issued. A student forwarded but not yet issued a card stays
   // in the Student List tab, not here — the centre still owes the card.
   const resultEligible = (s) => currentCardDone(s)
+  // Done splits in two once results start going to Print: a student with a
+  // declared semester still to send stays in Done, one whose every declared
+  // semester has been sent moves to Print. The tab counts and the list both
+  // read this, so they cannot disagree.
+  const allSentToPrint = (s) => {
+    const sems = declaredSemsOf(s)
+    return sems.length > 0 && sems.every(r => r.print_forwarded_at)
+  }
+  const resultTabOf = (s) => {
+    const st = resultStateOf(s)
+    return st === 'done' && allSentToPrint(s) ? 'print' : st
+  }
   const resultList = byFilters.filter(s =>
-    resultEligible(s) && (resTab === 'all' || resultStateOf(s) === resTab)
+    resultEligible(s) && (resTab === 'all' || resultTabOf(s) === resTab)
   )
+  // The Print column belongs where results are declared: still to send, or sent.
+  const showPrintCol = resTab === 'done' || resTab === 'print'
 
   const filterActive = !!search || fDept !== 'all' || fType !== 'all' || fSession.length > 0
   const clearFilters = () => { setSearch(''); setFDept('all'); setFType('all'); setFSession([]) }
@@ -1096,11 +1110,12 @@ export default function ExamSection() {
           { key: 'pending',  label: 'Pending',  on: 'bg-amber-500 text-white',   off: 'bg-amber-50 text-amber-700' },
           { key: 'awaiting', label: 'Awaiting', on: 'bg-blue-500 text-white',    off: 'bg-blue-50 text-blue-700' },
           { key: 'done',     label: 'Done',     on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
+          { key: 'print',    label: 'Print',    on: 'bg-violet-600 text-white',  off: 'bg-violet-50 text-violet-700' },
           { key: 'all',      label: 'All',      on: 'bg-gray-700 text-white',    off: 'bg-gray-100 text-gray-600' },
         ].map(t => {
           const count = t.key === 'all'
             ? byFilters.filter(s => currentCardDone(s)).length
-            : byFilters.filter(s => currentCardDone(s) && resultStateOf(s) === t.key).length
+            : byFilters.filter(s => currentCardDone(s) && resultTabOf(s) === t.key).length
           return (
             <button key={t.key} onClick={() => setResTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${resTab === t.key ? t.on : t.off}`}>
@@ -1138,12 +1153,12 @@ export default function ExamSection() {
               <Th>Result</Th>
               {/* Only the Done tab: a student still Pending or Awaiting has no
                   declared result for this term to send. */}
-              {resTab === 'done' && <Th>Print</Th>}
+              {showPrintCol && <Th>Print</Th>}
             </tr>
           </Thead>
           <Tbody>
             {resultList.length === 0 ? (
-              <Tr><Td colSpan={resTab === 'done' ? 9 : 8} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={showPrintCol ? 9 : 8} className="text-center text-gray-400 py-12">
                 {search ? 'No students match your search.' : 'No students here.'}
               </Td></Tr>
             ) : resultList.map((s, i) => (
@@ -1183,7 +1198,7 @@ export default function ExamSection() {
                 {/* Print, semester by semester: which declared results have
                     gone to the Print tab (with their DMC number) and which are
                     still waiting. One button sends every waiting semester. */}
-                {resTab === 'done' && <Td>
+                {showPrintCol && <Td>
                   {(() => {
                     const sems = declaredSemsOf(s)
                     if (!sems.length) return <span className="text-xs text-gray-400">—</span>
