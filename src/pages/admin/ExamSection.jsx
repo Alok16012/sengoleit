@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
@@ -372,6 +372,38 @@ export default function ExamSection() {
   const [releasing, setReleasing] = useState(null)
   const [resultModalStudent, setResultModalStudent] = useState(null)
   const [printBusy, setPrintBusy] = useState(null)
+  const [printTab, setPrintTab] = useState('pending')   // Print tab: 'pending' | 'done'
+  const [printedSqlMissing, setPrintedSqlMissing] = useState(false)
+
+  // The marksheet window reports back when its Download PDF is pressed; the
+  // result is stamped printed (the first time only) and moves to Done.
+  // Messages are accepted only from windows this tab opened itself. The
+  // marksheet opens as about:blank, whose reported origin cannot be relied
+  // on across browsers — the window itself can.
+  const printWindows = useRef(new Set())
+  useEffect(() => {
+    async function onMessage(e) {
+      if (!e.source || !printWindows.current.has(e.source)) return
+      const d = e.data
+      if (!d || d.type !== 'sog-printed' || !d.resultId) return
+      const at = new Date().toISOString()
+      const { error } = await supabase.from('student_results')
+        .update({ printed_at: at }).eq('id', d.resultId).is('printed_at', null)
+      if (error) {
+        if (/printed_at/.test(error.message || '')) setPrintedSqlMissing(true)
+        return
+      }
+      setResults(prev => {
+        const next = { ...(prev || {}) }
+        for (const k of Object.keys(next)) {
+          if (next[k]?.id === d.resultId && !next[k].printed_at) next[k] = { ...next[k], printed_at: at }
+        }
+        return next
+      })
+    }
+    window.addEventListener('message', onMessage)
+    return () => window.removeEventListener('message', onMessage)
+  }, [])
   const [sendingId, setSendingId] = useState(null)   // `${studentId}__${semester}` being sent to Print
 
   // A result reaches the Print tab only once it has been forwarded, so the
@@ -486,7 +518,8 @@ export default function ExamSection() {
       const dates = await fetchExamDates(resolved, r.semester)
       const upto = await fetchPaperMarksUpto(s, r.semester)
       const cgpa = sgpaOf(upto)
-      generateStatementOfGrades(resolved, rowsForSem, {
+      const win = generateStatementOfGrades(resolved, rowsForSem, {
+        resultId: r.id,
         dmcNo: r.dmc_no ? String(r.dmc_no) : '',
         semSgpas: sgpaBySemester(upto),
         // The calendar's Marksheet Printing Date, so every copy of the
@@ -498,6 +531,7 @@ export default function ExamSection() {
         resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
         cgpa,
       })
+      if (win) printWindows.current.add(win)
     } finally { setPrintBusy(null) }
   }
 
@@ -865,6 +899,16 @@ export default function ExamSection() {
   }, {})).sort((a, b) => a.label.localeCompare(b.label))
   const printList = byFilters.filter(s =>
     forwardedSems(s).length > 0 && (fPrintCenter === 'all' || s.centers?.id === fPrintCenter))
+  // Done once every forwarded semester's marksheet has been printed.
+  const allPrinted = (s) => {
+    const sems = forwardedSems(s)
+    return sems.length > 0 && sems.every(r => r.printed_at)
+  }
+  const printCounts = {
+    pending: printList.filter(s => !allPrinted(s)).length,
+    done: printList.filter(allPrinted).length,
+  }
+  const printTabList = printList.filter(s => (printTab === 'done' ? allPrinted(s) : !allPrinted(s)))
   const printFilterActive = filterActive || fPrintCenter !== 'all'
   const clearPrintFilters = () => { clearFilters(); setFPrintCenter('all') }
 
@@ -1265,6 +1309,26 @@ export default function ExamSection() {
           </button>
         )}
       </div>
+      {/* Pending = a forwarded marksheet still to print; Done = every
+          forwarded marksheet printed. A marksheet counts as printed when its
+          Download PDF is pressed. */}
+      <div className="flex gap-2 mb-4">
+        {[
+          { key: 'pending', label: 'Pending', on: 'bg-amber-500 text-white',   off: 'bg-amber-50 text-amber-700' },
+          { key: 'done',    label: 'Done',    on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
+        ].map(t => (
+          <button key={t.key} onClick={() => setPrintTab(t.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${printTab === t.key ? t.on : t.off}`}>
+            {t.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${printTab === t.key ? 'bg-white/25' : 'bg-white/70'}`}>{printCounts[t.key]}</span>
+          </button>
+        ))}
+      </div>
+      {printedSqlMissing && (
+        <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+          Printed marksheets can't be moved to Done yet — run <code className="font-mono">add_result_printed_at.sql</code> once in Supabase → SQL Editor.
+        </p>
+      )}
         <Table>
           <Thead>
             <tr>
@@ -1278,13 +1342,17 @@ export default function ExamSection() {
             </tr>
           </Thead>
           <Tbody>
-            {printList.length === 0 ? (
+            {printTabList.length === 0 ? (
               <Tr><Td colSpan={7} className="text-center text-gray-400 py-12">
                 {printFilterActive
                   ? 'No forwarded results match these filters.'
-                  : 'Nothing forwarded yet — send a declared result from the Result tab.'}
+                  : printTab === 'done'
+                    ? 'No marksheet has been printed yet.'
+                    : printList.length
+                      ? 'Every forwarded marksheet has been printed.'
+                      : 'Nothing forwarded yet — send a declared result from the Result tab.'}
               </Td></Tr>
-            ) : printList.map((s, i) => {
+            ) : printTabList.map((s, i) => {
               const sems = forwardedSems(s)
               return (
                 <Tr key={s.id}>
@@ -1303,8 +1371,9 @@ export default function ExamSection() {
                     <div className="flex flex-wrap gap-1">
                       {sems.map(r => (
                         <span key={r.semester}
-                          className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded whitespace-nowrap">
-                          Sem {r.semester} · {r.dmc_no ?? '—'}
+                          title={r.printed_at ? `Printed ${formatDate(r.printed_at)}` : 'Not printed yet'}
+                          className={`text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap ${r.printed_at ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                          Sem {r.semester} · {r.dmc_no ?? '—'}{r.printed_at ? ' ✓' : ''}
                         </span>
                       ))}
                     </div>

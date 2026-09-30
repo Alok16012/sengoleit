@@ -73,10 +73,10 @@ export async function fetchResultsForMany(studentIds) {
   if (!error) return keyed(Array.isArray(data) ? data : [])
 
   // fix_center_portal_reads.sql not run yet — fall back to the direct read.
-  const res = await supabase
-    .from('student_results')
-    .select('id, student_id, semester, status, obtained_marks, total_marks, declared_at, released_at, print_forwarded_at, dmc_no')
-    .in('student_id', studentIds)
+  const cols = 'id, student_id, semester, status, obtained_marks, total_marks, declared_at, released_at, print_forwarded_at, dmc_no'
+  let res = await supabase.from('student_results').select(cols + ', printed_at').in('student_id', studentIds)
+  // printed_at arrives with add_result_printed_at.sql.
+  if (res.error) res = await supabase.from('student_results').select(cols).in('student_id', studentIds)
   if (res.error) return null
   return keyed(res.data || [])
 }

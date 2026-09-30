@@ -73,10 +73,13 @@ function addr(s) {
 
 function openWindow(html, title) {
   const win = window.open('', '_blank', 'width=860,height=700')
-  if (!win) { alert('Popup blocked — please allow popups for this site.'); return }
+  if (!win) { alert('Popup blocked — please allow popups for this site.'); return null }
   win.document.write(html)
   win.document.close()
   win.focus()
+  // Returned so a caller can tell messages from this window apart from any
+  // other — the Print tab listens for its marksheet reporting a print.
+  return win
 }
 
 // The university's masthead, as the ID card draws it: logo left, the name
@@ -1057,13 +1060,13 @@ export function marksStatementHTML(s, rows = [], meta = {}) {
         <td style="${cell}font-weight:600;">${v(s.enrollment_no)}</td>
       </tr>
       <tr>
-        <td style="${cell}white-space:nowrap;">Father's Name :</td>
+        <td style="${cell}white-space:nowrap;">Father Name :</td>
         <td style="${cell}font-weight:600;">${v(s.fathers_name)}</td>
         <td style="${cell}white-space:nowrap;">Reg no:</td>
         <td style="${cell}font-weight:600;">${v(s.registration_no)}</td>
       </tr>
       <tr>
-        <td style="${cell}white-space:nowrap;">Mother's Name:</td>
+        <td style="${cell}white-space:nowrap;">Mother Name:</td>
         <td style="${cell}font-weight:600;">${v(s.mothers_name)}</td>
         <td style="${cell}white-space:nowrap;">Semester:</td>
         <td style="${cell}font-weight:600;">${romanSemester(meta.semester)}</td>
@@ -1384,8 +1387,8 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
 
     <table class="sog-info sog-left">
       ${info('Name of Student', s.student_name)}
-      ${info("Father's Name", s.fathers_name)}
-      ${info("Mother's Name", s.mothers_name)}
+      ${info('Father Name', s.fathers_name)}
+      ${info('Mother Name', s.mothers_name)}
       ${info('Session', courseValidity(s))}
       ${info('Programme', prog)}
     </table>
@@ -1468,7 +1471,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
     <div class="sog-qr">${qrSvg(qrText)}</div>
     <div class="sog-issue">Date of issue: ${issued}</div>
     <img class="sog-sign" src="${CONTROLLER_SIGNATURE_URL}" alt="" onerror="this.style.display='none'"/>
-    <div class="sog-signlabel">Registrar/Exam Of Controller</div>
+    <div class="sog-signlabel">Registrar/Controller Of Examination</div>
   </div>`
 }
 
@@ -1515,7 +1518,7 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-qr svg { width:100%; height:100%; display:block; }
   .sog-issue { position:absolute; left:14mm; top:262.5mm; font-size:8.6pt; font-weight:700; }
   .sog-sign { position:absolute; left:153mm; top:251.4mm; width:32mm; height:auto; }
-  .sog-signlabel { position:absolute; left:146.8mm; top:267.1mm; font-size:8.6pt; font-weight:700; }
+  .sog-signlabel { position:absolute; left:136mm; width:66mm; text-align:center; top:267.1mm; font-size:8.6pt; font-weight:700; white-space:nowrap; }
 `
 
 export function generateStatementOfGrades(s, rows = [], meta = {}) {
@@ -1534,11 +1537,19 @@ export function generateStatementOfGrades(s, rows = [], meta = {}) {
   </style></head>
 <body>
   <div class="no-print" style="text-align:center;padding:14px 0 12px;font-family:Arial,sans-serif;">
-    <button onclick="window.print()" style="background:${BRAND};color:#fff;border:none;padding:10px 34px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">⬇ Download PDF</button>
+    <button onclick="markPrinted(); window.print()" style="background:${BRAND};color:#fff;border:none;padding:10px 34px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;">⬇ Download PDF</button>
   </div>
   ${statementOfGradesHTML(s, rows, meta)}
+<script>
+  // Tell the Exam Section this result's marksheet went to the printer, so
+  // its Print tab can move it from Pending to Done. Only the id is sent.
+  var RESULT_ID = ${JSON.stringify(String(meta.resultId || '')).replace(/</g, '\\u003c')}
+  function markPrinted() {
+    try { if (RESULT_ID && window.opener) window.opener.postMessage({ type: 'sog-printed', resultId: RESULT_ID }, '*') } catch (e) {}
+  }
+</script>
 </body></html>`
-  openWindow(html, 'Statement of Grades')
+  return openWindow(html, 'Statement of Grades')
 }
 
 // ============================================================
