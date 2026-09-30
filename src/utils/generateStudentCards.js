@@ -1469,7 +1469,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
     </div>
 
     <div class="sog-qr">${qrSvg(qrText)}</div>
-    <div class="sog-issue">Date of issue: ${issued}</div>
+    <div class="sog-issue">Date of Issue: ${issued}</div>
     <img class="sog-sign" src="${CONTROLLER_SIGNATURE_URL}" alt="" onerror="this.style.display='none'"/>
     <div class="sog-signlabel">Registrar/Controller Of Examination</div>
   </div>`
