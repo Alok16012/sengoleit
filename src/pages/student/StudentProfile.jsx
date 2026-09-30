@@ -6,17 +6,6 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdProgram } from '../../utils/generateStudentCards'
 import { ChevronDown } from 'lucide-react'
 
-// Education levels as stored on students (<key>_board_university, …).
-const EDU_LEVELS = [
-  ['tenth', '10th (Matriculation)'],
-  ['twelfth', '12th (Intermediate)'],
-  ['diploma', 'Diploma'],
-  ['ug', 'Graduation (UG)'],
-  ['pg', 'Post Graduation (PG)'],
-  ['mphil', 'M.Phil'],
-  ['others', 'Others'],
-]
-
 function Field({ label, value }) {
   return (
     <div>
@@ -70,13 +59,6 @@ export default function StudentProfile() {
   if (!data) return <div className="p-8 text-center text-gray-400">No profile data found.</div>
 
   const isPhd = isPhdProgram(data.programs?.program_name)
-  // Only the education levels the student actually filled in.
-  const eduRows = EDU_LEVELS.filter(([k]) =>
-    data[`${k}_board_university`] || data[`${k}_institute_name`] || data[`${k}_obtained_marks`])
-  const pct = (o, t) => {
-    const a = parseFloat(o), b = parseFloat(t)
-    return a && b ? ((a / b) * 100).toFixed(1) + '%' : '—'
-  }
 
   return (
     <div className="p-6 space-y-4">
@@ -102,114 +84,19 @@ export default function StudentProfile() {
         <Field label="Center" value={data.centers?.center_name} />
       </Section>
 
-      {/* Column names must match the admission form's fields — Alternate
-          Mobile / Category / ABC ID were read from columns that don't exist,
-          so those rows could only ever print a dash. */}
+      {/* Only what the student needs to see of themselves: identity and
+          contact. Family, addresses, qualifications and bank details stay on
+          the admission record for the office, not on the student's profile. */}
       <Section title="Personal Information">
-        <Field label="Full Name" value={data.student_name} />
+        <Field label="Enrollment Number" value={data.enrollment_no} />
+        <Field label="Candidate Name" value={data.student_name} />
+        <Field label="Father Name" value={data.fathers_name} />
+        <Field label="Mother Name" value={data.mothers_name} />
         <Field label="Date of Birth" value={data.date_of_birth} />
         <Field label="Gender" value={data.gender} />
-        <Field label="Blood Group" value={data.blood_group} />
         <Field label="Mobile" value={data.mobile_no} />
-        <Field label="WhatsApp No" value={data.whatsapp_no} />
         <Field label="Email" value={data.email} />
-        <Field label="Caste / Category" value={data.caste} />
-        <Field label="Nationality" value={data.nationality} />
-        <Field label="Religion" value={data.religion} />
-        <Field label="Mother Tongue" value={data.mother_tongue} />
-        <Field label="Profession" value={data.profession} />
-        <Field label="Aadhar No" value={data.aadhar_no} />
-        <Field label="Aadhar Linked Mobile" value={data.aadhar_link_mobile} />
-        <Field label="PAN No" value={data.pan_no} />
-        <Field label="Height" value={data.height} />
-        <Field label="Identification Marks" value={data.identification_marks} />
-        <Field label="Physically Handicapped" value={data.physically_handicapped} />
-        <Field label="Scholarship Applied" value={data.scholarship_applied} />
       </Section>
-
-      <Section title="Family Details">
-        <Field label="Father's Name" value={data.fathers_name} />
-        <Field label="Father's Occupation" value={data.fathers_occupation} />
-        <Field label="Mother's Name" value={data.mothers_name} />
-        <Field label="Mother's Occupation" value={data.mothers_occupation} />
-        <Field label="Guardian Name" value={data.guardian_name} />
-        <Field label="Guardian Relation" value={data.guardian_relation} />
-        <Field label="Guardian Occupation" value={data.guardian_occupation} />
-        <Field label="Guardian Mobile" value={data.guardian_mobile} />
-        <Field label="Guardian Email" value={data.guardian_email} />
-      </Section>
-
-      <Section title="Permanent Address">
-        <Field label="Village / Town" value={data.student_perm_village_town} />
-        <Field label="Landmark" value={data.student_perm_landmark} />
-        <Field label="Post Office" value={data.student_perm_post_office} />
-        <Field label="City" value={data.student_perm_city} />
-        <Field label="State" value={data.student_perm_state} />
-        <Field label="District" value={data.student_perm_district} />
-        <Field label="PIN Code" value={data.student_perm_pin_code} />
-      </Section>
-
-      <Section title="Present Address">
-        <Field label="Village / Town" value={data.student_pres_village_town} />
-        <Field label="Landmark" value={data.student_pres_landmark} />
-        <Field label="Post Office" value={data.student_pres_post_office} />
-        <Field label="City" value={data.student_pres_city} />
-        <Field label="State" value={data.student_pres_state} />
-        <Field label="District" value={data.student_pres_district} />
-        <Field label="PIN Code" value={data.student_pres_pin_code} />
-      </Section>
-
-      <Section title="Guardian Permanent Address">
-        <Field label="Village / Town" value={data.guardian_perm_village_town} />
-        <Field label="Landmark" value={data.guardian_perm_landmark} />
-        <Field label="Post Office" value={data.guardian_perm_post_office} />
-        <Field label="City" value={data.guardian_perm_city} />
-        <Field label="State" value={data.guardian_perm_state} />
-        <Field label="District" value={data.guardian_perm_district} />
-        <Field label="PIN Code" value={data.guardian_perm_pin_code} />
-      </Section>
-
-      {eduRows.length > 0 && (
-        <Section title="Educational Qualifications" plain>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-gray-400 border-b border-gray-100">
-                  <th className="text-left font-semibold py-2 pr-4">Level</th>
-                  <th className="text-left font-semibold py-2 pr-4">Board / University</th>
-                  <th className="text-left font-semibold py-2 pr-4">Institution</th>
-                  <th className="text-left font-semibold py-2 pr-4">Year</th>
-                  <th className="text-left font-semibold py-2 pr-4">Marks</th>
-                  <th className="text-left font-semibold py-2">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {eduRows.map(([k, label]) => (
-                  <tr key={k} className="border-b border-gray-50 last:border-0">
-                    <td className="py-2.5 pr-4 font-semibold text-gray-800 whitespace-nowrap">{label}</td>
-                    <td className="py-2.5 pr-4 text-gray-700">{data[`${k}_board_university`] || '—'}</td>
-                    <td className="py-2.5 pr-4 text-gray-700">{data[`${k}_institute_name`] || '—'}</td>
-                    <td className="py-2.5 pr-4 text-gray-700">{data[`${k}_passing_year`] || '—'}</td>
-                    <td className="py-2.5 pr-4 text-gray-700 whitespace-nowrap">
-                      {data[`${k}_obtained_marks`] ? `${data[`${k}_obtained_marks`]} / ${data[`${k}_total_marks`] || '—'}` : '—'}
-                    </td>
-                    <td className="py-2.5 font-bold text-[#933d18]">{pct(data[`${k}_obtained_marks`], data[`${k}_total_marks`])}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
-
-      {(data.bank_account_holder || data.bank_account_number || data.ifsc_code) && (
-        <Section title="Bank Details">
-          <Field label="Account Holder" value={data.bank_account_holder} />
-          <Field label="Account Number" value={data.bank_account_number} />
-          <Field label="IFSC Code" value={data.ifsc_code} />
-          <Field label="Branch" value={data.bank_branch} />
-        </Section>
-      )}
 
       <Section title="Photo & Signature" plain>
         <div className="flex flex-wrap items-start gap-10">
