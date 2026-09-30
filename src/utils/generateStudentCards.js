@@ -1401,7 +1401,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
            above the Semester strip instead of pushing it onto the QR. -->
       <table class="sog-marks${marked.length > 10 ? ' dense' : ''}">
         <colgroup>
-          <col style="width:14mm"/><col/><col style="width:12mm"/>
+          <col style="width:14mm"/><col/><col style="width:9mm"/>
           <col style="width:12.7mm"/><col style="width:14.7mm"/>
           <col style="width:14mm"/><col style="width:14.5mm"/>
           <col style="width:10.2mm"/><col style="width:15.2mm"/><col style="width:10.9mm"/>
@@ -1410,7 +1410,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
           <tr class="h1">
             <th rowspan="2">Subject<br/>Code</th>
             <th rowspan="2">Subject Name</th>
-            <th rowspan="2">Credit</th>
+            <th rowspan="2" class="cr">Credit</th>
             <th colspan="2">Internal</th>
             <th colspan="2">External</th>
             <th rowspan="2">Total<br/>Marks</th>
@@ -1426,7 +1426,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
           ${marked.map(r => `<tr>
             <td>${cell(r.subject_code)}</td>
             <td class="name">${cell(r.subject_name)}</td>
-            <td>${cell(r.credit || '')}</td>
+            <td class="cr">${cell(r.credit || '')}</td>
             <td>${pair(minOf(r.maxI), r.maxI)}</td>
             <td>${cell(r.gotI)}</td>
             <td>${pair(minOf(r.maxT), r.maxT)}</td>
@@ -1440,7 +1440,7 @@ export function statementOfGradesHTML(s, rows = [], meta = {}) {
           <tr class="blank"><td colspan="10"></td></tr>
           <tr class="total">
             <td colspan="2">Total</td>
-            <td>${sum('credit') || ''}</td>
+            <td class="cr">${sum('credit') || ''}</td>
             <td>${pair(sumMin('maxI'), sum('maxI'))}</td>
             <td>${sum('gotI') || ''}</td>
             <td>${pair(sumMin('maxT'), sum('maxT'))}</td>
@@ -1501,6 +1501,9 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-marks.dense { font-size:7.2pt; }
   .sog-marks.dense tbody tr { height:5.2mm; }
   .sog-marks.dense td { padding-top:0.2mm; padding-bottom:0.2mm; }
+  /* Credit is a single digit under a one-word heading: as narrow as the
+     heading allows, so the room goes to Subject Name. */
+  .sog-marks .cr { padding-left:0.2mm; padding-right:0.2mm; }
   .sog-marks td.name { text-align:left; padding-left:1mm; white-space:normal; overflow-wrap:anywhere; }
   .sog-marks tr.total td { font-size:8.6pt; }
   .sog-strip { display:flex; justify-content:space-between; align-items:flex-start; margin-top:auto; width:187.3mm; }
