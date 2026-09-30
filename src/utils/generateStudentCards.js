@@ -1478,18 +1478,18 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-sheet { position:relative; width:210mm; height:297mm; background:#fff; color:#000;
                font-family: Arial, Helvetica, sans-serif; box-sizing:border-box; overflow:hidden; }
   .sog-sheet * { box-sizing:border-box; }
-  .sog-barcode { position:absolute; left:153.4mm; top:16.9mm; width:40.9mm; height:10.2mm; }
-  .sog-title { position:absolute; left:0; right:0; top:69.5mm; text-align:center;
+  .sog-barcode { position:absolute; left:154.4mm; top:16.9mm; width:40.9mm; height:10.2mm; }
+  .sog-title { position:absolute; left:1mm; right:-1mm; top:69.5mm; text-align:center;
                font-family:"Times New Roman", Times, serif; font-weight:700; font-size:16.5pt; line-height:1; }
   .sog-info { position:absolute; top:85.6mm; border-collapse:collapse; font-size:10pt; }
   .sog-info td { padding:0; height:6.1mm; vertical-align:middle; white-space:nowrap; }
   .sog-info td.k { font-weight:700; }
   .sog-info td.c { font-weight:700; padding:0 1.2mm 0 0; }
-  .sog-left  { left:11.4mm; }  .sog-left td.k  { width:30mm; }
-  .sog-right { left:133.6mm; } .sog-right td.k { width:29mm; }
+  .sog-left  { left:12.4mm; }  .sog-left td.k  { width:30mm; }
+  .sog-right { left:134.6mm; } .sog-right td.k { width:29mm; }
   .sog-right td.val { font-size:9pt; }
   .sog-left td.val { white-space:normal; max-width:82mm; }
-  .sog-body { position:absolute; left:11.4mm; top:116mm; width:185.3mm;
+  .sog-body { position:absolute; left:12.4mm; top:116mm; width:185.3mm;
                min-height:105mm; display:flex; flex-direction:column; }
   .sog-marks { margin-bottom:4.3mm; }
   .sog-marks { width:100%; border-collapse:collapse; table-layout:fixed; font-size:7.6pt; font-weight:700; }
@@ -1511,11 +1511,11 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-sem { width:150.6mm; } .sog-res { width:31.5mm; }
   .sog-sem th, .sog-sem td, .sog-res th, .sog-res td { border:0.3mm solid #000; height:5.1mm; text-align:center; padding:0 0.5mm; }
   .sog-sem th.lbl { width:25.6mm; text-align:left; padding-left:1mm; }
-  .sog-qr { position:absolute; left:16.5mm; top:233.1mm; width:25.6mm; height:25.6mm; }
+  .sog-qr { position:absolute; left:17.5mm; top:233.1mm; width:25.6mm; height:25.6mm; }
   .sog-qr svg { width:100%; height:100%; display:block; }
-  .sog-issue { position:absolute; left:13mm; top:262.5mm; font-size:8.6pt; font-weight:700; }
-  .sog-sign { position:absolute; left:152mm; top:251.4mm; width:32mm; height:auto; }
-  .sog-signlabel { position:absolute; left:145.8mm; top:267.1mm; font-size:8.6pt; font-weight:700; }
+  .sog-issue { position:absolute; left:14mm; top:262.5mm; font-size:8.6pt; font-weight:700; }
+  .sog-sign { position:absolute; left:153mm; top:251.4mm; width:32mm; height:auto; }
+  .sog-signlabel { position:absolute; left:146.8mm; top:267.1mm; font-size:8.6pt; font-weight:700; }
 `
 
 export function generateStatementOfGrades(s, rows = [], meta = {}) {
