@@ -1478,10 +1478,10 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-sheet { position:relative; width:210mm; height:297mm; background:#fff; color:#000;
                font-family: Arial, Helvetica, sans-serif; box-sizing:border-box; overflow:hidden; }
   .sog-sheet * { box-sizing:border-box; }
-  .sog-barcode { position:absolute; left:153.4mm; top:19.9mm; width:40.9mm; height:10.2mm; }
-  .sog-title { position:absolute; left:0; right:0; top:72.5mm; text-align:center;
+  .sog-barcode { position:absolute; left:153.4mm; top:16.9mm; width:40.9mm; height:10.2mm; }
+  .sog-title { position:absolute; left:0; right:0; top:69.5mm; text-align:center;
                font-family:"Times New Roman", Times, serif; font-weight:700; font-size:16.5pt; line-height:1; }
-  .sog-info { position:absolute; top:88.6mm; border-collapse:collapse; font-size:10pt; }
+  .sog-info { position:absolute; top:85.6mm; border-collapse:collapse; font-size:10pt; }
   .sog-info td { padding:0; height:6.1mm; vertical-align:middle; white-space:nowrap; }
   .sog-info td.k { font-weight:700; }
   .sog-info td.c { font-weight:700; padding:0 1.2mm 0 0; }
@@ -1489,8 +1489,8 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-right { left:133.6mm; } .sog-right td.k { width:29mm; }
   .sog-right td.val { font-size:9pt; }
   .sog-left td.val { white-space:normal; max-width:82mm; }
-  .sog-body { position:absolute; left:11.4mm; top:119mm; width:185.3mm;
-               min-height:102mm; display:flex; flex-direction:column; }
+  .sog-body { position:absolute; left:11.4mm; top:116mm; width:185.3mm;
+               min-height:105mm; display:flex; flex-direction:column; }
   .sog-marks { margin-bottom:4.3mm; }
   .sog-marks { width:100%; border-collapse:collapse; table-layout:fixed; font-size:7.6pt; font-weight:700; }
   .sog-marks th, .sog-marks td { border:0.3mm solid #000; text-align:center; vertical-align:middle; padding:0.4mm 0.6mm; line-height:1.15; }
@@ -1506,7 +1506,7 @@ export const STATEMENT_OF_GRADES_STYLE = `
   .sog-marks .cr { padding-left:0.2mm; padding-right:0.2mm; }
   .sog-marks td.name { text-align:left; padding-left:1mm; white-space:normal; overflow-wrap:anywhere; }
   .sog-marks tr.total td { font-size:8.6pt; }
-  .sog-strip { display:flex; justify-content:space-between; align-items:flex-start; margin-top:auto; width:187.3mm; }
+  .sog-strip { display:flex; justify-content:space-between; align-items:flex-start; margin-top:auto; }
   .sog-sem, .sog-res { border-collapse:collapse; font-size:7.6pt; font-weight:700; table-layout:fixed; }
   .sog-sem { width:150.6mm; } .sog-res { width:31.5mm; }
   .sog-sem th, .sog-sem td, .sog-res th, .sog-res td { border:0.3mm solid #000; height:5.1mm; text-align:center; padding:0 0.5mm; }
