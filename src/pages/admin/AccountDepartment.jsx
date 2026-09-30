@@ -43,6 +43,10 @@ export default function AccountDepartment() {
   const [rechargeCenter, setRechargeCenter] = useState('')
   const [rechargeFrom, setRechargeFrom] = useState('')
   const [rechargeTo, setRechargeTo] = useState('')
+  // A payment the admin records directly — for amounts under the Rs 5,000 a
+  // centre's own request form accepts. null = closed.
+  const [addRecharge, setAddRecharge] = useState(null)
+  const [addRechargeSaving, setAddRechargeSaving] = useState(false)
   const [studentStatusFilter, setStudentStatusFilter] = useState('pending')
   // Approval Code requests (centers request an approval-code amount; verified
   // here credits the coupon wallet). Same shape as recharge requests.
@@ -618,6 +622,40 @@ export default function AccountDepartment() {
       `Amount is now ₹${Number(g?.new_amount).toLocaleString('en-IN')}.\n` +
       `Wallet: ₹${Number(g?.wallet_before).toLocaleString('en-IN')} → ₹${Number(g?.wallet_after).toLocaleString('en-IN')}.`
     )
+  }
+
+  // Credit a payment straight to a centre's wallet and record it as a verified
+  // recharge — both inside admin_add_recharge(), which refuses a UTR or
+  // transaction ID that is already on record.
+  async function submitAddRecharge() {
+    const f = addRecharge
+    if (!f || addRechargeSaving) return
+    const amt = Number(String(f.amount).replace(/[, ₹]/g, ''))
+    if (!f.center_id) { alert('Choose the centre.'); return }
+    if (!isFinite(amt) || amt <= 0) { alert('Enter the amount paid.'); return }
+    if (!f.utr_number.trim() && !f.payment_txn_id.trim()) { alert('Enter the UTR number or the transaction ID.'); return }
+    const c = centers.find(x => x.id === f.center_id)
+    if (!confirm(`Add ₹${amt.toLocaleString('en-IN')} to ${c?.center_name || 'this centre'}'s wallet?`)) return
+    setAddRechargeSaving(true)
+    const { data, error } = await supabase.rpc('admin_add_recharge', {
+      p_center: f.center_id,
+      p_amount: amt,
+      p_utr: f.utr_number.trim() || null,
+      p_txn: f.payment_txn_id.trim() || null,
+      p_payment_date: f.payment_date || null,
+      p_notes: f.notes.trim() || null,
+    })
+    setAddRechargeSaving(false)
+    if (error) {
+      const missing = /admin_add_recharge|PGRST202|42883|schema cache/i.test(error.message || '')
+      alert(missing
+        ? 'This needs a database update — nothing was added.\n\nPlease run add_admin_recharge_entry.sql in Supabase.'
+        : 'Nothing was added:\n\n' + error.message)
+      return
+    }
+    setAddRecharge(null)
+    await fetchAll()
+    alert(`₹${amt.toLocaleString('en-IN')} added to ${c?.center_name || 'the centre'}.\nWallet balance is now ₹${Number(data || 0).toLocaleString('en-IN')}.`)
   }
 
   async function handleVerifyRecharge(req) {
@@ -1651,11 +1689,72 @@ export default function AccountDepartment() {
                   Clear filters
                 </button>
               )}
-              <p className="ml-auto text-sm text-gray-500 pb-2">
+              <div className="ml-auto flex items-end gap-3">
+                <Button size="sm" variant="primary"
+                  onClick={() => setAddRecharge({ center_id: rechargeCenter || '', amount: '', utr_number: '', payment_txn_id: '', payment_date: '', notes: '' })}>
+                  <Wallet size={14} /> Add Recharge
+                </Button>
+              <p className="text-sm text-gray-500 pb-2">
                 {rechargesList.length} request{rechargesList.length === 1 ? '' : 's'}
                 {' · '}<span className="font-bold text-gray-800">₹{rechargesTotal.toLocaleString('en-IN')}</span>
               </p>
+              </div>
             </div>
+
+            <Modal isOpen={!!addRecharge} onClose={() => !addRechargeSaving && setAddRecharge(null)} title="Add Recharge">
+              {addRecharge && (() => {
+                const set = (k) => (e) => setAddRecharge(f => ({ ...f, [k]: e.target.value }))
+                const field = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15'
+                const label = 'text-[11px] font-semibold text-gray-500 uppercase tracking-wide'
+                const options = [...centers].sort((a, b) => String(a.center_name || '').localeCompare(String(b.center_name || '')))
+                return (
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-500">
+                      For a payment the centre cannot request itself — its own form takes nothing under ₹5,000.
+                      The amount goes onto the wallet at once and shows in the centre's Recharge History as verified.
+                    </p>
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>Center *</span>
+                      <select value={addRecharge.center_id} onChange={set('center_id')} className={field}>
+                        <option value="">Choose a centre</option>
+                        {options.map(c => (
+                          <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-1">
+                        <span className={label}>Amount (₹) *</span>
+                        <input type="number" min="1" value={addRecharge.amount} onChange={set('amount')} className={field} placeholder="1200" />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className={label}>Payment Date</span>
+                        <input type="date" value={addRecharge.payment_date} onChange={set('payment_date')} className={field} />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className={label}>UTR Number</span>
+                        <input value={addRecharge.utr_number} onChange={set('utr_number')} className={field} placeholder="307344182984" />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className={label}>Transaction ID</span>
+                        <input value={addRecharge.payment_txn_id} onChange={set('payment_txn_id')} className={field} placeholder="T2609…" />
+                      </label>
+                    </div>
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>Notes</span>
+                      <input value={addRecharge.notes} onChange={set('notes')} className={field} placeholder="e.g. PhonePe payment" />
+                    </label>
+                    <p className="text-[11px] text-gray-400">UTR or Transaction ID is required. A payment already on record is refused, so it cannot be credited twice.</p>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button variant="outline" disabled={addRechargeSaving} onClick={() => setAddRecharge(null)}>Cancel</Button>
+                      <Button variant="primary" disabled={addRechargeSaving} onClick={submitAddRecharge}>
+                        {addRechargeSaving ? 'Adding…' : 'Add to Wallet'}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })()}
+            </Modal>
             <Table>
               <Thead>
                 <tr>
