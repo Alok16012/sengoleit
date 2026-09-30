@@ -633,17 +633,32 @@ export default function AccountDepartment() {
     const amt = Number(String(f.amount).replace(/[, ₹]/g, ''))
     if (!f.center_id) { alert('Choose the centre.'); return }
     if (!isFinite(amt) || amt <= 0) { alert('Enter the amount paid.'); return }
-    if (!f.utr_number.trim() && !f.payment_txn_id.trim()) { alert('Enter the UTR number or the transaction ID.'); return }
+    if (!f.reference.trim()) { alert('Enter the UTR or transaction ID.'); return }
     const c = centers.find(x => x.id === f.center_id)
     if (!confirm(`Add ₹${amt.toLocaleString('en-IN')} to ${c?.center_name || 'this centre'}'s wallet?`)) return
     setAddRechargeSaving(true)
+
+    // The receipt goes where a centre's own recharge screenshot goes, so the
+    // Recharge Requests list shows it under the same View link.
+    let receiptUrl = null
+    if (f.receipt) {
+      const path = `recharge/${f.center_id}/${Date.now()}_${f.receipt.name}`
+      const { error: upErr } = await supabase.storage.from('documents').upload(path, f.receipt)
+      if (upErr) {
+        setAddRechargeSaving(false)
+        alert('The receipt could not be uploaded, so nothing was added:\n\n' + upErr.message)
+        return
+      }
+      receiptUrl = supabase.storage.from('documents').getPublicUrl(path).data.publicUrl
+    }
+
     const { data, error } = await supabase.rpc('admin_add_recharge', {
       p_center: f.center_id,
       p_amount: amt,
-      p_utr: f.utr_number.trim() || null,
-      p_txn: f.payment_txn_id.trim() || null,
+      p_reference: f.reference.trim(),
       p_payment_date: f.payment_date || null,
       p_notes: f.notes.trim() || null,
+      p_receipt_url: receiptUrl,
     })
     setAddRechargeSaving(false)
     if (error) {
@@ -1691,7 +1706,7 @@ export default function AccountDepartment() {
               )}
               <div className="ml-auto flex items-end gap-3">
                 <Button size="sm" variant="primary"
-                  onClick={() => setAddRecharge({ center_id: rechargeCenter || '', amount: '', utr_number: '', payment_txn_id: '', payment_date: '', notes: '' })}>
+                  onClick={() => setAddRecharge({ center_id: rechargeCenter || '', amount: '', reference: '', payment_date: '', notes: '', receipt: null })}>
                   <Wallet size={14} /> Add Recharge
                 </Button>
               <p className="text-sm text-gray-500 pb-2">
@@ -1731,20 +1746,23 @@ export default function AccountDepartment() {
                         <span className={label}>Payment Date</span>
                         <input type="date" value={addRecharge.payment_date} onChange={set('payment_date')} className={field} />
                       </label>
-                      <label className="flex flex-col gap-1">
-                        <span className={label}>UTR Number</span>
-                        <input value={addRecharge.utr_number} onChange={set('utr_number')} className={field} placeholder="307344182984" />
-                      </label>
-                      <label className="flex flex-col gap-1">
-                        <span className={label}>Transaction ID</span>
-                        <input value={addRecharge.payment_txn_id} onChange={set('payment_txn_id')} className={field} placeholder="T2609…" />
-                      </label>
                     </div>
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>UTR / Transaction ID *</span>
+                      <input value={addRecharge.reference} onChange={set('reference')} className={field} placeholder="e.g. 307344182984" />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>Payment Receipt</span>
+                      <input type="file" accept="image/*,application/pdf"
+                        onChange={e => setAddRecharge(f => ({ ...f, receipt: e.target.files?.[0] || null }))}
+                        className="text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#933d18]/10 file:text-[#933d18] file:font-semibold" />
+                      {addRecharge.receipt && <span className="text-[11px] text-gray-500">{addRecharge.receipt.name}</span>}
+                    </label>
                     <label className="flex flex-col gap-1">
                       <span className={label}>Notes</span>
                       <input value={addRecharge.notes} onChange={set('notes')} className={field} placeholder="e.g. PhonePe payment" />
                     </label>
-                    <p className="text-[11px] text-gray-400">UTR or Transaction ID is required. A payment already on record is refused, so it cannot be credited twice.</p>
+                    <p className="text-[11px] text-gray-400">A UTR / transaction ID already on record is refused, so the same payment cannot be credited twice.</p>
                     <div className="flex justify-end gap-2 pt-1">
                       <Button variant="outline" disabled={addRechargeSaving} onClick={() => setAddRecharge(null)}>Cancel</Button>
                       <Button variant="primary" disabled={addRechargeSaving} onClick={submitAddRecharge}>
