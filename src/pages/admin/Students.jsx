@@ -19,7 +19,8 @@ import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
 import AdmitCardListModal from '../../components/AdmitCardListModal'
 
-const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected']
+// RR = students with a re-registration request, whatever its outcome.
+const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected', 'RR']
 
 function genPassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
@@ -375,7 +376,8 @@ export default function Students() {
     const day = localDay(s.created_at)
     if (fromDate && (!day || day < fromDate)) return false
     if (toDate && (!day || day > toDate)) return false
-    const matchStatus = statusFilter === 'All' || s.status === statusFilter
+    const matchStatus = statusFilter === 'All'
+      || (statusFilter === 'RR' ? !!reReg?.[s.id] : s.status === statusFilter)
     return matchesSearch(s, search) && matchStatus
   })
 
@@ -393,6 +395,7 @@ export default function Students() {
     { header: 'Entered On', value: s => (s.created_at ? formatDate(s.created_at) : '') },
     { header: 'Form Date', value: s => (s.date_of_submission ? formatDate(s.date_of_submission) : '') },
     { header: 'Status', value: s => s.status || '' },
+    { header: 'Re-Registration', value: s => (reReg?.[s.id] ? `${reReg[s.id].from_term} → ${reReg[s.id].to_term} · ${reReg[s.id].status}` : '') },
   ]
   const exportMeta = () => {
     const m = []
@@ -583,7 +586,21 @@ export default function Students() {
                   title={s.created_at ? new Date(s.created_at).toLocaleString('en-IN') : ''}>
                   {s.created_at ? formatDate(s.created_at) : '—'}
                 </Td>
-                <Td><Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge></Td>
+                <Td>
+                  {/* On the RR tab the column reads the re-registration — which
+                      term to which, and where the request stands. */}
+                  {statusFilter === 'RR' && reReg?.[s.id] ? (() => {
+                    const rr = reReg[s.id]
+                    const tone = rr.status === 'Approved' ? 'bg-emerald-50 text-emerald-700'
+                      : rr.status === 'Rejected' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
+                    return (
+                      <span className={`inline-block text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap ${tone}`}
+                        title={rr.requested_at ? `Requested ${formatDate(rr.requested_at)}` : ''}>
+                        {rr.from_term} → {rr.to_term} · {rr.status}
+                      </span>
+                    )
+                  })() : <Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge>}
+                </Td>
                 <Td>
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/edit/${s.id}`)}>
