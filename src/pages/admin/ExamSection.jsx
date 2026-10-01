@@ -909,6 +909,30 @@ export default function ExamSection() {
     done: printList.filter(allPrinted).length,
   }
   const printTabList = printList.filter(s => (printTab === 'done' ? allPrinted(s) : !allPrinted(s)))
+  // The Print tab's list as it stands — tab, search and filters applied.
+  const PRINT_EXPORT_COLUMNS = [
+    { header: 'Student Name', value: s => s.student_name || '' },
+    { header: 'Gender', value: s => s.gender || '' },
+    { header: 'Mobile', value: s => s.mobile_no || '' },
+    { header: 'Programme', value: s => s.programs?.program_name || '' },
+    { header: 'Center', value: s => s.centers?.center_name || '' },
+    { header: 'Center Code', value: s => s.centers?.center_code || '' },
+    { header: 'Enrollment No', value: s => s.enrollment_no || '' },
+    { header: 'Forwarded Semesters · DMC No.', value: s => forwardedSems(s)
+        .map(r => `Sem ${r.semester}: ${r.dmc_no ?? '—'}${r.printed_at ? ` (printed ${formatDate(r.printed_at)})` : ''}`).join('; ') },
+    { header: 'Print Status', value: s => (allPrinted(s) ? 'Done' : 'Pending') },
+  ]
+  const printExportMeta = () => {
+    const m = [`Print · ${printTab === 'done' ? 'Done' : 'Pending'}`]
+    if (search) m.push(`Search: ${search}`)
+    if (fPrintCenter !== 'all') m.push(`Center: ${printCenterOptions.find(o => o.id === fPrintCenter)?.label || ''}`)
+    if (fDept && fDept !== 'all') m.push(`Department: ${departments.find(d => d.id === fDept)?.name || ''}`)
+    if (fType && fType !== 'all') m.push(`Program Type: ${progTypes.find(t => t.id === fType)?.programme_type_name || ''}`)
+    if (Array.isArray(fSession) && fSession.length) {
+      m.push(`Session: ${fSession.map(id => sessions.find(se => se.id === id)?.session_name).filter(Boolean).join(', ')}`)
+    }
+    return m
+  }
   const printFilterActive = filterActive || fPrintCenter !== 'all'
   const clearPrintFilters = () => { clearFilters(); setFPrintCenter('all') }
 
@@ -1190,6 +1214,7 @@ export default function ExamSection() {
               <Th>#</Th>
               <Th>Student Name</Th>
               <Th>Program</Th>
+              <Th>Center</Th>
               <Th>Session</Th>
               <Th>Enrollment No</Th>
               <Th>Registration / Application No</Th>
@@ -1202,7 +1227,7 @@ export default function ExamSection() {
           </Thead>
           <Tbody>
             {resultList.length === 0 ? (
-              <Tr><Td colSpan={showPrintCol ? 9 : 8} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={showPrintCol ? 10 : 9} className="text-center text-gray-400 py-12">
                 {search ? 'No students match your search.' : 'No students here.'}
               </Td></Tr>
             ) : resultList.map((s, i) => (
@@ -1213,6 +1238,10 @@ export default function ExamSection() {
                   <p className="text-xs text-gray-400 mt-0.5">{s.gender} • {s.mobile_no || '—'}</p>
                 </Td>
                 <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
+                <Td className="text-gray-700 text-xs min-w-[150px] whitespace-normal break-words">
+                  {s.centers?.center_name || '—'}
+                  {s.centers?.center_code && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{s.centers.center_code}</p>}
+                </Td>
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td className="font-mono text-xs font-bold text-emerald-700">{s.enrollment_no || '—'}</Td>
                 <Td className="font-mono text-xs text-[#933d18] font-bold">{s.registration_no || s.admission_number || '—'}</Td>
@@ -1312,7 +1341,7 @@ export default function ExamSection() {
       {/* Pending = a forwarded marksheet still to print; Done = every
           forwarded marksheet printed. A marksheet counts as printed when its
           Download PDF is pressed. */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         {[
           { key: 'pending', label: 'Pending', on: 'bg-amber-500 text-white',   off: 'bg-amber-50 text-amber-700' },
           { key: 'done',    label: 'Done',    on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
@@ -1323,6 +1352,17 @@ export default function ExamSection() {
             <span className={`text-xs px-1.5 py-0.5 rounded-full ${printTab === t.key ? 'bg-white/25' : 'bg-white/70'}`}>{printCounts[t.key]}</span>
           </button>
         ))}
+        {/* Exports exactly the list below — its tab, search and filters. */}
+        <div className="flex gap-2 ml-auto">
+          <Button size="sm" variant="outline" disabled={!printTabList.length}
+            onClick={() => exportCsv('print-list', PRINT_EXPORT_COLUMNS, printTabList)}>
+            <FileSpreadsheet size={14} /> Export Excel
+          </Button>
+          <Button size="sm" variant="outline" disabled={!printTabList.length}
+            onClick={() => exportPdf('Print List', PRINT_EXPORT_COLUMNS, printTabList, printExportMeta())}>
+            <FileText size={14} /> Export PDF
+          </Button>
+        </div>
       </div>
       {printedSqlMissing && (
         <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
