@@ -110,6 +110,7 @@ export default function AccountDepartment() {
   const [rechargeChecked, setRechargeChecked] = useState(false)
   const [rechargeSaving, setRechargeSaving] = useState(false)
   const [editingAmt, setEditingAmt] = useState(null)   // recharge id while correcting its amount
+  const [editingDate, setEditingDate] = useState(null) // recharge id while correcting its date
   const [rechargeRemark, setRechargeRemark] = useState('')
   // Payment method flow: '' (not chosen) | 'manual' (offline/UTR) | 'link' (Razorpay)
   const [receiptVerified, setReceiptVerified] = useState(false)
@@ -671,6 +672,32 @@ export default function AccountDepartment() {
     setAddRecharge(null)
     await fetchAll()
     alert(`₹${amt.toLocaleString('en-IN')} added to ${c?.center_name || 'the centre'}.\nWallet balance is now ₹${Number(data || 0).toLocaleString('en-IN')}.`)
+  }
+
+  // Correct the date a recharge shows — the day it was raised. Only the day
+  // moves; the time is kept so the list keeps its order within that day.
+  // Nothing about money changes, so this is a plain update, not an RPC.
+  async function editRechargeDate(req) {
+    const cur = req.created_at ? new Date(req.created_at) : new Date()
+    const shown = `${String(cur.getDate()).padStart(2, '0')}/${String(cur.getMonth() + 1).padStart(2, '0')}/${cur.getFullYear()}`
+    const typed = prompt(`Correct the date for ${req.centers?.center_name || 'this recharge'}.\n\nEnter it as DD/MM/YYYY.`, shown)
+    if (typed === null) return
+    const m = String(typed).trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/)
+    if (!m) { alert('Enter the date as DD/MM/YYYY.'); return }
+    const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3])
+    const next = new Date(cur)
+    next.setFullYear(y, mo - 1, d)
+    if (next.getDate() !== d || next.getMonth() !== mo - 1) { alert('That date does not exist.'); return }
+    if (next.getTime() > Date.now()) { alert('The date cannot be in the future.'); return }
+    setEditingDate(req.id)
+    const { data, error } = await supabase.from('recharge_requests')
+      .update({ created_at: next.toISOString() }).eq('id', req.id).select('id')
+    setEditingDate(null)
+    if (error || !data?.length) {
+      alert('The date was not changed' + (error ? ':\n\n' + error.message : ' — no record was updated.'))
+      return
+    }
+    fetchAll()
   }
 
   async function handleVerifyRecharge(req) {
@@ -1837,7 +1864,16 @@ export default function AccountDepartment() {
                       ) : '—'}
                     </Td>
                     <Td className="text-gray-500 text-xs max-w-[120px] truncate">{r.notes || '—'}</Td>
-                    <Td className="text-gray-400 text-xs">{formatDate(r.created_at)}</Td>
+                    <Td className="text-gray-400 text-xs">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <span>{formatDate(r.created_at)}</span>
+                        <button onClick={() => editRechargeDate(r)} disabled={editingDate === r.id}
+                          title="Correct this date"
+                          className="text-gray-300 hover:text-[#933d18] disabled:opacity-40">
+                          {editingDate === r.id ? <span className="text-[10px]">…</span> : <Pencil size={12} />}
+                        </button>
+                      </div>
+                    </Td>
                     <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
                     <Td className="text-gray-500 text-xs max-w-[160px] truncate" title={r.admin_remarks || ''}>{r.admin_remarks || '—'}</Td>
                     <Td>
