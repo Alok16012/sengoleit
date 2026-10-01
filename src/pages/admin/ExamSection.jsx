@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
@@ -6,12 +6,8 @@ import Button from '../../components/ui/Button'
 import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange, Users, Printer, FileText, FileSpreadsheet } from 'lucide-react'
 import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
 import ExaminationCalendar from './ExaminationCalendar'
-import {
-  generateAdmitCard, generateStatementOfGrades, sgpaOf, sgpaBySemester, divisionFor,
-  generateProvisionalCertificate, generateMigrationCertificate,
-  generateDegreeCertificate, generateConsolidatedMarksheet,
-} from '../../utils/generateStudentCards'
-import { fetchPaperMarks, fetchPaperMarksUpto } from '../../utils/paperMarks'
+import { generateAdmitCard } from '../../utils/generateStudentCards'
+import PrintManager from '../../components/PrintManager'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
@@ -371,39 +367,6 @@ export default function ExamSection() {
 
   const [releasing, setReleasing] = useState(null)
   const [resultModalStudent, setResultModalStudent] = useState(null)
-  const [printBusy, setPrintBusy] = useState(null)
-  const [printTab, setPrintTab] = useState('pending')   // Print tab: 'pending' | 'done'
-  const [printedSqlMissing, setPrintedSqlMissing] = useState(false)
-
-  // The marksheet window reports back when its Download PDF is pressed; the
-  // result is stamped printed (the first time only) and moves to Done.
-  // Messages are accepted only from windows this tab opened itself. The
-  // marksheet opens as about:blank, whose reported origin cannot be relied
-  // on across browsers — the window itself can.
-  const printWindows = useRef(new Set())
-  useEffect(() => {
-    async function onMessage(e) {
-      if (!e.source || !printWindows.current.has(e.source)) return
-      const d = e.data
-      if (!d || d.type !== 'sog-printed' || !d.resultId) return
-      const at = new Date().toISOString()
-      const { error } = await supabase.from('student_results')
-        .update({ printed_at: at }).eq('id', d.resultId).is('printed_at', null)
-      if (error) {
-        if (/printed_at/.test(error.message || '')) setPrintedSqlMissing(true)
-        return
-      }
-      setResults(prev => {
-        const next = { ...(prev || {}) }
-        for (const k of Object.keys(next)) {
-          if (next[k]?.id === d.resultId && !next[k].printed_at) next[k] = { ...next[k], printed_at: at }
-        }
-        return next
-      })
-    }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [])
   const [sendingId, setSendingId] = useState(null)   // `${studentId}__${semester}` being sent to Print
 
   // A result reaches the Print tab only once it has been forwarded, so the
@@ -486,72 +449,6 @@ export default function ExamSection() {
       m.push(`Session: ${fSession.map(id => sessions.find(se => se.id === id)?.session_name).filter(Boolean).join(', ')}`)
     }
     return m
-  }
-
-  // The full record, with the joins the certificates print from.
-  async function fullStudent(s) {
-    const { data: full } = await supabase.from('students')
-      .select('*, programs(program_name), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
-      .eq('id', s.id).single()
-    return full ? await resolveStudentDocUrls(full) : s
-  }
-
-  // Totals across the forwarded semesters — what the division on the
-  // provisional, the degree and the consolidated sheet is worked out from.
-  function printSummary(sems) {
-    const num = x => Number(String(x ?? '').replace(/[^\d.]/g, '')) || 0
-    const obtained = sems.reduce((a, r) => a + num(r.obtained_marks), 0)
-    const maximum  = sems.reduce((a, r) => a + num(r.total_marks), 0)
-    const pct = maximum > 0 ? (obtained / maximum) * 100 : 0
-    const last = sems.map(r => r.declared_at).filter(Boolean).sort().pop()
-    return {
-      division: maximum > 0 ? divisionFor(pct) : '',
-      passingYear: last ? new Date(last).getFullYear() : '',
-    }
-  }
-
-  async function printSemMarksheet(s, r) {
-    setPrintBusy(`${s.id}__${r.semester}`)
-    try {
-      const resolved = await fullStudent(s)
-      const rowsForSem = await fetchPaperMarks(s, r.semester)
-      const dates = await fetchExamDates(resolved, r.semester)
-      const upto = await fetchPaperMarksUpto(s, r.semester)
-      const cgpa = sgpaOf(upto)
-      const win = generateStatementOfGrades(resolved, rowsForSem, {
-        resultId: r.id,
-        dmcNo: r.dmc_no ? String(r.dmc_no) : '',
-        semSgpas: sgpaBySemester(upto),
-        // The calendar's Marksheet Printing Date, so every copy of the
-        // semester carries the date the office set; the day the result went
-        // to Print when the calendar has none.
-        issueDate: dates.resultPublishedRaw ? `${dates.resultPublishedRaw}T12:00:00` : (r.print_forwarded_at || null),
-        semester: `Semester ${r.semester}`,
-        examHeld: dates.examSession || '',
-        resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
-        cgpa,
-      })
-      if (win) printWindows.current.add(win)
-    } finally { setPrintBusy(null) }
-  }
-
-  async function printCertificate(s, kind) {
-    const sems = forwardedSems(s)
-    if (!sems.length) return
-    setPrintBusy(`${s.id}__${kind}`)
-    try {
-      const resolved = await fullStudent(s)
-      const { division, passingYear } = printSummary(sems)
-      const upto = Math.max(...sems.map(r => Number(r.semester) || 0))
-      const cgpa = sgpaOf(await fetchPaperMarksUpto(s, upto))
-      if (kind === 'provisional') generateProvisionalCertificate(resolved, { passingYear, division, cgpa })
-      else if (kind === 'migration') generateMigrationCertificate(resolved, { passingYear })
-      else if (kind === 'degree') generateDegreeCertificate(resolved, { passingYear, division })
-      else generateConsolidatedMarksheet(resolved, sems.map(r => ({
-        sem: r.semester, obtained: r.obtained_marks, total: r.total_marks,
-        status: r.status, dmcNo: r.dmc_no,
-      })), { cgpa })
-    } finally { setPrintBusy(null) }
   }
 
   // Open the per-semester admit-card picker — computes which semesters' fee is
@@ -840,7 +737,7 @@ export default function ExamSection() {
     if (fType !== 'all' && s.programs?.programme_type_id !== fType) return false
     if (fSession.length > 0 && (!s.session_id || !fSession.includes(s.session_id))) return false
     const haystack = [
-      s.student_name, s.enrollment_no, s.registration_no, s.mobile_no,
+      s.student_name, s.enrollment_no, s.registration_no, s.admission_number, s.mobile_no,
       s.programs?.program_name, s.academic_sessions?.session_name,
       s.centers?.center_name, s.centers?.center_code,
     ].filter(Boolean).join(' ').toLowerCase()
@@ -899,31 +796,9 @@ export default function ExamSection() {
   }, {})).sort((a, b) => a.label.localeCompare(b.label))
   const printList = byFilters.filter(s =>
     forwardedSems(s).length > 0 && (fPrintCenter === 'all' || s.centers?.id === fPrintCenter))
-  // Done once every forwarded semester's marksheet has been printed.
-  const allPrinted = (s) => {
-    const sems = forwardedSems(s)
-    return sems.length > 0 && sems.every(r => r.printed_at)
-  }
-  const printCounts = {
-    pending: printList.filter(s => !allPrinted(s)).length,
-    done: printList.filter(allPrinted).length,
-  }
-  const printTabList = printList.filter(s => (printTab === 'done' ? allPrinted(s) : !allPrinted(s)))
-  // The Print tab's list as it stands — tab, search and filters applied.
-  const PRINT_EXPORT_COLUMNS = [
-    { header: 'Student Name', value: s => s.student_name || '' },
-    { header: 'Gender', value: s => s.gender || '' },
-    { header: 'Mobile', value: s => s.mobile_no || '' },
-    { header: 'Programme', value: s => s.programs?.program_name || '' },
-    { header: 'Center', value: s => s.centers?.center_name || '' },
-    { header: 'Center Code', value: s => s.centers?.center_code || '' },
-    { header: 'Enrollment No', value: s => s.enrollment_no || '' },
-    { header: 'Forwarded Semesters · DMC No.', value: s => forwardedSems(s)
-        .map(r => `Sem ${r.semester}: ${r.dmc_no ?? '—'}${r.printed_at ? ` (printed ${formatDate(r.printed_at)})` : ''}`).join('; ') },
-    { header: 'Print Status', value: s => (allPrinted(s) ? 'Done' : 'Pending') },
-  ]
+  // What the Print tab's PDF export says about the filters in force.
   const printExportMeta = () => {
-    const m = [`Print · ${printTab === 'done' ? 'Done' : 'Pending'}`]
+    const m = []
     if (search) m.push(`Search: ${search}`)
     if (fPrintCenter !== 'all') m.push(`Center: ${printCenterOptions.find(o => o.id === fPrintCenter)?.label || ''}`)
     if (fDept && fDept !== 'all') m.push(`Department: ${departments.find(d => d.id === fDept)?.name || ''}`)
@@ -1338,114 +1213,16 @@ export default function ExamSection() {
           </button>
         )}
       </div>
-      {/* Pending = a forwarded marksheet still to print; Done = every
-          forwarded marksheet printed. A marksheet counts as printed when its
-          Download PDF is pressed. */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        {[
-          { key: 'pending', label: 'Pending', on: 'bg-amber-500 text-white',   off: 'bg-amber-50 text-amber-700' },
-          { key: 'done',    label: 'Done',    on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
-        ].map(t => (
-          <button key={t.key} onClick={() => setPrintTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${printTab === t.key ? t.on : t.off}`}>
-            {t.label}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${printTab === t.key ? 'bg-white/25' : 'bg-white/70'}`}>{printCounts[t.key]}</span>
-          </button>
-        ))}
-        {/* Exports exactly the list below — its tab, search and filters. */}
-        <div className="flex gap-2 ml-auto">
-          <Button size="sm" variant="outline" disabled={!printTabList.length}
-            onClick={() => exportCsv('print-list', PRINT_EXPORT_COLUMNS, printTabList)}>
-            <FileSpreadsheet size={14} /> Export Excel
-          </Button>
-          <Button size="sm" variant="outline" disabled={!printTabList.length}
-            onClick={() => exportPdf('Print List', PRINT_EXPORT_COLUMNS, printTabList, printExportMeta())}>
-            <FileText size={14} /> Export PDF
-          </Button>
-        </div>
-      </div>
-      {printedSqlMissing && (
-        <p className="mb-4 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
-          Printed marksheets can't be moved to Done yet — run <code className="font-mono">add_result_printed_at.sql</code> once in Supabase → SQL Editor.
-        </p>
-      )}
-        <Table>
-          <Thead>
-            <tr>
-              <Th>#</Th>
-              <Th>Student</Th>
-              <Th>Programme</Th>
-              <Th>Center</Th>
-              <Th>Enrollment No</Th>
-              <Th>Forwarded Semesters · DMC No.</Th>
-              <Th className="min-w-[420px]">Print</Th>
-            </tr>
-          </Thead>
-          <Tbody>
-            {printTabList.length === 0 ? (
-              <Tr><Td colSpan={7} className="text-center text-gray-400 py-12">
-                {printFilterActive
-                  ? 'No forwarded results match these filters.'
-                  : printTab === 'done'
-                    ? 'No marksheet has been printed yet.'
-                    : printList.length
-                      ? 'Every forwarded marksheet has been printed.'
-                      : 'Nothing forwarded yet — send a declared result from the Result tab.'}
-              </Td></Tr>
-            ) : printTabList.map((s, i) => {
-              const sems = forwardedSems(s)
-              return (
-                <Tr key={s.id}>
-                  <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
-                  <Td>
-                    <p className="font-semibold text-gray-900">{s.student_name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{s.gender} • {s.mobile_no || '—'}</p>
-                  </Td>
-                  <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
-                  <Td className="text-gray-700 text-xs min-w-[150px] whitespace-normal break-words">
-                    {s.centers?.center_name || '—'}
-                    {s.centers?.center_code && <p className="text-[10px] text-gray-400 font-mono mt-0.5">{s.centers.center_code}</p>}
-                  </Td>
-                  <Td className="font-mono text-xs font-bold text-emerald-700">{s.enrollment_no || '—'}</Td>
-                  <Td>
-                    <div className="flex flex-wrap gap-1">
-                      {sems.map(r => (
-                        <span key={r.semester}
-                          title={r.printed_at ? `Printed ${formatDate(r.printed_at)}` : 'Not printed yet'}
-                          className={`text-[10px] font-bold px-2 py-1 rounded whitespace-nowrap ${r.printed_at ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                          Sem {r.semester} · {r.dmc_no ?? '—'}{r.printed_at ? ' ✓' : ''}
-                        </span>
-                      ))}
-                    </div>
-                  </Td>
-                  <Td>
-                    <div className="flex flex-wrap gap-1.5">
-                      {/* One marksheet per forwarded semester — each is its own
-                          issued document with its own number. */}
-                      {sems.map(r => (
-                        <Button key={r.semester} size="sm" variant="secondary"
-                          disabled={printBusy === `${s.id}__${r.semester}`}
-                          title={`Statement of Marks for Semester ${r.semester}`}
-                          onClick={() => printSemMarksheet(s, r)}>
-                          <FileText size={12} /> {printBusy === `${s.id}__${r.semester}` ? '…' : `Marksheet S${r.semester}`}
-                        </Button>
-                      ))}
-                      {['provisional', 'migration', 'degree', 'consolidated'].map(kind => (
-                        <Button key={kind} size="sm" variant="outline"
-                          disabled={printBusy === `${s.id}__${kind}`}
-                          onClick={() => printCertificate(s, kind)}>
-                          <Printer size={12} /> {printBusy === `${s.id}__${kind}` ? '…' : (
-                            kind === 'consolidated' ? 'Consolidated' : kind[0].toUpperCase() + kind.slice(1)
-                          )}
-                        </Button>
-                      ))}
-                    </div>
-                  </Td>
-                </Tr>
-              )
-            })}
-          </Tbody>
-        </Table>
+      {/* Document by document: each semester's marksheet and, once the
+          course is through, the final certificates — printed, counted and
+          kept in a history of their own. */}
+      <PrintManager
+        students={printList}
+        results={results}
+        setResults={setResults}
+        filterActive={printFilterActive}
+        exportMeta={printExportMeta}
+      />
       </>)}
 
       {resultModalStudent && (
