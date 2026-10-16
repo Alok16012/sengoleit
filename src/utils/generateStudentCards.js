@@ -1743,7 +1743,7 @@ function passedLines(s, year, progBaseline) {
 // opts: { passingYear, conduct, certNo }
 // certNo is the certificate's own random number (issue_certificate_no()),
 // the same on every reprint. The QR in the top-right corner carries it with
-// the student's name and enrollment number.
+// the student's name, registration number, programme and passing year.
 // The *CertificateSvg builders return the sheet alone, so the Print tab can
 // put several documents into one print job; the generate* functions open one
 // on its own.
@@ -1753,11 +1753,11 @@ export function provisionalCertificateSvg(s, opts = {}) {
     ${certLabel(22.7, 150.7, 'His / Her conduct was')}
     ${certRule(76.5, 171.7, 151.1)}
     ${certValue(93.7, 149.4, opts.conduct || 'Good', 77)}`
-  const qr = [
-    `Name of Student: ${s.student_name || ''}`,
-    `Enrollment No.: ${s.enrollment_no || ''}`,
-    opts.certNo ? `Certificate ID: ${opts.certNo}` : '',
-  ].filter(Boolean).join('\n')
+  // The Degree's one-line form, with the certificate number where the Degree
+  // has its date of issue.
+  const prog = s.programs?.program_name || s.program_name || ''
+  const qr = [s.student_name, s.registration_no, prog, opts.passingYear, 'Provisional', opts.certNo]
+    .filter(Boolean).join(' | ')
   // Centred in the blank square at the top right of the stationery.
   return certificateSheet(s, body, { qr, qrAt: [238.0, 17.2] })
 }
