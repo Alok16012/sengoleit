@@ -75,7 +75,7 @@ export default function PrintManager({ students, results, setResults, filterActi
   // Which documents Preview Selected / Print All Pending take; all of them
   // until narrowed.
   const [bulkTypes, setBulkTypes] = useState(() => new Set(BULK_TYPES))
-  const [preview, setPreview] = useState(null)       // { title, entries }
+  const [preview, setPreview] = useState(null)       // { title, entries, picked: Set of doc keys }
   const [historyFor, setHistoryFor] = useState(null) // student
   const [history, setHistory] = useState(null)       // print_history rows, null while loading
   const [confirm, setConfirm] = useState(null)       // { student, doc } awaiting Confirm Reprint
@@ -270,8 +270,20 @@ export default function PrintManager({ students, results, setResults, filterActi
   function openPreview(ss, title, types = null) {
     const entries = pendingEntries(ss, types)
     if (!entries.length) { setNotice({ tone: 'warn', text: 'Nothing pending to print for the selection.' }); return }
-    setPreview({ title, entries })
+    setPreview({ title, entries, picked: new Set(entries.map(e => e.doc.key)) })
   }
+
+  // In the preview every document is ticked; only the ticked ones print.
+  const pickedEntries = preview ? preview.entries.filter(e => preview.picked.has(e.doc.key)) : []
+  const allPicked = !!preview && pickedEntries.length === preview.entries.length
+  const togglePick = (key) => setPreview(p => {
+    const picked = new Set(p.picked)
+    if (picked.has(key)) picked.delete(key); else picked.add(key)
+    return { ...p, picked }
+  })
+  const togglePickAll = () => setPreview(p => ({
+    ...p, picked: allPicked ? new Set() : new Set(p.entries.map(e => e.doc.key)),
+  }))
 
   // ── History ────────────────────────────────────────────────────────────────
   async function loadHistory(s) {
@@ -515,7 +527,7 @@ export default function PrintManager({ students, results, setResults, filterActi
               <div>
                 <h3 className="text-lg font-bold text-gray-900">{preview.title}</h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {preview.entries.length} document{preview.entries.length === 1 ? '' : 's'} · {new Set(preview.entries.map(e => e.student.id)).size} student{new Set(preview.entries.map(e => e.student.id)).size === 1 ? '' : 's'} — all print as one job
+                  {pickedEntries.length} of {preview.entries.length} document{preview.entries.length === 1 ? '' : 's'} ticked · {new Set(pickedEntries.map(e => e.student.id)).size} student{new Set(pickedEntries.map(e => e.student.id)).size === 1 ? '' : 's'} — the ticked ones print as one job
                 </p>
               </div>
               <button onClick={() => setPreview(null)} className="p-2 hover:bg-gray-200 rounded-full text-gray-500"><X size={18} /></button>
@@ -524,6 +536,10 @@ export default function PrintManager({ students, results, setResults, filterActi
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr className="text-left text-[11px] uppercase tracking-wider text-gray-500">
+                    <th className="pl-4 py-2.5 w-8">
+                      <input type="checkbox" className="w-4 h-4 accent-[#933d18] cursor-pointer" title="Tick all / none"
+                        checked={allPicked} onChange={togglePickAll} />
+                    </th>
                     <th className="px-4 py-2.5">#</th>
                     <th className="px-4 py-2.5">Student</th>
                     <th className="px-4 py-2.5">Document</th>
@@ -534,7 +550,11 @@ export default function PrintManager({ students, results, setResults, filterActi
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {preview.entries.map((e, i) => (
-                    <tr key={e.doc.key}>
+                    <tr key={e.doc.key} className={preview.picked.has(e.doc.key) ? '' : 'opacity-50'}>
+                      <td className="pl-4 py-2">
+                        <input type="checkbox" className="w-4 h-4 accent-[#933d18] cursor-pointer"
+                          checked={preview.picked.has(e.doc.key)} onChange={() => togglePick(e.doc.key)} />
+                      </td>
                       <td className="px-4 py-2 text-xs text-gray-400">{i + 1}</td>
                       <td className="px-4 py-2">
                         <p className="font-semibold text-gray-900">{e.student.student_name}</p>
@@ -554,13 +574,13 @@ export default function PrintManager({ students, results, setResults, filterActi
               </table>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-wrap items-center justify-end gap-2">
-              <span className="text-xs text-gray-500 mr-auto">Total documents: <b className="text-gray-800">{preview.entries.length}</b></span>
+              <span className="text-xs text-gray-500 mr-auto">Documents to print: <b className="text-gray-800">{pickedEntries.length}</b></span>
               <Button variant="ghost" onClick={() => setPreview(null)}>Cancel</Button>
-              <Button variant="outline" onClick={() => { runJob(preview.entries, { autoPrint: 'pdf' }); setPreview(null) }}>
+              <Button variant="outline" disabled={!pickedEntries.length} onClick={() => { runJob(pickedEntries, { autoPrint: 'pdf' }); setPreview(null) }}>
                 <FileText size={14} /> Download Combined PDF
               </Button>
-              <Button onClick={() => { runJob(preview.entries, { autoPrint: 'print' }); setPreview(null) }}>
-                <Printer size={14} /> Print All Documents
+              <Button disabled={!pickedEntries.length} onClick={() => { runJob(pickedEntries, { autoPrint: 'print' }); setPreview(null) }}>
+                <Printer size={14} /> Print Ticked Documents
               </Button>
             </div>
           </div>

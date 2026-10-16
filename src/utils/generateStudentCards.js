@@ -1758,8 +1758,8 @@ export function provisionalCertificateSvg(s, opts = {}) {
   const prog = s.programs?.program_name || s.program_name || ''
   const qr = [s.student_name, s.registration_no, prog, opts.passingYear, 'Provisional', opts.certNo]
     .filter(Boolean).join(' | ')
-  // Centred in the blank square at the top right of the stationery.
-  return certificateSheet(s, body, { qr, qrAt: [238.0, 17.2] })
+  // In the blank square at the top right of the stationery.
+  return certificateSheet(s, body, { qr, qrAt: [246.0, 17.2] })
 }
 export function generateProvisionalCertificate(s, opts = {}) {
   openCertificate(`Provisional Certificate — ${s.student_name || ''}`, provisionalCertificateSvg(s, opts))
