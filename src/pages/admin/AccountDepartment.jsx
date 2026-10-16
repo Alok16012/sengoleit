@@ -8,7 +8,7 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import VerifyRow from '../../components/ui/VerifyRow'
 import ExportButtons from '../../components/ExportButtons'
-import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, Clock, ExternalLink, ChevronDown, ChevronRight, Hash, Copy, Wallet, Send } from 'lucide-react'
+import { CheckCircle, XCircle, ToggleLeft, ToggleRight, Eye, EyeOff, Pencil, Save, FileText, Download, PauseCircle, Clock, ExternalLink, ChevronDown, ChevronRight, Hash, Copy, Wallet, Send, Trash2 } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, formatDateTime, approvalPaymentDate } from '../../utils/formatDate'
@@ -109,8 +109,11 @@ export default function AccountDepartment() {
   const [rechargeModal, setRechargeModal] = useState(null)
   const [rechargeChecked, setRechargeChecked] = useState(false)
   const [rechargeSaving, setRechargeSaving] = useState(false)
-  const [editingAmt, setEditingAmt] = useState(null)   // recharge id while correcting its amount
-  const [editingDate, setEditingDate] = useState(null) // recharge id while correcting its date
+  // Edit / delete a recharge — the form's fields, and the recharge to delete
+  const [editRecharge, setEditRecharge] = useState(null)
+  const [editRechargeSaving, setEditRechargeSaving] = useState(false)
+  const [deleteRecharge, setDeleteRecharge] = useState(null)   // { r, reason }
+  const [deleteRechargeSaving, setDeleteRechargeSaving] = useState(false)
   const [rechargeRemark, setRechargeRemark] = useState('')
   // Payment method flow: '' (not chosen) | 'manual' (offline/UTR) | 'link' (Razorpay)
   const [receiptVerified, setReceiptVerified] = useState(false)
@@ -582,47 +585,136 @@ export default function AccountDepartment() {
     } catch { /* column may not exist yet — ignore */ }
   }
 
-  // Correct the amount on a recharge that is already verified.
-  //
-  // The wallet was credited from the old figure, so the two have to move
-  // together — editing the request alone would leave the centre's balance
-  // wrong for good. admin_edit_recharge_amount() does both inside one locked
-  // transaction and applies only the DIFFERENCE, so nothing else that touched
-  // the wallet in between is lost.
-  async function editRechargeAmount(req) {
-    const typed = prompt(
-      `Correct the amount for ${req.centers?.center_name || 'this center'}.\n\n` +
-      `Currently ₹${Number(req.amount).toLocaleString('en-IN')}.\n` +
-      `The center's wallet will move by the difference.`,
-      String(Math.round(Number(req.amount) || 0))
-    )
-    if (typed === null) return
-    const amt = Number(String(typed).replace(/[, ₹]/g, ''))
-    if (!isFinite(amt) || amt < 0) { alert('Enter a number.'); return }
-    const diff = amt - Number(req.amount || 0)
-    if (!confirm(
-      `Change ₹${Number(req.amount).toLocaleString('en-IN')} → ₹${amt.toLocaleString('en-IN')}?\n\n` +
-      `The wallet will ${diff < 0 ? 'go DOWN' : 'go UP'} by ₹${Math.abs(diff).toLocaleString('en-IN')}.`
-    )) return
+  // ── Edit / delete a recharge ──────────────────────────────────────────────
+  // Both go through an RPC (add_recharge_edit_delete.sql): on a verified
+  // recharge a change of amount or centre, or a delete, has to move the
+  // wallets and undo the commission generated on it in the same transaction.
+  const ymdLocal = (iso) => {
+    const d = iso ? new Date(iso) : null
+    if (!d || Number.isNaN(d.getTime())) return ''
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const rupees = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`
+  const rechargeRpcMissing = (error) => /admin_update_recharge|admin_delete_recharge|PGRST202|42883|schema cache/i.test(error?.message || '')
+  const belowZero = (error) => /WALLET_BELOW_ZERO/.test(error?.message || '')
+  const belowZeroText = (error) => String(error?.message || '').replace(/^.*WALLET_BELOW_ZERO:\s*/, '')
 
-    setEditingAmt(req.id)
-    const { data, error } = await supabase.rpc('admin_edit_recharge_amount', {
-      p_recharge: req.id, p_amount: amt,
+  function openEditRecharge(r) {
+    setEditRecharge({
+      r,
+      center_id: r.center_id || '',
+      amount: String(Math.round(Number(r.amount) || 0)),
+      payment_txn_id: r.payment_txn_id || '',
+      utr_number: r.utr_number || '',
+      payment_date: r.payment_date ? String(r.payment_date).slice(0, 10) : '',
+      date: ymdLocal(r.created_at),
+      notes: r.notes || '',
+      admin_remarks: r.admin_remarks || '',
+      screenshot_url: r.utr_screenshot_url || '',
+      receipt: null,
     })
-    setEditingAmt(null)
+  }
+
+  async function saveEditRecharge(allowNegative = false) {
+    const f = editRecharge
+    if (!f || editRechargeSaving) return
+    const r = f.r
+    const amt = Number(String(f.amount).replace(/[, ₹]/g, ''))
+    if (!f.center_id) { alert('Choose the centre.'); return }
+    if (!isFinite(amt) || amt <= 0) { alert('Enter the amount.'); return }
+
+    // The day moves; the time is kept so the list keeps its order within it.
+    let createdAt = null
+    if (f.date && f.date !== ymdLocal(r.created_at)) {
+      const [y, m, d] = f.date.split('-').map(Number)
+      const next = r.created_at ? new Date(r.created_at) : new Date()
+      next.setFullYear(y, m - 1, d)
+      if (next.getTime() > Date.now()) { alert('The date cannot be in the future.'); return }
+      createdAt = next.toISOString()
+    }
+
+    const moneyChanged = f.center_id !== r.center_id || amt !== Number(r.amount)
+    if (!allowNegative && r.status === 'verified' && moneyChanged) {
+      const from = centers.find(c => c.id === r.center_id)?.center_name || 'the centre'
+      const to = centers.find(c => c.id === f.center_id)?.center_name || 'the centre'
+      const what = f.center_id !== r.center_id
+        ? `${rupees(r.amount)} comes back off ${from}'s wallet and ${rupees(amt)} goes onto ${to}'s.`
+        : `${from}'s wallet moves by ${rupees(amt - Number(r.amount))}.`
+      if (!confirm(`This recharge is verified, so the wallet moves with it:\n\n${what}\n\n` +
+        'Any commission generated on it is undone, to be generated again on the corrected figure.\n\nSave?')) return
+    }
+
+    setEditRechargeSaving(true)
+    let screenshot = f.screenshot_url
+    if (f.receipt) {
+      const path = `recharge/${f.center_id}/${Date.now()}_${f.receipt.name}`
+      const { error: upErr } = await supabase.storage.from('documents').upload(path, f.receipt)
+      if (upErr) {
+        setEditRechargeSaving(false)
+        alert('The screenshot could not be uploaded, so nothing was changed:\n\n' + upErr.message)
+        return
+      }
+      screenshot = supabase.storage.from('documents').getPublicUrl(path).data.publicUrl
+    }
+
+    const { data, error } = await supabase.rpc('admin_update_recharge', {
+      p_recharge: r.id,
+      p_center: f.center_id,
+      p_amount: amt,
+      p_txn: f.payment_txn_id.trim() || null,
+      p_utr: f.utr_number.trim() || null,
+      p_payment_date: f.payment_date || null,
+      p_created_at: createdAt,
+      p_notes: f.notes.trim() || null,
+      p_remarks: f.admin_remarks.trim() || null,
+      p_screenshot_url: screenshot || null,
+      p_allow_negative: allowNegative,
+    })
+    setEditRechargeSaving(false)
     if (error) {
-      const missing = /admin_edit_recharge_amount|PGRST202|42883|schema cache/i.test(error.message || '')
-      alert(missing
-        ? 'This needs a database update — nothing was changed.\n\nPlease run add_edit_recharge_amount.sql in Supabase.'
+      if (belowZero(error) && !allowNegative) {
+        if (confirm(`${belowZeroText(error)}\n\nThe centre has already spent this money. Save anyway and leave the wallet below zero (the centre owes the difference)?`)) {
+          return saveEditRecharge(true)
+        }
+        return
+      }
+      alert(rechargeRpcMissing(error)
+        ? 'This needs a database update — nothing was changed.\n\nPlease run add_recharge_edit_delete.sql in Supabase.'
         : 'Nothing was changed:\n\n' + error.message)
       return
     }
-    const g = Array.isArray(data) ? data[0] : data
+    setEditRecharge(null)
     await fetchAll()
-    alert(
-      `Amount is now ₹${Number(g?.new_amount).toLocaleString('en-IN')}.\n` +
-      `Wallet: ₹${Number(g?.wallet_before).toLocaleString('en-IN')} → ₹${Number(g?.wallet_after).toLocaleString('en-IN')}.`
-    )
+    if (data?.commission_undone > 0) {
+      alert(`Saved. The commission generated on this recharge (${data.commission_undone} entr${data.commission_undone === 1 ? 'y' : 'ies'}) was undone — generate it again from the Commission Wallet on the corrected figure.`)
+    }
+  }
+
+  async function confirmDeleteRecharge(allowNegative = false) {
+    const d = deleteRecharge
+    if (!d || deleteRechargeSaving) return
+    setDeleteRechargeSaving(true)
+    const { data, error } = await supabase.rpc('admin_delete_recharge', {
+      p_recharge: d.r.id, p_reason: d.reason.trim() || null, p_allow_negative: allowNegative,
+    })
+    setDeleteRechargeSaving(false)
+    if (error) {
+      if (belowZero(error) && !allowNegative) {
+        if (confirm(`${belowZeroText(error)}\n\nThe centre has already spent this money. Delete anyway and leave the wallet below zero (the centre owes the difference)?`)) {
+          return confirmDeleteRecharge(true)
+        }
+        return
+      }
+      alert(rechargeRpcMissing(error)
+        ? 'This needs a database update — nothing was deleted.\n\nPlease run add_recharge_edit_delete.sql in Supabase.'
+        : 'Nothing was deleted:\n\n' + error.message)
+      return
+    }
+    setDeleteRecharge(null)
+    await fetchAll()
+    alert(`Recharge of ${rupees(data?.amount)} deleted.` +
+      (data?.was_verified ? `\nWallet: ${rupees(data.wallet_before)} → ${rupees(data.wallet_after)}.` : '') +
+      (data?.commission_undone > 0 ? `\nCommission undone: ${data.commission_undone} entr${data.commission_undone === 1 ? 'y' : 'ies'}.` : ''))
   }
 
   // Credit a payment straight to a centre's wallet and record it as a verified
@@ -672,32 +764,6 @@ export default function AccountDepartment() {
     setAddRecharge(null)
     await fetchAll()
     alert(`₹${amt.toLocaleString('en-IN')} added to ${c?.center_name || 'the centre'}.\nWallet balance is now ₹${Number(data || 0).toLocaleString('en-IN')}.`)
-  }
-
-  // Correct the date a recharge shows — the day it was raised. Only the day
-  // moves; the time is kept so the list keeps its order within that day.
-  // Nothing about money changes, so this is a plain update, not an RPC.
-  async function editRechargeDate(req) {
-    const cur = req.created_at ? new Date(req.created_at) : new Date()
-    const shown = `${String(cur.getDate()).padStart(2, '0')}/${String(cur.getMonth() + 1).padStart(2, '0')}/${cur.getFullYear()}`
-    const typed = prompt(`Correct the date for ${req.centers?.center_name || 'this recharge'}.\n\nEnter it as DD/MM/YYYY.`, shown)
-    if (typed === null) return
-    const m = String(typed).trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/)
-    if (!m) { alert('Enter the date as DD/MM/YYYY.'); return }
-    const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3])
-    const next = new Date(cur)
-    next.setFullYear(y, mo - 1, d)
-    if (next.getDate() !== d || next.getMonth() !== mo - 1) { alert('That date does not exist.'); return }
-    if (next.getTime() > Date.now()) { alert('The date cannot be in the future.'); return }
-    setEditingDate(req.id)
-    const { data, error } = await supabase.from('recharge_requests')
-      .update({ created_at: next.toISOString() }).eq('id', req.id).select('id')
-    setEditingDate(null)
-    if (error || !data?.length) {
-      alert('The date was not changed' + (error ? ':\n\n' + error.message : ' — no record was updated.'))
-      return
-    }
-    fetchAll()
   }
 
   async function handleVerifyRecharge(req) {
@@ -1800,6 +1866,127 @@ export default function AccountDepartment() {
                 )
               })()}
             </Modal>
+
+            <Modal isOpen={!!editRecharge} onClose={() => !editRechargeSaving && setEditRecharge(null)} title="Edit Recharge">
+              {editRecharge && (() => {
+                const f = editRecharge
+                const set = (k) => (e) => setEditRecharge(x => ({ ...x, [k]: e.target.value }))
+                const field = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15'
+                const label = 'text-[11px] font-semibold text-gray-500 uppercase tracking-wide'
+                const options = [...centers].sort((a, b) => String(a.center_name || '').localeCompare(String(b.center_name || '')))
+                const verified = f.r.status === 'verified'
+                return (
+                  <div className="space-y-3">
+                    {verified && (
+                      <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        This recharge is verified. Changing the centre or the amount moves the wallet with it,
+                        and undoes any commission generated on it (generate it again from the Commission Wallet).
+                      </p>
+                    )}
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>Center *</span>
+                      <select value={f.center_id} onChange={set('center_id')} className={field}>
+                        <option value="">Choose a centre</option>
+                        {options.map(c => (
+                          <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-1">
+                        <span className={label}>Amount (₹) *</span>
+                        <input type="number" min="1" value={f.amount} onChange={set('amount')} className={field} />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className={label}>Date</span>
+                        <input type="date" value={f.date} max={ymdLocal(new Date().toISOString())} onChange={set('date')} className={field} />
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex flex-col gap-1">
+                        <span className={label}>Transaction ID</span>
+                        <input value={f.payment_txn_id} onChange={set('payment_txn_id')} className={field} />
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className={label}>UTR Number</span>
+                        <input value={f.utr_number} onChange={set('utr_number')} className={field} />
+                      </label>
+                    </div>
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>Payment Date</span>
+                      <input type="date" value={f.payment_date} onChange={set('payment_date')} className={field} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>Screenshot</span>
+                      {f.screenshot_url && !f.receipt && (
+                        <span className="text-[11px] text-gray-500">
+                          <a href={f.screenshot_url} target="_blank" rel="noreferrer" className="text-[#933d18] font-semibold underline">View current</a>
+                          {' · '}choose a file below to replace it
+                        </span>
+                      )}
+                      <input type="file" accept="image/*,application/pdf"
+                        onChange={e => setEditRecharge(x => ({ ...x, receipt: e.target.files?.[0] || null }))}
+                        className="text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-[#933d18]/10 file:text-[#933d18] file:font-semibold" />
+                      {f.receipt && <span className="text-[11px] text-gray-500">{f.receipt.name}</span>}
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>Notes</span>
+                      <input value={f.notes} onChange={set('notes')} className={field} />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className={label}>Remarks</span>
+                      <input value={f.admin_remarks} onChange={set('admin_remarks')} className={field} />
+                    </label>
+                    <p className="text-[11px] text-gray-400">A UTR / transaction ID already recorded against another recharge is refused.</p>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button variant="outline" disabled={editRechargeSaving} onClick={() => setEditRecharge(null)}>Cancel</Button>
+                      <Button variant="primary" disabled={editRechargeSaving} onClick={() => saveEditRecharge()}>
+                        {editRechargeSaving ? 'Saving…' : 'Save Changes'}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })()}
+            </Modal>
+
+            <Modal isOpen={!!deleteRecharge} onClose={() => !deleteRechargeSaving && setDeleteRecharge(null)} title="Delete Recharge">
+              {deleteRecharge && (() => {
+                const r = deleteRecharge.r
+                const verified = r.status === 'verified'
+                return (
+                  <div className="space-y-3">
+                    <div className="text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 space-y-1">
+                      <p><b>{r.centers?.center_name || '—'}</b>{r.centers?.center_code ? ` (${r.centers.center_code})` : ''}</p>
+                      <p>{rupees(r.amount)} · {formatDate(r.created_at)} · {r.status || 'pending'}</p>
+                      {(r.utr_number || r.payment_txn_id) && (
+                        <p className="font-mono text-xs text-gray-500">{[r.utr_number, r.payment_txn_id].filter(Boolean).join(' · ')}</p>
+                      )}
+                    </div>
+                    {verified ? (
+                      <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        This recharge is verified: <b>{rupees(r.amount)}</b> comes back off the centre's wallet.
+                        Any commission generated on it is undone too — taken back from the super centre's wallet if it was already sent.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-gray-500">This recharge was never credited, so no wallet changes.</p>
+                    )}
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Reason</span>
+                      <input value={deleteRecharge.reason} onChange={e => setDeleteRecharge(x => ({ ...x, reason: e.target.value }))}
+                        placeholder="e.g. entered by mistake"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15" />
+                    </label>
+                    <p className="text-[11px] text-gray-400">A copy of the recharge and the reason are kept in the deleted-recharges record.</p>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <Button variant="outline" disabled={deleteRechargeSaving} onClick={() => setDeleteRecharge(null)}>Cancel</Button>
+                      <Button variant="danger" disabled={deleteRechargeSaving} onClick={() => confirmDeleteRecharge()}>
+                        <Trash2 size={14} /> {deleteRechargeSaving ? 'Deleting…' : 'Delete Recharge'}
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })()}
+            </Modal>
             <Table>
               <Thead>
                 <tr>
@@ -1839,21 +2026,18 @@ export default function AccountDepartment() {
                         {r.centers?.center_type === 'super_center' ? 'Super Center' : 'Center'}
                       </span>
                     </Td>
-                    {/* The edit sits ON the amount, not only in the Actions
-                        column: Actions is the 13th of 13 and scrolls off the
-                        right of most screens, so a pencil there is invisible
-                        to someone looking straight at the figure they want to
-                        correct. */}
+                    {/* The edit sits ON the amount and the date too, not only in
+                        the Actions column: Actions is the 13th of 13 and scrolls
+                        off the right of most screens, so a pencil there is
+                        invisible to someone looking straight at the figure they
+                        want to correct. All three open the same form. */}
                     <Td>
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span>
-                        {r.status === 'verified' && (
-                          <button onClick={() => editRechargeAmount(r)} disabled={editingAmt === r.id}
-                            title="Correct this amount — the wallet moves by the difference"
-                            className="text-gray-300 hover:text-[#933d18] disabled:opacity-40">
-                            {editingAmt === r.id ? <span className="text-[10px]">…</span> : <Pencil size={12} />}
-                          </button>
-                        )}
+                        <button onClick={() => openEditRecharge(r)} title="Edit this recharge"
+                          className="text-gray-300 hover:text-[#933d18]">
+                          <Pencil size={12} />
+                        </button>
                       </div>
                     </Td>
                     <Td className="font-mono text-sm text-gray-700">{r.payment_txn_id || '—'}</Td>
@@ -1867,32 +2051,30 @@ export default function AccountDepartment() {
                     <Td className="text-gray-400 text-xs">
                       <div className="flex items-center gap-1.5 whitespace-nowrap">
                         <span>{formatDate(r.created_at)}</span>
-                        <button onClick={() => editRechargeDate(r)} disabled={editingDate === r.id}
-                          title="Correct this date"
-                          className="text-gray-300 hover:text-[#933d18] disabled:opacity-40">
-                          {editingDate === r.id ? <span className="text-[10px]">…</span> : <Pencil size={12} />}
+                        <button onClick={() => openEditRecharge(r)} title="Edit this recharge"
+                          className="text-gray-300 hover:text-[#933d18]">
+                          <Pencil size={12} />
                         </button>
                       </div>
                     </Td>
                     <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
                     <Td className="text-gray-500 text-xs max-w-[160px] truncate" title={r.admin_remarks || ''}>{r.admin_remarks || '—'}</Td>
                     <Td>
-                      {(r.status === 'pending' || r.status === 'hold') ? (
-                        <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false); setRechargeRemark(r.admin_remarks || '') }}>
-                          <CheckCircle size={13} /> {r.status === 'hold' ? 'Re-Review' : 'Review'}
-                        </Button>
-                      ) : r.status === 'verified' ? (
-                        // Correcting a verified amount has to move the wallet
-                        // with it, so it goes through the RPC rather than an
-                        // update here — see editRechargeAmount.
-                        <button onClick={() => editRechargeAmount(r)} disabled={editingAmt === r.id}
-                          title="Correct the amount — the wallet moves by the difference"
-                          className="text-xs font-semibold text-[#933d18] hover:underline disabled:opacity-40">
-                          {editingAmt === r.id ? '…' : 'Edit ₹'}
+                      <div className="flex items-center gap-2 whitespace-nowrap">
+                        {(r.status === 'pending' || r.status === 'hold') && (
+                          <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false); setRechargeRemark(r.admin_remarks || '') }}>
+                            <CheckCircle size={13} /> {r.status === 'hold' ? 'Re-Review' : 'Review'}
+                          </Button>
+                        )}
+                        <button onClick={() => openEditRecharge(r)} title="Edit every field of this recharge"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
+                          <Pencil size={12} /> Edit
                         </button>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
+                        <button onClick={() => setDeleteRecharge({ r, reason: '' })} title="Delete this recharge"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline">
+                          <Trash2 size={12} /> Delete
+                        </button>
+                      </div>
                     </Td>
                   </Tr>
                 ))}
