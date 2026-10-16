@@ -1668,8 +1668,8 @@ function certificateSheet(s, body, { qr, qrAt = [255.3, 15.2] } = {}) {
     ${certText(43.2, 19.3, s.registration_no || '', { font: CERT_FONT.arial, size: 15, bold: true, italic: true })}
     ${qr ? certQr(qr.replace('{issued}', issued), qrAt[0], qrAt[1], CERT_QR_SIZE) : ''}
     ${body}
-    ${certText(15.6, y(184.3), 'Date of Issue:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
-    ${certText(49.5, y(185.3), issued, { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
+    ${certText(15.6, y(184.3), 'Date of Issue:', { font: CERT_FONT.arial, size: 13, bold: true, italic: true })}
+    ${certText(47.5, y(185.3), issued, { font: CERT_FONT.arial, size: 13, bold: true, italic: true })}
     ${certText(15.6, y(190.9), 'Place:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
     ${certText(34.9, y(190.9), 'Sikkim', { font: CERT_FONT.script, size: 16 })}
     <image href="${CONTROLLER_SIGNATURE_URL}" x="220.3" y="${y(173.2)}" width="32.4" height="14.8" preserveAspectRatio="xMidYMid meet"/>
@@ -1759,7 +1759,7 @@ export function provisionalCertificateSvg(s, opts = {}) {
   const qr = [s.student_name, s.registration_no, prog, opts.passingYear, 'Provisional', opts.certNo]
     .filter(Boolean).join(' | ')
   // In the blank square at the top right of the stationery.
-  return certificateSheet(s, body, { qr, qrAt: [246.0, 17.2] })
+  return certificateSheet(s, body, { qr, qrAt: [256.0, 17.2] })
 }
 export function generateProvisionalCertificate(s, opts = {}) {
   openCertificate(`Provisional Certificate — ${s.student_name || ''}`, provisionalCertificateSvg(s, opts))
