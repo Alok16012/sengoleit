@@ -1652,21 +1652,28 @@ function certQr(text, x, y, size) {
   return qrSvg(text).replace('<svg ', `<svg x="${x}" y="${y}" width="${size}" height="${size}" `)
 }
 
+// The same 25.6 mm the Statement of Grades prints its QR at.
+const CERT_QR_SIZE = 25.6
+// Date and place of issue and the signature sit this much above the setup's
+// own positions, clear of the foot of the stationery.
+const CERT_FOOT_UP = 8
+
 // The parts every one of the three shares: registration number, date and
-// place of issue, and the signature.
-function certificateSheet(s, body, { qr } = {}) {
+// place of issue, and the signature. `qrAt` is the QR's top-left corner.
+function certificateSheet(s, body, { qr, qrAt = [255.3, 15.2] } = {}) {
   const issued = ddmmyyyyDots()
+  const y = (n) => +(n - CERT_FOOT_UP).toFixed(1)
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" preserveAspectRatio="xMidYMid meet">
     ${certText(14.6, 18.4, 'Regn No.:', { font: CERT_FONT.script, size: 18 })}
     ${certText(43.2, 19.3, s.registration_no || '', { font: CERT_FONT.arial, size: 15, bold: true, italic: true })}
-    ${qr ? certQr(qr.replace('{issued}', issued), 255.3, 15.2, 25.6) : ''}
+    ${qr ? certQr(qr.replace('{issued}', issued), qrAt[0], qrAt[1], CERT_QR_SIZE) : ''}
     ${body}
-    ${certText(15.6, 184.3, 'Date of Issue:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
-    ${certText(49.5, 185.3, issued, { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
-    ${certText(15.6, 190.9, 'Place:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
-    ${certText(34.9, 190.9, 'Sikkim', { font: CERT_FONT.script, size: 16 })}
-    <image href="${CONTROLLER_SIGNATURE_URL}" x="220.3" y="173.2" width="32.4" height="14.8" preserveAspectRatio="xMidYMid meet"/>
-    ${certText(202.2, 192.3, 'Registrar / Controller of Examination', { font: CERT_FONT.calibri, size: 14, bold: true })}
+    ${certText(15.6, y(184.3), 'Date of Issue:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
+    ${certText(49.5, y(185.3), issued, { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
+    ${certText(15.6, y(190.9), 'Place:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
+    ${certText(34.9, y(190.9), 'Sikkim', { font: CERT_FONT.script, size: 16 })}
+    <image href="${CONTROLLER_SIGNATURE_URL}" x="220.3" y="${y(173.2)}" width="32.4" height="14.8" preserveAspectRatio="xMidYMid meet"/>
+    ${certText(202.2, y(192.3), 'Registrar / Controller of Examination', { font: CERT_FONT.calibri, size: 14, bold: true })}
   </svg>`
 }
 
@@ -1733,7 +1740,10 @@ function passedLines(s, year, progBaseline) {
 }
 
 // ---- Provisional Certificate -------------------------------------------
-// opts: { passingYear, conduct }
+// opts: { passingYear, conduct, certNo }
+// certNo is the certificate's own random number (issue_certificate_no()),
+// the same on every reprint. The QR in the top-right corner carries it with
+// the student's name and enrollment number.
 // The *CertificateSvg builders return the sheet alone, so the Print tab can
 // put several documents into one print job; the generate* functions open one
 // on its own.
@@ -1743,7 +1753,13 @@ export function provisionalCertificateSvg(s, opts = {}) {
     ${certLabel(22.7, 150.7, 'His / Her conduct was')}
     ${certRule(76.5, 171.7, 151.1)}
     ${certValue(93.7, 149.4, opts.conduct || 'Good', 77)}`
-  return certificateSheet(s, body)
+  const qr = [
+    `Name of Student: ${s.student_name || ''}`,
+    `Enrollment No.: ${s.enrollment_no || ''}`,
+    opts.certNo ? `Certificate ID: ${opts.certNo}` : '',
+  ].filter(Boolean).join('\n')
+  // Centred in the blank square at the top right of the stationery.
+  return certificateSheet(s, body, { qr, qrAt: [238.0, 17.2] })
 }
 export function generateProvisionalCertificate(s, opts = {}) {
   openCertificate(`Provisional Certificate — ${s.student_name || ''}`, provisionalCertificateSvg(s, opts))

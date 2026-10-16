@@ -48,6 +48,20 @@ function finalsSummary(results = []) {
   }
 }
 
+// The certificate's random number, issued the first time it is asked for and
+// the same on every reprint after. A certificate is not printed without one:
+// a number that was never stored could not be checked later.
+async function certificateNo(studentId, docType) {
+  const { data, error } = await supabase.rpc('issue_certificate_no', { p_student: studentId, p_doc_type: docType })
+  if (error) {
+    throw new Error(/PGRST20[25]|42883|issue_certificate_no|schema cache/i.test(`${error.code || ''} ${error.message || ''}`)
+      ? 'Certificate ID needs a database update — run add_certificate_numbers.sql in Supabase → SQL Editor.'
+      : `Could not issue the certificate ID: ${error.message}`)
+  }
+  if (!data) throw new Error('Could not issue the certificate ID.')
+  return String(data)
+}
+
 // One document's sheet: { kind: 'sog' | 'cert', html }.
 async function buildSheet(entry, cache) {
   const { student: s, doc, results } = entry
@@ -76,7 +90,8 @@ async function buildSheet(entry, cache) {
     }
   }
   const { passingYear, division } = finalsSummary(results)
-  const svg = doc.doc_type === DOC.PROVISIONAL ? provisionalCertificateSvg(full, { passingYear, division })
+  const certNo = doc.doc_type === DOC.PROVISIONAL ? await certificateNo(s.id, doc.doc_type) : ''
+  const svg = doc.doc_type === DOC.PROVISIONAL ? provisionalCertificateSvg(full, { passingYear, division, certNo })
     : doc.doc_type === DOC.MIGRATION ? migrationCertificateSvg(full, { passingYear })
       : doc.doc_type === DOC.DEGREE ? degreeCertificateSvg(full, { passingYear, division })
         : null
