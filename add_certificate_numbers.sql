@@ -29,9 +29,9 @@ ALTER TABLE certificate_numbers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS certificate_numbers_admin_read ON certificate_numbers;
 CREATE POLICY certificate_numbers_admin_read ON certificate_numbers FOR SELECT USING (is_admin());
 
--- A 10-digit random number, never starting with 0. If it is already taken
--- (by anyone), another is drawn; two calls for the same certificate at once
--- both end up with the one that was stored.
+-- A 5-digit random number, never starting with 0 (10000–99999). If it is
+-- already taken (by anyone), another is drawn; two calls for the same
+-- certificate at once both end up with the one that was stored.
 CREATE OR REPLACE FUNCTION issue_certificate_no(p_student uuid, p_doc_type text)
 RETURNS text
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
@@ -50,13 +50,13 @@ BEGIN
     RAISE EXCEPTION 'No such student.';
   END IF;
 
-  FOR i IN 1..20 LOOP
+  FOR i IN 1..50 LOOP
     SELECT c.cert_no INTO v_no FROM certificate_numbers c
      WHERE c.student_id = p_student AND c.doc_type = v_type;
     IF v_no IS NOT NULL THEN RETURN v_no; END IF;
 
     INSERT INTO certificate_numbers (student_id, doc_type, cert_no, issued_by)
-    VALUES (p_student, v_type, (1000000000 + floor(random() * 9000000000))::bigint::text, v_by)
+    VALUES (p_student, v_type, (10000 + floor(random() * 90000))::int::text, v_by)
     ON CONFLICT DO NOTHING;
   END LOOP;
   RAISE EXCEPTION 'Could not issue a certificate number — please try again.';

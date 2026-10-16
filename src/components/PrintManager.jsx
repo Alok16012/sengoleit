@@ -5,7 +5,7 @@ import Button from './ui/Button'
 import { Printer, FileText, FileSpreadsheet, History, RotateCcw, Eye, X, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { exportCsv, exportPdf } from '../utils/exportTable'
 import {
-  DOC, DOC_LABEL, docKey, docTitle, printCountLabel, studentPrintPlan, printedDocsOf,
+  DOC, DOC_LABEL, DOC_SHORT, FINAL_DOCS, docKey, docTitle, printCountLabel, studentPrintPlan, printedDocsOf,
 } from '../utils/printDocs'
 import { openPrintJobWindow, fillPrintJob, printConsolidated } from '../utils/printJob'
 
@@ -28,6 +28,11 @@ const TABS = [
   { key: 'partial',   label: 'Partially Printed', on: 'bg-blue-500 text-white',    off: 'bg-blue-50 text-blue-700' },
   { key: 'completed', label: 'Completed',         on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
 ]
+// The document types a bulk print can be narrowed to — e.g. only the
+// Provisional for every selected student.
+const BULK_TYPES = [DOC.MARKSHEET, ...FINAL_DOCS]
+const BULK_TYPE_LABEL = { ...DOC_SHORT, MARKSHEET: 'Marksheets' }
+
 const STATUS_TEXT = { pending: 'Pending', partial: 'Partially Printed', completed: 'Completed', none: '—' }
 const STATUS_BADGE = {
   pending: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -67,6 +72,9 @@ export default function PrintManager({ students, results, setResults, filterActi
   const [loadError, setLoadError] = useState('')
   const [tab, setTab] = useState('pending')
   const [selected, setSelected] = useState(() => new Set())
+  // Which documents Preview Selected / Print All Pending take; all of them
+  // until narrowed.
+  const [bulkTypes, setBulkTypes] = useState(() => new Set(BULK_TYPES))
   const [preview, setPreview] = useState(null)       // { title, entries }
   const [historyFor, setHistoryFor] = useState(null) // student
   const [history, setHistory] = useState(null)       // print_history rows, null while loading
@@ -133,7 +141,12 @@ export default function PrintManager({ students, results, setResults, filterActi
   // students that are not on screen.
   const switchTab = (key) => { setTab(key); setSelected(new Set()) }
   const selectedHere = list.filter(s => selected.has(s.id))
-  const selectedPending = selectedHere.reduce((a, s) => a + plans[s.id].pending.length, 0)
+  const selectedPending = selectedHere.reduce((a, s) => a + plans[s.id].pending.filter(d => bulkTypes.has(d.doc_type)).length, 0)
+  const toggleType = (t) => setBulkTypes(prev => {
+    const next = new Set(prev)
+    if (next.has(t)) next.delete(t); else next.add(t)
+    return next
+  })
   const allChecked = list.length > 0 && selectedHere.length === list.length
   const toggle = (id) => setSelected(prev => {
     const next = new Set(prev)
@@ -249,10 +262,13 @@ export default function PrintManager({ students, results, setResults, filterActi
     runJob([entryOf(s, doc)])
   }
 
-  const pendingEntries = (ss) => ss.flatMap(s => plans[s.id].pending.map(d => entryOf(s, d)))
+  // A student's own Print button takes everything pending; the bulk actions
+  // only the document types ticked in the bulk bar.
+  const pendingEntries = (ss, types = null) => ss.flatMap(s => plans[s.id].pending
+    .filter(d => !types || types.has(d.doc_type)).map(d => entryOf(s, d)))
 
-  function openPreview(ss, title) {
-    const entries = pendingEntries(ss)
+  function openPreview(ss, title, types = null) {
+    const entries = pendingEntries(ss, types)
     if (!entries.length) { setNotice({ tone: 'warn', text: 'Nothing pending to print for the selection.' }); return }
     setPreview({ title, entries })
   }
@@ -348,16 +364,29 @@ export default function PrintManager({ students, results, setResults, filterActi
           <span className="mx-2 text-gray-300">|</span>
           Pending Documents: <b className="text-gray-800">{selectedPending}</b>
         </span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-semibold text-gray-500 mr-0.5">Documents:</span>
+          {BULK_TYPES.map(t => {
+            const on = bulkTypes.has(t)
+            return (
+              <label key={t} className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border cursor-pointer select-none transition-colors ${
+                on ? 'bg-[#933d18]/10 border-[#933d18]/30 text-[#933d18]' : 'bg-white border-gray-200 text-gray-400'}`}>
+                <input type="checkbox" className="w-3.5 h-3.5 accent-[#933d18]" checked={on} onChange={() => toggleType(t)} />
+                {BULK_TYPE_LABEL[t]}
+              </label>
+            )
+          })}
+        </div>
         <div className="flex gap-2 ml-auto">
           {selectedHere.length > 0 && (
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
           )}
           <Button size="sm" variant="outline" disabled={!selectedPending}
-            onClick={() => openPreview(selectedHere, `Print Preview — ${selectedHere.length} student${selectedHere.length === 1 ? '' : 's'}`)}>
+            onClick={() => openPreview(selectedHere, `Print Preview — ${selectedHere.length} student${selectedHere.length === 1 ? '' : 's'}`, bulkTypes)}>
             <Eye size={13} /> Preview Selected
           </Button>
           <Button size="sm" disabled={!selectedPending}
-            onClick={() => runJob(pendingEntries(selectedHere), { autoPrint: 'print' })}>
+            onClick={() => runJob(pendingEntries(selectedHere, bulkTypes), { autoPrint: 'print' })}>
             <Printer size={13} /> Print All Pending
           </Button>
         </div>
