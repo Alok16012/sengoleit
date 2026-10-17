@@ -232,6 +232,13 @@ export default function CourierDetails() {
     setRows(rs => rs.filter(x => x.id !== r.id))
   }
 
+  // Students of a courier matching the search box (name / enrollment no).
+  const studentHits = r => {
+    const t = q.trim().toLowerCase()
+    if (!t) return []
+    return (r.students || []).filter(st => `${st.name || ''} ${st.enrollment_no || ''}`.toLowerCase().includes(t))
+  }
+
   const docText = r => (r.document_types || []).map(t => t === 'Other' && r.other_document ? `Other: ${r.other_document}` : t).join(', ')
 
   const filtered = rows.filter(r => {
@@ -302,17 +309,27 @@ export default function CourierDetails() {
                 {(r.students || []).length ? (() => {
                   // One student: show them. Several: a count and the semesters,
                   // with the full list in a popup — twelve names made one row a page tall.
-                  const sems = [...new Set(r.students.map(st => semText(st.semesters)))]
+                  // A search for a name / enrollment no shows the students it
+                  // matched, not just the courier's head-count.
+                  const hits = studentHits(r)
+                  const shown = hits.length ? hits : r.students
+                  const sems = [...new Set(shown.map(st => semText(st.semesters)))]
                   return (
                     <div className="flex items-center gap-2">
-                      <div>
-                        {r.students.length === 1 ? (
-                          <>
-                            <span className="font-semibold text-gray-900">{r.students[0].name}</span>
-                            {r.students[0].enrollment_no && <span className="text-xs text-gray-500"> ({r.students[0].enrollment_no})</span>}
-                          </>
-                        ) : <span className="font-semibold text-gray-900">{r.students.length} Students</span>}
-                        <div className="text-xs text-[#933d18]">{sems.length === 1 ? sems[0] : 'Mixed semesters'}</div>
+                      <div className="space-y-1">
+                        {shown.length <= 3 ? shown.map(st => (
+                          <div key={st.id}>
+                            <span className={`font-semibold ${hits.length ? 'text-[#933d18]' : 'text-gray-900'}`}>{st.name}</span>
+                            {st.enrollment_no && <span className="text-xs text-gray-500"> ({st.enrollment_no})</span>}
+                            {shown.length > 1 && <div className="text-xs text-[#933d18]">{semText(st.semesters)}</div>}
+                          </div>
+                        )) : <span className="font-semibold text-gray-900">{shown.length} Students</span>}
+                        {(shown.length === 1 || shown.length > 3) && (
+                          <div className="text-xs text-[#933d18]">{sems.length === 1 ? sems[0] : 'Mixed semesters'}</div>
+                        )}
+                        {hits.length > 0 && hits.length < r.students.length && (
+                          <div className="text-[11px] text-gray-400">of {r.students.length} students in this courier</div>
+                        )}
                       </div>
                       <button onClick={() => setViewing(r)}
                         className="ml-auto px-2 py-1 rounded-md text-xs font-semibold text-[#933d18] border border-[#933d18]/30 hover:bg-[#933d18]/5 whitespace-nowrap">
@@ -499,7 +516,7 @@ export default function CourierDetails() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {(viewing.students || []).map((st, k) => (
-                  <tr key={st.id}>
+                  <tr key={st.id} className={studentHits(viewing).some(h => h.id === st.id) ? 'bg-amber-50' : ''}>
                     <td className="px-3 py-2 text-gray-400">{k + 1}</td>
                     <td className="px-3 py-2 font-semibold text-gray-900">{st.name}</td>
                     <td className="px-3 py-2 font-mono text-xs">{st.enrollment_no || '—'}</td>
