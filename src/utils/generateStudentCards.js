@@ -1765,7 +1765,7 @@ export function provisionalCertificateSvg(s, opts = {}) {
     ${certValue(93.7, 149.4, opts.conduct || 'Good', 77)}`
   // The Degree's one-line form, with the certificate number where the Degree
   // has its date of issue.
-  const prog = s.programs?.program_name || s.program_name || ''
+  const prog = fullProgrammeName(s.programs?.program_name || s.program_name || '')
   const qr = [s.student_name, s.registration_no, prog, opts.passingYear, 'Provisional', opts.certNo]
     .filter(Boolean).join(' | ')
   // In the blank square at the top right of the stationery.
@@ -1776,9 +1776,9 @@ export function generateProvisionalCertificate(s, opts = {}) {
 }
 
 // ---- Degree Certificate -------------------------------------------------
-// opts: { passingYear }
+// opts: { passingYear, issueDate }
 export function degreeCertificateSvg(s, opts = {}) {
-  const prog = s.programs?.program_name || s.program_name || ''
+  const prog = fullProgrammeName(s.programs?.program_name || s.program_name || '')
   const body = `
     ${passedLines(s, opts.passingYear, 123.0)}
     ${certLabel(22.7, 152.3, 'He/She successfully completed all requirements and criteria for the said certification through examination.')}
@@ -1786,14 +1786,14 @@ export function degreeCertificateSvg(s, opts = {}) {
   // One compact line, kept short so the code stays open and scans at 25mm.
   const qr = [s.student_name, s.registration_no, prog, opts.passingYear, 'Degree', '{issued}']
     .filter(Boolean).join(' | ')
-  return certificateSheet(s, body, { qr })
+  return certificateSheet(s, body, { qr, issueDate: opts.issueDate })
 }
 export function generateDegreeCertificate(s, opts = {}) {
   openCertificate(`Degree Certificate — ${s.student_name || ''}`, degreeCertificateSvg(s, opts))
 }
 
 // ---- Migration Certificate ---------------------------------------------
-// opts: { passingYear }
+// opts: { passingYear, issueDate }
 export function migrationCertificateSvg(s, opts = {}) {
   const body = `
     ${certLabel(21.1, 96.0, 'Shri/Smt/Km')}
@@ -1811,7 +1811,7 @@ export function migrationCertificateSvg(s, opts = {}) {
     ${certLabel(250.1, 124.0, 'is informed')}
     ${certLabel(21.1, 139.1, 'That this University has no Objection of his/her Continuing studies at another University.')}
     ${certLabel(21.1, 162.1, 'He/She is permitted to migrate from this university on his/her request.')}`
-  return certificateSheet(s, body)
+  return certificateSheet(s, body, { issueDate: opts.issueDate })
 }
 export function generateMigrationCertificate(s, opts = {}) {
   openCertificate(`Migration Certificate — ${s.student_name || ''}`, migrationCertificateSvg(s, opts))
