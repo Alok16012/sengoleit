@@ -56,6 +56,8 @@ export default function CourierDetails() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerQ, setPickerQ] = useState('')
   const [draft, setDraft] = useState({})
+  // Courier whose student list is open in the "View" popup.
+  const [viewing, setViewing] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -296,18 +298,29 @@ export default function CourierDetails() {
               <Td className="text-sm">{centerById[r.center_id]?.center_name || '—'}</Td>
               <Td className="text-sm">{docText(r) || '—'}</Td>
               <Td className="text-sm whitespace-nowrap">{formatDate(r.courier_date)}</Td>
-              <Td className="text-sm min-w-[220px]">
-                {(r.students || []).length ? (
-                  <div className="space-y-1">
-                    {r.students.map(st => (
-                      <div key={st.id}>
-                        <span className="font-semibold text-gray-900">{st.name}</span>
-                        {st.enrollment_no && <span className="text-xs text-gray-500"> ({st.enrollment_no})</span>}
-                        <div className="text-xs text-[#933d18]">{semText(st.semesters)}</div>
+              <Td className="text-sm min-w-[200px]">
+                {(r.students || []).length ? (() => {
+                  // One student: show them. Several: a count and the semesters,
+                  // with the full list in a popup — twelve names made one row a page tall.
+                  const sems = [...new Set(r.students.map(st => semText(st.semesters)))]
+                  return (
+                    <div className="flex items-center gap-2">
+                      <div>
+                        {r.students.length === 1 ? (
+                          <>
+                            <span className="font-semibold text-gray-900">{r.students[0].name}</span>
+                            {r.students[0].enrollment_no && <span className="text-xs text-gray-500"> ({r.students[0].enrollment_no})</span>}
+                          </>
+                        ) : <span className="font-semibold text-gray-900">{r.students.length} Students</span>}
+                        <div className="text-xs text-[#933d18]">{sems.length === 1 ? sems[0] : 'Mixed semesters'}</div>
                       </div>
-                    ))}
-                  </div>
-                ) : (r.student_name || '—')}
+                      <button onClick={() => setViewing(r)}
+                        className="ml-auto px-2 py-1 rounded-md text-xs font-semibold text-[#933d18] border border-[#933d18]/30 hover:bg-[#933d18]/5 whitespace-nowrap">
+                        View
+                      </button>
+                    </div>
+                  )
+                })() : (r.student_name || '—')}
               </Td>
               <Td className="text-sm font-mono">{r.tracking_no || '—'}</Td>
               <Td className="text-sm max-w-[220px] whitespace-pre-line">{r.sent_to_address || '—'}</Td>
@@ -472,6 +485,32 @@ export default function CourierDetails() {
           <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : editing ? 'Update' : 'Save'}</Button>
         </div>
+      </Modal>
+
+      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} size="xl"
+        title={viewing ? `Students — ${centerById[viewing.center_id]?.center_name || ''}${viewing.tracking_no ? ` · Tracking ${viewing.tracking_no}` : ''}` : ''}>
+        {viewing && (
+          <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider">
+                <tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Student Name</th>
+                  <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Programme</th>
+                  <th className="text-left px-3 py-2">Semesters Sent</th></tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {(viewing.students || []).map((st, k) => (
+                  <tr key={st.id}>
+                    <td className="px-3 py-2 text-gray-400">{k + 1}</td>
+                    <td className="px-3 py-2 font-semibold text-gray-900">{st.name}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{st.enrollment_no || '—'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-600">{st.program || '—'}</td>
+                    <td className="px-3 py-2 text-xs font-semibold text-[#933d18]">{semText(st.semesters)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Modal>
 
       <Modal isOpen={pickerOpen} onClose={() => setPickerOpen(false)} size="xl"

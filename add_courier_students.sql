@@ -7,4 +7,9 @@
 
 ALTER TABLE courier_details ADD COLUMN IF NOT EXISTS students jsonb NOT NULL DEFAULT '[]'::jsonb;
 
-SELECT 'courier_details.students ready' AS result;
+-- Make the API see the new column straight away (otherwise saving says
+-- "Could not find the 'students' column ... in the schema cache").
+NOTIFY pgrst, 'reload schema';
+
+SELECT column_name FROM information_schema.columns
+ WHERE table_name = 'courier_details' AND column_name = 'students';

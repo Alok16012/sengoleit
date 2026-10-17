@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award, FileSpreadsheet, FolderDown } from 'lucide-react'
+import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award, FileSpreadsheet, FolderDown, Truck } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
@@ -16,6 +16,7 @@ import { matchesSearch } from '../../utils/studentSearch'
 import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
+import { fetchCourierSems } from '../../utils/courierSems'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
 import AdmitCardListModal from '../../components/AdmitCardListModal'
 
@@ -215,6 +216,8 @@ export default function Students() {
   // icon open a picker instead of only ever downloading the latest semester.
   const [admitCards, setAdmitCards] = useState({})
   const [admitListStudent, setAdmitListStudent] = useState(null)
+  // studentId -> semesters couriered (Courier Details); null = migration not run
+  const [courier, setCourier] = useState(null)
   // Registration Certificate is issued per YEAR — a picker gates each year on fee.
   const [regCardStudent, setRegCardStudent] = useState(null)
   const [downloading, setDownloading] = useState(null)
@@ -355,6 +358,7 @@ export default function Students() {
     // null = add_semester_admit_cards.sql not run yet — admit_card_released_at
     // (the old single-flag) is the fallback for whether the icon shows at all.
     setAdmitCards(await admitCardsForMany((data || []).map(s => s.id)))
+    setCourier(await fetchCourierSems())
     setLoading(false)
   }
 
@@ -395,6 +399,7 @@ export default function Students() {
     { header: 'Entered On', value: s => (s.created_at ? formatDate(s.created_at) : '') },
     { header: 'Form Date', value: s => (s.date_of_submission ? formatDate(s.date_of_submission) : '') },
     { header: 'Status', value: s => s.status || '' },
+    { header: 'Courier', value: s => (courier?.[s.id]?.sems.length ? `Sem ${courier[s.id].sems.join(', ')}` : '') },
     { header: 'Re-Registration', value: s => (reReg?.[s.id] ? `${reReg[s.id].from_term} → ${reReg[s.id].to_term} · ${reReg[s.id].status}` : '') },
   ]
   const exportMeta = () => {
@@ -556,12 +561,13 @@ export default function Students() {
               <Th>Entry</Th>
               <Th>Entered On</Th>
               <Th>Status</Th>
+              <Th>Courier</Th>
               <Th>Actions</Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={11} className="text-center text-gray-400 py-12">No students found</Td></Tr>
+              <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No students found</Td></Tr>
             ) : filtered.map((s, i) => (
               <Tr key={s.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -600,6 +606,16 @@ export default function Students() {
                       </span>
                     )
                   })() : <Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge>}
+                </Td>
+                <Td>
+                  {/* Semesters whose documents have gone by courier (Courier Details). */}
+                  {courier?.[s.id]?.sems.length ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap bg-sky-50 text-sky-700"
+                      title={courier[s.id].couriers.map(c =>
+                        `${c.date ? formatDate(c.date) : '—'} · Sem ${c.sems.join(', ')}${c.docs ? ` · ${c.docs}` : ''}${c.tracking_no ? ` · ${c.tracking_no}` : ''}`).join('\n')}>
+                      <Truck size={11} /> Sem {courier[s.id].sems.join(', ')}
+                    </span>
+                  ) : <span className="text-gray-300 text-xs">—</span>}
                 </Td>
                 <Td>
                   <div className="flex gap-1">
