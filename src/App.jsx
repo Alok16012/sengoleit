@@ -79,6 +79,7 @@ import StudentHallTicket from './pages/student/StudentHallTicket'
 import StudentSyllabus from './pages/student/StudentSyllabus'
 import StudentEBooks from './pages/student/StudentEBooks'
 import EBooks from './pages/admin/EBooks'
+import CourierDetails from './pages/admin/CourierDetails'
 import DocumentSummary from './pages/shared/DocumentSummary'
 import SyllabusReport from './pages/shared/SyllabusReport'
 import CenterCredentials from './pages/center/CenterCredentials'
@@ -180,6 +181,7 @@ export default function App() {
             <Route path="/admin/exam-section" element={<ExamSection />} />
             <Route path="/admin/syllabus" element={<Syllabus />} />
             <Route path="/admin/ebooks" element={<EBooks />} />
+            <Route path="/admin/courier-details" element={<CourierDetails />} />
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />
