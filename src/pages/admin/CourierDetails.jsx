@@ -6,22 +6,35 @@ import Modal from '../../components/ui/Modal'
 import DateInput from '../../components/ui/DateInput'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import { SearchableSelect } from '../../components/ui/SearchSelect'
-import { Truck, Plus, Pencil, Trash2, Search, Paperclip, X } from 'lucide-react'
+import { Truck, Plus, Pencil, Trash2, Search, Paperclip, X, Users } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
+import { fetchAllRows } from '../../utils/fetchAllRows'
+import { currentSemOf } from '../../utils/reRegistration'
 
 // Admin courier log — every document courier sent to a super centre / centre,
 // with tracking number, address, sender and any number of receipt scans.
 // Receipts live in the `documents` bucket under courier-receipts/.
-// Needs add_courier_details.sql.
+// Needs add_courier_details.sql and add_courier_students.sql.
+//
+// The students a courier carried are ticked in a popup, each with the
+// semesters whose documents went — so the log answers "which semesters of
+// this student's documents have been sent".
 
 const DOC_TYPES = ['Marksheet', 'Provisional', 'Migration', 'Degree', 'Other']
+
+// Semesters on offer for a student: the course length, or (if the course has
+// none recorded) up to the term the student is in.
+const semCountOf = st => Number(st?.programs?.duration) || currentSemOf(st) || 1
+
+// "Sem 1, 2, 3"
+const semText = sems => (sems || []).length ? `Sem ${[...sems].sort((a, b) => a - b).join(', ')}` : ''
 
 const today = () => new Date().toISOString().slice(0, 10)
 
 const emptyForm = () => ({
   super_center_id: '', center_id: '', document_types: [], other_document: '',
   courier_date: today(), student_name: '', tracking_no: '', sent_to_address: '',
-  sent_from: '', sender_by: '', receipts: [],
+  sent_from: '', sender_by: '', receipts: [], students: [],
 })
 
 export default function CourierDetails() {
@@ -39,6 +52,10 @@ export default function CourierDetails() {
   const [newFiles, setNewFiles] = useState([])
   const [studentsByCenter, setStudentsByCenter] = useState({})
   const [busy, setBusy] = useState(false)
+  // Student picker popup — draft is { studentId: [semesters] } until Done.
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQ, setPickerQ] = useState('')
+  const [draft, setDraft] = useState({})
 
   useEffect(() => { load() }, [])
 
@@ -63,14 +80,16 @@ export default function CourierDetails() {
   const centersUnder = (superId) => centers.filter(c =>
     !superId || superId === 'all' ? true : (c.super_center_id === superId || c.id === superId))
 
-  // Student names of the chosen centre, offered as suggestions while typing.
+  // Students of the chosen centre, for the picker (cached per centre).
   useEffect(() => {
     const id = form.center_id
     if (!open || !id || studentsByCenter[id]) return
-    supabase.from('students').select('student_name').eq('center_id', id).order('student_name').limit(2000)
-      .then(({ data }) => setStudentsByCenter(m => ({ ...m, [id]: [...new Set((data || []).map(s => s.student_name).filter(Boolean))] })))
+    fetchAllRows(() => supabase.from('students')
+      .select('id, student_name, enrollment_no, registration_no, semester_year, programs(program_name, duration, semester_year)')
+      .eq('center_id', id).order('student_name').order('id'))
+      .then(({ data }) => setStudentsByCenter(m => ({ ...m, [id]: data || [] })))
   }, [open, form.center_id, studentsByCenter])
-  const students = studentsByCenter[form.center_id] || []
+  const students = studentsByCenter[form.center_id]
 
   function openNew() {
     setEditing(null); setForm(emptyForm()); setNewFiles([]); setOpen(true)
@@ -85,6 +104,7 @@ export default function CourierDetails() {
       tracking_no: r.tracking_no || '', sent_to_address: r.sent_to_address || '',
       sent_from: r.sent_from || '', sender_by: r.sender_by || '',
       receipts: Array.isArray(r.receipts) ? r.receipts : [],
+      students: Array.isArray(r.students) ? r.students : [],
     })
     setNewFiles([])
     setOpen(true)
@@ -95,7 +115,7 @@ export default function CourierDetails() {
   function pickSuper(id) {
     setForm(f => {
       const keep = f.center_id && (centerById[f.center_id]?.super_center_id === id || f.center_id === id)
-      return { ...f, super_center_id: id, center_id: keep ? f.center_id : '' }
+      return keep ? { ...f, super_center_id: id } : { ...f, super_center_id: id, center_id: '', students: [] }
     })
   }
 
@@ -103,6 +123,7 @@ export default function CourierDetails() {
     const c = centerById[id]
     setForm(f => ({
       ...f, center_id: id,
+      students: id === f.center_id ? f.students : [],
       super_center_id: f.super_center_id || (c?.center_type === 'super_center' ? c.id : c?.super_center_id) || '',
     }))
   }
@@ -118,6 +139,47 @@ export default function CourierDetails() {
     const files = Array.from(e.target.files || [])
     setNewFiles(prev => [...prev, ...files])
     e.target.value = ''
+  }
+
+  function openPicker() {
+    if (!form.center_id) return alert('Choose a center first.')
+    setDraft(Object.fromEntries(form.students.map(st => [st.id, st.semesters || []])))
+    setPickerQ('')
+    setPickerOpen(true)
+  }
+
+  function toggleStudent(st) {
+    setDraft(d => {
+      if (d[st.id]) { const n = { ...d }; delete n[st.id]; return n }
+      return { ...d, [st.id]: [Math.min(currentSemOf(st), semCountOf(st))] }
+    })
+  }
+
+  function toggleSem(st, n) {
+    setDraft(d => {
+      const cur = d[st.id] || []
+      return { ...d, [st.id]: cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n].sort((a, b) => a - b) }
+    })
+  }
+
+  function allSems(st) {
+    const all = Array.from({ length: semCountOf(st) }, (_, k) => k + 1)
+    setDraft(d => ({ ...d, [st.id]: (d[st.id] || []).length === all.length ? [] : all }))
+  }
+
+  function confirmPicker() {
+    const list = students || []
+    const empty = list.filter(st => draft[st.id] && draft[st.id].length === 0)
+    if (empty.length) return alert(`Tick at least one semester for: ${empty.map(st => st.student_name).join(', ')}`)
+    // Keep ticked students in the order they appear; ones no longer in the
+    // centre's list (e.g. moved) stay as they were saved.
+    const picked = list.filter(st => draft[st.id]).map(st => ({
+      id: st.id, name: st.student_name, enrollment_no: st.enrollment_no || st.registration_no || '',
+      program: st.programs?.program_name || '', semesters: draft[st.id],
+    }))
+    const kept = form.students.filter(st => draft[st.id] && !list.some(x => x.id === st.id))
+    setForm(f => ({ ...f, students: [...picked, ...kept] }))
+    setPickerOpen(false)
   }
 
   async function handleSave() {
@@ -142,7 +204,8 @@ export default function CourierDetails() {
       document_types: form.document_types,
       other_document: form.document_types.includes('Other') ? form.other_document.trim() : null,
       courier_date: form.courier_date || null,
-      student_name: form.student_name.trim() || null,
+      students: form.students,
+      student_name: form.students.length ? form.students.map(st => st.name).join(', ') : (form.student_name.trim() || null),
       tracking_no: form.tracking_no.trim() || null,
       sent_to_address: form.sent_to_address.trim() || null,
       sent_from: form.sent_from.trim() || null,
@@ -155,7 +218,7 @@ export default function CourierDetails() {
       ? await supabase.from('courier_details').update(payload).eq('id', editing.id)
       : await supabase.from('courier_details').insert(payload)
     setBusy(false)
-    if (error) return alert('Save failed (run add_courier_details.sql in Supabase first): ' + error.message)
+    if (error) return alert('Save failed (run add_courier_details.sql and add_courier_students.sql in Supabase first): ' + error.message)
     setOpen(false)
     load()
   }
@@ -175,7 +238,7 @@ export default function CourierDetails() {
     if (!q.trim()) return true
     const hay = [
       centerLabel(centerById[r.super_center_id]), centerLabel(centerById[r.center_id]), docText(r),
-      r.student_name, r.tracking_no, r.sent_to_address, r.sent_from, r.sender_by,
+      r.student_name, (r.students || []).map(st => st.enrollment_no).join(' '), r.tracking_no, r.sent_to_address, r.sent_from, r.sender_by,
     ].join(' ').toLowerCase()
     return hay.includes(q.toLowerCase())
   })
@@ -233,7 +296,19 @@ export default function CourierDetails() {
               <Td className="text-sm">{centerById[r.center_id]?.center_name || '—'}</Td>
               <Td className="text-sm">{docText(r) || '—'}</Td>
               <Td className="text-sm whitespace-nowrap">{formatDate(r.courier_date)}</Td>
-              <Td className="text-sm">{r.student_name || '—'}</Td>
+              <Td className="text-sm min-w-[220px]">
+                {(r.students || []).length ? (
+                  <div className="space-y-1">
+                    {r.students.map(st => (
+                      <div key={st.id}>
+                        <span className="font-semibold text-gray-900">{st.name}</span>
+                        {st.enrollment_no && <span className="text-xs text-gray-500"> ({st.enrollment_no})</span>}
+                        <div className="text-xs text-[#933d18]">{semText(st.semesters)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (r.student_name || '—')}
+              </Td>
               <Td className="text-sm font-mono">{r.tracking_no || '—'}</Td>
               <Td className="text-sm max-w-[220px] whitespace-pre-line">{r.sent_to_address || '—'}</Td>
               <Td className="text-sm">{r.sent_from || '—'}</Td>
@@ -307,13 +382,46 @@ export default function CourierDetails() {
             <label className={labelCls}>Date</label>
             <DateInput bare value={form.courier_date} onChange={set('courier_date')} />
           </div>
-          <div>
-            <label className={labelCls}>Student Name</label>
-            <input value={form.student_name} onChange={set('student_name')} list="courier-students" className={inputCls}
-              placeholder={form.center_id ? 'Type or pick a student' : 'Student name'} />
-            <datalist id="courier-students">
-              {students.map(s => <option key={s} value={s} />)}
-            </datalist>
+          <div className="sm:col-span-2">
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[11px] font-semibold text-gray-500">Students & Semesters</label>
+              <Button variant="outline" size="sm" onClick={openPicker}>
+                <Users size={13} /> {form.students.length ? 'Change Students' : 'Select Students'}
+              </Button>
+            </div>
+            <div className="border border-gray-200 rounded-xl min-h-[96px] max-h-64 overflow-y-auto">
+              {form.students.length === 0 ? (
+                <div className="px-4 py-6 text-sm text-gray-400 text-center">
+                  {form.student_name
+                    ? <>Earlier entry: <span className="text-gray-700">{form.student_name}</span></>
+                    : form.center_id ? 'No students selected — click "Select Students".' : 'Choose a center, then select students.'}
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider">
+                    <tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Student Name</th>
+                      <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Programme</th>
+                      <th className="text-left px-3 py-2">Semesters Sent</th><th /></tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {form.students.map((st, k) => (
+                      <tr key={st.id}>
+                        <td className="px-3 py-2 text-gray-400">{k + 1}</td>
+                        <td className="px-3 py-2 font-semibold text-gray-900">{st.name}</td>
+                        <td className="px-3 py-2 font-mono text-xs">{st.enrollment_no || '—'}</td>
+                        <td className="px-3 py-2 text-xs text-gray-600">{st.program || '—'}</td>
+                        <td className="px-3 py-2 text-xs font-semibold text-[#933d18]">{semText(st.semesters)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <button type="button" title="Remove"
+                            onClick={() => setForm(f => ({ ...f, students: f.students.filter(x => x.id !== st.id) }))}
+                            className="text-gray-400 hover:text-red-500"><X size={14} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
           <div>
             <label className={labelCls}>Tracking No</label>
@@ -364,6 +472,87 @@ export default function CourierDetails() {
           <Button variant="secondary" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
           <Button variant="primary" onClick={handleSave} disabled={busy}>{busy ? 'Saving…' : editing ? 'Update' : 'Save'}</Button>
         </div>
+      </Modal>
+
+      <Modal isOpen={pickerOpen} onClose={() => setPickerOpen(false)} size="xl"
+        title={`Select Students — ${centerLabel(centerById[form.center_id])}`}>
+        {(() => {
+          const list = (students || []).filter(st => !pickerQ.trim() ||
+            `${st.student_name} ${st.enrollment_no || ''} ${st.registration_no || ''} ${st.programs?.program_name || ''}`
+              .toLowerCase().includes(pickerQ.toLowerCase()))
+          const tickedCount = Object.keys(draft).length
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="relative">
+                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input autoFocus value={pickerQ} onChange={e => setPickerQ(e.target.value)} placeholder="Search name / enrollment no…"
+                    className="pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-80" />
+                </div>
+                <span className="text-sm text-gray-500">{tickedCount} selected</span>
+              </div>
+
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider">
+                    <tr><th className="w-10 px-3 py-2" /><th className="text-left px-3 py-2">Student Name</th>
+                      <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Programme</th>
+                      <th className="text-left px-3 py-2">Semesters Sent</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {!students ? (
+                      <tr><td colSpan={5} className="text-center text-gray-400 py-8">Loading students…</td></tr>
+                    ) : list.length === 0 ? (
+                      <tr><td colSpan={5} className="text-center text-gray-400 py-8">No students found.</td></tr>
+                    ) : list.map(st => {
+                      const on = !!draft[st.id]
+                      const total = semCountOf(st)
+                      return (
+                        <tr key={st.id} className={on ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}>
+                          <td className="px-3 py-2 align-top">
+                            <input type="checkbox" checked={on} onChange={() => toggleStudent(st)}
+                              className="w-4 h-4 accent-[#933d18] cursor-pointer mt-0.5" />
+                          </td>
+                          <td className="px-3 py-2 align-top font-semibold text-gray-900 cursor-pointer" onClick={() => toggleStudent(st)}>
+                            {st.student_name}
+                            <div className="text-[11px] font-normal text-gray-400">Now in {st.semester_year || '—'}</div>
+                          </td>
+                          <td className="px-3 py-2 align-top font-mono text-xs">{st.enrollment_no || st.registration_no || '—'}</td>
+                          <td className="px-3 py-2 align-top text-xs text-gray-600">{st.programs?.program_name || '—'}</td>
+                          <td className="px-3 py-2 align-top">
+                            {on ? (
+                              <div className="flex flex-wrap gap-1">
+                                {Array.from({ length: total }, (_, k) => k + 1).map(n => {
+                                  const sel = draft[st.id].includes(n)
+                                  return (
+                                    <button key={n} type="button" onClick={() => toggleSem(st, n)}
+                                      className={`px-2 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                                        sel ? 'bg-[#933d18] text-white border-[#933d18]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#933d18]/50'}`}>
+                                      Sem {n}
+                                    </button>
+                                  )
+                                })}
+                                <button type="button" onClick={() => allSems(st)}
+                                  className="px-2 py-1 rounded-md text-xs font-semibold text-[#933d18] hover:bg-[#933d18]/10">
+                                  {draft[st.id].length === total ? 'None' : 'All'}
+                                </button>
+                              </div>
+                            ) : <span className="text-xs text-gray-300">Tick the student first</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setPickerOpen(false)}>Cancel</Button>
+                <Button variant="primary" onClick={confirmPicker}>Done ({tickedCount})</Button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
     </div>
   )
