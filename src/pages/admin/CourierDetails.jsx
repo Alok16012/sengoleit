@@ -307,32 +307,29 @@ export default function CourierDetails() {
               <Td className="text-sm whitespace-nowrap">{formatDate(r.courier_date)}</Td>
               <Td className="text-sm min-w-[200px]">
                 {(r.students || []).length ? (() => {
-                  // One student: show them. Several: a count and the semesters,
-                  // with the full list in a popup — twelve names made one row a page tall.
-                  // A search for a name / enrollment no shows the students it
-                  // matched, not just the courier's head-count.
+                  // A search for a name / enrollment no narrows the list to the
+                  // students it matched.
                   const hits = studentHits(r)
                   const shown = hits.length ? hits : r.students
-                  const sems = [...new Set(shown.map(st => semText(st.semesters)))]
                   return (
-                    <div className="flex items-center gap-2">
-                      <div className="space-y-1">
-                        {shown.length <= 3 ? shown.map(st => (
+                    <div className="flex items-start gap-2">
+                      {/* Every student listed — name, enrollment no, semesters; a
+                          long courier scrolls inside the cell instead of
+                          stretching the row. */}
+                      <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                        {shown.map(st => (
                           <div key={st.id}>
-                            <span className={`font-semibold ${hits.length ? 'text-[#933d18]' : 'text-gray-900'}`}>{st.name}</span>
-                            {st.enrollment_no && <span className="text-xs text-gray-500"> ({st.enrollment_no})</span>}
-                            {shown.length > 1 && <div className="text-xs text-[#933d18]">{semText(st.semesters)}</div>}
+                            <div className={`font-semibold ${hits.length ? 'text-[#933d18]' : 'text-gray-900'}`}>{st.name}</div>
+                            {st.enrollment_no && <div className="text-xs text-gray-500">({st.enrollment_no})</div>}
+                            <div className="text-xs text-[#933d18]">{semText(st.semesters)}</div>
                           </div>
-                        )) : <span className="font-semibold text-gray-900">{shown.length} Students</span>}
-                        {(shown.length === 1 || shown.length > 3) && (
-                          <div className="text-xs text-[#933d18]">{sems.length === 1 ? sems[0] : 'Mixed semesters'}</div>
-                        )}
+                        ))}
                         {hits.length > 0 && hits.length < r.students.length && (
                           <div className="text-[11px] text-gray-400">of {r.students.length} students in this courier</div>
                         )}
                       </div>
                       <button onClick={() => setViewing(r)}
-                        className="ml-auto px-2 py-1 rounded-md text-xs font-semibold text-[#933d18] border border-[#933d18]/30 hover:bg-[#933d18]/5 whitespace-nowrap">
+                        className="ml-auto shrink-0 px-2 py-1 rounded-md text-xs font-semibold text-[#933d18] border border-[#933d18]/30 hover:bg-[#933d18]/5 whitespace-nowrap">
                         View
                       </button>
                     </div>
