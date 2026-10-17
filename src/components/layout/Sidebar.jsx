@@ -45,6 +45,8 @@ const reportItems = (base) => [
   { to: `${base}/reports/approved`, icon: CheckCircle, label: 'Approved Student List' },
   { to: `${base}/reports/rejected`, icon: XCircle, label: 'Rejected Student List' },
   { to: `${base}/reports/document-summary`, icon: FileText, label: 'Document Summary' },
+  // Couriers the university sent this centre (entered in admin Courier Details).
+  { to: `${base}/courier`, icon: Truck, label: 'Courier Details' },
   // Courier Summary / University Courier are unbuilt ("Coming Soon" shells) —
   // advertising them in the sidebar only sent centers to dead pages.
   { to: `${base}/reports/payment-summary`, icon: CreditCard, label: 'Payment Summary' },

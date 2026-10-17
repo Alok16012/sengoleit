@@ -1,0 +1,70 @@
+import Modal from './ui/Modal'
+import { semText, studentHits } from '../utils/courierSems'
+
+// The students a courier carried, as the admin Courier Details page and the
+// centre / super centre Courier page both show them.
+
+// The Student column: the one student, or "N Students" with the semesters and
+// a View button for the full list. A search shows the students it matched.
+export function CourierStudentsCell({ courier, q, onView }) {
+  const students = courier.students || []
+  if (!students.length) return courier.student_name || '—'
+  const hits = studentHits(courier, q)
+  const shown = hits.length ? hits : students
+  const sems = [...new Set(shown.map(st => semText(st.semesters)))]
+  return (
+    <div className="flex items-center gap-2">
+      <div className="space-y-1">
+        {shown.length === 1 || (hits.length > 0 && hits.length <= 3) ? shown.map(st => (
+          <div key={st.id}>
+            <span className={`font-semibold ${hits.length ? 'text-[#933d18]' : 'text-gray-900'}`}>{st.name}</span>
+            {st.enrollment_no && <span className="text-xs text-gray-500"> ({st.enrollment_no})</span>}
+            {shown.length > 1 && <div className="text-xs text-[#933d18]">{semText(st.semesters)}</div>}
+          </div>
+        )) : <span className="font-semibold text-gray-900">{shown.length} Students</span>}
+        {(shown.length === 1 || !(hits.length > 0 && hits.length <= 3)) && (
+          <div className="text-xs text-[#933d18]">{sems.length === 1 ? sems[0] : 'Mixed semesters'}</div>
+        )}
+        {hits.length > 0 && hits.length < students.length && (
+          <div className="text-[11px] text-gray-400">of {students.length} students in this courier</div>
+        )}
+      </div>
+      <button onClick={() => onView(courier)}
+        className="ml-auto shrink-0 px-2 py-1 rounded-md text-xs font-semibold text-[#933d18] border border-[#933d18]/30 hover:bg-[#933d18]/5 whitespace-nowrap">
+        View
+      </button>
+    </div>
+  )
+}
+
+// Popup with every student of a courier; search matches highlighted.
+export function CourierStudentsModal({ courier, centerName, q, onClose }) {
+  const hitIds = new Set(courier ? studentHits(courier, q).map(h => h.id) : [])
+  return (
+    <Modal isOpen={!!courier} onClose={onClose} size="xl"
+      title={courier ? `Students — ${centerName || ''}${courier.tracking_no ? ` · Tracking ${courier.tracking_no}` : ''}` : ''}>
+      {courier && (
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider">
+              <tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Student Name</th>
+                <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Programme</th>
+                <th className="text-left px-3 py-2">Semesters Sent</th></tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {(courier.students || []).map((st, k) => (
+                <tr key={st.id} className={hitIds.has(st.id) ? 'bg-amber-50' : ''}>
+                  <td className="px-3 py-2 text-gray-400">{k + 1}</td>
+                  <td className="px-3 py-2 font-semibold text-gray-900">{st.name}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{st.enrollment_no || '—'}</td>
+                  <td className="px-3 py-2 text-xs text-gray-600">{st.program || '—'}</td>
+                  <td className="px-3 py-2 text-xs font-semibold text-[#933d18]">{semText(st.semesters)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
+  )
+}

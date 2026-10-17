@@ -8,6 +8,8 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import { SearchableSelect } from '../../components/ui/SearchSelect'
 import { Truck, Plus, Pencil, Trash2, Search, Paperclip, X, Users } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
+import { CourierStudentsCell, CourierStudentsModal } from '../../components/CourierStudents'
+import { semText } from '../../utils/courierSems'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import { currentSemOf } from '../../utils/reRegistration'
 
@@ -26,8 +28,6 @@ const DOC_TYPES = ['Marksheet', 'Provisional', 'Migration', 'Degree', 'Other']
 // none recorded) up to the term the student is in.
 const semCountOf = st => Number(st?.programs?.duration) || currentSemOf(st) || 1
 
-// "Sem 1, 2, 3"
-const semText = sems => (sems || []).length ? `Sem ${[...sems].sort((a, b) => a - b).join(', ')}` : ''
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -232,13 +232,6 @@ export default function CourierDetails() {
     setRows(rs => rs.filter(x => x.id !== r.id))
   }
 
-  // Students of a courier matching the search box (name / enrollment no).
-  const studentHits = r => {
-    const t = q.trim().toLowerCase()
-    if (!t) return []
-    return (r.students || []).filter(st => `${st.name || ''} ${st.enrollment_no || ''}`.toLowerCase().includes(t))
-  }
-
   const docText = r => (r.document_types || []).map(t => t === 'Other' && r.other_document ? `Other: ${r.other_document}` : t).join(', ')
 
   const filtered = rows.filter(r => {
@@ -247,7 +240,7 @@ export default function CourierDetails() {
     if (!q.trim()) return true
     const hay = [
       centerLabel(centerById[r.super_center_id]), centerLabel(centerById[r.center_id]), docText(r),
-      r.student_name, (r.students || []).map(st => st.enrollment_no).join(' '), r.tracking_no, r.sent_to_address, r.sent_from, r.sender_by,
+      r.student_name, (r.students || []).map(st => `${st.name} ${st.enrollment_no}`).join(' '), r.tracking_no, r.sent_to_address, r.sent_from, r.sender_by,
     ].join(' ').toLowerCase()
     return hay.includes(q.toLowerCase())
   })
@@ -306,35 +299,7 @@ export default function CourierDetails() {
               <Td className="text-sm">{docText(r) || '—'}</Td>
               <Td className="text-sm whitespace-nowrap">{formatDate(r.courier_date)}</Td>
               <Td className="text-sm min-w-[200px]">
-                {(r.students || []).length ? (() => {
-                  // A search for a name / enrollment no narrows the list to the
-                  // students it matched.
-                  const hits = studentHits(r)
-                  const shown = hits.length ? hits : r.students
-                  return (
-                    <div className="flex items-start gap-2">
-                      {/* Every student listed — name, enrollment no, semesters; a
-                          long courier scrolls inside the cell instead of
-                          stretching the row. */}
-                      <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-                        {shown.map(st => (
-                          <div key={st.id}>
-                            <div className={`font-semibold ${hits.length ? 'text-[#933d18]' : 'text-gray-900'}`}>{st.name}</div>
-                            {st.enrollment_no && <div className="text-xs text-gray-500">({st.enrollment_no})</div>}
-                            <div className="text-xs text-[#933d18]">{semText(st.semesters)}</div>
-                          </div>
-                        ))}
-                        {hits.length > 0 && hits.length < r.students.length && (
-                          <div className="text-[11px] text-gray-400">of {r.students.length} students in this courier</div>
-                        )}
-                      </div>
-                      <button onClick={() => setViewing(r)}
-                        className="ml-auto shrink-0 px-2 py-1 rounded-md text-xs font-semibold text-[#933d18] border border-[#933d18]/30 hover:bg-[#933d18]/5 whitespace-nowrap">
-                        View
-                      </button>
-                    </div>
-                  )
-                })() : (r.student_name || '—')}
+                <CourierStudentsCell courier={r} q={q} onView={setViewing} />
               </Td>
               <Td className="text-sm font-mono">{r.tracking_no || '—'}</Td>
               <Td className="text-sm max-w-[220px] whitespace-pre-line">{r.sent_to_address || '—'}</Td>
@@ -501,31 +466,8 @@ export default function CourierDetails() {
         </div>
       </Modal>
 
-      <Modal isOpen={!!viewing} onClose={() => setViewing(null)} size="xl"
-        title={viewing ? `Students — ${centerById[viewing.center_id]?.center_name || ''}${viewing.tracking_no ? ` · Tracking ${viewing.tracking_no}` : ''}` : ''}>
-        {viewing && (
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider">
-                <tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Student Name</th>
-                  <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Programme</th>
-                  <th className="text-left px-3 py-2">Semesters Sent</th></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {(viewing.students || []).map((st, k) => (
-                  <tr key={st.id} className={studentHits(viewing).some(h => h.id === st.id) ? 'bg-amber-50' : ''}>
-                    <td className="px-3 py-2 text-gray-400">{k + 1}</td>
-                    <td className="px-3 py-2 font-semibold text-gray-900">{st.name}</td>
-                    <td className="px-3 py-2 font-mono text-xs">{st.enrollment_no || '—'}</td>
-                    <td className="px-3 py-2 text-xs text-gray-600">{st.program || '—'}</td>
-                    <td className="px-3 py-2 text-xs font-semibold text-[#933d18]">{semText(st.semesters)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Modal>
+      <CourierStudentsModal courier={viewing} centerName={centerById[viewing?.center_id]?.center_name}
+        q={q} onClose={() => setViewing(null)} />
 
       <Modal isOpen={pickerOpen} onClose={() => setPickerOpen(false)} size="xl"
         title={`Select Students — ${centerLabel(centerById[form.center_id])}`}>

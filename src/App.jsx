@@ -80,6 +80,7 @@ import StudentSyllabus from './pages/student/StudentSyllabus'
 import StudentEBooks from './pages/student/StudentEBooks'
 import EBooks from './pages/admin/EBooks'
 import CourierDetails from './pages/admin/CourierDetails'
+import CourierView from './pages/shared/CourierView'
 import DocumentSummary from './pages/shared/DocumentSummary'
 import SyllabusReport from './pages/shared/SyllabusReport'
 import CenterCredentials from './pages/center/CenterCredentials'
@@ -198,7 +199,7 @@ export default function App() {
 
             {/* Super Center new entry routes */}
             <Route path="/super-center/documents" element={<CenterDocuments />} />
-            <Route path="/super-center/courier" element={<ComingSoon title="Courier Entry" description="Log courier dispatch entries" />} />
+            <Route path="/super-center/courier" element={<CourierView />} />
             <Route path="/super-center/answersheet" element={<ComingSoon title="Student Answersheet" description="Answersheet submission and tracking" />} />
             <Route path="/super-center/supplementary" element={<ComingSoon title="Supplementary Student" description="Supplementary exam registration" />} />
 
@@ -231,7 +232,7 @@ export default function App() {
             <Route path="/center/settings" element={<CenterSettings />} />
             <Route path="/center/profile" element={<CenterProfile />} />
             <Route path="/center/documents" element={<CenterDocuments />} />
-            <Route path="/center/courier" element={<ComingSoon title="Courier Entry" description="Log courier dispatch entries" />} />
+            <Route path="/center/courier" element={<CourierView />} />
             <Route path="/center/answersheet" element={<ComingSoon title="Student Answersheet" description="Answersheet submission and tracking" />} />
             <Route path="/center/supplementary" element={<ComingSoon title="Supplementary Student" description="Supplementary exam registration" />} />
 

@@ -20,3 +20,13 @@ export async function fetchCourierSems() {
   }
   return map
 }
+
+// "Sem 1, 2, 3"
+export const semText = sems => (sems || []).length ? `Sem ${[...sems].sort((a, b) => a - b).join(', ')}` : ''
+
+// Students of a courier matching a search (name / enrollment no).
+export function studentHits(courier, q) {
+  const t = String(q || '').trim().toLowerCase()
+  if (!t) return []
+  return (courier.students || []).filter(st => `${st.name || ''} ${st.enrollment_no || ''}`.toLowerCase().includes(t))
+}
