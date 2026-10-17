@@ -63,7 +63,7 @@ async function certificateNo(studentId, docType) {
 }
 
 // One document's sheet: { kind: 'sog' | 'cert', html }.
-async function buildSheet(entry, cache) {
+async function buildSheet(entry, cache, { provisionalIssueDate } = {}) {
   const { student: s, doc, results } = entry
   const full = await (cache[s.id] ||= fullStudent(s))
   if (doc.doc_type === DOC.MARKSHEET) {
@@ -91,7 +91,7 @@ async function buildSheet(entry, cache) {
   }
   const { passingYear, division } = finalsSummary(results)
   const certNo = doc.doc_type === DOC.PROVISIONAL ? await certificateNo(s.id, doc.doc_type) : ''
-  const svg = doc.doc_type === DOC.PROVISIONAL ? provisionalCertificateSvg(full, { passingYear, division, certNo })
+  const svg = doc.doc_type === DOC.PROVISIONAL ? provisionalCertificateSvg(full, { passingYear, division, certNo, issueDate: provisionalIssueDate })
     : doc.doc_type === DOC.MIGRATION ? migrationCertificateSvg(full, { passingYear })
       : doc.doc_type === DOC.DEGREE ? degreeCertificateSvg(full, { passingYear, division })
         : null
@@ -176,11 +176,12 @@ export function openPrintJobWindow(title = 'Print') {
  *
  * entries: [{ student, doc, results }] — doc as studentPrintPlan returns it,
  *          results the student's student_results rows.
- * opts:    { jobId, title, autoPrint: false | 'print' | 'pdf' }
+ * opts:    { jobId, title, autoPrint: false | 'print' | 'pdf',
+ *            provisionalIssueDate: yyyy-mm-dd printed on Provisionals (today if unset) }
  *
  * Resolves to { built, failed } — failed: [{ entry, message }].
  */
-export async function fillPrintJob(win, entries, { jobId, title = 'Print', autoPrint = false } = {}) {
+export async function fillPrintJob(win, entries, { jobId, title = 'Print', autoPrint = false, provisionalIssueDate } = {}) {
   const cache = {}
   const built = [], failed = []
   let done = 0
@@ -196,7 +197,7 @@ export async function fillPrintJob(win, entries, { jobId, title = 'Print', autoP
   const out = new Array(entries.length)
   async function worker() {
     for (let job = queue.shift(); job; job = queue.shift()) {
-      try { out[job.i] = { entry: job.e, sheet: await buildSheet(job.e, cache) } }
+      try { out[job.i] = { entry: job.e, sheet: await buildSheet(job.e, cache, { provisionalIssueDate }) } }
       catch (err) { out[job.i] = { entry: job.e, error: err?.message || String(err) } }
       done++; progress()
     }

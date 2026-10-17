@@ -1660,8 +1660,9 @@ const CERT_FOOT_UP = 8
 
 // The parts every one of the three shares: registration number, date and
 // place of issue, and the signature. `qrAt` is the QR's top-left corner.
-function certificateSheet(s, body, { qr, qrAt = [255.3, 15.2] } = {}) {
-  const issued = ddmmyyyyDots()
+// `issueDate` (yyyy-mm-dd) prints that day as the date of issue; today otherwise.
+function certificateSheet(s, body, { qr, qrAt = [255.3, 15.2], issueDate } = {}) {
+  const issued = ddmmyyyyDots(issueDate ? `${issueDate}T12:00:00` : undefined)
   const y = (n) => +(n - CERT_FOOT_UP).toFixed(1)
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 297 210" preserveAspectRatio="xMidYMid meet">
     ${certText(14.6, 18.4, 'Regn No.:', { font: CERT_FONT.script, size: 18 })}
@@ -1671,7 +1672,7 @@ function certificateSheet(s, body, { qr, qrAt = [255.3, 15.2] } = {}) {
     ${certText(15.6, y(184.3), 'Date of Issue:', { font: CERT_FONT.arial, size: 13, bold: true, italic: true })}
     ${certText(47.5, y(185.3), issued, { font: CERT_FONT.arial, size: 13, bold: true, italic: true })}
     ${certText(15.6, y(190.9), 'Place:', { font: CERT_FONT.arial, size: 14, bold: true, italic: true })}
-    ${certText(34.9, y(190.9), 'Sikkim', { font: CERT_FONT.script, size: 16 })}
+    ${certText(34.9, y(190.9), 'Lower Pepthang, Sikkim', { font: CERT_FONT.script, size: 16 })}
     <image href="${CONTROLLER_SIGNATURE_URL}" x="220.3" y="${y(173.2)}" width="32.4" height="14.8" preserveAspectRatio="xMidYMid meet"/>
     ${certText(202.2, y(192.3), 'Registrar / Controller of Examination', { font: CERT_FONT.calibri, size: 14, bold: true })}
   </svg>`
@@ -1740,7 +1741,7 @@ function passedLines(s, year, progBaseline) {
 }
 
 // ---- Provisional Certificate -------------------------------------------
-// opts: { passingYear, conduct, certNo }
+// opts: { passingYear, conduct, certNo, issueDate }
 // certNo is the certificate's own random number (issue_certificate_no()),
 // the same on every reprint. The QR in the top-right corner carries it with
 // the student's name, registration number, programme and passing year.
@@ -1759,7 +1760,7 @@ export function provisionalCertificateSvg(s, opts = {}) {
   const qr = [s.student_name, s.registration_no, prog, opts.passingYear, 'Provisional', opts.certNo]
     .filter(Boolean).join(' | ')
   // In the blank square at the top right of the stationery.
-  return certificateSheet(s, body, { qr, qrAt: [256.0, 17.2] })
+  return certificateSheet(s, body, { qr, qrAt: [256.0, 17.2], issueDate: opts.issueDate })
 }
 export function generateProvisionalCertificate(s, opts = {}) {
   openCertificate(`Provisional Certificate — ${s.student_name || ''}`, provisionalCertificateSvg(s, opts))

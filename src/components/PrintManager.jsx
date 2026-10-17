@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from './ui/Table'
 import Button from './ui/Button'
+import DateInput from './ui/DateInput'
 import { Printer, FileText, FileSpreadsheet, History, RotateCcw, Eye, X, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { exportCsv, exportPdf } from '../utils/exportTable'
 import {
@@ -75,6 +76,12 @@ export default function PrintManager({ students, results, setResults, filterActi
   // Which documents Preview Selected / Print All Pending take; all of them
   // until narrowed.
   const [bulkTypes, setBulkTypes] = useState(() => new Set(BULK_TYPES))
+  // Date of Issue printed on every Provisional in a job — today unless changed,
+  // so a batch handed out together can all carry the same chosen day.
+  const [provDate, setProvDate] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
   const [preview, setPreview] = useState(null)       // { title, entries, picked: Set of doc keys }
   const [historyFor, setHistoryFor] = useState(null) // student
   const [history, setHistory] = useState(null)       // print_history rows, null while loading
@@ -251,7 +258,7 @@ export default function PrintManager({ students, results, setResults, filterActi
     const win = openPrintJobWindow(name)
     if (!win) return
     windows.current.add(win)
-    fillPrintJob(win, entries, { jobId: newJobId(), title: name, autoPrint })
+    fillPrintJob(win, entries, { jobId: newJobId(), title: name, autoPrint, provisionalIssueDate: provDate || undefined })
       .catch(err => { try { win.document.body.textContent = 'Could not prepare the documents: ' + (err?.message || err) } catch { /* closed */ } })
   }
   const entryOf = (s, doc) => ({ student: s, doc, results: resultsBySid[s.id] || [] })
@@ -388,6 +395,10 @@ export default function PrintManager({ students, results, setResults, filterActi
               </label>
             )
           })}
+        </div>
+        <div className="flex items-center gap-1.5" title="Date of Issue printed on the Provisional Certificate">
+          <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">Provisional Date of Issue:</span>
+          <div className="w-32"><DateInput bare value={provDate} onChange={e => setProvDate(e.target.value)} /></div>
         </div>
         <div className="flex gap-2 ml-auto">
           {selectedHere.length > 0 && (
