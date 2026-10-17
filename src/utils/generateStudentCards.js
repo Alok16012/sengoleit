@@ -1719,9 +1719,18 @@ function openCertificate(title, svg) {
 // Roll number as the admit card has it: the enrollment number.
 const rollNoOf = (s) => s.enrollment_no || s.registration_no || ''
 
+// A programme stored as "BLIS (Bachelor Of Library & Information Science)"
+// prints on a certificate as its full name alone. Only that form — a short
+// name with the degree's full title in brackets — is cut; "M.A. (English)" or
+// "Bachelor Of Education (B.Ed)" print as stored.
+export function fullProgrammeName(name) {
+  const m = String(name || '').match(/^\s*[^()]+?\s*\(\s*((?:Bachelor|Master|Doctor|Diploma|Post\s*Graduate|Advanced|Certificate)\b[^()]*?)\s*\)\s*$/i)
+  return m ? m[1] : String(name || '')
+}
+
 // The four lines Provisional and Degree share, word for word.
 function passedLines(s, year, progBaseline) {
-  const prog = s.programs?.program_name || s.program_name || ''
+  const prog = fullProgrammeName(s.programs?.program_name || s.program_name || '')
   return `
     ${certLabel(21.1, 96.0, 'This is to certify that Mr./Ms.')}
     ${certRule(94.9, 274.8, 96.4)}
