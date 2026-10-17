@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 // A date field where the user TYPES in dd/mm/yyyy (Indian style), but the
 // value handed back to the form stays as an ISO yyyy-mm-dd string so the
@@ -34,6 +34,51 @@ function autoFormat(raw) {
   return out
 }
 
+// Where the caret lands after the n-th digit of `str` (0 = before the first).
+function posAfterDigits(str, n) {
+  if (n <= 0) return 0
+  let seen = 0
+  for (let i = 0; i < str.length; i++) {
+    if (/\d/.test(str[i]) && ++seen === n) return i + 1
+  }
+  return str.length
+}
+
+const SEG_MAX = [2, 2, 4]
+
+// An edit inside a date that already has both slashes: each part (dd / mm /
+// yyyy) is edited where it is, so changing the day does not reflow the month
+// and year or throw the caret to the end. A part that would grow past its
+// length gives up the digit after the caret — typing over it — or, at the
+// part's end, the keystroke is dropped.
+function editSegments(raw, caret) {
+  const parts = raw.split('/')
+  let start = 0
+  for (let i = 0; i < 3; i++) {
+    const end = start + parts[i].length
+    const digits = parts[i].replace(/\D/g, '')
+    if (caret >= start && caret <= end && digits.length > SEG_MAX[i]) {
+      const off = caret - start
+      if (off < parts[i].length) {
+        parts[i] = parts[i].slice(0, off) + parts[i].slice(off + 1)
+      } else {
+        parts[i] = parts[i].slice(0, off - 1)
+        caret -= 1
+      }
+    }
+    parts[i] = parts[i].replace(/\D/g, '').slice(0, SEG_MAX[i])
+    start = end + 1
+  }
+  const text = parts.join('/')
+  // A day or month just filled steps over its slash, ready for the next part.
+  let seg = 0, segStart = 0
+  for (let i = 0; i < 2; i++) {
+    if (caret > segStart + parts[i].length) { segStart += parts[i].length + 1; seg = i + 1 }
+  }
+  if (seg < 2 && caret === segStart + parts[seg].length && parts[seg].length === SEG_MAX[seg]) caret += 1
+  return { text, caret: Math.min(caret, text.length) }
+}
+
 const baseClass =
   `w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 placeholder-gray-400
    focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] transition-all
@@ -45,6 +90,17 @@ export default function DateInput({
   min, max, type, bare, ...props
 }) {
   const [text, setText] = useState(() => isoToDisplay(value))
+  const inputRef = useRef(null)
+  const caretRef = useRef(null)
+
+  // Put the caret back where the edit left it — re-rendering a controlled
+  // input whose text was changed by code sends it to the end.
+  useLayoutEffect(() => {
+    if (caretRef.current != null && inputRef.current && document.activeElement === inputRef.current) {
+      inputRef.current.setSelectionRange(caretRef.current, caretRef.current)
+    }
+    caretRef.current = null
+  })
 
   // Keep the visible text in sync when the form value changes from outside
   // (edit-mode load, reset, programmatic set).
@@ -54,9 +110,21 @@ export default function DateInput({
 
   function handleChange(e) {
     const raw = e.target.value
-    // Allow free deletion; only auto-insert slashes while typing forward.
-    const formatted =
-      raw.length < text.length ? raw.replace(/[^\d/]/g, '').slice(0, 10) : autoFormat(raw)
+    const caret = e.target.selectionStart ?? raw.length
+    let formatted, nextCaret
+    if (raw.length < text.length) {
+      // Free deletion — the rest stays where it is.
+      formatted = raw.replace(/[^\d/]/g, '').slice(0, 10)
+      nextCaret = Math.min(caret, formatted.length)
+    } else if ((raw.match(/\//g) || []).length === 2 && caret < raw.length) {
+      // Typing inside a date that has its slashes: edit that part in place.
+      ;({ text: formatted, caret: nextCaret } = editSegments(raw, caret))
+    } else {
+      // Typing a fresh date: slashes go in automatically.
+      formatted = autoFormat(raw)
+      nextCaret = posAfterDigits(formatted, raw.slice(0, caret).replace(/\D/g, '').length)
+    }
+    caretRef.current = nextCaret
     setText(formatted)
 
     const iso = parseDisplayToIso(formatted)
@@ -78,7 +146,7 @@ export default function DateInput({
       type="text"
       inputMode="numeric"
       placeholder="DD/MM/YYYY"
-      maxLength={10}
+      ref={inputRef}
       value={text}
       onChange={handleChange}
       onBlur={handleBlur}
