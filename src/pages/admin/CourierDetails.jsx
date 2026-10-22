@@ -130,11 +130,11 @@ export default function CourierDetails() {
     }))
   }
 
-  function toggleDoc(t) {
-    setForm(f => ({
-      ...f,
-      document_types: f.document_types.includes(t) ? f.document_types.filter(x => x !== t) : [...f.document_types, t],
-    }))
+  // One courier is one kind of document — ticking a type replaces whichever
+  // was ticked before, instead of adding to it (Marksheet staying highlighted
+  // after Provisional was clicked looked like both had been sent).
+  function pickDoc(t) {
+    setForm(f => ({ ...f, document_types: [t], other_document: t === 'Other' ? f.other_document : '' }))
   }
 
   function addFiles(e) {
@@ -356,7 +356,7 @@ export default function CourierDetails() {
               {DOC_TYPES.map(t => {
                 const on = form.document_types.includes(t)
                 return (
-                  <button key={t} type="button" onClick={() => toggleDoc(t)}
+                  <button key={t} type="button" onClick={() => pickDoc(t)}
                     className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
                       on ? 'bg-[#933d18] text-white border-[#933d18]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#933d18]/50'}`}>
                     {t}
