@@ -1,5 +1,5 @@
 import Modal from './ui/Modal'
-import { semText, docLabel, studentHits } from '../utils/courierSems'
+import { semText, docLabel, studentHits, docTypeCounts } from '../utils/courierSems'
 
 // The students a courier carried, as the admin Courier Details page and the
 // centre / super centre Courier page both show them. Each student can carry
@@ -26,6 +26,7 @@ export function CourierStudentsCell({ courier, q, onView }) {
   const hits = studentHits(courier, q)
   const shown = hits.length ? hits : students
   const summary = [...new Set(shown.map(st => [docLabel(st), semText(st.semesters)].filter(Boolean).join(' · ')))]
+  const counts = docTypeCounts(shown)
   return (
     <div className="flex items-center gap-2">
       <div className="space-y-1">
@@ -33,7 +34,9 @@ export function CourierStudentsCell({ courier, q, onView }) {
           <StudentLine key={st.id} st={st} highlight={!!hits.length} />
         )) : <span className="font-semibold text-gray-900">{shown.length} Students</span>}
         {!(shown.length === 1 || (hits.length > 0 && hits.length <= 3)) && (
-          <div className="text-xs text-[#933d18]">{summary.length === 1 ? summary[0] : 'Mixed documents'}</div>
+          <div className="text-xs text-[#933d18]">
+            {summary.length === 1 ? summary[0] : counts.map(([t, n]) => `${t}: ${n}`).join(', ')}
+          </div>
         )}
         {hits.length > 0 && hits.length < students.length && (
           <div className="text-[11px] text-gray-400">of {students.length} students in this courier</div>

@@ -43,3 +43,11 @@ export function studentHits(courier, q) {
   if (!t) return []
   return (courier.students || []).filter(st => `${st.name || ''} ${st.enrollment_no || ''}`.toLowerCase().includes(t))
 }
+
+// How many of a courier's students carry each document type — "Marksheet: 30,
+// Provisional: 12" — for a packet with students on different documents.
+export function docTypeCounts(students) {
+  const counts = {}
+  for (const st of students || []) for (const t of st.document_types || []) counts[t] = (counts[t] || 0) + 1
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])
+}
