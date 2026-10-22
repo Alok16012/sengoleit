@@ -362,6 +362,17 @@ export default function Students() {
     setLoading(false)
   }
 
+  // "Sem 1, 2" for Marksheets, plus any final documents (Provisional,
+  // Migration, Degree, Other) that have no semester of their own.
+  function courierLabel(entry) {
+    if (!entry) return ''
+    const finals = [...entry.docTypes].filter(t => t !== 'Marksheet')
+    const parts = []
+    if (entry.sems.length) parts.push(`Sem ${entry.sems.join(', ')}`)
+    if (finals.length) parts.push(finals.join(', '))
+    return parts.join(' · ')
+  }
+
   const hiddenCount = data.filter(s => s.is_hidden).length
 
   // Center dropdown narrows to the chosen super center's centers.
@@ -399,7 +410,7 @@ export default function Students() {
     { header: 'Entered On', value: s => (s.created_at ? formatDate(s.created_at) : '') },
     { header: 'Form Date', value: s => (s.date_of_submission ? formatDate(s.date_of_submission) : '') },
     { header: 'Status', value: s => s.status || '' },
-    { header: 'Courier', value: s => (courier?.[s.id]?.sems.length ? `Sem ${courier[s.id].sems.join(', ')}` : '') },
+    { header: 'Courier', value: s => courierLabel(courier?.[s.id]) },
     { header: 'Re-Registration', value: s => (reReg?.[s.id] ? `${reReg[s.id].from_term} → ${reReg[s.id].to_term} · ${reReg[s.id].status}` : '') },
   ]
   const exportMeta = () => {
@@ -608,12 +619,13 @@ export default function Students() {
                   })() : <Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge>}
                 </Td>
                 <Td>
-                  {/* Semesters whose documents have gone by courier (Courier Details). */}
-                  {courier?.[s.id]?.sems.length ? (
+                  {/* Documents (and, for a Marksheet, which semesters) that have
+                      gone by courier (Courier Details). */}
+                  {courierLabel(courier?.[s.id]) ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg whitespace-nowrap bg-sky-50 text-sky-700"
                       title={courier[s.id].couriers.map(c =>
-                        `${c.date ? formatDate(c.date) : '—'} · Sem ${c.sems.join(', ')}${c.docs ? ` · ${c.docs}` : ''}${c.tracking_no ? ` · ${c.tracking_no}` : ''}`).join('\n')}>
-                      <Truck size={11} /> Sem {courier[s.id].sems.join(', ')}
+                        `${c.date ? formatDate(c.date) : '—'}${c.docs ? ` · ${c.docs}` : ''}${c.sems.length ? ` · Sem ${c.sems.join(', ')}` : ''}${c.tracking_no ? ` · ${c.tracking_no}` : ''}`).join('\n')}>
+                      <Truck size={11} /> {courierLabel(courier?.[s.id])}
                     </span>
                   ) : <span className="text-gray-300 text-xs">—</span>}
                 </Td>

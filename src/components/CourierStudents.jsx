@@ -1,29 +1,39 @@
 import Modal from './ui/Modal'
-import { semText, studentHits } from '../utils/courierSems'
+import { semText, docLabel, studentHits } from '../utils/courierSems'
 
 // The students a courier carried, as the admin Courier Details page and the
-// centre / super centre Courier page both show them.
+// centre / super centre Courier page both show them. Each student can carry
+// its own document type(s) — Marksheet, Provisional, Migration, Degree,
+// Other — and, for a Marksheet, which semesters.
 
-// The Student column: the one student, or "N Students" with the semesters and
-// a View button for the full list. A search shows the students it matched.
+// One student's line: name, enrollment no, documents, and semesters when a
+// Marksheet is among them.
+function StudentLine({ st, highlight }) {
+  return (
+    <div>
+      <span className={`font-semibold ${highlight ? 'text-[#933d18]' : 'text-gray-900'}`}>{st.name}</span>
+      {st.enrollment_no && <span className="text-xs text-gray-500"> ({st.enrollment_no})</span>}
+      <div className="text-xs text-[#933d18]">{[docLabel(st), semText(st.semesters)].filter(Boolean).join(' · ')}</div>
+    </div>
+  )
+}
+
+// The Student column: the one student, or "N Students" with a summary, and a
+// View button for the full list. A search shows the students it matched.
 export function CourierStudentsCell({ courier, q, onView }) {
   const students = courier.students || []
   if (!students.length) return courier.student_name || '—'
   const hits = studentHits(courier, q)
   const shown = hits.length ? hits : students
-  const sems = [...new Set(shown.map(st => semText(st.semesters)))]
+  const summary = [...new Set(shown.map(st => [docLabel(st), semText(st.semesters)].filter(Boolean).join(' · ')))]
   return (
     <div className="flex items-center gap-2">
       <div className="space-y-1">
         {shown.length === 1 || (hits.length > 0 && hits.length <= 3) ? shown.map(st => (
-          <div key={st.id}>
-            <span className={`font-semibold ${hits.length ? 'text-[#933d18]' : 'text-gray-900'}`}>{st.name}</span>
-            {st.enrollment_no && <span className="text-xs text-gray-500"> ({st.enrollment_no})</span>}
-            {shown.length > 1 && <div className="text-xs text-[#933d18]">{semText(st.semesters)}</div>}
-          </div>
+          <StudentLine key={st.id} st={st} highlight={!!hits.length} />
         )) : <span className="font-semibold text-gray-900">{shown.length} Students</span>}
-        {(shown.length === 1 || !(hits.length > 0 && hits.length <= 3)) && (
-          <div className="text-xs text-[#933d18]">{sems.length === 1 ? sems[0] : 'Mixed semesters'}</div>
+        {!(shown.length === 1 || (hits.length > 0 && hits.length <= 3)) && (
+          <div className="text-xs text-[#933d18]">{summary.length === 1 ? summary[0] : 'Mixed documents'}</div>
         )}
         {hits.length > 0 && hits.length < students.length && (
           <div className="text-[11px] text-gray-400">of {students.length} students in this courier</div>
@@ -49,7 +59,7 @@ export function CourierStudentsModal({ courier, centerName, q, onClose }) {
             <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider">
               <tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Student Name</th>
                 <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Programme</th>
-                <th className="text-left px-3 py-2">Semesters Sent</th></tr>
+                <th className="text-left px-3 py-2">Documents</th><th className="text-left px-3 py-2">Semesters Sent</th></tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {(courier.students || []).map((st, k) => (
@@ -58,7 +68,8 @@ export function CourierStudentsModal({ courier, centerName, q, onClose }) {
                   <td className="px-3 py-2 font-semibold text-gray-900">{st.name}</td>
                   <td className="px-3 py-2 font-mono text-xs">{st.enrollment_no || '—'}</td>
                   <td className="px-3 py-2 text-xs text-gray-600">{st.program || '—'}</td>
-                  <td className="px-3 py-2 text-xs font-semibold text-[#933d18]">{semText(st.semesters)}</td>
+                  <td className="px-3 py-2 text-xs text-gray-600">{docLabel(st) || '—'}</td>
+                  <td className="px-3 py-2 text-xs font-semibold text-[#933d18]">{semText(st.semesters) || '—'}</td>
                 </tr>
               ))}
             </tbody>

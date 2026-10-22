@@ -9,7 +9,7 @@ import { SearchableSelect } from '../../components/ui/SearchSelect'
 import { Truck, Plus, Pencil, Trash2, Search, Paperclip, X, Users } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 import { CourierStudentsCell, CourierStudentsModal } from '../../components/CourierStudents'
-import { semText } from '../../utils/courierSems'
+import { semText, docLabel } from '../../utils/courierSems'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import { currentSemOf } from '../../utils/reRegistration'
 
@@ -18,16 +18,21 @@ import { currentSemOf } from '../../utils/reRegistration'
 // Receipts live in the `documents` bucket under courier-receipts/.
 // Needs add_courier_details.sql and add_courier_students.sql.
 //
-// The students a courier carried are ticked in a popup, each with the
-// semesters whose documents went — so the log answers "which semesters of
-// this student's documents have been sent".
+// Students go in a courier together, but not always for the same reason — one
+// might be getting Marksheet + Provisional + Migration while another in the
+// same packet only needs a Marksheet. So the document type(s) and, for a
+// Marksheet, which semesters, are picked PER STUDENT in the picker — not once
+// for the whole courier. The courier-level `document_types` (used by the
+// list, search and the centre/super-centre view) is kept as the union of
+// whatever the students in it carry. A courier with no students picked (a
+// manual / institutional entry) falls back to one document type chosen for
+// the whole entry.
 
 const DOC_TYPES = ['Marksheet', 'Provisional', 'Migration', 'Degree', 'Other']
 
 // Semesters on offer for a student: the course length, or (if the course has
 // none recorded) up to the term the student is in.
 const semCountOf = st => Number(st?.programs?.duration) || currentSemOf(st) || 1
-
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -52,7 +57,7 @@ export default function CourierDetails() {
   const [newFiles, setNewFiles] = useState([])
   const [studentsByCenter, setStudentsByCenter] = useState({})
   const [busy, setBusy] = useState(false)
-  // Student picker popup — draft is { studentId: [semesters] } until Done.
+  // Student picker popup — draft is { studentId: { docTypes, sems, other } } until Done.
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerQ, setPickerQ] = useState('')
   const [draft, setDraft] = useState({})
@@ -130,9 +135,8 @@ export default function CourierDetails() {
     }))
   }
 
-  // One courier is one kind of document — ticking a type replaces whichever
-  // was ticked before, instead of adding to it (Marksheet staying highlighted
-  // after Provisional was clicked looked like both had been sent).
+  // Fallback document type, for a courier with no students picked (a manual /
+  // institutional entry) — one type for the whole entry.
   function pickDoc(t) {
     setForm(f => ({ ...f, document_types: [t], other_document: t === 'Other' ? f.other_document : '' }))
   }
@@ -145,7 +149,14 @@ export default function CourierDetails() {
 
   function openPicker() {
     if (!form.center_id) return alert('Choose a center first.')
-    setDraft(Object.fromEntries(form.students.map(st => [st.id, st.semesters || []])))
+    setDraft(Object.fromEntries(form.students.map(st => [st.id, {
+      // Old rows only ever recorded semesters, so a student with semesters
+      // but no document_types yet is read as "Marksheet" — what the field
+      // meant before document types were per student.
+      docTypes: st.document_types?.length ? st.document_types : (st.semesters?.length ? ['Marksheet'] : []),
+      sems: st.semesters || [],
+      other: st.other_document || '',
+    }])))
     setPickerQ('')
     setPickerOpen(true)
   }
@@ -153,31 +164,62 @@ export default function CourierDetails() {
   function toggleStudent(st) {
     setDraft(d => {
       if (d[st.id]) { const n = { ...d }; delete n[st.id]; return n }
-      return { ...d, [st.id]: [Math.min(currentSemOf(st), semCountOf(st))] }
+      return { ...d, [st.id]: { docTypes: [], sems: [], other: '' } }
+    })
+  }
+
+  // A student's document types are multi-select — the same packet can carry
+  // their Marksheet, Provisional and Migration together, or just one.
+  function toggleDocType(st, t) {
+    setDraft(d => {
+      const cur = d[st.id] || { docTypes: [], sems: [], other: '' }
+      const on = cur.docTypes.includes(t)
+      const docTypes = on ? cur.docTypes.filter(x => x !== t) : [...cur.docTypes, t]
+      const sems = t === 'Marksheet' && !on && cur.sems.length === 0
+        ? [Math.min(currentSemOf(st), semCountOf(st))]
+        : (t === 'Marksheet' && on ? [] : cur.sems)
+      const other = t === 'Other' && on ? '' : cur.other
+      return { ...d, [st.id]: { ...cur, docTypes, sems, other } }
     })
   }
 
   function toggleSem(st, n) {
     setDraft(d => {
-      const cur = d[st.id] || []
-      return { ...d, [st.id]: cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n].sort((a, b) => a - b) }
+      const cur = d[st.id]
+      const sems = cur.sems.includes(n) ? cur.sems.filter(x => x !== n) : [...cur.sems, n].sort((a, b) => a - b)
+      return { ...d, [st.id]: { ...cur, sems } }
     })
   }
 
   function allSems(st) {
     const all = Array.from({ length: semCountOf(st) }, (_, k) => k + 1)
-    setDraft(d => ({ ...d, [st.id]: (d[st.id] || []).length === all.length ? [] : all }))
+    setDraft(d => {
+      const cur = d[st.id]
+      return { ...d, [st.id]: { ...cur, sems: cur.sems.length === all.length ? [] : all } }
+    })
+  }
+
+  function otherChange(st, text) {
+    setDraft(d => ({ ...d, [st.id]: { ...d[st.id], other: text } }))
   }
 
   function confirmPicker() {
     const list = students || []
-    const empty = list.filter(st => draft[st.id] && draft[st.id].length === 0)
-    if (empty.length) return alert(`Tick at least one semester for: ${empty.map(st => st.student_name).join(', ')}`)
+    const ticked = list.filter(st => draft[st.id])
+    const noType = ticked.filter(st => draft[st.id].docTypes.length === 0)
+    if (noType.length) return alert(`Pick at least one document type for: ${noType.map(st => st.student_name).join(', ')}`)
+    const noSem = ticked.filter(st => draft[st.id].docTypes.includes('Marksheet') && draft[st.id].sems.length === 0)
+    if (noSem.length) return alert(`Tick at least one semester (Marksheet) for: ${noSem.map(st => st.student_name).join(', ')}`)
+    const noOther = ticked.filter(st => draft[st.id].docTypes.includes('Other') && !draft[st.id].other.trim())
+    if (noOther.length) return alert(`Write the "Other" document for: ${noOther.map(st => st.student_name).join(', ')}`)
     // Keep ticked students in the order they appear; ones no longer in the
     // centre's list (e.g. moved) stay as they were saved.
-    const picked = list.filter(st => draft[st.id]).map(st => ({
+    const picked = ticked.map(st => ({
       id: st.id, name: st.student_name, enrollment_no: st.enrollment_no || st.registration_no || '',
-      program: st.programs?.program_name || '', semesters: draft[st.id],
+      program: st.programs?.program_name || '',
+      document_types: draft[st.id].docTypes,
+      other_document: draft[st.id].docTypes.includes('Other') ? draft[st.id].other.trim() : null,
+      semesters: draft[st.id].docTypes.includes('Marksheet') ? draft[st.id].sems : [],
     }))
     const kept = form.students.filter(st => draft[st.id] && !list.some(x => x.id === st.id))
     setForm(f => ({ ...f, students: [...picked, ...kept] }))
@@ -186,8 +228,10 @@ export default function CourierDetails() {
 
   async function handleSave() {
     if (!form.center_id && !form.super_center_id) return alert('Choose a super center or center.')
-    if (form.document_types.length === 0) return alert('Tick at least one document type.')
-    if (form.document_types.includes('Other') && !form.other_document.trim()) return alert('Write what the "Other" document is.')
+    if (form.students.length === 0) {
+      if (form.document_types.length === 0) return alert('Tick at least one document type.')
+      if (form.document_types.includes('Other') && !form.other_document.trim()) return alert('Write what the "Other" document is.')
+    }
     setBusy(true)
 
     const uploaded = []
@@ -200,11 +244,20 @@ export default function CourierDetails() {
       uploaded.push({ name: file.name, url: publicUrl })
     }
 
+    // The courier-level document_types / other_document — what the list,
+    // search and the centre/super-centre view read — are the union of every
+    // student's own types when students are picked; otherwise the fallback
+    // type chosen for the whole entry.
+    const unionTypes = [...new Set(form.students.flatMap(st => st.document_types || []))]
+    const otherTexts = [...new Set(form.students.filter(st => st.document_types?.includes('Other') && st.other_document).map(st => st.other_document))]
+
     const payload = {
       super_center_id: form.super_center_id || null,
       center_id: form.center_id || null,
-      document_types: form.document_types,
-      other_document: form.document_types.includes('Other') ? form.other_document.trim() : null,
+      document_types: form.students.length ? unionTypes : form.document_types,
+      other_document: form.students.length
+        ? (otherTexts.join('; ') || null)
+        : (form.document_types.includes('Other') ? form.other_document.trim() : null),
       courier_date: form.courier_date || null,
       students: form.students,
       student_name: form.students.length ? form.students.map(st => st.name).join(', ') : (form.student_name.trim() || null),
@@ -350,25 +403,35 @@ export default function CourierDetails() {
             </select>
           </div>
 
-          <div className="sm:col-span-2">
-            <label className={labelCls}>Documents Type</label>
-            <div className="flex flex-wrap gap-2">
-              {DOC_TYPES.map(t => {
-                const on = form.document_types.includes(t)
-                return (
-                  <button key={t} type="button" onClick={() => pickDoc(t)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
-                      on ? 'bg-[#933d18] text-white border-[#933d18]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#933d18]/50'}`}>
-                    {t}
-                  </button>
-                )
-              })}
+          {form.students.length === 0 ? (
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Documents Type</label>
+              <div className="flex flex-wrap gap-2">
+                {DOC_TYPES.map(t => {
+                  const on = form.document_types.includes(t)
+                  return (
+                    <button key={t} type="button" onClick={() => pickDoc(t)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors ${
+                        on ? 'bg-[#933d18] text-white border-[#933d18]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#933d18]/50'}`}>
+                      {t}
+                    </button>
+                  )
+                })}
+              </div>
+              {form.document_types.includes('Other') && (
+                <input value={form.other_document} onChange={set('other_document')} placeholder="Write the other document…"
+                  className={`${inputCls} mt-2`} />
+              )}
+              <p className="text-[11px] text-gray-400 mt-1">Only used when no specific students are picked below — once you pick students, each one's document type is set there.</p>
             </div>
-            {form.document_types.includes('Other') && (
-              <input value={form.other_document} onChange={set('other_document')} placeholder="Write the other document…"
-                className={`${inputCls} mt-2`} />
-            )}
-          </div>
+          ) : (
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Documents Type</label>
+              <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
+                Set per student below — {docText({ document_types: [...new Set(form.students.flatMap(st => st.document_types || []))], other_document: form.students.map(st => st.other_document).filter(Boolean).join('; ') }) || 'none yet'}
+              </p>
+            </div>
+          )}
 
           <div>
             <label className={labelCls}>Date</label>
@@ -376,9 +439,9 @@ export default function CourierDetails() {
           </div>
           <div className="sm:col-span-2">
             <div className="flex items-center justify-between mb-1">
-              <label className="text-[11px] font-semibold text-gray-500">Students & Semesters</label>
+              <label className="text-[11px] font-semibold text-gray-500">Students — Documents & Semesters</label>
               <Button variant="outline" size="sm" onClick={openPicker}>
-                <Users size={13} /> {form.students.length ? 'Change Students' : 'Select Students'}
+                <Users size={13} /> {form.students.length ? 'Add / Change Students' : 'Select Students'}
               </Button>
             </div>
             <div className="border border-gray-200 rounded-xl min-h-[96px] max-h-64 overflow-y-auto">
@@ -392,7 +455,7 @@ export default function CourierDetails() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider">
                     <tr><th className="text-left px-3 py-2">#</th><th className="text-left px-3 py-2">Student Name</th>
-                      <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Programme</th>
+                      <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Documents</th>
                       <th className="text-left px-3 py-2">Semesters Sent</th><th /></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -401,8 +464,8 @@ export default function CourierDetails() {
                         <td className="px-3 py-2 text-gray-400">{k + 1}</td>
                         <td className="px-3 py-2 font-semibold text-gray-900">{st.name}</td>
                         <td className="px-3 py-2 font-mono text-xs">{st.enrollment_no || '—'}</td>
-                        <td className="px-3 py-2 text-xs text-gray-600">{st.program || '—'}</td>
-                        <td className="px-3 py-2 text-xs font-semibold text-[#933d18]">{semText(st.semesters)}</td>
+                        <td className="px-3 py-2 text-xs text-gray-600">{docLabel(st) || '—'}</td>
+                        <td className="px-3 py-2 text-xs font-semibold text-[#933d18]">{semText(st.semesters) || '—'}</td>
                         <td className="px-3 py-2 text-right">
                           <button type="button" title="Remove"
                             onClick={() => setForm(f => ({ ...f, students: f.students.filter(x => x.id !== st.id) }))}
@@ -484,7 +547,7 @@ export default function CourierDetails() {
                   <input autoFocus value={pickerQ} onChange={e => setPickerQ(e.target.value)} placeholder="Search name / enrollment no…"
                     className="pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-80" />
                 </div>
-                <span className="text-sm text-gray-500">{tickedCount} selected</span>
+                <span className="text-sm text-gray-500">{tickedCount} selected — tick a student, then its document type(s); several types can go together (e.g. Marksheet + Provisional)</span>
               </div>
 
               <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -492,16 +555,18 @@ export default function CourierDetails() {
                   <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase tracking-wider">
                     <tr><th className="w-10 px-3 py-2" /><th className="text-left px-3 py-2">Student Name</th>
                       <th className="text-left px-3 py-2">Enrollment No</th><th className="text-left px-3 py-2">Programme</th>
-                      <th className="text-left px-3 py-2">Semesters Sent</th></tr>
+                      <th className="text-left px-3 py-2">Document Type(s)</th><th className="text-left px-3 py-2">Semesters (Marksheet)</th></tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {!students ? (
-                      <tr><td colSpan={5} className="text-center text-gray-400 py-8">Loading students…</td></tr>
+                      <tr><td colSpan={6} className="text-center text-gray-400 py-8">Loading students…</td></tr>
                     ) : list.length === 0 ? (
-                      <tr><td colSpan={5} className="text-center text-gray-400 py-8">No students found.</td></tr>
+                      <tr><td colSpan={6} className="text-center text-gray-400 py-8">No students found.</td></tr>
                     ) : list.map(st => {
                       const on = !!draft[st.id]
+                      const dr = draft[st.id]
                       const total = semCountOf(st)
+                      const hasMarksheet = on && dr.docTypes.includes('Marksheet')
                       return (
                         <tr key={st.id} className={on ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}>
                           <td className="px-3 py-2 align-top">
@@ -516,9 +581,32 @@ export default function CourierDetails() {
                           <td className="px-3 py-2 align-top text-xs text-gray-600">{st.programs?.program_name || '—'}</td>
                           <td className="px-3 py-2 align-top">
                             {on ? (
+                              <div className="space-y-1.5">
+                                <div className="flex flex-wrap gap-1">
+                                  {DOC_TYPES.map(t => {
+                                    const sel = dr.docTypes.includes(t)
+                                    return (
+                                      <button key={t} type="button" onClick={() => toggleDocType(st, t)}
+                                        className={`px-2 py-1 rounded-md text-xs font-semibold border transition-colors ${
+                                          sel ? 'bg-[#933d18] text-white border-[#933d18]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#933d18]/50'}`}>
+                                        {t}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                                {dr.docTypes.includes('Other') && (
+                                  <input value={dr.other} onChange={e => otherChange(st, e.target.value)}
+                                    placeholder="Write the other document…"
+                                    className="w-full px-2 py-1 border border-gray-200 rounded-md text-xs focus:outline-none focus:border-[#933d18]" />
+                                )}
+                              </div>
+                            ) : <span className="text-xs text-gray-300">Tick the student first</span>}
+                          </td>
+                          <td className="px-3 py-2 align-top">
+                            {hasMarksheet ? (
                               <div className="flex flex-wrap gap-1">
                                 {Array.from({ length: total }, (_, k) => k + 1).map(n => {
-                                  const sel = draft[st.id].includes(n)
+                                  const sel = dr.sems.includes(n)
                                   return (
                                     <button key={n} type="button" onClick={() => toggleSem(st, n)}
                                       className={`px-2 py-1 rounded-md text-xs font-semibold border transition-colors ${
@@ -529,10 +617,10 @@ export default function CourierDetails() {
                                 })}
                                 <button type="button" onClick={() => allSems(st)}
                                   className="px-2 py-1 rounded-md text-xs font-semibold text-[#933d18] hover:bg-[#933d18]/10">
-                                  {draft[st.id].length === total ? 'None' : 'All'}
+                                  {dr.sems.length === total ? 'None' : 'All'}
                                 </button>
                               </div>
-                            ) : <span className="text-xs text-gray-300">Tick the student first</span>}
+                            ) : <span className="text-xs text-gray-300">{on ? 'Only for Marksheet' : ''}</span>}
                           </td>
                         </tr>
                       )
