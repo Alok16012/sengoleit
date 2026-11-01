@@ -20,7 +20,12 @@ CREATE INDEX IF NOT EXISTS idx_coupons_program ON coupons(program_id);
 -- the two can be audited, edited and reported on independently.
 ALTER TABLE students ADD COLUMN IF NOT EXISTS course_coupon_discount numeric;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS course_coupon_code text;
-ALTER TABLE students ADD COLUMN IF NOT EXISTS course_coupon_program_id uuid REFERENCES programs(id);
+-- Deliberately NOT a foreign key: students.programme_id already references
+-- programs(id), and a second FK from students to programs makes every
+-- embedded select ("students ... programs(...)") ambiguous — PostgREST
+-- cannot tell which relationship to use and refuses the whole query. Nothing
+-- joins through this column; it is read straight off the student row.
+ALTER TABLE students ADD COLUMN IF NOT EXISTS course_coupon_program_id uuid;
 
 -- Let both existing single/batch coupon RPCs accept the new type.
 CREATE OR REPLACE FUNCTION admin_create_single_coupon(
