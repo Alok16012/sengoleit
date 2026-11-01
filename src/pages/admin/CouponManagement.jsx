@@ -6,7 +6,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { formatDate, approvalPaymentDate } from '../../utils/formatDate'
-import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2, Clock } from 'lucide-react'
+import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2, Clock, GraduationCap } from 'lucide-react'
 import CommissionWallet from '../../components/admin/CommissionWallet'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 
@@ -30,6 +30,7 @@ const STATUS_FILTERS = ['All', 'Unused', 'Used']
 export default function CouponManagement() {
   const [coupons, setCoupons] = useState([])
   const [centers, setCenters] = useState([])
+  const [programs, setPrograms] = useState([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('All')
   const [centerFilter, setCenterFilter] = useState('')
@@ -57,6 +58,16 @@ export default function CouponManagement() {
   const [directAmount, setDirectAmount] = useState('')
   const [directSaving, setDirectSaving] = useState(false)
   const [directResult, setDirectResult] = useState(null) // { code, type, amount, centerName }
+  // Course Coupon generation — cascading Super Center -> Center -> Course,
+  // then Amount and Quantity (several at once, unlike the single-code flow
+  // above). Free coupons, not wallet-funded — mirrors generateDirectCode.
+  const [courseGenSuper, setCourseGenSuper] = useState('')
+  const [courseGenCenter, setCourseGenCenter] = useState('')
+  const [courseGenProgram, setCourseGenProgram] = useState('')
+  const [courseGenAmount, setCourseGenAmount] = useState('')
+  const [courseGenQty, setCourseGenQty] = useState('')
+  const [courseGenSaving, setCourseGenSaving] = useState(false)
+  const [courseGenResult, setCourseGenResult] = useState(null) // { codes: [{id, coupon_code}], amount, qty, centerName, programName }
   const [viewStatus, setViewStatus] = useState('All')    // status tab inside the type panel
   const [genMode, setGenMode] = useState(false)          // inline generate form inside the panel
   const [panelQ, setPanelQ] = useState('')               // search within the type panel
@@ -70,6 +81,10 @@ export default function CouponManagement() {
   const [pendingCoupons, setPendingCoupons] = useState([])
   const [pendingLoading, setPendingLoading] = useState(false)
 
+  function resetCourseGen() {
+    setCourseGenSuper(''); setCourseGenCenter(''); setCourseGenProgram('')
+    setCourseGenAmount(''); setCourseGenQty(''); setCourseGenResult(null)
+  }
   function openDirect(type) {
     setDirectType(type)
     setDirectCenterId('')
@@ -78,6 +93,7 @@ export default function CouponManagement() {
     setViewStatus('All')
     setGenMode(false)
     setPanelQ('')
+    resetCourseGen()
   }
   function closeDirect() {
     setDirectType(null)
@@ -87,6 +103,7 @@ export default function CouponManagement() {
     setViewStatus('All')
     setGenMode(false)
     setPanelQ('')
+    resetCourseGen()
   }
 
   // Admin activates / deactivates an approval code (centers can only view now).
@@ -126,6 +143,38 @@ export default function CouponManagement() {
     const { error } = await supabase.rpc('admin_delete_coupon', { p_id: c.id })
     if (error) { alert('Could not delete: ' + error.message); return }
     setCoupons(prev => prev.filter(x => x.id !== c.id))
+  }
+
+  // Course Coupon — several at once, free (no coupon wallet), tied to one
+  // course at one center. Mirrors generateDirectCode but with a quantity.
+  async function generateCourseCoupons() {
+    const amount = Math.round(Number(courseGenAmount) || 0)
+    const qty = Math.max(Math.round(Number(courseGenQty) || 0), 0)
+    if (!courseGenCenter || !courseGenProgram || amount < 1 || qty < 1) return
+    setCourseGenSaving(true)
+    const { data, error } = await supabase.rpc('admin_create_course_coupons', {
+      p_center_id: courseGenCenter,
+      p_program_id: courseGenProgram,
+      p_face_value: amount,
+      p_quantity: qty,
+    })
+    setCourseGenSaving(false)
+    if (error) {
+      const missing = /admin_create_course_coupons|PGRST202|42883|schema cache/i.test(error.message || '')
+      alert(missing
+        ? 'Course coupons need a database update — nothing was created.\n\nPlease run add_course_coupon.sql in Supabase.'
+        : 'Error generating course coupons: ' + error.message)
+      return
+    }
+    const center = centers.find(c => c.id === courseGenCenter)
+    const program = programs.find(p => p.id === courseGenProgram)
+    setCourseGenResult({
+      codes: data || [],
+      amount, qty,
+      centerName: center?.center_name || '',
+      programName: program?.program_name || '',
+    })
+    await fetchData()
   }
 
   async function generateDirectCode() {
@@ -179,6 +228,10 @@ export default function CouponManagement() {
       .order('center_name')
     if (ctrs.error) console.error('centers fetch failed:', ctrs.error)
     setCenters(ctrs.data || [])
+
+    const progs = await supabase.from('programs').select('id, program_name').order('program_name')
+    if (progs.error) console.error('programs fetch failed:', progs.error)
+    setPrograms(progs.data || [])
     setLoading(false)
   }
 
@@ -273,7 +326,11 @@ export default function CouponManagement() {
     return acc
   }, {})
 
-  // The type panel (Approval Code / Discounted Coupon) — codes of one type with a status tab.
+  // Program name lookup — built from the separately-fetched programs list
+  // rather than relying on a join succeeding on the coupons query.
+  const programNameById = Object.fromEntries(programs.map(p => [p.id, p.program_name]))
+
+  // The type panel (Approval Code / Discounted Coupon / Course Coupon) — codes of one type with a status tab.
   const panelCoupons = directType ? coupons.filter(c => c.coupon_type === directType && scopeMatch(c)) : []
   const isApprovalPanel = directType === 'approval'
   // Status matchers shared by the panel tabs + the list filter.
@@ -298,7 +355,7 @@ export default function CouponManagement() {
   // Top summary cards: when an Approval / Discounted panel is open, mirror THAT
   // panel's own tab counts so the cards exactly match the status bar below
   // (All / Used / Unused). Otherwise fall back to the scoped totals.
-  const isTypePanel = directType === 'approval' || directType === 'discount'
+  const isTypePanel = directType === 'approval' || directType === 'discount' || directType === 'course'
   const cardTotal  = isTypePanel ? panelCoupons.length : totalCount
   const cardUsed   = isTypePanel ? panelUsed   : totalUsed
   const cardUnused = isTypePanel ? panelUnused : totalUnused
@@ -438,6 +495,7 @@ export default function CouponManagement() {
           { k: null, label: 'All Coupons', icon: Ticket },
           { k: 'approval', label: 'Approval Codes', icon: BadgeCheck },
           { k: 'discount', label: 'Discounted Coupons', icon: Tag },
+          { k: 'course', label: 'Course Coupons', icon: GraduationCap },
           { k: 'pending', label: 'Pending', icon: Clock },
           { k: 'wallet', label: 'Coupon Wallet', icon: Wallet },
           { k: 'commission', label: 'Commission Wallet', icon: Wallet },
@@ -892,8 +950,8 @@ export default function CouponManagement() {
                   {/* Exports the panel exactly as filtered — the coupon kind,
                       the status pill and the panel search all already apply. */}
                   <ExportButtons className="ml-auto"
-                    title={directType === 'approval' ? `Approval Codes — ${viewStatus}` : `Discount Coupons — ${viewStatus}`}
-                    filename={`${directType === 'approval' ? 'approval-codes' : 'discount-coupons'}_${String(viewStatus).toLowerCase()}`}
+                    title={directType === 'approval' ? `Approval Codes — ${viewStatus}` : directType === 'course' ? `Course Coupons — ${viewStatus}` : `Discount Coupons — ${viewStatus}`}
+                    filename={`${directType === 'approval' ? 'approval-codes' : directType === 'course' ? 'course-coupons' : 'discount-coupons'}_${String(viewStatus).toLowerCase()}`}
                     rows={panelList}
                     meta={[`Status: ${viewStatus}`, ...(panelQ ? [`Search: ${panelQ}`] : [])]}
                     columns={[
@@ -903,6 +961,7 @@ export default function CouponManagement() {
                       { header: 'Super Center', value: c => (c.centers?.center_type === 'super_center'
                         ? c.centers?.center_name || '' : c.centers?.super_center?.center_name || '') },
                       { header: 'Type', value: c => (c.centers?.center_type === 'super_center' ? 'Super Center' : 'Center') },
+                      ...(directType === 'course' ? [{ header: 'Course', value: c => programNameById[c.program_id] || '' }] : []),
                       { header: 'Amount', value: c => Number(c.face_value || 0),
                         pdfValue: c => `₹${Number(c.face_value || 0).toLocaleString('en-IN')}` },
                       { header: 'Transaction ID', value: c => c.payment_txn_id || '' },
@@ -931,7 +990,95 @@ export default function CouponManagement() {
 
             {/* Inline generate form / result */}
             {genMode ? (
-              directResult ? (
+              directType === 'course' ? (
+                /* Course Coupon — Super Center -> Center -> Course -> Amount -> Quantity */
+                courseGenResult ? (
+                  <>
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-5">
+                      <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500 text-center">
+                        {courseGenResult.qty} Course Coupon{courseGenResult.qty > 1 ? 's' : ''} Created
+                      </p>
+                      <p className="text-sm text-gray-600 text-center mt-1">
+                        ₹{courseGenResult.amount.toLocaleString('en-IN')} each · {courseGenResult.centerName} · {courseGenResult.programName}
+                      </p>
+                      <div className="mt-3 max-h-56 overflow-y-auto space-y-1.5">
+                        {courseGenResult.codes.map(r => (
+                          <div key={r.id} className="flex items-center justify-between gap-2 bg-white border border-emerald-100 rounded-lg px-3 py-2">
+                            <span className="font-mono font-bold text-gray-900 tracking-wide">{r.coupon_code}</span>
+                            <button onClick={() => navigator.clipboard?.writeText(r.coupon_code)} title="Copy code"
+                              className="text-gray-400 hover:text-emerald-700 transition-colors"><Copy size={14} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button onClick={resetCourseGen} variant="outline" className="flex-1 justify-center">
+                        Generate More
+                      </Button>
+                      <Button onClick={() => { setGenMode(false); resetCourseGen() }} className="flex-1 justify-center">Back to List</Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Super Center</label>
+                      <select value={courseGenSuper} onChange={e => { setCourseGenSuper(e.target.value); setCourseGenCenter('') }}
+                        className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white">
+                        <option value="">All Super Centers…</option>
+                        {centers.filter(c => c.center_type === 'super_center').map(c => (
+                          <option key={c.id} value={c.id}>{c.center_name}{c.center_code ? ` (${c.center_code})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Center</label>
+                      <select value={courseGenCenter} onChange={e => setCourseGenCenter(e.target.value)}
+                        className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white">
+                        <option value="">Select a center…</option>
+                        {centers.filter(c => !courseGenSuper || c.super_center_id === courseGenSuper || c.id === courseGenSuper).map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.center_name}{c.center_code ? ` (${c.center_code})` : ''}{c.center_type === 'super_center' ? ' — Super Center' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Course</label>
+                      <select value={courseGenProgram} onChange={e => setCourseGenProgram(e.target.value)}
+                        className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white">
+                        <option value="">Select a course…</option>
+                        {programs.map(p => <option key={p.id} value={p.id}>{p.program_name}</option>)}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Amount (₹)</label>
+                        <input type="number" min="1" placeholder="E.g. 2000" value={courseGenAmount} onChange={e => setCourseGenAmount(e.target.value)}
+                          className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Quantity</label>
+                        <input type="number" min="1" placeholder="E.g. 10" value={courseGenQty} onChange={e => setCourseGenQty(e.target.value)}
+                          className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white" />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      {Math.max(Math.round(Number(courseGenQty) || 0), 0)} coupon{Math.round(Number(courseGenQty) || 0) === 1 ? '' : 's'} of
+                      ₹{(Math.round(Number(courseGenAmount) || 0)).toLocaleString('en-IN')} each will be created for this course at the selected
+                      center. At admission, one cuts the course fee itself by that amount before the admission coupon applies.
+                    </p>
+                    <div className="flex gap-3">
+                      <Button onClick={generateCourseCoupons}
+                        disabled={courseGenSaving || !courseGenCenter || !courseGenProgram
+                          || Math.round(Number(courseGenAmount) || 0) < 1 || Math.round(Number(courseGenQty) || 0) < 1}
+                        className="flex-1 justify-center">
+                        <Sparkles size={14} /> {courseGenSaving ? 'Generating…' : 'Generate Coupons'}
+                      </Button>
+                      <Button variant="outline" onClick={() => { setGenMode(false); resetCourseGen() }} className="flex-1 justify-center">Cancel</Button>
+                    </div>
+                  </>
+                )
+              ) : directResult ? (
                 <>
                   <div className={`rounded-xl border p-5 text-center ${
                     directResult.type === 'approval' ? 'border-indigo-100 bg-indigo-50' : 'border-emerald-100 bg-emerald-50'
@@ -1193,6 +1340,74 @@ export default function CouponManagement() {
                               </div>
                             ) : (
                               <div className="text-center"><span className="text-xs text-gray-300">—</span></div>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                ) : directType === 'course' ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#933d18] text-left">
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Code</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Center</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Course</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Amount</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Generated</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide">Status</th>
+                      <th className="px-5 py-3 text-xs font-semibold text-white uppercase tracking-wide text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {panelList.length === 0 ? (
+                      <tr><td colSpan={7} className="px-4 py-12 text-center text-gray-400">
+                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}course coupons {panelQ ? 'match your search.' : 'yet.'}
+                      </td></tr>
+                    ) : panelList.map((c, i) => {
+                      const used = !!(c.is_used || c.used_at)
+                      return (
+                        <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold text-gray-800 tracking-wide">{c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '—'}</span>
+                              <button onClick={() => navigator.clipboard?.writeText(c.coupon_code || c.id?.slice(0, 8).toUpperCase() || '')} title="Copy code"
+                                className="text-gray-300 hover:text-[#933d18] transition-colors"><Copy size={13} /></button>
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <p className="font-semibold text-gray-900 text-sm">{c.centers?.center_name || '—'}</p>
+                            {c.centers?.center_type === 'super_center'
+                              ? <span className="text-[10px] font-bold text-purple-600">Super Center</span>
+                              : c.centers?.center_code && <span className="text-[10px] text-gray-400 font-mono">{c.centers.center_code}</span>}
+                          </td>
+                          <td className="px-5 py-3.5 text-gray-700 text-sm">{programNameById[c.program_id] || '—'}</td>
+                          <td className="px-5 py-3.5 font-bold text-gray-900 text-sm">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</td>
+                          <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
+                          <td className="px-5 py-3.5">
+                            {used ? (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
+                            ) : (
+                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3.5 text-center">
+                            {used ? (
+                              <span className="text-xs text-gray-300">—</span>
+                            ) : (
+                              <div className="flex items-center justify-center gap-2">
+                                <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
+                                  title="Edit amount"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
+                                  <Pencil size={13} /> Edit
+                                </button>
+                                <button onClick={() => deleteCode(c)}
+                                  title="Delete code"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
+                                  <Trash2 size={13} /> Delete
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>

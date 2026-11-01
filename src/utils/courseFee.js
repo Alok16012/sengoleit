@@ -184,8 +184,14 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
 // The wallet hold taken when a center forwards a student: half the fee due so
 // far, less any coupon. Shared so the forward, the approval and the reports all
 // quote the same number instead of each re-deriving it.
-export function holdAmount(courseFee, discount) {
-  return Math.max(Math.ceil(Number(courseFee || 0) * 0.5) - Number(discount || 0), 0)
+// `courseFeeDiscount` (a Course Coupon) comes off the course fee itself,
+// BEFORE the 50% is taken — a bigger cut than taking the same amount off the
+// 50% directly. `discount` (the admission "Discounted Coupon") still comes
+// off the 50% on top of that, exactly as before — the two stack but apply
+// at different points, matching the order they're meant to be used in.
+export function holdAmount(courseFee, discount, courseFeeDiscount = 0) {
+  const effectiveFee = Math.max(Number(courseFee || 0) - Number(courseFeeDiscount || 0), 0)
+  return Math.max(Math.ceil(effectiveFee * 0.5) - Number(discount || 0), 0)
 }
 
 // Per-semester cumulative course fee + which semesters are "cleared".

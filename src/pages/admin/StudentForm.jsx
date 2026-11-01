@@ -8,7 +8,7 @@ import DateInput from '../../components/ui/DateInput'
 import Button from '../../components/ui/Button'
 import FormSection from '../../components/ui/FormSection'
 import { formatDate } from '../../utils/formatDate'
-import { computeCumulativeCourseFee } from '../../utils/courseFee'
+import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
 // Fee Sharing calculation version: 2.1 (Strict centers.fee_sharing 60% -> 4000)
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { findFreeNumber, countIssued } from '../../utils/uniqueNumbers'
@@ -614,6 +614,12 @@ export default function StudentForm() {
   const [isStagingCenter, setIsStagingCenter] = useState(false)
   const [coupon, setCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
   const [availableCoupons, setAvailableCoupons] = useState([])
+  // Course Coupon — comes off the COURSE FEE itself, before the admission
+  // coupon above comes off the 50% required at entry. Tied to the chosen
+  // programme, so it only offers (and only validates against) coupons minted
+  // for that course at this center.
+  const [courseCoupon, setCourseCoupon] = useState({ code: '', applying: false, applied: null, error: '', discount: 0 })
+  const [availableCourseCoupons, setAvailableCourseCoupons] = useState([])
   // Program IDs that have a fee structure (admin) OR are allotted+approved to
   // this center (center/super-center). The Program Info dropdown only offers
   // these, so a student can't be admitted into a course with no fee set up.
@@ -765,6 +771,20 @@ export default function StudentForm() {
       })
   }, [form.center_id])
 
+  // Same, for Course Coupons — also narrowed to the chosen programme, since a
+  // course coupon is only valid for the course it was minted for.
+  useEffect(() => {
+    if (!form.center_id || !form.programme_id || isEdit) { setAvailableCourseCoupons([]); return }
+    supabase.from('coupons')
+      .select('id, coupon_code, coupon_type, face_value, is_used, used_at, is_disabled, center_id, program_id')
+      .eq('center_id', form.center_id)
+      .eq('program_id', form.programme_id)
+      .then(({ data }) => {
+        const avail = (data || []).filter(c => !c.is_used && !c.used_at && !c.is_disabled && c.coupon_type === 'course')
+        setAvailableCourseCoupons(avail)
+      })
+  }, [form.center_id, form.programme_id])
+
   // Resolve which programs can be admitted into.
   //  • center  → courses APPROVED-allotted to this center in Fee Management →
   //    Center Courses, for the SELECTED session. Allotment is per program+session
@@ -867,6 +887,7 @@ export default function StudentForm() {
     setForm(f => ({ ...f, department_id: e.target.value, programme_id: '', course_code: '', semester_year: '' }))
     setWalletInfo({ checking: false, balance: 0, courseFee: 0, ok: null, checked: false })
     setCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
+    setCourseCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
   }
 
   // The Mode is a property of the programme, not a choice: a Year-based
@@ -891,6 +912,9 @@ export default function StudentForm() {
       semester_year: prog ? entrySemLabel(prog) : '',
       mode_id: modeIdForProgram(prog) || f.mode_id,
     }))
+    // A Course Coupon is minted for ONE programme — changing the course
+    // invalidates whatever was applied for the old one.
+    setCourseCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
   }
 
   const handleSessionChange = (e) => {
@@ -1093,9 +1117,9 @@ export default function StudentForm() {
         .maybeSingle()
 
       const balance = Number(ctr?.virtual_balance || 0)
-      // Required = 50% of the full course fee, then minus any coupon discount.
-      const half = Math.ceil(courseFee * 0.5)
-      const minRequired = Math.max(half - (coupon.discount || 0), 0)
+      // Required = 50% of the course fee (less any Course Coupon), then minus
+      // any admission coupon discount.
+      const minRequired = holdAmount(courseFee, coupon.discount, courseCoupon.discount)
       const ok = courseFee === 0 || balance >= minRequired
       setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive })
       return ok
@@ -1146,9 +1170,9 @@ export default function StudentForm() {
       }
       const discount = Number(match.face_value || 0)
       setCoupon(c => ({ ...c, applying: false, applied: match, discount, error: '' }))
-      // Re-evaluate: required = 50% of course fee, then minus coupon discount.
-      const half = Math.ceil((walletInfo.courseFee || 0) * 0.5)
-      const minRequired = Math.max(half - discount, 0)
+      // Re-evaluate: required = 50% of (course fee less any Course Coupon),
+      // then minus this coupon's discount.
+      const minRequired = holdAmount(walletInfo.courseFee, discount, courseCoupon.discount)
       setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= minRequired }))
     } catch (err) {
       setCoupon(c => ({ ...c, applying: false, error: 'Could not validate coupon. Try again.' }))
@@ -1157,7 +1181,45 @@ export default function StudentForm() {
 
   function removeCoupon() {
     setCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
-    setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= Math.ceil(w.courseFee * 0.5) }))
+    setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= holdAmount(w.courseFee, 0, courseCoupon.discount) }))
+  }
+
+  // Course Coupon — same shape as applyCoupon/removeCoupon above, but matched
+  // on coupon_type 'course' AND the chosen programme, and it comes off the
+  // course fee itself rather than the 50% required.
+  async function applyCourseCoupon() {
+    const code = courseCoupon.code.trim().toUpperCase()
+    if (!code) { setCourseCoupon(c => ({ ...c, error: 'Enter a coupon code' })); return }
+    if (!form.center_id) { setCourseCoupon(c => ({ ...c, error: 'Select a center first' })); return }
+    if (!form.programme_id) { setCourseCoupon(c => ({ ...c, error: 'Select a course first' })); return }
+    setCourseCoupon(c => ({ ...c, applying: true, error: '' }))
+    try {
+      const { data: rows } = await supabase
+        .from('coupons')
+        .select('id, coupon_code, face_value, is_used, used_at, is_disabled, center_id, coupon_type, program_id')
+        .eq('center_id', form.center_id)
+        .eq('program_id', form.programme_id)
+      const match = (rows || []).find(
+        r => !r.is_used && !r.used_at && !r.is_disabled
+          && r.coupon_type === 'course'
+          && (r.coupon_code || r.id?.slice(0, 8).toUpperCase() || '').toUpperCase() === code
+      )
+      if (!match) {
+        setCourseCoupon(c => ({ ...c, applying: false, applied: null, discount: 0, error: 'Invalid or already-used course coupon for this center / course' }))
+        return
+      }
+      const discount = Number(match.face_value || 0)
+      setCourseCoupon(c => ({ ...c, applying: false, applied: match, discount, error: '' }))
+      const minRequired = holdAmount(walletInfo.courseFee, coupon.discount, discount)
+      setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= minRequired }))
+    } catch (err) {
+      setCourseCoupon(c => ({ ...c, applying: false, error: 'Could not validate coupon. Try again.' }))
+    }
+  }
+
+  function removeCourseCoupon() {
+    setCourseCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
+    setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= holdAmount(w.courseFee, coupon.discount, 0) }))
   }
 
   function validateStep(s) {
@@ -1397,6 +1459,7 @@ export default function StudentForm() {
       // on this student's record when the reservation truly succeeded, so a
       // coupon can never be applied to two students.
       let couponReserveFailed = false
+      let courseCouponReserveFailed = false
       if (!isEdit && coupon.applied?.id) {
         // Mark the coupon used. The center role can't UPDATE coupons under
         // RLS, so use the service-role admin client. The `is_used=false`
@@ -1429,6 +1492,13 @@ export default function StudentForm() {
           .rpc('reserve_coupon', { p_coupon_id: coupon.applied.id, p_application_id: null })
         couponReserveFailed = !!reserveErr || reserved !== true
       }
+      // Same reservation, independently, for the Course Coupon — the two are
+      // unrelated coupons and either can fail without touching the other.
+      if (!isEdit && courseCoupon.applied?.id) {
+        const { data: reserved, error: reserveErr } = await supabase
+          .rpc('reserve_coupon', { p_coupon_id: courseCoupon.applied.id, p_application_id: null })
+        courseCouponReserveFailed = !!reserveErr || reserved !== true
+      }
       // Persist (or clear) the discount on the student row itself. The center
       // always has write access to its own student records, so this survives
       // even if RLS blocks the center from updating the coupons table —
@@ -1440,11 +1510,17 @@ export default function StudentForm() {
           .update({
             coupon_discount: (coupon.applied && !couponReserveFailed) ? (coupon.discount || 0) : null,
             coupon_code: (coupon.applied && !couponReserveFailed) ? coupon.code.trim().toUpperCase() : null,
+            course_coupon_discount: (courseCoupon.applied && !courseCouponReserveFailed) ? (courseCoupon.discount || 0) : null,
+            course_coupon_code: (courseCoupon.applied && !courseCouponReserveFailed) ? courseCoupon.code.trim().toUpperCase() : null,
+            course_coupon_program_id: (courseCoupon.applied && !courseCouponReserveFailed) ? payload.programme_id : null,
           })
           .eq('id', saved.id)
       }
       if (couponReserveFailed) {
         alert('This coupon could not be claimed — it may have been used by another student submitted moments ago, or switched off. The student has been saved WITHOUT the discount, so the full fee will be held at forward.')
+      }
+      if (courseCouponReserveFailed) {
+        alert('This course coupon could not be claimed — it may have been used by another student submitted moments ago, or switched off. The student has been saved WITHOUT the course discount, so the full course fee will be held at forward.')
       }
       navigate(backPath)
     } else {
@@ -1801,11 +1877,15 @@ export default function StudentForm() {
                               &nbsp;(no sharing applied — full university fee)
                             </span>
                           )}
-                          &nbsp;·&nbsp;50%: ₹{Math.ceil(walletInfo.courseFee * 0.5).toLocaleString('en-IN')}
+                          {courseCoupon.discount > 0 && (
+                            <>&nbsp;·&nbsp;Course Coupon: −₹{courseCoupon.discount.toLocaleString('en-IN')}
+                            &nbsp;·&nbsp;Fee after: ₹{Math.max(walletInfo.courseFee - courseCoupon.discount, 0).toLocaleString('en-IN')}</>
+                          )}
+                          &nbsp;·&nbsp;50%: ₹{Math.ceil(Math.max(walletInfo.courseFee - courseCoupon.discount, 0) * 0.5).toLocaleString('en-IN')}
                           {coupon.discount > 0 && (
                             <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}</>
                           )}
-                          &nbsp;·&nbsp;Required: ₹{Math.max(Math.ceil(walletInfo.courseFee * 0.5) - (coupon.discount || 0), 0).toLocaleString('en-IN')}
+                          &nbsp;·&nbsp;Required: ₹{holdAmount(walletInfo.courseFee, coupon.discount, courseCoupon.discount).toLocaleString('en-IN')}
                           &nbsp;·&nbsp;Your Balance: ₹{walletInfo.balance.toLocaleString('en-IN')}
                         </p>
                       </div>
@@ -1814,6 +1894,41 @@ export default function StudentForm() {
                       {walletInfo.ok ? '✓ Sufficient' : '✗ Insufficient'}
                     </span>
                   </div>
+
+                  {/* Course Coupon apply — comes off the course fee itself */}
+                  {walletInfo.courseFee > 0 && (
+                    <div className="mt-2">
+                      {courseCoupon.applied ? (
+                        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+                          <p className="text-xs font-semibold text-emerald-700">
+                            Course Coupon <span className="font-mono">{courseCoupon.code.toUpperCase()}</span> applied · ₹{courseCoupon.discount.toLocaleString('en-IN')} off the course fee
+                          </p>
+                          <button type="button" onClick={removeCourseCoupon} className="text-xs font-semibold text-gray-400 hover:text-red-500 underline">Remove</button>
+                        </div>
+                      ) : availableCourseCoupons.length === 0 ? (
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-400">
+                          No course coupons available for this course at this center.
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <CouponSearchSelect
+                            coupons={availableCourseCoupons}
+                            value={courseCoupon.code}
+                            onSelect={code => setCourseCoupon(c => ({ ...c, code, error: '' }))}
+                          />
+                          <button
+                            type="button"
+                            onClick={applyCourseCoupon}
+                            disabled={courseCoupon.applying || !courseCoupon.code}
+                            className="px-4 py-2 text-sm font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                          >
+                            {courseCoupon.applying ? 'Applying...' : 'Apply'}
+                          </button>
+                        </div>
+                      )}
+                      {courseCoupon.error && <p className="text-xs text-red-500 mt-1.5 px-1">{courseCoupon.error}</p>}
+                    </div>
+                  )}
 
                   {/* Coupon code apply */}
                   {walletInfo.courseFee > 0 && (
@@ -1870,6 +1985,44 @@ export default function StudentForm() {
                     </p>
                   )
                 )}
+              </div>
+            )}
+
+            {/* Course Coupon apply — Admin (no wallet gate). Comes off the course
+                fee itself; the admission coupon below still applies on top. */}
+            {isAdmin && !isEdit && form.center_id && form.programme_id && (
+              <div className="mt-3">
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Apply Course Coupon (optional)</label>
+                {courseCoupon.applied ? (
+                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+                    <p className="text-xs font-semibold text-emerald-700">
+                      Course Coupon <span className="font-mono">{courseCoupon.code.toUpperCase()}</span> applied · ₹{courseCoupon.discount.toLocaleString('en-IN')} off the course fee
+                    </p>
+                    <button type="button" onClick={removeCourseCoupon} className="text-xs font-semibold text-gray-400 hover:text-red-500 underline">Remove</button>
+                  </div>
+                ) : availableCourseCoupons.length === 0 ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-400">
+                    No course coupons available for this course at this center.
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <CouponSearchSelect
+                      coupons={availableCourseCoupons}
+                      value={courseCoupon.code}
+                      onSelect={code => setCourseCoupon(c => ({ ...c, code, error: '' }))}
+                    />
+                    <button
+                      type="button"
+                      onClick={applyCourseCoupon}
+                      disabled={courseCoupon.applying || !courseCoupon.code}
+                      className="px-4 py-2 text-sm font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 transition-colors"
+                    >
+                      {courseCoupon.applying ? 'Applying...' : 'Apply'}
+                    </button>
+                  </div>
+                )}
+                {courseCoupon.error && <p className="text-xs text-red-500 mt-1.5 px-1">{courseCoupon.error}</p>}
+                <p className="text-[11px] text-gray-400 mt-1.5 px-1">Reduces the course fee itself; the admission coupon below (if any) then comes off the reduced 50%.</p>
               </div>
             )}
 
