@@ -17,6 +17,7 @@ import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
 import { fetchCourierSems } from '../../utils/courierSems'
+import { fetchAllRows } from '../../utils/fetchAllRows'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
 import AdmitCardListModal from '../../components/AdmitCardListModal'
 
@@ -204,6 +205,9 @@ function CredModal({ studentId, onClose }) {
 export default function Students() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
+  // Why the list could not be read — shown on the page. A failed read used to
+  // look exactly like "No students found", with the reason only in the console.
+  const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('All')
   // Form-submission date range — how many admissions came in over a period.
@@ -332,33 +336,74 @@ export default function Students() {
     setDownloading(null)
   }
 
+  // Programme, session and centre attached by id — for the no-joins fallback.
+  async function attachLookups(rows) {
+    const [pr, se, ce] = await Promise.all([
+      supabase.from('programs').select('id, program_name, duration, semester_year'),
+      supabase.from('academic_sessions').select('id, session_name'),
+      supabase.from('centers').select('id, center_name, center_code, super_center_id'),
+    ])
+    const byId = list => Object.fromEntries((list || []).map(x => [x.id, x]))
+    const P = byId(pr.data), S = byId(se.data), C = byId(ce.data)
+    return (rows || []).map(r => ({
+      ...r,
+      programs: P[r.programme_id] || null,
+      academic_sessions: S[r.session_id] || null,
+      centers: C[r.center_id] || null,
+    }))
+  }
+
   async function fetchData() {
     setLoading(true)
-    const FULL = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const FULL = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
     // Fallback for DBs where the exam-result / admit-card columns are not yet
     // created (run_all_migrations.sql not applied) — students still list; only
     // the admit-card / result actions stay inactive.
-    const MIN = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const MIN = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
 
-    let { data, error } = await supabase
+    // Last resort: no embedded joins at all. Programme / session / centre are
+    // looked up separately and attached, so a join PostgREST refuses (an
+    // ambiguous or missing relationship) cannot blank the whole list.
+    const BARE = MIN.replace(/, programs\([^)]*\)|, academic_sessions\([^)]*\)|, centers\([^)]*\)/g, '')
+
+    // Paged: one unpaged read of every student, with three joins each, is the
+    // heaviest query in the app — past PostgREST's row cap it silently dropped
+    // students, and on a large table it can run out of time altogether.
+    const read = (sel) => fetchAllRows(() => supabase
       .from('students')
-      .select(FULL)
+      .select(sel)
       .order('created_at', { ascending: false })
+      .order('id'))
+
+    setLoadError('')
+    let { data, error } = await read(FULL)
     if (error) {
       console.error('Students fetch error (full select), retrying minimal:', error)
-      ;({ data, error } = await supabase
-        .from('students')
-        .select(MIN)
-        .order('created_at', { ascending: false }))
-      if (error) console.error('Students fetch error (minimal select):', error)
+      ;({ data, error } = await read(MIN))
+    }
+    if (error) {
+      console.error('Students fetch error (minimal select), retrying without joins:', error)
+      ;({ data, error } = await read(BARE))
+      if (!error) data = await attachLookups(data)
+    }
+    if (error) {
+      console.error('Students fetch error (no joins):', error)
+      setLoadError([error.message, error.code && `(${error.code})`, error.details, error.hint].filter(Boolean).join(' '))
     }
     setData(data || [])
-    // null = add_re_registration.sql not run yet, so the feature stays hidden.
-    setReReg(await fetchReRegistrations((data || []).map(s => s.id)))
-    // null = add_semester_admit_cards.sql not run yet — admit_card_released_at
-    // (the old single-flag) is the fallback for whether the icon shows at all.
-    setAdmitCards(await admitCardsForMany((data || []).map(s => s.id)))
-    setCourier(await fetchCourierSems())
+    // The extras below decorate the list; none of them may stop it showing.
+    try {
+      // null = add_re_registration.sql not run yet, so the feature stays hidden.
+      setReReg(await fetchReRegistrations((data || []).map(s => s.id)))
+    } catch (e) { console.error('Re-registrations fetch failed:', e) }
+    try {
+      // null = add_semester_admit_cards.sql not run yet — admit_card_released_at
+      // (the old single-flag) is the fallback for whether the icon shows at all.
+      setAdmitCards(await admitCardsForMany((data || []).map(s => s.id)))
+    } catch (e) { console.error('Admit cards fetch failed:', e) }
+    try {
+      setCourier(await fetchCourierSems())
+    } catch (e) { console.error('Courier fetch failed:', e) }
     setLoading(false)
   }
 
@@ -440,6 +485,13 @@ export default function Students() {
         subtitle={`${data.length} students`}
         action={{ label: <><Plus size={15} /> Add Student</>, onClick: () => navigate('/admin/students/new') }}
       />
+
+      {loadError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm font-bold text-red-700">Could not load students</p>
+          <p className="text-xs text-red-600 mt-1 font-mono break-all">{loadError}</p>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-3 mb-3 items-end">
         <div className="relative">
