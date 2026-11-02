@@ -22,6 +22,8 @@ export default function CouponView({ type = 'wallet' }) {
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('All')
   const [hideTotal, setHideTotal] = useState(false)
+  // Course name per programme id — Course Coupons are each for one course.
+  const [programNames, setProgramNames] = useState({})
   // Approval-code activation modal
   const [actModal, setActModal] = useState(null)   // the coupon being activated
   const [actEmail, setActEmail] = useState('')
@@ -42,6 +44,10 @@ export default function CouponView({ type = 'wallet' }) {
             .then(({ data: reqs, error: rErr }) => {
               if (!rErr) setRequests(reqs || [])
             })
+        }
+        if (type === 'course') {
+          supabase.from('programs').select('id, program_name')
+            .then(({ data: pr }) => setProgramNames(Object.fromEntries((pr || []).map(p => [p.id, p.program_name]))))
         }
         // Order by created_at if it exists, otherwise fall back to an
         // unordered fetch so a missing column doesn't blank the list.
@@ -92,10 +98,17 @@ export default function CouponView({ type = 'wallet' }) {
   }
 
   const isApproval = type === 'approval'
-  // Approval Code view only lists approval-type coupons; other views show all.
+  const isCourse = type === 'course'
+  // Approval Code view only lists approval-type coupons, and Course Coupons
+  // only course-type ones. The other views leave Course Coupons out — they
+  // are a different discount (off the course fee, for one course) and were
+  // being counted in among the admission coupons.
+  const kind = c => (c.coupon_type || '').toLowerCase()
   const scoped = isApproval
-    ? coupons.filter(c => (c.coupon_type || '').toLowerCase() === 'approval')
-    : coupons
+    ? coupons.filter(c => kind(c) === 'approval')
+    : isCourse
+      ? coupons.filter(c => kind(c) === 'course')
+      : coupons.filter(c => kind(c) !== 'course')
 
   const filtered = scoped.filter(c => {
     const isUsed = !!(c.is_used || c.used_at)
@@ -126,9 +139,11 @@ export default function CouponView({ type = 'wallet' }) {
   const showPaymentDate = isApproval && (filter === 'To Verify' || filter === 'Hold' || filter === 'Reject')
 
   const isWallet = type === 'wallet'
-  const title = isApproval ? 'Approval Codes' : isWallet ? 'Wallet Coupons' : 'Admission Coupons'
+  const title = isApproval ? 'Approval Codes' : isCourse ? 'Course Coupons' : isWallet ? 'Wallet Coupons' : 'Admission Coupons'
   const subtitle = isApproval
     ? 'Approval codes allocated to your center'
+    : isCourse
+      ? 'Course coupons allocated to your center — each comes off the course fee of one course'
     : isWallet
       ? 'Coupons allocated to your center for wallet recharge'
       : 'Admission coupons allocated to your center'
@@ -267,6 +282,7 @@ export default function CouponView({ type = 'wallet' }) {
               <>
                 <Th>#</Th>
                 <Th>Coupon ID</Th>
+                {isCourse && <Th>Course</Th>}
                 <Th>Face Value</Th>
                 <Th>{showPaymentDate ? 'Payment Date' : 'Generated On'}</Th>
                 <Th>Used On</Th>
@@ -278,7 +294,7 @@ export default function CouponView({ type = 'wallet' }) {
         <Tbody>
           {filtered.length === 0 ? (
             <Tr>
-              <Td colSpan={unusedView ? 5 : isApproval ? 10 : 6} className="text-center text-gray-400 py-16">
+              <Td colSpan={unusedView ? 5 : isApproval ? 10 : isCourse ? 7 : 6} className="text-center text-gray-400 py-16">
                 <Ticket size={28} className="mx-auto mb-2 opacity-30" />
                 <p>No coupons found</p>
               </Td>
@@ -404,6 +420,7 @@ export default function CouponView({ type = 'wallet' }) {
               <Tr key={c.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
                 <Td className="font-mono text-xs font-bold text-gray-800">{code}</Td>
+                {isCourse && <Td className="text-xs text-gray-700">{programNames[c.program_id] || '—'}</Td>}
                 <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
                 <Td className="text-gray-400 text-xs">{showPaymentDate ? (paymentDateFromTxn(c.payment_txn_id) ? formatDate(paymentDateFromTxn(c.payment_txn_id)) : (center?.payment_date ? formatDate(center.payment_date) : '—')) : formatDate(c.created_at)}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>

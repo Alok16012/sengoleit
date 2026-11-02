@@ -57,6 +57,7 @@ const reportItems = (base) => [
   { to: `${base}/reports/progress`, icon: TrendingUp, label: 'Student Progress' },
   { to: `${base}/reports/wallet-coupon`, icon: Ticket, label: 'Wallet Coupon' },
   { to: `${base}/reports/admission-coupon`, icon: Tag, label: 'Admission Coupon' },
+  { to: `${base}/reports/course-coupon`, icon: GraduationCap, label: 'Course Coupon' },
 ]
 
 const superCenterNavGroups = [
@@ -84,6 +85,7 @@ const superCenterNavGroups = [
         '/super-center/reports/credentials',
         '/super-center/reports/wallet-coupon',
         '/super-center/reports/admission-coupon',
+        '/super-center/reports/course-coupon',
         '/super-center/reports/progress',   // unbuilt "Coming Soon" shell
       ].includes(item.to)
     ),

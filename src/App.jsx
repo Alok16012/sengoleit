@@ -219,6 +219,7 @@ export default function App() {
             <Route path="/super-center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
             <Route path="/super-center/reports/wallet-coupon" element={<CouponView type="wallet" />} />
             <Route path="/super-center/reports/admission-coupon" element={<CouponView type="admission" />} />
+            <Route path="/super-center/reports/course-coupon" element={<CouponView type="course" />} />
             <Route path="/super-center/approval-codes" element={<CouponView type="approval" />} />
 
             {/* Center portal */}
@@ -252,6 +253,7 @@ export default function App() {
             <Route path="/center/reports/progress" element={<ComingSoon title="Student Progress" description="Academic progress tracking" />} />
             <Route path="/center/reports/wallet-coupon" element={<CouponView type="wallet" />} />
             <Route path="/center/reports/admission-coupon" element={<CouponView type="admission" />} />
+            <Route path="/center/reports/course-coupon" element={<CouponView type="course" />} />
 
           </Route>
 
