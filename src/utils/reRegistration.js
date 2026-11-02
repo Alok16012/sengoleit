@@ -116,6 +116,7 @@ export async function reRegistrationFee(student) {
     duration: Number(student?.programs?.duration) || 1,
     fee_collected: student.fee_collected,
     coupon_discount: student.coupon_discount,
+    course_coupon_discount: student.course_coupon_discount,
     // The centre owes its share of the term, not the whole term — the same
     // deduction admission takes. Frozen rate first, the centre's current rate
     // only when this student predates the freeze.
@@ -156,6 +157,7 @@ export async function registrationYears(student) {
     duration: totalSems,
     fee_collected: student.fee_collected,
     coupon_discount: student.coupon_discount,
+    course_coupon_discount: student.course_coupon_discount,
     // Same units as fee_collected, or the year gate never clears.
     center_id: student.center_id || student.centers?.id,
     sharing_pct: student.fee_sharing_pct,
@@ -277,7 +279,7 @@ export async function approveReRegistration(req) {
   const req2 = await liveRequest(req)
   const { data: st } = await supabase
     .from('students')
-    .select('fee_collected, coupon_discount, programme_id, session_id, semester_year, center_id, fee_sharing_pct, programs(duration, semester_year)')
+    .select('fee_collected, coupon_discount, course_coupon_discount, programme_id, session_id, semester_year, center_id, fee_sharing_pct, programs(duration, semester_year)')
     .eq('id', req2.student_id).maybeSingle()
   const collectedNow = Number(st?.fee_collected || 0)
 
@@ -294,6 +296,7 @@ export async function approveReRegistration(req) {
     duration: Number(st.programs?.duration) || 1,
     fee_collected: collectedNow,
     coupon_discount: st.coupon_discount,
+    course_coupon_discount: st.course_coupon_discount,
     // Must match what was quoted and held at request time, or approval credits
     // a different number than the centre actually paid.
     center_id: st.center_id || req2.center_id,

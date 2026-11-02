@@ -219,7 +219,7 @@ export function holdAmount(courseFee, discount, courseFeeDiscount = 0) {
 // current rate, so re-pricing a centre never re-prices its existing students.
 // With neither it nor center_id given nothing is deducted and the gross fee
 // comes back — which is what the university-wide screens want.
-export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected, coupon_discount, center_id, sharing_pct }) {
+export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected, coupon_discount, course_coupon_discount, center_id, sharing_pct }) {
   const totalSems = Number(duration) || 1
   const { data: structures } = await supabase
     .from('fee_structures').select('id, session_id').eq('program_id', programme_id)
@@ -249,8 +249,10 @@ export async function computeSemesterFeeStatus({ programme_id, session_id, durat
   const sems = []
   for (let n = 1; n <= totalSems; n++) {
     const fee = cumFee(n)
-    // The coupon is a discount on the fee itself, so it is never collected.
-    const due = Math.max(Math.round(fee) - (Number(coupon_discount) || 0), 0)
+    // Both coupons are discounts on the fee itself, so neither is ever
+    // collected. Leaving the Course Coupon out here meant the Exam Section
+    // charged it back when it collected the rest of the fee.
+    const due = Math.max(Math.round(fee) - (Number(coupon_discount) || 0) - (Number(course_coupon_discount) || 0), 0)
     sems.push({
       sem: n,
       cumFee: Math.round(fee),
