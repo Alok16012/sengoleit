@@ -121,6 +121,11 @@ const centerNavGroups = [
   },
 ]
 
+// Document Verification login — the Document Dept page only.
+const docDeptNavGroups = [
+  { items: [{ to: '/admin/document-department', icon: ShieldCheck, label: 'Document Dept.' }] },
+]
+
 const studentNavGroups = [
   { items: [{ to: '/student/dashboard', icon: LayoutDashboard, label: 'Dashboard' }] },
 ]
@@ -146,12 +151,14 @@ export default function Sidebar() {
     role === 'admin' ? [{ items: adminLinks }] :
     role === 'super_center' ? superCenterNavGroups :
     role === 'center' ? centerNavGroups :
+    role === 'document_dept' ? docDeptNavGroups :
     studentNavGroups
 
   const roleLabel =
     role === 'admin' ? 'Administration' :
     role === 'super_center' ? 'Super Center Portal' :
     role === 'center' ? 'Center Portal' :
+    role === 'document_dept' ? 'Document Verification' :
     'Student Portal'
 
   return (

@@ -97,6 +97,7 @@ function RoleRedirect() {
   if (profile?.role === 'super_center') return <Navigate to="/super-center/dashboard" replace />
   if (profile?.role === 'center') return <Navigate to="/center/dashboard" replace />
   if (profile?.role === 'student') return <Navigate to="/student/dashboard" replace />
+  if (profile?.role === 'document_dept') return <Navigate to="/admin/document-department" replace />
   return <Navigate to="/dashboard" replace />
 }
 

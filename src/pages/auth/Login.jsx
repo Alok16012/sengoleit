@@ -25,7 +25,9 @@ export default function Login() {
       if (role === 'super_center') navigate('/super-center/dashboard')
       else if (role === 'center') navigate('/center/dashboard')
       else if (role === 'student') navigate('/student/dashboard')
-      else navigate('/dashboard')
+      // Every other login lands on "/", which sends it on by its PROFILE role —
+      // the Document Dept login carries its role there, not in user_metadata.
+      else navigate('/')
     } catch (err) {
       setError(err.message)
     } finally {

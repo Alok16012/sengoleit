@@ -1,8 +1,11 @@
-import { Outlet, Navigate, useNavigate } from 'react-router-dom'
+import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import Sidebar from './Sidebar'
 import { Search, Bell, User, LogOut, ChevronDown } from 'lucide-react'
+
+// The one page a Document Dept login works on.
+const DOC_DEPT_HOME = '/admin/document-department'
 
 function TopBar() {
   const { profile, user, signOut } = useAuth()
@@ -27,6 +30,7 @@ function TopBar() {
     (role === 'admin' ? 'Admin User' :
      role === 'super_center' ? 'Super Center' :
      role === 'center' ? 'Center User' :
+     role === 'document_dept' ? 'Document Dept' :
      user?.email || 'User')
 
   // Where the "Profile" item navigates, per role
@@ -34,6 +38,7 @@ function TopBar() {
     role === 'center' ? '/center/profile' :
     role === 'student' ? '/student/profile' :
     role === 'super_center' ? '/super-center/profile' :
+    role === 'document_dept' ? DOC_DEPT_HOME :
     '/dashboard'
 
   // Close the dropdown when clicking outside of it
@@ -52,6 +57,9 @@ function TopBar() {
   return (
     <div className="h-20 flex items-center justify-between px-8 border-b border-gray-100 bg-white">
       <div className="flex-1 max-w-xl">
+        {/* The header search opens the Students list — not part of the
+            Document Dept login's view. */}
+        {role !== 'document_dept' && (
         <div className="relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
@@ -63,6 +71,7 @@ function TopBar() {
             className="w-full bg-white border border-gray-100 rounded-2xl py-2.5 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] transition-all shadow-sm"
           />
         </div>
+        )}
       </div>
       <div className="flex items-center space-x-6">
         {/* No notifications system exists yet — a permanent red "unread" dot
@@ -80,7 +89,7 @@ function TopBar() {
             <div className="flex flex-col items-end mr-1">
               <span className="text-sm font-bold text-gray-900">{name}</span>
               <span className="text-[10px] font-medium text-gray-400 capitalize">
-                {role === 'super_center' ? 'Super Center' : role === 'admin' ? 'Admin' : role}
+                {role === 'super_center' ? 'Super Center' : role === 'admin' ? 'Admin' : role === 'document_dept' ? 'Document Verification' : role}
               </span>
             </div>
             <div className="h-10 w-10 bg-[#933d18] rounded-xl flex items-center justify-center border border-[#933d18]/20 shadow-sm">
@@ -116,7 +125,8 @@ function TopBar() {
 }
 
 export default function AppLayout() {
-  const { user, loading } = useAuth()
+  const { user, profile, loading } = useAuth()
+  const location = useLocation()
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -125,6 +135,13 @@ export default function AppLayout() {
   )
 
   if (!user) return <Navigate to="/login" replace />
+
+  // A Document Dept login is kept on its own page — the database already
+  // refuses it anything else, but the other admin screens would just open
+  // empty or broken.
+  if (profile?.role === 'document_dept' && location.pathname !== DOC_DEPT_HOME) {
+    return <Navigate to={DOC_DEPT_HOME} replace />
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">

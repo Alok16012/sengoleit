@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Badge from '../../components/ui/Badge'
@@ -267,7 +268,15 @@ function studentPreVerifiedChecks(correctionFields) {
 }
 
 
+// The Document Verification login works the queue only — Pending, Hold and
+// Rejected. What it has passed on (Approved / Forwarded) is the admin's view.
+const DOC_DEPT_HIDDEN = ['Approved', 'Forwarded']
+
 export default function DocumentDepartment() {
+  const { profile } = useAuth()
+  const isDocDept = profile?.role === 'document_dept'
+  const studentTabs = isDocDept ? STATUS_FILTERS.filter(s => !DOC_DEPT_HIDDEN.includes(s)) : STATUS_FILTERS
+  const centerTabs = isDocDept ? CENTER_STATUS_FILTERS.filter(s => !DOC_DEPT_HIDDEN.includes(s)) : CENTER_STATUS_FILTERS
   const [mainTab, setMainTab] = useState('students')
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
@@ -608,7 +617,7 @@ export default function DocumentDepartment() {
         <div>
           {/* Center status filter tabs */}
           <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
-            {CENTER_STATUS_FILTERS.map(s => {
+            {centerTabs.map(s => {
               const count = baseCenters.filter(c => centerMatchesFilter(c, s)).length
               return (
                 <button
@@ -1391,7 +1400,7 @@ export default function DocumentDepartment() {
       <div>
       {/* Status filter tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
-        {STATUS_FILTERS.map(s => (
+        {studentTabs.map(s => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
