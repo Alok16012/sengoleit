@@ -77,7 +77,15 @@ export const PERMISSION_GROUPS = [
     ['courier.edit', 'Edit courier'],
     ['courier.delete', 'Delete courier'],
   ] },
-  { key: 'account_dept', label: 'Account Dept.', path: '/admin/account-department', tabs: [['students','Student Applications'],['approvals','Center Applications'],['center_apps','Sub-Center Applications'],['super_approvals','Super Center Applications'],['recharges','Recharge Requests'],['re_registrations','Re-Registrations'],['approval_codes','Approval Code Requests']], perms: [
+  { key: 'account_dept', label: 'Account Dept.', path: '/admin/account-department', tabs: [
+    ['students', 'Student Applications', [['pending', 'To Verify'], ['approved', 'Approved'], ['rejected', 'Rejected']]],
+    ['approvals', 'Center Applications', [['pending', 'To Verify'], ['hold', 'Hold'], ['approved', 'Approved'], ['rejected', 'Rejected']]],
+    ['center_apps', 'Sub-Center Applications'],
+    ['super_approvals', 'Super Center Applications', [['pending', 'To Verify'], ['hold', 'Hold'], ['approved', 'Approved'], ['rejected', 'Rejected']]],
+    ['recharges', 'Recharge Requests', [['pending', 'To Verify'], ['hold', 'Hold'], ['approved', 'Approved'], ['rejected', 'Rejected']]],
+    ['re_registrations', 'Re-Registrations', [['pending', 'To Verify'], ['decided', 'Decided']]],
+    ['approval_codes', 'Approval Code Requests', [['all', 'All'], ['used', 'Used'], ['approved', 'Approved'], ['pending', 'To Verify'], ['rejected', 'Reject'], ['hold', 'Hold']]],
+  ], perms: [
     ['account_dept.view', 'View account department'],
     ['account_dept.students', 'Approve / reject student fee'],
     ['account_dept.recharge_verify', 'Verify / reject recharge requests'],
@@ -133,11 +141,14 @@ export const PERMISSION_GROUPS = [
   ] },
 ]
 
-// A module's tabs are permissions too: '<module>.tab.<tab>'. Ticking one shows
-// that tab; a role with none of a module's tabs ticked sees them all (roles
-// made before tabs could be chosen keep working).
-export const tabPerm = (moduleKey, tab) => `${moduleKey}.tab.${tab}`
-export const groupTabPerms = g => (g.tabs || []).map(([t]) => tabPerm(g.key, t))
+// A module's tabs are permissions too: '<module>.tab.<tab>', and a tab's own
+// inner tabs '<module>.tab.<tab>.<sub>' (Account Dept → Student Applications
+// → To Verify). Ticking one shows it; a role with none of a set ticked sees
+// that whole set (so roles made before tabs could be chosen keep working).
+// A tab entry is [key, label] or [key, label, [[subKey, subLabel], …]].
+export const tabPerm = (moduleKey, tab, sub) => `${moduleKey}.tab.${tab}${sub ? `.${sub}` : ''}`
+export const subTabPerms = (moduleKey, tabEntry) => (tabEntry[2] || []).map(([s]) => tabPerm(moduleKey, tabEntry[0], s))
+export const groupTabPerms = g => (g.tabs || []).flatMap(t => [tabPerm(g.key, t[0]), ...subTabPerms(g.key, t)])
 
 export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(g => [...g.perms.map(([k]) => k), ...groupTabPerms(g)])
 

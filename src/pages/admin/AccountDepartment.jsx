@@ -40,8 +40,19 @@ export default function AccountDepartment() {
   // The tabs this login may open (User Management → Roles → Tabs).
   const tabs = TABS.filter(t => mayTab('account_dept', t.key))
   const [tab, setTab] = useState(() => tabs[0]?.key || 'students')
-  const [appStatusFilter, setAppStatusFilter] = useState('pending')
-  const [rechargeStatusFilter, setRechargeStatusFilter] = useState('pending')
+  // The first inner tab (To Verify, Hold …) of a section this login may open.
+  const firstSub = (section, keys) => keys.find(k => mayTab('account_dept', section, k)) || keys[0]
+  const APP_STATUS_KEYS = ['pending', 'hold', 'approved', 'rejected']
+  // Center and Super Center Applications share one status filter, but each
+  // may allow different inner tabs — move to an allowed one when switching.
+  function openTab(key) {
+    setTab(key)
+    if ((key === 'approvals' || key === 'super_approvals') && !mayTab('account_dept', key, appStatusFilter)) {
+      setAppStatusFilter(firstSub(key, APP_STATUS_KEYS))
+    }
+  }
+  const [appStatusFilter, setAppStatusFilter] = useState(() => firstSub(tab, APP_STATUS_KEYS))
+  const [rechargeStatusFilter, setRechargeStatusFilter] = useState(() => firstSub('recharges', APP_STATUS_KEYS))
   // Recharge Requests can be narrowed to one centre and a date range.
   // '' = no restriction. Dates are YYYY-MM-DD, compared on the local calendar day.
   const [rechargeCenter, setRechargeCenter] = useState('')
@@ -51,11 +62,11 @@ export default function AccountDepartment() {
   // centre's own request form accepts. null = closed.
   const [addRecharge, setAddRecharge] = useState(null)
   const [addRechargeSaving, setAddRechargeSaving] = useState(false)
-  const [studentStatusFilter, setStudentStatusFilter] = useState('pending')
+  const [studentStatusFilter, setStudentStatusFilter] = useState(() => firstSub('students', ['pending', 'approved', 'rejected']))
   // Approval Code requests (centers request an approval-code amount; verified
   // here credits the coupon wallet). Same shape as recharge requests.
   const [approvalReqs, setApprovalReqs] = useState([])
-  const [approvalReqStatusFilter, setApprovalReqStatusFilter] = useState('pending')
+  const [approvalReqStatusFilter, setApprovalReqStatusFilter] = useState(() => firstSub('approval_codes', ['pending', 'all', 'used', 'approved', 'rejected', 'hold']))
   const [acReqSaving, setAcReqSaving] = useState(false)
   // Verify-with-reference modal for an approval code coupon.
   const [verifyAcModal, setVerifyAcModal] = useState(null)
@@ -69,7 +80,7 @@ export default function AccountDepartment() {
   // add_re_registration.sql migration hasn't been run, so the tab shows a hint.
   const [reRegs, setReRegs] = useState([])
   const [admitCards, setAdmitCards] = useState({})   // student_id → [{semester, released_at}]
-  const [reRegStatusFilter, setReRegStatusFilter] = useState('pending')
+  const [reRegStatusFilter, setReRegStatusFilter] = useState(() => firstSub('re_registrations', ['pending', 'decided']))
   const [reRegModal, setReRegModal] = useState(null)   // one row of reRegs
   const [loading, setLoading] = useState(true)
   const [rejectModal, setRejectModal] = useState(null)
@@ -1458,7 +1469,7 @@ export default function AccountDepartment() {
         {tabs.map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => openTab(t.key)}
             className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               tab === t.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
             }`}
@@ -1501,7 +1512,7 @@ export default function AccountDepartment() {
                 { key: 'pending',  label: 'To Verify', color: 'bg-indigo-500' },
                 { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
                 { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
-              ].map(s => (
+              ].filter(s => mayTab('account_dept', 'students', s.key)).map(s => (
                 <button
                   key={s.key}
                   onClick={() => setStudentStatusFilter(s.key)}
@@ -1625,7 +1636,7 @@ export default function AccountDepartment() {
                 { key: 'hold',     label: 'Hold',      color: 'bg-orange-500' },
                 { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
                 { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
-              ].map(s => (
+              ].filter(s => mayTab('account_dept', tab, s.key)).map(s => (
                 <button
                   key={s.key}
                   onClick={() => setAppStatusFilter(s.key)}
@@ -1749,7 +1760,7 @@ export default function AccountDepartment() {
                 { key: 'hold',     label: 'Hold',      color: 'bg-indigo-500' },
                 { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
                 { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
-              ].map(s => (
+              ].filter(s => mayTab('account_dept', 'recharges', s.key)).map(s => (
                 <button
                   key={s.key}
                   onClick={() => setRechargeStatusFilter(s.key)}
@@ -2107,7 +2118,7 @@ export default function AccountDepartment() {
               {[
                 { key: 'pending', label: 'To Verify', count: pendingReRegs },
                 { key: 'decided', label: 'Decided', count: (reRegs || []).length - pendingReRegs },
-              ].map(f => (
+              ].filter(f => mayTab('account_dept', 're_registrations', f.key)).map(f => (
                 <button key={f.key} onClick={() => setReRegStatusFilter(f.key)}
                   className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                     reRegStatusFilter === f.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'
@@ -2187,7 +2198,7 @@ export default function AccountDepartment() {
                 { key: 'pending',  label: 'To Verify', color: 'bg-amber-500' },
                 { key: 'rejected', label: 'Reject',    color: 'bg-red-500' },
                 { key: 'hold',     label: 'Hold',      color: 'bg-orange-500' },
-              ].map(s => (
+              ].filter(s => mayTab('account_dept', 'approval_codes', s.key)).map(s => (
                 <button
                   key={s.key}
                   onClick={() => setApprovalReqStatusFilter(s.key)}

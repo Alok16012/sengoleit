@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import { Plus, Pencil, Trash2, KeyRound, Power, PowerOff, Shield, Users, Search, Eye, EyeOff } from 'lucide-react'
-import { PERMISSION_GROUPS, ALL_PERMISSIONS, tabPerm, groupTabPerms } from '../../utils/permissions'
+import { PERMISSION_GROUPS, ALL_PERMISSIONS, tabPerm, subTabPerms, groupTabPerms } from '../../utils/permissions'
 import { formatDateTime } from '../../utils/formatDate'
 
 // User Management — custom roles (a name and a ticked list of permissions)
@@ -94,13 +94,24 @@ export default function UserManagement() {
       const next = new Set(m.permissions)
       const view = `${group.key}.view`
       const hasView = group.perms.some(([k]) => k === view)
+      // The tab an inner tab belongs to ('…tab.students' for '…tab.students.pending').
+      const tabPrefix = `${group.key}.tab.`
+      const rest = key.startsWith(tabPrefix) ? key.slice(tabPrefix.length) : ''
+      const parentTab = rest.includes('.') ? tabPrefix + rest.split('.')[0] : null
       if (next.has(key)) {
         next.delete(key)
-        // Unticking View unticks the whole module.
+        // Unticking View unticks the whole module; unticking a tab its inner tabs.
         if (key === view) groupKeys(group).forEach(k => next.delete(k))
+        else if (rest && !parentTab) [...next].forEach(k => { if (k.startsWith(key + '.')) next.delete(k) })
       } else {
         if (hasView && !next.has(view)) groupTabPerms(group).forEach(k => next.add(k))
         next.add(key)
+        if (parentTab) next.add(parentTab)
+        // A tab ticked on its own opens with all its inner tabs.
+        if (rest && !parentTab) {
+          const entry = (group.tabs || []).find(t => t[0] === rest)
+          if (entry) subTabPerms(group.key, entry).forEach(k => next.add(k))
+        }
         if (hasView) next.add(view)
       }
       return { ...m, permissions: next }
@@ -349,14 +360,30 @@ export default function UserManagement() {
                       <div className="mt-2.5 pt-2 border-t border-gray-100 pl-6">
                         <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Tabs on this page</p>
                         <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                          {g.tabs.map(([t, label]) => {
+                          {g.tabs.map(([t, label, subs]) => {
                             const k = tabPerm(g.key, t)
                             return (
-                              <label key={k} className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
-                                <input type="checkbox" checked={roleModal.permissions.has(k)} onChange={() => togglePerm(g, k)}
-                                  className="w-3.5 h-3.5 accent-[#933d18]" />
-                                {label}
-                              </label>
+                              <div key={k} className={subs?.length ? 'basis-full' : ''}>
+                                <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                                  <input type="checkbox" checked={roleModal.permissions.has(k)} onChange={() => togglePerm(g, k)}
+                                    className="w-3.5 h-3.5 accent-[#933d18]" />
+                                  <span className={subs?.length ? 'font-semibold text-gray-700' : ''}>{label}</span>
+                                </label>
+                                {subs?.length > 0 && (
+                                  <div className="flex flex-wrap gap-x-3 gap-y-1 pl-5 mt-1">
+                                    {subs.map(([sk, sl]) => {
+                                      const kk = tabPerm(g.key, t, sk)
+                                      return (
+                                        <label key={kk} className="flex items-center gap-1 text-[11px] text-gray-500 cursor-pointer select-none">
+                                          <input type="checkbox" checked={roleModal.permissions.has(kk)} onChange={() => togglePerm(g, kk)}
+                                            className="w-3 h-3 accent-[#933d18]" />
+                                          {sl}
+                                        </label>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
                             )
                           })}
                         </div>

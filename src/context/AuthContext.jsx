@@ -102,11 +102,15 @@ export function AuthProvider({ children }) {
   // mayTab('students', 'pending') — whether a tab inside a page shows. A role
   // with none of that page's tabs ticked sees every tab (roles made before
   // tabs could be chosen); otherwise only the ticked ones.
-  const mayTab = (moduleKey, tab) => {
+  // mayTab('account_dept', 'students', 'pending') checks a tab's inner tab.
+  const mayTab = (moduleKey, tab, sub) => {
     if (profile?.role !== 'staff') return true
-    const prefix = `${moduleKey}.tab.`
-    if (!permissions.some(p => p.startsWith(prefix))) return true
-    return permissions.includes(prefix + tab)
+    const prefix = sub ? `${moduleKey}.tab.${tab}.` : `${moduleKey}.tab.`
+    const key = sub ? prefix + sub : prefix + tab
+    // Only this level counts: inner-tab keys must not make every outer tab
+    // look "chosen".
+    const chosen = permissions.some(p => p.startsWith(prefix) && !p.slice(prefix.length).includes('.'))
+    return !chosen || permissions.includes(key)
   }
 
   return (
