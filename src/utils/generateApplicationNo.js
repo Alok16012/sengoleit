@@ -4,6 +4,12 @@ import { supabase } from '../lib/supabase'
 // "CA" and "001" stay fixed; only the trailing 4-digit serial increments.
 // We read the highest existing serial and add one.
 export async function generateApplicationNo() {
+  // Worked out in the database, over every centre: a super centre only sees
+  // its own centres, so reading the highest number here would repeat one
+  // (security_step2_rls.sql). The direct read below is the fallback.
+  const rpc = await supabase.rpc('next_center_application_no')
+  if (!rpc.error && rpc.data) return rpc.data
+
   const { data } = await supabase
     .from('centers')
     .select('application_no')

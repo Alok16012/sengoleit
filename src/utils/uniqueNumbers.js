@@ -16,6 +16,14 @@ export async function findFreeNumber(column, build, startSerial, tries = 200) {
   let n = startSerial
   for (let i = 0; i < tries; i++, n++) {
     const candidate = build(n)
+    // A centre only sees its own students, so the check has to run in the
+    // database, against every student (security_step2_rls.sql). Before that
+    // migration the plain count below is the fallback.
+    const rpc = await supabase.rpc('student_number_taken', { p_column: column, p_value: candidate })
+    if (!rpc.error) {
+      if (!rpc.data) return candidate
+      continue
+    }
     const { count, error } = await supabase
       .from('students')
       .select('*', { count: 'exact', head: true })
@@ -31,6 +39,9 @@ export async function findFreeNumber(column, build, startSerial, tries = 200) {
 // How many students already hold a number in this column — the starting point
 // for the next serial.
 export async function countIssued(column) {
+  // Across every centre's students, not just the ones this login can see.
+  const rpc = await supabase.rpc('student_numbers_issued', { p_column: column })
+  if (!rpc.error && rpc.data != null) return Number(rpc.data) || 0
   const { count } = await supabase
     .from('students')
     .select('*', { count: 'exact', head: true })
