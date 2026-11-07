@@ -2,7 +2,8 @@ import { Outlet, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import Sidebar from './Sidebar'
-import { Search, Bell, User, LogOut, ChevronDown } from 'lucide-react'
+import { Search, Bell, User, LogOut, ChevronDown, KeyRound } from 'lucide-react'
+import ChangePasswordModal from '../ChangePasswordModal'
 
 // The one page a Document Dept login works on.
 const DOC_DEPT_HOME = '/admin/document-department'
@@ -12,6 +13,7 @@ function TopBar() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [pwOpen, setPwOpen] = useState(false)
   const role = profile?.role || user?.user_metadata?.role || 'admin'
 
   // Enter in the header search jumps to this role's student list, which picks
@@ -111,6 +113,12 @@ function TopBar() {
                 <User size={15} className="text-gray-400" /> Profile
               </button>
               <button
+                onClick={() => { setMenuOpen(false); setPwOpen(true) }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all"
+              >
+                <KeyRound size={15} className="text-gray-400" /> Change Password
+              </button>
+              <button
                 onClick={() => { setMenuOpen(false); handleSignOut() }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-all"
               >
@@ -120,6 +128,7 @@ function TopBar() {
           )}
         </div>
       </div>
+      <ChangePasswordModal isOpen={pwOpen} onClose={() => setPwOpen(false)} email={user?.email} />
     </div>
   )
 }
