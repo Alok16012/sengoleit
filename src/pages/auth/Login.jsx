@@ -13,6 +13,14 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  // Shown once after an automatic sign-out for inactivity.
+  const [notice] = useState(() => {
+    try {
+      const r = sessionStorage.getItem('logout_reason')
+      sessionStorage.removeItem('logout_reason')
+      return r === 'idle' ? 'You were signed out after 15 minutes without use. Please sign in again.' : null
+    } catch { return null }
+  })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -121,6 +129,9 @@ export default function Login() {
               </div>
             </div>
 
+            {notice && !error && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3">{notice}</div>
+            )}
             {error && (
               <div className="bg-red-50 border border-red-100 text-red-600 text-sm rounded-2xl px-4 py-3">
                 {error}

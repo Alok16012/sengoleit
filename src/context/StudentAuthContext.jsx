@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { markActive } from '../utils/useIdleLogout'
 
 const StudentAuthContext = createContext(null)
 
@@ -16,6 +17,7 @@ export function StudentAuthProvider({ children }) {
   }, [])
 
   function storeSession(session) {
+    markActive('idle:student')
     localStorage.setItem('student_session', JSON.stringify(session))
     setStudent(session)
     return { data: session }

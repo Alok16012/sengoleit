@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useStudentAuth } from '../../context/StudentAuthContext'
+import IdleWarning from '../../components/IdleWarning'
+import { useIdleLogout } from '../../utils/useIdleLogout'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { supabase } from '../../lib/supabase'
 import { isPhdProgram } from '../../utils/generateStudentCards'
@@ -35,6 +37,8 @@ const phdNavItems = [
 export default function StudentLayout() {
   const { student, loading, studentLogout } = useStudentAuth()
   const navigate = useNavigate()
+  // Signed out after 15 minutes with no use, like the other portals.
+  const idle = useIdleLogout({ enabled: !!student, storageKey: 'idle:student', onTimeout: () => studentLogout() })
   const [menuOpen, setMenuOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isPhd, setIsPhd] = useState(false)
@@ -88,6 +92,7 @@ export default function StudentLayout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <IdleWarning secondsLeft={idle.secondsLeft} onStay={idle.stay} />
       {/* Sidebar */}
       <div className={`flex flex-col h-full bg-white border-r border-gray-100 shrink-0 overflow-hidden transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-0 border-r-0'}`}>
         <div className="p-5 flex items-center space-x-3 border-b border-gray-50">

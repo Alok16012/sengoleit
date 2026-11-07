@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, isConfigured } from '../lib/supabase'
+import { markActive } from '../utils/useIdleLogout'
 
 const AuthContext = createContext(null)
 
@@ -48,6 +49,8 @@ export function AuthProvider({ children }) {
     if (!isConfigured) return { error: { message: 'Supabase is not configured. Add the URL and Key to your .env file.' } }
     const result = await supabase.auth.signInWithPassword({ email, password })
     if (result.error) return result
+    // A fresh sign-in starts the inactivity clock again (see useIdleLogout).
+    markActive('idle:portal')
 
     // Block deactivated centers / super centers. Admins have no centers row,
     // so this check is skipped for them. Only an explicit "Inactive" status

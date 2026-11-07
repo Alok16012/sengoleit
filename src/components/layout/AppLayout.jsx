@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext'
 import Sidebar from './Sidebar'
 import { Search, Bell, User, LogOut, ChevronDown, KeyRound } from 'lucide-react'
 import ChangePasswordModal from '../ChangePasswordModal'
+import IdleWarning from '../IdleWarning'
+import { useIdleLogout } from '../../utils/useIdleLogout'
 import { moduleForPath, firstAllowedPath, PERMISSION_GROUPS } from '../../utils/permissions'
 
 // What a staff login needs to open this path: the module's View, and for the
@@ -153,6 +155,15 @@ function TopBar() {
 export default function AppLayout() {
   const { user, profile, loading, can, signOut } = useAuth()
   const location = useLocation()
+  // Signed out after 15 minutes with no use — every portal login.
+  const idle = useIdleLogout({
+    enabled: !!user,
+    storageKey: 'idle:portal',
+    onTimeout: async () => {
+      try { sessionStorage.setItem('logout_reason', 'idle') } catch { /* storage unavailable */ }
+      await signOut()
+    },
+  })
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -187,6 +198,7 @@ export default function AppLayout() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <IdleWarning secondsLeft={idle.secondsLeft} onStay={idle.stay} />
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar />

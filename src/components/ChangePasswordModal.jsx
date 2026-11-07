@@ -39,8 +39,12 @@ export default function ChangePasswordModal({ isOpen, onClose, email }) {
       return setError('The current password is not correct.')
     }
     const { error: updErr } = await supabase.auth.updateUser({ password: next })
+    if (updErr) { setBusy(false); return setError('Could not change the password: ' + updErr.message) }
+    // A new password must end every other open session — Supabase leaves
+    // them signed in, so a browser that was logged in with the old password
+    // stayed in. This one stays signed in.
+    await supabase.auth.signOut({ scope: 'others' }).catch(() => {})
     setBusy(false)
-    if (updErr) return setError('Could not change the password: ' + updErr.message)
     setDone(true)
   }
 
@@ -52,7 +56,7 @@ export default function ChangePasswordModal({ isOpen, onClose, email }) {
         <div className="text-center space-y-3 py-2">
           <CheckCircle size={36} className="mx-auto text-emerald-600" />
           <p className="text-sm font-semibold text-gray-900">Password changed</p>
-          <p className="text-xs text-gray-500">Use the new password the next time you sign in.</p>
+          <p className="text-xs text-gray-500">Use the new password the next time you sign in. Every other device signed in to this account has been signed out.</p>
           <Button onClick={close} className="w-full justify-center">Done</Button>
         </div>
       ) : (
