@@ -7,6 +7,7 @@ import { SearchableSelect } from '../../components/ui/SearchSelect'
 import { Search, X, Plus, Pencil, Save, ArrowLeft, Award, Layers, Eye, Download } from 'lucide-react'
 import { paperKeyOf } from '../../utils/fetchSyllabus'
 import { generateSchemePDF } from '../../utils/generateSyllabusPDF'
+import { useAuth } from '../../context/AuthContext'
 
 // Examination Scheme — what each paper of a course is worth.
 //
@@ -36,6 +37,7 @@ const totalOf = (r) => {
 }
 
 export default function Schemes() {
+  const { may } = useAuth()
   const [programs, setPrograms]       = useState([])
   const [departments, setDepartments] = useState([])
   const [progTypes, setProgTypes]     = useState([])
@@ -240,9 +242,11 @@ export default function Schemes() {
               </span>
             )}
           </div>
+          {may('schemes.manage') && (
           <Button onClick={save} disabled={saving}>
             <Save size={14} /> {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Scheme'}
           </Button>
+          )}
         </div>
 
         {editorLoading ? (
@@ -397,9 +401,11 @@ export default function Schemes() {
                 <Td>
                   <div className="flex items-center gap-1.5">
                     {/* Icon follows the label, same as the Syllabus list. */}
+                    {may('schemes.manage') && (
                     <Button size="sm" variant={isDone(p) ? 'secondary' : 'primary'} onClick={() => openCourse(p)}>
                       {isDone(p) ? <><Pencil size={13} /> Edit Scheme</> : <><Plus size={13} /> Add Scheme</>}
                     </Button>
+                    )}
                     <button onClick={() => openSemesters(p)} title="View / download each semester"
                       className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
                       <Layers size={13} /> Semesters

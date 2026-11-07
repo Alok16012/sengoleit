@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import RecordCommissionModal from './RecordCommissionModal'
+import { useAuth } from '../../context/AuthContext'
 
 const fmt = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
@@ -31,6 +32,7 @@ function realAdmissionPrice(app) {
 // — and the Center filter reached nothing here at all, so picking a centre
 // left rows from a different one on screen.
 export default function CommissionWallet({ superCenterId = '', centerId = '' }) {
+  const { may } = useAuth()
   const [centers, setCenters] = useState([])
   const [ledger, setLedger] = useState([])
   const [recharges, setRecharges] = useState([])
@@ -324,10 +326,12 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
               onClick={() => setTab('recharges')}
               className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${activeTab === 'recharges' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >Center Recharges ({scRecharges.length})</button>
+            {may('coupons.commission') && (
             <button
               onClick={() => setTab('record')}
               className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px ${activeTab === 'record' ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >Record New Commission</button>
+            )}
           </div>
 
           {/* ---- History tab ---- */}
@@ -526,6 +530,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                           <span className="block text-[10px] text-gray-400">{r.pct}%</span>
                         </td>
                         <td className="px-3 py-2 text-center">
+                          {may('coupons.commission') && (
                           <button
                             onClick={() => generateCoupon(r)}
                             disabled={done || !verified || r.commission < 1 || genBusy === r.id}
@@ -534,6 +539,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                               : r.commission < 1 ? 'No commission % set for this center' : 'Generate commission coupons'}
                             className="px-3 py-1 rounded text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
                           >{genBusy === r.id ? '…' : done ? 'Done' : 'Generate'}</button>
+                          )}
                         </td>
                         {/* The coupon this commission was originally minted as,
                             with its face value, so which coupon is worth what
@@ -571,7 +577,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                             credits it, deactivating takes it back out. One
                             switch, and what it says is what is true. */}
                         <td className="px-3 py-2 text-center">
-                          {!done ? <span className="text-gray-300 text-xs">—</span> : (
+                          {!done ? <span className="text-gray-300 text-xs">—</span> : may('coupons.commission') && (
                             <button onClick={() => markSent(r)} disabled={sentBusy === r.id}
                               title={r.paid?.sent_at
                                 ? `Take ${fmt(r.paid?.amount)} back out — they can no longer spend it`
@@ -601,7 +607,7 @@ export default function CommissionWallet({ superCenterId = '', centerId = '' }) 
                   onClose={() => setRecordModal(null)}
                   onSaved={() => { setRecordModal(null); fetchAll() }}
                 />
-              ) : (
+              ) : may('coupons.commission') && (
                 <button
                   onClick={() => setRecordModal(selectedSC)}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold"

@@ -9,6 +9,7 @@ import { formatDate, approvalPaymentDate } from '../../utils/formatDate'
 import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2, Clock, GraduationCap } from 'lucide-react'
 import CommissionWallet from '../../components/admin/CommissionWallet'
 import { fetchAllRows } from '../../utils/fetchAllRows'
+import { useAuth } from '../../context/AuthContext'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -28,6 +29,7 @@ function StatCard({ label, value, color = 'gray' }) {
 const STATUS_FILTERS = ['All', 'Unused', 'Used']
 
 export default function CouponManagement() {
+  const { may } = useAuth()
   const [coupons, setCoupons] = useState([])
   const [centers, setCenters] = useState([])
   const [programs, setPrograms] = useState([])
@@ -659,9 +661,11 @@ export default function CouponManagement() {
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{statsByCenter[c.id]?.used || 0} used</span>
                     </div>
                   </div>
+                  {may('coupons.generate') && (
                   <Button size="sm" onClick={() => { setGenCenter(c); setGenRate('') }} className="shrink-0">
                     <Sparkles size={13} /> Generate
                   </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -880,6 +884,7 @@ export default function CouponManagement() {
             </div>
 
             <div className="flex gap-3">
+              {may('coupons.generate') && (
               <Button
                 onClick={generateCoupons}
                 disabled={genSaving || genCount < 1 || genRateNum < 1 || genOverBudget || genOverRows}
@@ -890,6 +895,7 @@ export default function CouponManagement() {
                     ? `Generate ${genCount} × ₹${genRateNum.toLocaleString('en-IN')}`
                     : 'Generate Coupons'}
               </Button>
+              )}
               <Button variant="outline" onClick={() => { setGenCenter(null); setGenRate(''); setGenQty('') }} className="flex-1 justify-center">Cancel</Button>
             </div>
           </div>
@@ -916,9 +922,11 @@ export default function CouponManagement() {
               />
             </div>
             <div className="flex gap-3">
+              {may('coupons.edit') && (
               <Button onClick={saveEditCode} disabled={editSaving} className="flex-1 justify-center">
                 {editSaving ? 'Saving...' : 'Save Changes'}
               </Button>
+              )}
               <Button variant="outline" onClick={() => { setEditCode(null); setEditAmount('') }} className="flex-1 justify-center">Cancel</Button>
             </div>
           </div>
@@ -975,9 +983,11 @@ export default function CouponManagement() {
                         return c.is_activated ? 'Activated' : 'Unused'
                       } },
                     ]} />
+                  {may('coupons.generate') && (
                   <Button onClick={() => { setGenMode(true); setDirectResult(null); setDirectCenterId(''); setDirectAmount('') }}>
                     <Sparkles size={14} /> Generate New
                   </Button>
+                  )}
                 </div>
                 <div className="relative">
                   <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1012,9 +1022,11 @@ export default function CouponManagement() {
                       </div>
                     </div>
                     <div className="flex gap-3">
+                      {may('coupons.generate') && (
                       <Button onClick={resetCourseGen} variant="outline" className="flex-1 justify-center">
                         Generate More
                       </Button>
+                      )}
                       <Button onClick={() => { setGenMode(false); resetCourseGen() }} className="flex-1 justify-center">Back to List</Button>
                     </div>
                   </>
@@ -1068,12 +1080,14 @@ export default function CouponManagement() {
                       center. At admission, one cuts the course fee itself by that amount before the admission coupon applies.
                     </p>
                     <div className="flex gap-3">
+                      {may('coupons.generate') && (
                       <Button onClick={generateCourseCoupons}
                         disabled={courseGenSaving || !courseGenCenter || !courseGenProgram
                           || Math.round(Number(courseGenAmount) || 0) < 1 || Math.round(Number(courseGenQty) || 0) < 1}
                         className="flex-1 justify-center">
                         <Sparkles size={14} /> {courseGenSaving ? 'Generating…' : 'Generate Coupons'}
                       </Button>
+                      )}
                       <Button variant="outline" onClick={() => { setGenMode(false); resetCourseGen() }} className="flex-1 justify-center">Cancel</Button>
                     </div>
                   </>
@@ -1096,9 +1110,11 @@ export default function CouponManagement() {
                     <p className="text-sm text-gray-600 mt-2">₹{directResult.amount.toLocaleString('en-IN')} · {directResult.centerName}</p>
                   </div>
                   <div className="flex gap-3">
+                    {may('coupons.generate') && (
                     <Button onClick={() => { setDirectResult(null); setDirectCenterId(''); setDirectAmount('') }} variant="outline" className="flex-1 justify-center">
                       Generate Another
                     </Button>
+                    )}
                     <Button onClick={() => { setGenMode(false); setDirectResult(null) }} className="flex-1 justify-center">Back to List</Button>
                   </div>
                 </>
@@ -1125,9 +1141,11 @@ export default function CouponManagement() {
                     A single {directType === 'approval' ? 'approval code' : 'discounted coupon'} will be created for the selected center with this amount.
                   </p>
                   <div className="flex gap-3">
+                    {may('coupons.generate') && (
                     <Button onClick={generateDirectCode} disabled={directSaving || !directCenterId || Math.round(Number(directAmount) || 0) < 1} className="flex-1 justify-center">
                       <Sparkles size={14} /> {directSaving ? 'Generating…' : 'Generate Code'}
                     </Button>
+                    )}
                     <Button variant="outline" onClick={() => setGenMode(false)} className="flex-1 justify-center">Cancel</Button>
                   </div>
                 </>
@@ -1189,12 +1207,12 @@ export default function CouponManagement() {
                           {/* Button = the action performed on click. Approved codes have no action. */}
                           {approvedPaid ? (
                             <span className="text-xs text-gray-300">—</span>
-                          ) : c.is_activated ? (
+                          ) : c.is_activated ? may('coupons.toggle') && (
                             <button onClick={() => toggleActivate(c)}
                               className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
                               <PowerOff size={13} /> Deactivate
                             </button>
-                          ) : (
+                          ) : may('coupons.toggle') && (
                             <button onClick={() => toggleActivate(c)}
                               className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
                               <Power size={13} /> Activate
@@ -1206,16 +1224,20 @@ export default function CouponManagement() {
                             <div className="text-center"><span className="text-xs text-gray-300">—</span></div>
                           ) : (
                             <div className="flex items-center justify-center gap-2">
+                              {may('coupons.edit') && (
                               <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
                                 title="Edit amount"
                                 className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
                                 <Pencil size={13} /> Edit
                               </button>
+                              )}
+                              {may('coupons.delete') && (
                               <button onClick={() => deleteCode(c)}
                                 title="Delete code"
                                 className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
                                 <Trash2 size={13} /> Delete
                               </button>
+                              )}
                             </div>
                           )}
                         </td>
@@ -1311,12 +1333,12 @@ export default function CouponManagement() {
                           <td className="px-5 py-3.5 text-center">
                             {used || pendingAccounts || approvedPaid ? (
                               <span className="text-xs text-gray-300">—</span>
-                            ) : c.is_activated ? (
+                            ) : c.is_activated ? may('coupons.toggle') && (
                               <button onClick={() => toggleActivate(c)}
                                 className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
                                 <PowerOff size={13} /> Deactivate
                               </button>
-                            ) : (
+                            ) : may('coupons.toggle') && (
                               <button onClick={() => toggleActivate(c)}
                                 className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
                                 <Power size={13} /> Activate
@@ -1327,16 +1349,20 @@ export default function CouponManagement() {
                             {/* Only admin-generated codes (no online payment, not used) can be edited/deleted. */}
                             {!c.payment_txn_id && !used && !c.is_rejected ? (
                               <div className="flex items-center justify-center gap-2">
+                                {may('coupons.edit') && (
                                 <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
                                   title="Edit amount"
                                   className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
                                   <Pencil size={13} /> Edit
                                 </button>
+                                )}
+                                {may('coupons.delete') && (
                                 <button onClick={() => deleteCode(c)}
                                   title="Delete code"
                                   className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
                                   <Trash2 size={13} /> Delete
                                 </button>
+                                )}
                               </div>
                             ) : (
                               <div className="text-center"><span className="text-xs text-gray-300">—</span></div>
@@ -1397,16 +1423,20 @@ export default function CouponManagement() {
                               <span className="text-xs text-gray-300">—</span>
                             ) : (
                               <div className="flex items-center justify-center gap-2">
+                                {may('coupons.edit') && (
                                 <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
                                   title="Edit amount"
                                   className="inline-flex items-center gap-1 text-xs font-bold text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10 px-2.5 py-1.5 rounded-lg transition-colors">
                                   <Pencil size={13} /> Edit
                                 </button>
+                                )}
+                                {may('coupons.delete') && (
                                 <button onClick={() => deleteCode(c)}
                                   title="Delete code"
                                   className="inline-flex items-center gap-1 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
                                   <Trash2 size={13} /> Delete
                                 </button>
+                                )}
                               </div>
                             )}
                           </td>
@@ -1463,12 +1493,12 @@ export default function CouponManagement() {
                           <td className="px-5 py-3.5 text-center">
                             {used ? (
                               <span className="text-xs text-gray-300">—</span>
-                            ) : c.is_activated ? (
+                            ) : c.is_activated ? may('coupons.toggle') && (
                               <button onClick={() => toggleActivate(c)}
                                 className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
                                 <PowerOff size={13} /> Deactivate
                               </button>
-                            ) : (
+                            ) : may('coupons.toggle') && (
                               <button onClick={() => toggleActivate(c)}
                                 className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
                                 <Power size={13} /> Activate

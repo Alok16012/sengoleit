@@ -5,6 +5,7 @@ import { SearchableSelect } from './ui/SearchSelect'
 import { Save, Users, Search } from 'lucide-react'
 import { paperKeyOf } from '../utils/fetchSyllabus'
 import { savePaperMarks } from '../utils/paperMarks'
+import { useAuth } from '../context/AuthContext'
 
 // Master entry — one course, one semester, every student's marks on one sheet.
 //
@@ -15,6 +16,7 @@ import { savePaperMarks } from '../utils/paperMarks'
 // Maximums and credits come from the course's scheme, so a paper the scheme
 // has not set yet still accepts marks — it just prints without a maximum.
 export default function MasterMarksEntry({ students, programs }) {
+  const { may } = useAuth()
   const [programId, setProgramId] = useState('')
   const [semester, setSemester]   = useState(1)
   const [papers, setPapers]       = useState([])
@@ -150,7 +152,7 @@ export default function MasterMarksEntry({ students, programs }) {
         )}
         <div className="ml-auto flex items-center gap-3">
           {savedAt && <span className="text-xs font-semibold text-emerald-600">✓ Saved</span>}
-          {programId && papers.length > 0 && (
+          {may('exam_section.results') && programId && papers.length > 0 && (
             <Button onClick={saveAll} disabled={saving}>
               <Save size={14} /> {saving ? 'Saving…' : 'Save All Marks'}
             </Button>

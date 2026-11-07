@@ -3,8 +3,10 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import { IndianRupee, Search, Save, CheckCircle2 } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 export default function CenterPricing() {
+  const { may } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -116,6 +118,7 @@ export default function CenterPricing() {
                     <input type="number" min="0" step="any"
                       className="w-full pl-7 pr-2 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15"
                       value={r.with_letter_price}
+                      readOnly={!may('center_pricing.manage')}
                       onChange={e => setField(r.id, 'with_letter_price', e.target.value)}
                       placeholder="0" />
                   </div>
@@ -126,15 +129,18 @@ export default function CenterPricing() {
                     <input type="number" min="0" step="any"
                       className="w-full pl-7 pr-2 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15"
                       value={r.without_letter_price}
+                      readOnly={!may('center_pricing.manage')}
                       onChange={e => setField(r.id, 'without_letter_price', e.target.value)}
                       placeholder="0" />
                   </div>
                 </Td>
                 <Td>
+                  {may('center_pricing.manage') && (
                   <button onClick={() => handleSave(r)} disabled={savingId === r.id}
                     className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#933d18] hover:bg-[#933d18]/90 disabled:opacity-60 px-3 py-2 rounded-lg transition-all">
                     {savedId === r.id ? <><CheckCircle2 size={13} /> Saved</> : <><Save size={13} /> {savingId === r.id ? 'Saving...' : 'Save'}</>}
                   </button>
+                  )}
                 </Td>
               </Tr>
             ))}

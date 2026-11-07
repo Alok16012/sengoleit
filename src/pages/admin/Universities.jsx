@@ -6,8 +6,10 @@ import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Universities() {
+  const { may } = useAuth()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -41,7 +43,7 @@ export default function Universities() {
       <PageHeader
         title="Universities"
         subtitle={`${data.length} universities`}
-        action={{ label: <><Plus size={15} /> Add University</>, onClick: () => navigate('/admin/universities/new') }}
+        action={may('universities.manage') ? { label: <><Plus size={15} /> Add University</>, onClick: () => navigate('/admin/universities/new') } : undefined}
       />
 
       <div className="mb-4 relative max-w-sm">
@@ -86,6 +88,7 @@ export default function Universities() {
                 <Td className="text-gray-500">{u.phone || '—'}</Td>
                 <Td><Badge status={u.status?.toLowerCase()}>{u.status || 'Active'}</Badge></Td>
                 <Td>
+                  {may('universities.manage') && (
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/universities/edit/${u.id}`)}>
                       <Edit size={14} />
@@ -94,6 +97,7 @@ export default function Universities() {
                       <Trash2 size={14} className="text-red-500" />
                     </Button>
                   </div>
+                  )}
                 </Td>
               </Tr>
             ))}

@@ -12,6 +12,7 @@ import { CourierStudentsCell, CourierStudentsModal } from '../../components/Cour
 import { semText, docLabel } from '../../utils/courierSems'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import { currentSemOf } from '../../utils/reRegistration'
+import { useAuth } from '../../context/AuthContext'
 
 // Admin courier log — every document courier sent to a super centre / centre,
 // with tracking number, address, sender and any number of receipt scans.
@@ -43,6 +44,7 @@ const emptyForm = () => ({
 })
 
 export default function CourierDetails() {
+  const { may } = useAuth()
   const [rows, setRows] = useState([])
   const [centers, setCenters] = useState([])
   const [loading, setLoading] = useState(true)
@@ -304,7 +306,7 @@ export default function CourierDetails() {
   return (
     <div className="p-6 space-y-5">
       <PageHeader title="Courier Details" subtitle="Documents couriered to super centers and centers"
-        actions={<Button variant="primary" size="md" onClick={openNew}><Plus size={15} /> Add Courier</Button>} />
+        actions={may('courier.add') && <Button variant="primary" size="md" onClick={openNew}><Plus size={15} /> Add Courier</Button>} />
 
       {needsSql && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
@@ -371,14 +373,18 @@ export default function CourierDetails() {
               </Td>
               <Td>
                 <div className="flex gap-1">
+                  {may('courier.edit') && (
                   <button onClick={() => openEdit(r)} title="Edit"
                     className="p-1.5 rounded-lg hover:bg-[#933d18]/10 text-gray-400 hover:text-[#933d18] transition-colors">
                     <Pencil size={15} />
                   </button>
+                  )}
+                  {may('courier.delete') && (
                   <button onClick={() => handleDelete(r)} title="Delete"
                     className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors">
                     <Trash2 size={15} />
                   </button>
+                  )}
                 </div>
               </Td>
             </Tr>

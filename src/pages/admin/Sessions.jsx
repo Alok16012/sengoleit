@@ -8,8 +8,10 @@ import { formatDate } from '../../utils/formatDate'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Plus, Edit, Trash2, Star } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 export default function Sessions() {
+  const { may } = useAuth()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
@@ -40,7 +42,7 @@ export default function Sessions() {
       <PageHeader
         title="Academic Sessions"
         subtitle={`${data.length} sessions`}
-        action={{ label: <><Plus size={15} /> Add Session</>, onClick: () => navigate('/admin/sessions/new') }}
+        action={may('sessions.manage') ? { label: <><Plus size={15} /> Add Session</>, onClick: () => navigate('/admin/sessions/new') } : undefined}
       />
 
       <div className="flex justify-end mb-4">
@@ -92,7 +94,7 @@ export default function Sessions() {
                     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#933d18]">
                       <Star size={12} fill="currentColor" /> Current
                     </span>
-                  ) : (
+                  ) : may('sessions.manage') && (
                     <button
                       onClick={() => setAsCurrent(s.id)}
                       className="text-xs text-gray-400 hover:text-[#933d18] font-medium transition-colors"
@@ -103,6 +105,7 @@ export default function Sessions() {
                 </Td>
                 <Td><Badge status={s.status?.toLowerCase()}>{s.status || 'Active'}</Badge></Td>
                 <Td>
+                  {may('sessions.manage') && (
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/sessions/edit/${s.id}`)}>
                       <Edit size={14} />
@@ -111,6 +114,7 @@ export default function Sessions() {
                       <Trash2 size={14} className="text-red-500" />
                     </Button>
                   </div>
+                  )}
                 </Td>
               </Tr>
             ))}

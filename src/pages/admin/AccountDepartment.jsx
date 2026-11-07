@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, supabaseAdmin } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
 import PageHeader from '../../components/ui/PageHeader'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
@@ -35,6 +36,7 @@ const TABS = [
 ]
 
 export default function AccountDepartment() {
+  const { may } = useAuth()
   const [tab, setTab] = useState('students')
   const [appStatusFilter, setAppStatusFilter] = useState('pending')
   const [rechargeStatusFilter, setRechargeStatusFilter] = useState('pending')
@@ -1577,7 +1579,7 @@ export default function AccountDepartment() {
                     </Td>
                     <Td>
                       {s.status === 'Hold' && s.doc_verified_at ? (
-                        <div className="flex gap-1">
+                        may('account_dept.students') && <div className="flex gap-1">
                           <Button size="sm" variant="success" onClick={() => handleStudentApprove(s)}>
                             <CheckCircle size={13} /> Approve
                           </Button>
@@ -1596,7 +1598,7 @@ export default function AccountDepartment() {
                           <span className="text-[11px] font-semibold text-gray-400 whitespace-nowrap" title="Ph.D candidates are forwarded by the Research Dept., which issues the Enrollment Number">
                             Forwarded by Research Dept.
                           </span>
-                        ) : (
+                        ) : may('account_dept.students') && (
                           <Button size="sm" variant="primary" onClick={() => forwardToExam(s)} title="Forward this enrolled student to the Exam Section">
                             <Send size={13} /> Forward to Exam Section
                           </Button>
@@ -1718,7 +1720,7 @@ export default function AccountDepartment() {
                         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
                           <XCircle size={12} /> Rejected
                         </span>
-                      ) : (
+                      ) : may('account_dept.centers') && (
                         <div className="flex gap-1">
                           <Button size="sm" onClick={() => { setAccVerifyModal(c); setAccChecks({}); setAccRemarks(''); setCouponRate(''); setOpenLockedSecs({}); setReceiptVerified(false); setManualUtr(c.utr_number || ''); setPayLinkError(null) }}>
                             <CheckCircle size={13} /> {c.approval_status === 'account_hold' ? 'Re-Verify' : 'Verify'}
@@ -1804,10 +1806,10 @@ export default function AccountDepartment() {
                 </button>
               )}
               <div className="ml-auto flex items-end gap-3">
-                <Button size="sm" variant="primary"
+                {may('account_dept.recharge_edit') && <Button size="sm" variant="primary"
                   onClick={() => setAddRecharge({ center_id: rechargeCenter || '', amount: '', reference: '', payment_date: '', notes: '', receipt: null })}>
                   <Wallet size={14} /> Add Recharge
-                </Button>
+                </Button>}
               <p className="text-sm text-gray-500 pb-2">
                 {rechargesList.length} request{rechargesList.length === 1 ? '' : 's'}
                 {' · '}<span className="font-bold text-gray-800">₹{rechargesTotal.toLocaleString('en-IN')}</span>
@@ -2040,10 +2042,10 @@ export default function AccountDepartment() {
                     <Td>
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-gray-900">₹{Number(r.amount).toLocaleString()}</span>
-                        <button onClick={() => openEditRecharge(r)} title="Edit this recharge"
+                        {may('account_dept.recharge_edit') && <button onClick={() => openEditRecharge(r)} title="Edit this recharge"
                           className="text-gray-300 hover:text-[#933d18]">
                           <Pencil size={12} />
-                        </button>
+                        </button>}
                       </div>
                     </Td>
                     <Td className="font-mono text-sm text-gray-700">{r.payment_txn_id || '—'}</Td>
@@ -2057,29 +2059,29 @@ export default function AccountDepartment() {
                     <Td className="text-gray-400 text-xs">
                       <div className="flex items-center gap-1.5 whitespace-nowrap">
                         <span>{formatDate(r.created_at)}</span>
-                        <button onClick={() => openEditRecharge(r)} title="Edit this recharge"
+                        {may('account_dept.recharge_edit') && <button onClick={() => openEditRecharge(r)} title="Edit this recharge"
                           className="text-gray-300 hover:text-[#933d18]">
                           <Pencil size={12} />
-                        </button>
+                        </button>}
                       </div>
                     </Td>
                     <Td><Badge status={r.status?.toLowerCase()}>{r.status || 'Pending'}</Badge></Td>
                     <Td className="text-gray-500 text-xs max-w-[160px] truncate" title={r.admin_remarks || ''}>{r.admin_remarks || '—'}</Td>
                     <Td>
                       <div className="flex items-center gap-2 whitespace-nowrap">
-                        {(r.status === 'pending' || r.status === 'hold') && (
+                        {may('account_dept.recharge_verify') && (r.status === 'pending' || r.status === 'hold') && (
                           <Button size="sm" variant="success" onClick={() => { setRechargeModal(r); setRechargeChecked(false); setRechargeRemark(r.admin_remarks || '') }}>
                             <CheckCircle size={13} /> {r.status === 'hold' ? 'Re-Review' : 'Review'}
                           </Button>
                         )}
-                        <button onClick={() => openEditRecharge(r)} title="Edit every field of this recharge"
+                        {may('account_dept.recharge_edit') && <button onClick={() => openEditRecharge(r)} title="Edit every field of this recharge"
                           className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] hover:underline">
                           <Pencil size={12} /> Edit
-                        </button>
-                        <button onClick={() => setDeleteRecharge({ r, reason: '' })} title="Delete this recharge"
+                        </button>}
+                        {may('account_dept.recharge_delete') && <button onClick={() => setDeleteRecharge({ r, reason: '' })} title="Delete this recharge"
                           className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 hover:underline">
                           <Trash2 size={12} /> Delete
-                        </button>
+                        </button>}
                       </div>
                     </Td>
                   </Tr>
@@ -2153,7 +2155,7 @@ export default function AccountDepartment() {
                     </Td>
                     <Td>
                       {r.status === 'Pending' && r.students ? (
-                        <Button size="sm" variant="primary" disabled={awaitingAdmitCard(r)}
+                        may('account_dept.re_registration') && <Button size="sm" variant="primary" disabled={awaitingAdmitCard(r)}
                           title={awaitingAdmitCard(r)
                             ? 'The Exam Section has not issued this student\'s admit card yet. The fee is already held from the centre — reject this request to give it back.'
                             : undefined}
@@ -2251,7 +2253,7 @@ export default function AccountDepartment() {
                     </Td>
                     <Td>
                       {st === 'pending' ? (
-                        <div className="flex gap-1">
+                        may('account_dept.approval_codes') && <div className="flex gap-1">
                           <Button size="sm" variant="success" disabled={acReqSaving} onClick={() => { setVerifyAcModal(r); setVerifyRef(r.payment_txn_id || '') }}>
                             <CheckCircle size={13} /> Verify
                           </Button>
@@ -2260,7 +2262,7 @@ export default function AccountDepartment() {
                           </Button>
                         </div>
                       ) : st === 'rejected' ? (
-                        <Button size="sm" variant="success" disabled={acReqSaving} onClick={() => { setVerifyAcModal(r); setVerifyRef(r.payment_txn_id || '') }}>
+                        may('account_dept.approval_codes') && <Button size="sm" variant="success" disabled={acReqSaving} onClick={() => { setVerifyAcModal(r); setVerifyRef(r.payment_txn_id || '') }}>
                           <CheckCircle size={13} /> Verify
                         </Button>
                       ) : (
@@ -2313,14 +2315,14 @@ export default function AccountDepartment() {
                     <Td className="text-gray-500 text-xs max-w-[100px] truncate">{a.doc_remarks || '—'}</Td>
                     <Td className="text-gray-400 text-xs">{formatDate(a.created_at)}</Td>
                     <Td>
-                      <div className="flex gap-1">
+                      {may('account_dept.centers') && <div className="flex gap-1">
                         <Button size="sm" variant="success" onClick={() => { setCAApproveModal(a); setCAAccRemarks('') }}>
                           <CheckCircle size={13} /> Approve
                         </Button>
                         <Button size="sm" variant="danger" onClick={() => handleCAReject(a.id)}>
                           <XCircle size={13} />
                         </Button>
-                      </div>
+                      </div>}
                     </Td>
                   </Tr>
                 ))}
@@ -2530,12 +2532,12 @@ export default function AccountDepartment() {
             )}
 
             <div className="flex gap-3 pt-1 border-t border-gray-100 sticky bottom-0 bg-white pb-1">
-              <Button variant="success" onClick={() => { setViewStudent(null); handleStudentApprove(viewStudent) }}>
+              {may('account_dept.students') && <Button variant="success" onClick={() => { setViewStudent(null); handleStudentApprove(viewStudent) }}>
                 <CheckCircle size={14} /> Approve
-              </Button>
-              <Button variant="danger" onClick={() => { setViewStudent(null); handleStudentReject(viewStudent) }}>
+              </Button>}
+              {may('account_dept.students') && <Button variant="danger" onClick={() => { setViewStudent(null); handleStudentReject(viewStudent) }}>
                 <XCircle size={14} /> Reject
-              </Button>
+              </Button>}
               <Button variant="ghost" onClick={() => handleDownloadPDF(viewStudent.id)} disabled={downloading === viewStudent.id}>
                 <Download size={14} /> PDF
               </Button>

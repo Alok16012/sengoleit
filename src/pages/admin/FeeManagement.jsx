@@ -11,6 +11,7 @@ import { isCharged } from '../../utils/feeItems'
 import FeeCalculator from '../../components/admin/FeeCalculator'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import CenterCourses from './CenterCourses'
+import { useAuth } from '../../context/AuthContext'
 
 // category types:
 //  'entry'     = one-time (Prospectus etc.)
@@ -56,6 +57,7 @@ function calcTotals(feeItems, totalSems) {
    MAIN COMPONENT
 ═══════════════════════════════════════ */
 export default function FeeManagement() {
+  const { may } = useAuth()
   // Active tab lives in the URL (?tab=…) so the browser Back button navigates
   // within Fee Management (tab → tab, center detail → list) instead of jumping
   // out to the previous page. 'master' is the default and stays param-free.
@@ -611,9 +613,11 @@ export default function FeeManagement() {
           <div className="flex flex-col items-center justify-center py-24 text-gray-300">
             <GraduationCap size={52} className="mb-3" />
             <p className="text-base font-semibold text-gray-400">No programs found</p>
+            {may('fee_management.manage') && (
             <button onClick={() => openEditor()} className="mt-4 bg-[#933d18] text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-[#7a3214]">
               + Add Fee Structure
             </button>
+            )}
           </div>
         ) : (
           <>
@@ -742,6 +746,7 @@ export default function FeeManagement() {
             {/* "How long does this fee stand?" — set it on the ticked courses,
                 or on everything the filters are showing. Past the end date the
                 course stops being offered to centres. */}
+            {may('fee_management.manage') && (
             <button onClick={() => {
               setBulkScope(picked.size ? 'picked' : 'filtered')
               setBulkFrom(''); setBulkTo(''); setValidityOpen(true)
@@ -749,6 +754,7 @@ export default function FeeManagement() {
               className="ml-auto flex items-center gap-1.5 text-xs font-bold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3.5 py-2 rounded-xl transition-colors">
               <CalendarClock size={14} /> Set Validity
             </button>
+            )}
             {/* Rows come from allRows, so the export matches the sub-tab, the
                 search and every filter exactly as the table shows them. A row
                 with no fee exports blank money columns rather than a dash. */}
@@ -789,9 +795,11 @@ export default function FeeManagement() {
                 <div className="flex gap-2">
                   <button onClick={() => setPicked(new Set())}
                     className="text-xs font-bold text-gray-500 hover:text-[#933d18] underline px-2">Clear</button>
+                  {may('fee_management.manage') && (
                   <Button size="md" onClick={() => openEditorForPrograms(picked)}>
                     <Plus size={14} /> Set Fee for {picked.size}
                   </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -804,6 +812,7 @@ export default function FeeManagement() {
                 <div className="flex gap-2">
                   <button onClick={() => setDoneSelected(new Set())}
                     className="text-xs font-bold text-gray-500 hover:text-red-600 underline px-2">Clear</button>
+                  {may('fee_management.manage') && (
                   <button
                     disabled={bulkDoneDeleting}
                     onClick={() => handleBulkDeleteDone(feeRows)}
@@ -811,6 +820,7 @@ export default function FeeManagement() {
                     <Trash2 size={13} />
                     {bulkDoneDeleting ? 'Deleting…' : `Delete ${doneSelected.size} Selected`}
                   </button>
+                  )}
                 </div>
               </div>
             )}
@@ -890,10 +900,12 @@ export default function FeeManagement() {
                           <td className="px-4 py-3 text-right text-gray-300 text-xs">—</td>
                           <td className="px-4 py-3 text-right text-gray-300 text-xs">—</td>
                           <td className="px-4 py-3 text-center">
+                            {may('fee_management.manage') && (
                             <button onClick={() => openEditorForProgram(struct.program_id)} title="Add Fee Structure"
                               className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-3 py-1.5 rounded-lg transition-colors">
                               <Plus size={12} /> Add Fee
                             </button>
+                            )}
                           </td>
                         </tr>
                       )
@@ -940,6 +952,7 @@ export default function FeeManagement() {
                               // leaving the cell blank.
                               <span className="text-gray-300">No session set</span>
                             )}
+                            {may('fee_management.manage') && (<>
                             <AddSessionBtn
                               sessions={sessions}
                               existingIds={new Set((struct.__sessions || [struct]).map(s => s.session_id).filter(Boolean))}
@@ -951,6 +964,7 @@ export default function FeeManagement() {
                               busy={removingSessFor === struct.program_id}
                               onRemove={removeSessionFees}
                             />
+                            </>)}
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center">
@@ -989,6 +1003,7 @@ export default function FeeManagement() {
                               className="flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg transition-colors">
                               <Download size={12} /> PDF
                             </button>
+                            {may('fee_management.manage') && (<>
                             <button onClick={() => openEditor(struct)} title="Edit"
                               className="flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-2.5 py-1.5 rounded-lg transition-colors">
                               <Pencil size={12} /> Edit
@@ -997,6 +1012,7 @@ export default function FeeManagement() {
                               className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
                               <Trash2 size={12} />
                             </button>
+                            </>)}
                           </div>
                         </td>
                       </tr>
@@ -1267,7 +1283,7 @@ export default function FeeManagement() {
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Expired</span>
                 )}
               </div>
-              {selectedProgIds.size > 0 && (
+              {may('fee_management.manage') && selectedProgIds.size > 0 && (
                 <Button onClick={handleSave} disabled={saving}>
                   <Save size={14} />
                   {saving ? 'Saving...' : saved ? '✓ Saved' : `Save${selectedProgIds.size > 1 || selectedSessIds.size > 1 ? ' All' : ''}`}

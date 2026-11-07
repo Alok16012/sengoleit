@@ -4,6 +4,7 @@ import Button from '../../components/ui/Button'
 import DateInput, { isoToDisplay } from '../../components/ui/DateInput'
 import { SearchableSelect } from '../../components/ui/SearchSelect'
 import { Save, CalendarRange, CalendarDays, GraduationCap, FlaskConical } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 // Regular is semester-based (Sem 1–10); Ph.D is yearly (Year 1–6). Ph.D rows are
 // stored at a 100+ offset (101–106) in the SAME exam_calendar table so the two
@@ -15,6 +16,7 @@ const PHD = Array.from({ length: 6 }, (_, i) => ({ n: 101 + i, label: `Year ${i 
 // Examination Calendar — pick a session, then set the exam start & end date for
 // each semester / Ph.D year. One row per (session, semester) in `exam_calendar`.
 export default function ExaminationCalendar() {
+  const { may } = useAuth()
   const [mode, setMode] = useState('regular')          // 'regular' | 'phd'
   const [sessions, setSessions] = useState([])
   const [sessionId, setSessionId] = useState('')       // '' = none picked
@@ -237,9 +239,11 @@ export default function ExaminationCalendar() {
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
               <h3 className="font-bold text-gray-800">{labelFor(activeSem)} — Examination Dates</h3>
+              {may('exam_section.calendar') && (
               <Button onClick={save} disabled={saving}>
                 <Save size={14} /> {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Calendar'}
               </Button>
+              )}
             </div>
             <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="flex flex-col gap-1">

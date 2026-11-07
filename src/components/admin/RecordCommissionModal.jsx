@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
 
 const fmt = n => '₹' + (Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 
@@ -12,6 +13,7 @@ function realAdmissionPrice(app) {
 }
 
 export default function RecordCommissionModal({ superCenter, onClose, onSaved }) {
+  const { may } = useAuth()
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -181,6 +183,7 @@ export default function RecordCommissionModal({ superCenter, onClose, onSaved })
 
         <div className="flex justify-end gap-2 p-4 border-t">
           <button onClick={onClose} className="px-4 py-2 border rounded text-sm hover:bg-gray-50">Cancel</button>
+          {may('coupons.commission') && (
           <button
             onClick={handleSave}
             disabled={!selectedStudent || saving}
@@ -188,6 +191,7 @@ export default function RecordCommissionModal({ superCenter, onClose, onSaved })
           >
             {saving ? 'Saving…' : 'Record Commission'}
           </button>
+          )}
         </div>
       </div>
     </div>

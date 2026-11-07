@@ -20,6 +20,7 @@ import { fetchCourierSems } from '../../utils/courierSems'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
 import AdmitCardListModal from '../../components/AdmitCardListModal'
+import { useAuth } from '../../context/AuthContext'
 
 // RR = students with a re-registration request, whatever its outcome.
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected', 'RR']
@@ -203,6 +204,7 @@ function CredModal({ studentId, onClose }) {
 }
 
 export default function Students() {
+  const { may } = useAuth()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   // Why the list could not be read — shown on the page. A failed read used to
@@ -483,7 +485,7 @@ export default function Students() {
       <PageHeader
         title="Students"
         subtitle={`${data.length} students`}
-        action={{ label: <><Plus size={15} /> Add Student</>, onClick: () => navigate('/admin/students/new') }}
+        action={may('students.add') ? { label: <><Plus size={15} /> Add Student</>, onClick: () => navigate('/admin/students/new') } : null}
       />
 
       {loadError && (
@@ -683,9 +685,13 @@ export default function Students() {
                 </Td>
                 <Td>
                   <div className="flex gap-1">
+                    {may('students.edit') && (
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/edit/${s.id}`)}>
                       <Edit size={14} />
                     </Button>
+                    )}
+                    {may('students.documents') && (
+                    <>
                     <Button size="sm" variant="ghost" onClick={() => handleDownload(s.id)} disabled={downloading === s.id} title="Download Admission Form PDF">
                       <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
                     </Button>
@@ -693,6 +699,8 @@ export default function Students() {
                       disabled={downloading === `${s.id}-docs`} title="Download ALL uploaded documents (one per page)">
                       <FolderDown size={14} className={downloading === `${s.id}-docs` ? 'animate-pulse text-[#933d18]' : 'text-gray-500'} />
                     </Button>
+                    </>
+                    )}
                     {/* Re-Registration — VERIFYING a pending request belongs to
                         the Account Dept's Re-Registrations queue (the money
                         step), so a pending one here is only a signpost, not a
@@ -705,15 +713,17 @@ export default function Students() {
                           title={`Re-Registration requested: ${reReg[s.id].from_term} → ${reReg[s.id].to_term} — verify it in Account Dept → Re-Registrations`}>
                           <RefreshCw size={11} /> Re-Reg pending
                         </span>
-                      ) : !nextTerm(s).atEnd ? (
+                      ) : !nextTerm(s).atEnd && may('students.re_register') ? (
                         <Button size="sm" variant="ghost" onClick={() => setReRegStudent(s)} title="Re-Registration">
                           <RefreshCw size={14} className="text-gray-500" />
                         </Button>
                       ) : null
                     )}
+                    {may('students.credentials') && (
                     <Button size="sm" variant="ghost" onClick={() => setCredStudentId(s.id)} title="Login Credentials">
                       <KeyRound size={14} className="text-gray-500" />
                     </Button>
+                    )}
                     {s.status === 'Approved' && (
                       s.exam_forwarded_at ? (
                         <span
@@ -722,23 +732,25 @@ export default function Students() {
                         >
                           <BadgeCheck size={12} /> Exam
                         </span>
-                      ) : (
+                      ) : may('exam_section.admit_cards') ? (
                         <Button size="sm" variant="ghost" onClick={() => forwardToExam(s)} title="Forward to Exam Section">
                           <Send size={14} className="text-[#933d18]" />
                         </Button>
-                      )
+                      ) : null
                     )}
                     {s.status === 'Approved' && (
                       <>
-                        {!isPhdProgram(s.programs?.program_name) && (
+                        {!isPhdProgram(s.programs?.program_name) && may('students.documents') && (
                           <Button size="sm" variant="ghost" onClick={() => setRegCardStudent(s)}
                             title="Registration Certificate — one per year of the course">
                             <FileText size={14} className="text-indigo-600" />
                           </Button>
                         )}
+                        {may('students.documents') && (
                         <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'id')} disabled={!s.enrollment_no || downloading === `${s.id}-id`} title={s.enrollment_no ? 'Download ID Card' : 'ID card is issued after the Enrollment Number is generated'}>
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                         </Button>
+                        )}
                         {/* admit_card_released_at is the old single-flag release
                             and stays untouched by the per-semester flow, so a
                             student with issued semester cards but no flag would
@@ -755,14 +767,18 @@ export default function Students() {
                         )}
                       </>
                     )}
+                    {may('students.hide') && (
                     <Button size="sm" variant="ghost" onClick={() => toggleHide(s)} title={s.is_hidden ? 'Unhide Student' : 'Hide Student'}>
                       {s.is_hidden
                         ? <Eye size={14} className="text-emerald-600" />
                         : <EyeOff size={14} className="text-gray-500" />}
                     </Button>
+                    )}
+                    {may('students.delete') && (
                     <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(s)} title="Delete Student">
                       <Trash2 size={14} className="text-red-500" />
                     </Button>
+                    )}
                   </div>
                 </Td>
               </Tr>
@@ -779,6 +795,7 @@ export default function Students() {
             <> · entered {fromDate ? formatDate(fromDate) : 'start'} — {toDate ? formatDate(toDate) : 'today'}</>
           )}
         </p>
+        {may('students.export') && (
         <div className="flex gap-2">
           <Button variant="secondary" size="md"
             onClick={() => exportCsv(exportName(), EXPORT_COLUMNS, filtered)}>
@@ -789,6 +806,7 @@ export default function Students() {
             <FileText size={14} /> Export PDF
           </Button>
         </div>
+        )}
       </div>
 
       {/* Raise-only: a pending request is decided in the Account Dept queue,

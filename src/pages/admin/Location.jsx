@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Input, { Select } from '../../components/ui/Input'
 import { Plus, Trash2, Edit, Search } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 const TABS = [
   { key: 'states', label: 'States' },
@@ -15,6 +16,7 @@ const TABS = [
 ]
 
 export default function Location() {
+  const { may } = useAuth()
   const [tab, setTab] = useState('states')
   const [states, setStates] = useState([])
   const [districts, setDistricts] = useState([])
@@ -108,7 +110,7 @@ export default function Location() {
       <PageHeader
         title="Location Management"
         subtitle={`Manage states, districts, and countries`}
-        action={{ label: <><Plus size={15} /> Add {currentLabel.slice(0, -1)}</>, onClick: openAdd }}
+        action={may('location.manage') ? { label: <><Plus size={15} /> Add {currentLabel.slice(0, -1)}</>, onClick: openAdd } : undefined}
       />
 
       <div className="flex flex-wrap items-center gap-3 mb-6">
@@ -157,10 +159,12 @@ export default function Location() {
                     <Td className="text-gray-500 text-xs">{s.countries?.country_name || '—'}</Td>
                     <Td className="text-gray-500">{s.status}</Td>
                     <Td>
+                      {may('location.manage') && (
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost" onClick={() => openEdit(s)}><Edit size={14} className="text-gray-500" /></Button>
                         <Button size="sm" variant="ghost" onClick={() => handleDelete('states', s.id)}><Trash2 size={14} className="text-red-500" /></Button>
                       </div>
+                      )}
                     </Td>
                   </Tr>
                 ))}
@@ -180,10 +184,12 @@ export default function Location() {
                     <Td className="text-gray-500 text-xs">{d.states?.state_name || '—'}</Td>
                     <Td className="text-gray-500">{d.status}</Td>
                     <Td>
+                      {may('location.manage') && (
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost" onClick={() => openEdit(d)}><Edit size={14} className="text-gray-500" /></Button>
                         <Button size="sm" variant="ghost" onClick={() => handleDelete('districts', d.id)}><Trash2 size={14} className="text-red-500" /></Button>
                       </div>
+                      )}
                     </Td>
                   </Tr>
                 ))}
@@ -203,10 +209,12 @@ export default function Location() {
                     <Td className="text-gray-500">{c.country_code || '—'}</Td>
                     <Td className="text-gray-500">{c.status}</Td>
                     <Td>
+                      {may('location.manage') && (
                       <div className="flex gap-1">
                         <Button size="sm" variant="ghost" onClick={() => openEdit(c)}><Edit size={14} className="text-gray-500" /></Button>
                         <Button size="sm" variant="ghost" onClick={() => handleDelete('countries', c.id)}><Trash2 size={14} className="text-red-500" /></Button>
                       </div>
+                      )}
                     </Td>
                   </Tr>
                 ))}

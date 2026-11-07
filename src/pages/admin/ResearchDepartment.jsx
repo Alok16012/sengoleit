@@ -9,6 +9,7 @@ import { generateOfferLetter, generateEntranceClearance, generateHallTicket, gen
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
+import { useAuth } from '../../context/AuthContext'
 import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, unassignRef, deleteLetterSetting, setSitting } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
@@ -18,6 +19,7 @@ const SETTINGS_KEY = 'phd_doc_settings'
 const OPTIONAL_COLS = 'stream, offer_letter_active, entrance_letter_active, research_forwarded_at'
 
 export default function ResearchDepartment() {
+  const { may } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('letters')      // 'letters' | 'exam'
@@ -540,6 +542,7 @@ export default function ResearchDepartment() {
         </div>
 
         {/* Add a new letter name */}
+        {may('research_dept.manage') && (
         <div className="flex items-end gap-2 flex-wrap">
           <div>
             <label className="block text-[11px] font-semibold text-gray-500 mb-1">Add Letter Name</label>
@@ -548,6 +551,7 @@ export default function ResearchDepartment() {
           </div>
           <Button variant="secondary" size="md" onClick={addLetter}><Plus size={14} /> Add</Button>
         </div>
+        )}
 
         {/* Pick a session, then fill in every letter for it in one pass. */}
         <div className="border-t border-gray-100 pt-4 space-y-3">
@@ -569,9 +573,11 @@ export default function ResearchDepartment() {
                 {shownSessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
               </select>
             </div>
+            {may('research_dept.manage') && (
             <Button variant="primary" size="md" onClick={saveCfg}>
               <Save size={14} /> {saved ? 'Saved ✓' : 'Save All Letters'}
             </Button>
+            )}
             <p className="text-[11px] text-gray-500 pb-2">
               {editingSession
                 ? <>Setting up <strong className="text-gray-700">{sessionName(editingSession)}</strong> — fill every letter below, then Save once.</>
@@ -704,10 +710,12 @@ export default function ResearchDepartment() {
                   {bad && (
                     <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
                       The prefix ends in a number, so the serial is added on top of it.
+                      {may('research_dept.manage') && (
                       <button type="button" onClick={() => { const f = migratePrefix(entry); set({ prefix: f.prefix, nextNum: f.nextNum }) }}
                         className="ml-1 font-semibold text-[#933d18] underline">
                         Fix → {String(entry.prefix || '').replace(/\d+$/, '')}{refSerial(migratePrefix(entry).nextNum)}
                       </button>
+                      )}
                     </p>
                   )}
                 </div>
@@ -775,11 +783,13 @@ export default function ResearchDepartment() {
                           className={`text-xs font-semibold ${isSel ? 'text-gray-400' : 'text-[#933d18] hover:underline'}`}>
                           {isSel ? 'Editing' : 'Edit'}
                         </button>
+                        {may('research_dept.manage') && (
                         <button type="button" onClick={() => removeLetter(l)}
                           title={`Remove this ${l.name} entry`}
                           className="ml-3 align-middle text-gray-300 hover:text-red-500 transition-colors">
                           <Trash2 size={13} />
                         </button>
+                        )}
                       </td>
                     </tr>
                   )
@@ -873,7 +883,7 @@ export default function ResearchDepartment() {
                         <CreditCard size={13} /> ID Card
                       </Button>
                     </div>
-                  ) : (
+                  ) : may('research_dept.manage') && (
                     <Button size="sm" variant="primary" className="w-fit"
                       disabled={!lettersDone(s) || busy === `${s.id}-enroll`}
                       title={lettersDone(s)
@@ -934,7 +944,7 @@ export default function ResearchDepartment() {
                       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
                         <BadgeCheck size={12} /> Forwarded
                       </span>
-                    ) : (
+                    ) : may('research_dept.manage') && (
                       <Button size="sm" variant="primary" disabled={!feeCleared || busy === `${s.id}-exam`}
                         title={feeCleared ? 'Forward to Exam Section & generate Enrollment No' : 'Waiting for Account Dept approval'}
                         onClick={() => forwardToExam(s)}>
@@ -989,6 +999,7 @@ export default function ResearchDepartment() {
 // number it is a real document the candidate may already hold, so the cell
 // switches to Print (the same number again), Hide/Show, and withdraw.
 function LetterCell({ student, field, busy, issued, refNo, onGenerate, onToggle, onWithdraw, icon: Icon, label }) {
+  const { may } = useAuth()
   const active = !!student[field]
   const working = busy === `${student.id}-${field}`
   // Only the top row swaps. The Hide/Show toggle stays in BOTH states: it is
@@ -1008,23 +1019,27 @@ function LetterCell({ student, field, busy, issued, refNo, onGenerate, onToggle,
                 title={`Print ${label} again with the same number`} className="w-fit">
                 <Icon size={13} /> Print
               </Button>
+              {may('research_dept.manage') && (
               <button onClick={onWithdraw} disabled={working} title={`Withdraw this ${label}`}
                 className="inline-flex items-center p-1.5 rounded text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40">
                 <Trash2 size={13} />
               </button>
+              )}
             </div>
           </>
-        ) : (
+        ) : may('research_dept.manage') && (
           <Button size="sm" variant="secondary" onClick={onGenerate} title={`Generate ${label}`} className="w-fit">
             <Icon size={13} /> Generate
           </Button>
         )}
+        {may('research_dept.manage') && (
         <button onClick={onToggle} disabled={working}
           title={active ? 'Visible — student & center can download' : 'Hidden from student & center'}
           className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit transition-colors ${active ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-gray-500 bg-gray-100 hover:bg-gray-200'}`}>
           {active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
           {active ? 'Visible' : 'Hidden'}
         </button>
+        )}
       </div>
     </Td>
   )

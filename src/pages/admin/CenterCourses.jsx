@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import Button from '../../components/ui/Button'
 import { fetchAllRows } from '../../utils/fetchAllRows'
+import { useAuth } from '../../context/AuthContext'
 import { Plus, Search, X, Check, Trash2, Building2, GraduationCap, CheckCircle2, Clock, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
 
 const fmt = n => (n % 1 === 0 ? n.toLocaleString('en-IN') : n.toFixed(2))
@@ -22,6 +23,7 @@ function grandTotal(feeItems, totalSems) {
 }
 
 export default function CenterCourses() {
+  const { may } = useAuth()
   const [centers, setCenters]       = useState([])
   const [structs, setStructs]       = useState([])   // fee_structures master
   const [programs, setPrograms]     = useState([])
@@ -609,7 +611,7 @@ export default function CenterCourses() {
               className="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2 py-2">
               Clear
             </button>
-            {subTab === 'pending' ? (
+            {may('fee_management.manage') && (subTab === 'pending' ? (
               <Button onClick={() => addGroups(pickedRows)} disabled={busy != null}>
                 <Plus size={14} /> {busy === 'all' ? 'Adding…' : `Add ${pickedRows.length} Selected`}
               </Button>
@@ -620,7 +622,7 @@ export default function CenterCourses() {
                 className="flex items-center gap-1.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50">
                 <Trash2 size={14} /> {busy === 'all' ? 'Removing…' : `Remove ${pickedRows.length} Selected`}
               </button>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -631,10 +633,12 @@ export default function CenterCourses() {
             <strong>{staleIds.length}</strong> of this center's courses are still on the old
             “awaiting approval” status, so the center cannot actually use them yet.
           </span>
+          {may('fee_management.manage') && (
           <button onClick={activateStale} disabled={busy != null}
             className="shrink-0 flex items-center gap-1 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 px-3 py-2 rounded-lg transition-colors disabled:opacity-50">
             <Check size={13} /> {busy === 'stale' ? 'Activating…' : 'Activate all'}
           </button>
+          )}
         </div>
       )}
 
@@ -720,7 +724,7 @@ export default function CenterCourses() {
                   <td className="px-4 py-3 text-right font-black text-gray-900 align-top">{totalSet.map(t => `₹${t}`).join(', ')}</td>
                   <td className="px-4 py-3 align-top">
                     <div className="flex items-center justify-center gap-1.5">
-                      {subTab === 'pending' ? (
+                      {!may('fee_management.manage') ? null : subTab === 'pending' ? (
                         // One click = allotted AND live. The row's every session
                         // goes together, same as the count next to the name.
                         <button onClick={() => addGroup(g.items)} disabled={grpBusy || busy === 'all'}

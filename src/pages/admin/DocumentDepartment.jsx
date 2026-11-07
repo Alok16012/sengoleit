@@ -273,7 +273,7 @@ function studentPreVerifiedChecks(correctionFields) {
 const DOC_DEPT_HIDDEN = ['Approved', 'Forwarded']
 
 export default function DocumentDepartment() {
-  const { profile, can } = useAuth()
+  const { profile, can, may } = useAuth()
   // The queue-only view: the old Document Dept login, or a staff role without
   // "View approved / forwarded".
   const isDocDept = profile?.role === 'document_dept' || (profile?.role === 'staff' && !can('document_dept.view_done'))
@@ -707,7 +707,7 @@ export default function DocumentDepartment() {
                           <Eye size={13} className="text-[#933d18]" />
                         </Button>
                         {/* Verify / Hold / Reject only make sense while the center still needs doc verification */}
-                        {(!c.approval_status || c.approval_status === 'pending' || c.approval_status === 'hold') && (
+                        {(!c.approval_status || c.approval_status === 'pending' || c.approval_status === 'hold') && may('document_dept.centers') && (
                           <>
                             <Button size="sm" variant="success" onClick={() => { setDCVerifyModal(c); setDCRemarks(''); setFieldChecks(initialChecksForCenter(c)) }}>
                               <CheckCircle size={13} /> Verify
@@ -976,9 +976,11 @@ export default function DocumentDepartment() {
                 {(!viewDC.approval_status || viewDC.approval_status === 'pending' || viewDC.approval_status === 'hold') ? (
                   <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-between gap-3">
                     <p className="text-xs text-gray-400">Review all details before proceeding to verification.</p>
+                    {may('document_dept.centers') && (
                     <Button onClick={() => { setViewDC(null); setDCVerifyModal(viewDC); setDCRemarks(''); setFieldChecks(initialChecksForCenter(viewDC)) }}>
                       <CheckCircle size={14} /> Verify Documents
                     </Button>
+                    )}
                   </div>
                 ) : (
                   <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex items-center justify-end gap-3">
@@ -1481,12 +1483,16 @@ export default function DocumentDepartment() {
                   <div className="flex gap-1 flex-wrap">
                     {(s.status === 'Pending' || (s.status === 'Hold' && !s.doc_verified_at)) && (
                       <>
+                        {(may('document_dept.verify') || may('document_dept.hold')) && (
                         <Button size="sm" variant="success" onClick={() => openStudentVerify(s.id)}>
                           <CheckCircle size={13} /> Verify
                         </Button>
+                        )}
+                        {may('document_dept.reject') && (
                         <Button size="sm" variant="danger" onClick={() => { setRejectModal(s); setRemarks('') }}>
                           <XCircle size={13} />
                         </Button>
+                        )}
                       </>
                     )}
                     <Button size="sm" variant="ghost" onClick={() => handleDownload(s.id)} disabled={downloading === s.id} title="Download PDF">
@@ -1683,12 +1689,16 @@ export default function DocumentDepartment() {
             <div className="flex gap-3 pt-1 border-t border-gray-100 sticky bottom-0 bg-white pb-1">
               {viewStudent.status === 'Pending' && (
                 <>
+                  {(may('document_dept.verify') || may('document_dept.hold')) && (
                   <Button variant="success" onClick={() => openStudentVerify(viewStudent.id)}>
                     <CheckCircle size={14} /> Verify & Forward
                   </Button>
+                  )}
+                  {may('document_dept.reject') && (
                   <Button variant="danger" onClick={() => { setRejectModal(viewStudent); setViewStudent(null); setRemarks('') }}>
                     <XCircle size={14} /> Reject
                   </Button>
+                  )}
                 </>
               )}
               <Button variant="outline" onClick={() => setViewStudent(null)}>Close</Button>
@@ -1956,6 +1966,7 @@ export default function DocumentDepartment() {
                   value={remarks}
                   onChange={e => setRemarks(e.target.value)}
                 />
+                {may('document_dept.verify') && (
                 <button
                   onClick={() => {
                     if (!canForward) {
@@ -1971,6 +1982,8 @@ export default function DocumentDepartment() {
                   <CheckCircle size={15} />
                   {saving ? 'Saving...' : 'Verify & Forward to Account Dept.'}
                 </button>
+                )}
+                {may('document_dept.hold') && (
                 <button
                   onClick={() => {
                     if (unreviewedKeys.length > 0) {
@@ -1989,6 +2002,8 @@ export default function DocumentDepartment() {
                 >
                   <PauseCircle size={15} /> Hold{unreviewedKeys.length > 0 ? ` (${unreviewedKeys.length} left)` : ''}
                 </button>
+                )}
+                {may('document_dept.reject') && (
                 <button
                   onClick={() => { setRemarks(composedRejectNote); setVerifyModal(null); setRejectModal(s); setFieldChecks({}) }}
                   disabled={saving}
@@ -1997,6 +2012,7 @@ export default function DocumentDepartment() {
                 >
                   <XCircle size={15} /> Reject
                 </button>
+                )}
                 <button
                   onClick={() => { setVerifyModal(null); setFieldChecks({}) }}
                   className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors whitespace-nowrap"

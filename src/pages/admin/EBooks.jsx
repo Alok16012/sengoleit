@@ -5,12 +5,14 @@ import Button from '../../components/ui/Button'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import { BookOpenCheck, Upload, Trash2, Download, Search } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
+import { useAuth } from '../../context/AuthContext'
 
 // Admin e-book library — upload a PDF, pick which programme (and optionally
 // which session) it belongs to, and students of that programme see it on
 // their E-Book page. Files live in the same `documents` bucket the syllabus
 // PDFs use. Needs add_ebooks.sql.
 export default function EBooks() {
+  const { may } = useAuth()
   const [rows, setRows] = useState([])
   const [programs, setPrograms] = useState([])
   const [sessions, setSessions] = useState([])
@@ -88,6 +90,7 @@ export default function EBooks() {
       )}
 
       {/* Upload panel */}
+      {may('ebooks.manage') && (
       <div className="bg-white border border-gray-200 rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <Upload size={16} className="text-[#933d18]" />
@@ -126,6 +129,7 @@ export default function EBooks() {
           </Button>
         </div>
       </div>
+      )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm font-bold text-gray-700 flex items-center gap-2">
@@ -165,10 +169,12 @@ export default function EBooks() {
                     className="p-1.5 rounded-lg hover:bg-[#933d18]/10 text-[#933d18]" title="Download / view">
                     <Download size={15} />
                   </a>
+                  {may('ebooks.manage') && (
                   <button onClick={() => handleDelete(r)}
                     className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors" title="Delete">
                     <Trash2 size={15} />
                   </button>
+                  )}
                 </div>
               </Td>
             </Tr>

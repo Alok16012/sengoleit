@@ -94,9 +94,14 @@ export function AuthProvider({ children }) {
   // can('students.edit') — the admin can do everything; a staff login what
   // its role was given. The database checks the same thing (has_perm).
   const can = (perm) => profile?.role === 'admin' || (profile?.role === 'staff' && permissions.includes(perm))
+  // may('students.edit') — for showing a button. Only a staff login is held to
+  // its role; the admin, centres and super centres see their screens as they
+  // always have (and the database still decides what each may do). Use this
+  // on any screen, including ones a centre shares with the admin.
+  const may = (perm) => profile?.role !== 'staff' || permissions.includes(perm)
 
   return (
-    <AuthContext.Provider value={{ user, profile, permissions, can, loading, signIn, signInMock, signUp, signOut, isConfigured }}>
+    <AuthContext.Provider value={{ user, profile, permissions, can, may, loading, signIn, signInMock, signUp, signOut, isConfigured }}>
       {children}
     </AuthContext.Provider>
   )

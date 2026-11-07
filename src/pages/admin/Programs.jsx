@@ -7,6 +7,7 @@ import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search, X, Check } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 const calcSemesters = (p) => {
   if (!p.duration) return p.semester_year || '—'
@@ -26,6 +27,7 @@ const stripOnline = (val) => {
 }
 
 export default function Programs() {
+  const { may } = useAuth()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -167,7 +169,7 @@ export default function Programs() {
       <PageHeader
         title="Programs"
         subtitle={anyFilter ? `${filtered.length} of ${data.length} programs` : `${data.length} programs`}
-        action={{ label: <><Plus size={15} /> Add Program</>, onClick: () => navigate('/admin/programs/new') }}
+        action={may('programs.manage') ? { label: <><Plus size={15} /> Add Program</>, onClick: () => navigate('/admin/programs/new') } : undefined}
       />
 
       <div className="flex flex-wrap gap-3 mb-4 items-end">
@@ -250,10 +252,12 @@ export default function Programs() {
           </span>
           <button onClick={() => setPicked(new Set())}
             className="text-xs font-semibold text-gray-500 hover:text-gray-700">Clear</button>
+          {may('programs.manage') && (
           <button onClick={handleBulkDelete} disabled={bulkDeleting}
             className="ml-auto flex items-center gap-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-3.5 py-2 rounded-lg transition-colors disabled:opacity-50">
             <Trash2 size={13} /> {bulkDeleting ? 'Deleting…' : `Delete ${pickedShown.length} Selected`}
           </button>
+          )}
         </div>
       )}
 
@@ -341,6 +345,7 @@ export default function Programs() {
                 <Td className="text-gray-500 text-xs max-w-[160px] truncate">{p.eligibility || '—'}</Td>
                 <Td><Badge status={p.status?.toLowerCase()}>{p.status || 'Active'}</Badge></Td>
                 <Td>
+                  {may('programs.manage') && (
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/programs/edit/${p.id}`)}>
                       <Edit size={14} />
@@ -349,6 +354,7 @@ export default function Programs() {
                       <Trash2 size={14} className="text-red-500" />
                     </Button>
                   </div>
+                  )}
                 </Td>
               </Tr>
             ))}

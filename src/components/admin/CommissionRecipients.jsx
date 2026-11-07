@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import Modal from '../ui/Modal'
 import Button from '../ui/Button'
+import { useAuth } from '../../context/AuthContext'
 import { Trash2, Plus, Check } from 'lucide-react'
 
 // Who earns commission on one centre, and at what rate.
@@ -16,6 +17,7 @@ import { Trash2, Plus, Check } from 'lucide-react'
 // the end: there is no draft worth losing here, and a half-saved list of
 // percentages is worse than none.
 export default function CommissionRecipients({ center, superCenters, rows, onClose, onSaved }) {
+  const { may } = useAuth()
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
   const [addSC, setAddSC] = useState('')
@@ -98,10 +100,11 @@ export default function CommissionRecipients({ center, superCenters, rows, onClo
                     <div className="flex items-center gap-1">
                       <input type="number" min="0" max="100"
                         value={edits[row.id] ?? row.percent}
+                        readOnly={!(may('coupons.commission') || may('centers.edit') || may('super_centers.edit'))}
                         onChange={e => setEdits(p => ({ ...p, [row.id]: e.target.value }))}
                         className="border border-gray-200 rounded-lg px-2 py-1 text-sm w-20 text-right focus:outline-none focus:border-[#933d18]" />
                       <span className="text-gray-400 text-xs">%</span>
-                      {edits[row.id] !== undefined && Number(edits[row.id]) !== Number(row.percent) && (
+                      {(may('coupons.commission') || may('centers.edit') || may('super_centers.edit')) && edits[row.id] !== undefined && Number(edits[row.id]) !== Number(row.percent) && (
                         <button onClick={() => saveRow(row)} disabled={busy === row.id}
                           title="Save" className="text-emerald-600 hover:text-emerald-700 disabled:opacity-40">
                           <Check size={15} />
@@ -110,10 +113,12 @@ export default function CommissionRecipients({ center, superCenters, rows, onClo
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right">
+                    {(may('coupons.commission') || may('centers.edit') || may('super_centers.edit')) && (
                     <button onClick={() => removeRow(row)} disabled={busy === row.id}
                       title="Remove" className="text-red-500 hover:text-red-700 disabled:opacity-40">
                       <Trash2 size={14} />
                     </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -122,6 +127,7 @@ export default function CommissionRecipients({ center, superCenters, rows, onClo
         </div>
 
         {/* Add another earner */}
+        {(may('coupons.commission') || may('centers.edit') || may('super_centers.edit')) && (
         <div className="flex flex-wrap items-end gap-2 bg-gray-50 border border-gray-100 rounded-xl p-3">
           <div className="flex-1 min-w-[200px]">
             <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Add Super Center</label>
@@ -143,6 +149,7 @@ export default function CommissionRecipients({ center, superCenters, rows, onClo
             <Plus size={14} /> {busy === 'add' ? 'Adding…' : 'Add'}
           </Button>
         </div>
+        )}
         {available.length === 0 && rows.length > 0 && (
           <p className="text-xs text-gray-400">Every super center already earns on this center.</p>
         )}

@@ -8,6 +8,7 @@ import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStude
 import { generateSemesterMarks } from '../utils/marksFill'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
+import { useAuth } from '../context/AuthContext'
 
 // The Fill rules — 40% floors, the 73 ceiling for 63-70%, distinct totals —
 // live in utils/marksFill.js, where they are tested on their own.
@@ -22,6 +23,7 @@ const pct = (o, t) => {
 // `special` widens the band the auto-fill accepts: an ordinary result is
 // filled between 63% and 70%, a special one between 70% and 90%.
 export default function SemesterResultModal({ student, special = false, onClose, onSaved }) {
+  const { may } = useAuth()
   const BAND = special ? { min: 70, max: 90 } : { min: 63, max: 70 }
   const [rows, setRows] = useState(null)     // null = loading, [] = none
   const [missing, setMissing] = useState(false)
@@ -506,9 +508,11 @@ export default function SemesterResultModal({ student, special = false, onClose,
 
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="secondary" size="md" onClick={() => setPick(null)}>Back</Button>
+                {may('exam_section.results') && (
                 <Button variant="primary" size="md" onClick={save} disabled={busy}>
                   {busy ? 'Saving…' : `Save Semester ${pick.sem}`}
                 </Button>
+                )}
               </div>
             </div>
           ) : !rows.length ? (
@@ -540,10 +544,12 @@ export default function SemesterResultModal({ student, special = false, onClose,
                         <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400 shrink-0"><Lock size={12} /> Fee pending</span>
                       ) : (
                         <div className="flex flex-wrap items-center justify-end gap-1.5 ml-auto">
+                          {may('exam_section.results') && (
                           <Button size="sm" variant="secondary" onClick={() => edit(row)}>
                             {r && r.status !== 'Pending' ? 'Edit' : 'Enter'}
                           </Button>
-                          {r && r.status !== 'Pending' && (
+                          )}
+                          {may('exam_section.print') && r && r.status !== 'Pending' && (
                             <Button size="sm" variant="secondary" disabled={printing === row.sem}
                               title="Print the Statement of Marks for this semester"
                               onClick={() => printStatement(row)}>
@@ -559,7 +565,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                                 title="Already in the Print tab">
                                 In Print · DMC {r.dmc_no ?? '—'}
                               </span>
-                            ) : (
+                            ) : may('exam_section.results') && (
                               <Button size="sm" variant="secondary" disabled={printing === row.sem}
                                 title="Send to the Exam Section's Print tab and issue a DMC number"
                                 onClick={() => sendToPrint(row)}>
@@ -569,7 +575,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                           )}
                           {/* Reads the state, like the admit card's: Active
                               when the student can see the result. */}
-                          {r && r.status !== 'Pending' && (
+                          {may('exam_section.results') && r && r.status !== 'Pending' && (
                             <Button size="sm" variant="secondary" disabled={busy}
                               title={r.released_at
                                 ? 'Deactivate — the student stops seeing this result'
@@ -579,7 +585,7 @@ export default function SemesterResultModal({ student, special = false, onClose,
                               {r.released_at ? <><Eye size={12} /> Active</> : <><EyeOff size={12} /> Deactive</>}
                             </Button>
                           )}
-                          {r && r.status !== 'Pending' && (
+                          {may('exam_section.results') && r && r.status !== 'Pending' && (
                             <Button size="sm" variant="danger" disabled={busy}
                               title="Delete this semester's result" onClick={() => removeResult(row)}>
                               <Trash2 size={12} />

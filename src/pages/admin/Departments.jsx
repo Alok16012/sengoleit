@@ -8,6 +8,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import Input, { Select } from '../../components/ui/Input'
 import { Plus, Edit, Trash2, Search } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 const TABS = [
   { key: 'programme_types', label: 'Programme Types', table: 'programme_types', nameField: 'programme_type_name', addLabel: 'Add Programme Type' },
@@ -17,6 +18,7 @@ const TABS = [
 ]
 
 export default function Departments() {
+  const { may } = useAuth()
   const [tab, setTab] = useState('programme_types')
   const [data, setData] = useState({})
   const [universities, setUniversities] = useState([])
@@ -90,7 +92,7 @@ export default function Departments() {
       <PageHeader
         title="Departments & Configuration"
         subtitle={`${allRows.length} ${currentTab?.label?.toLowerCase()}`}
-        action={{ label: <><Plus size={16} /> {currentTab?.addLabel}</>, onClick: openAdd }}
+        action={may('departments.manage') ? { label: <><Plus size={16} /> {currentTab?.addLabel}</>, onClick: openAdd } : undefined}
       />
 
       {/* Tabs + Search */}
@@ -154,10 +156,12 @@ export default function Departments() {
                 {currentTab?.hasUniversity && <Td className="text-gray-500 text-xs">{row.universities?.university_name || '—'}</Td>}
                 <Td><Badge status={row.status?.toLowerCase()}>{row.status || 'Active'}</Badge></Td>
                 <Td>
+                  {may('departments.manage') && (
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(row)}><Edit size={14} /></Button>
                     <Button size="sm" variant="ghost" onClick={() => handleDelete(row.id)}><Trash2 size={14} className="text-red-500" /></Button>
                   </div>
+                  )}
                 </Td>
               </Tr>
             ))}

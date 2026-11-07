@@ -7,6 +7,7 @@ import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight, Check } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 const APPROVAL_COLORS = {
   pending: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -15,6 +16,7 @@ const APPROVAL_COLORS = {
 }
 
 export default function SuperCenters() {
+  const { may } = useAuth()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -151,7 +153,7 @@ export default function SuperCenters() {
       <PageHeader
         title="Super Centers"
         subtitle={`${data.length} super centers`}
-        action={{ label: <><Plus size={15} /> Add Super Center</>, onClick: () => navigate('/admin/super-centers/new') }}
+        action={may('super_centers.add') ? { label: <><Plus size={15} /> Add Super Center</>, onClick: () => navigate('/admin/super-centers/new') } : undefined}
       />
 
       <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
@@ -274,6 +276,7 @@ export default function SuperCenters() {
                           {visiblePasswords[c.id] ? <EyeOff size={12} /> : <Eye size={12} />}
                         </button>
                       )}
+                      {may('super_centers.edit') && (
                       <button
                         onClick={() => setEditingPassword(prev => ({ ...prev, [c.id]: c.generated_password || '' }))}
                         className="text-gray-300 hover:text-[#933d18] transition-colors"
@@ -281,6 +284,7 @@ export default function SuperCenters() {
                       >
                         <Pencil size={12} />
                       </button>
+                      )}
                     </div>
                   )}
                 </Td>
@@ -298,7 +302,7 @@ export default function SuperCenters() {
                 </Td>
                 <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
                 <Td>
-                  {c.approval_status === 'approved' ? (
+                  {c.approval_status === 'approved' ? may('super_centers.status') && (
                     <button
                       onClick={() => toggleCenterStatus(c)}
                       className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
@@ -332,7 +336,7 @@ export default function SuperCenters() {
                       {savingField[`fee_sharing-${c.id}`] ? <span className="text-[10px] text-gray-400">…</span> : <Check size={12} className="text-emerald-600" />}
                     </div>
                   ) : (
-                    <button onClick={() => setEditingFeeSharing(prev => ({ ...prev, [c.id]: c.fee_sharing ?? '' }))} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
+                    <button onClick={() => setEditingFeeSharing(prev => ({ ...prev, [c.id]: c.fee_sharing ?? '' }))} disabled={!may('super_centers.edit')} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
                       <span className="text-xs font-medium text-gray-700">
                         {c.fee_sharing != null ? `${Number(c.fee_sharing).toFixed(0)}%` : <span className="text-gray-300">not set</span>}
                       </span>
@@ -342,12 +346,16 @@ export default function SuperCenters() {
                 </Td>
                 <Td>
                   <div className="flex gap-1">
+                    {may('super_centers.edit') && (
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/super-centers/edit/${c.id}`)}>
                       <Edit size={14} />
                     </Button>
+                    )}
+                    {may('super_centers.delete') && (
                     <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id, c.center_name)}>
                       <Trash2 size={14} className="text-red-500" />
                     </Button>
+                    )}
                   </div>
                 </Td>
               </Tr>

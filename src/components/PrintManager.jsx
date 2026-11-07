@@ -9,6 +9,7 @@ import {
   DOC, DOC_LABEL, DOC_SHORT, FINAL_DOCS, docKey, docTitle, printCountLabel, studentPrintPlan, printedDocsOf,
 } from '../utils/printDocs'
 import { openPrintJobWindow, fillPrintJob, printConsolidated } from '../utils/printJob'
+import { useAuth } from '../context/AuthContext'
 
 // The Exam Section's Print tab: every student with a result sent to Print,
 // document by document.
@@ -66,6 +67,7 @@ function countLine(d) {
 }
 
 export default function PrintManager({ students, results, setResults, filterActive, exportMeta }) {
+  const { may } = useAuth()
   // print_documents by docKey. `mode` is 'loading', 'ok', or 'missing' (the
   // tables are not there yet — add_print_documents.sql not run).
   const [records, setRecords] = useState({})
@@ -397,14 +399,17 @@ export default function PrintManager({ students, results, setResults, filterActi
             )
           })}
         </div>
+        {may('exam_section.print') && (
         <div className="flex items-center gap-1.5" title="Date of Issue printed on the Provisional, Migration and Degree certificates">
           <span className="text-xs font-semibold text-gray-500 whitespace-nowrap">Certificate Date of Issue:</span>
           <div className="w-32"><DateInput bare value={issueDate} onChange={e => setIssueDate(e.target.value)} /></div>
         </div>
+        )}
         <div className="flex gap-2 ml-auto">
           {selectedHere.length > 0 && (
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
           )}
+          {may('exam_section.print') && (<>
           <Button size="sm" variant="outline" disabled={!selectedPending}
             onClick={() => openPreview(selectedHere, `Print Preview — ${selectedHere.length} student${selectedHere.length === 1 ? '' : 's'}`, bulkTypes)}>
             <Eye size={13} /> Preview Selected
@@ -413,6 +418,7 @@ export default function PrintManager({ students, results, setResults, filterActi
             onClick={() => runJob(pendingEntries(selectedHere, bulkTypes), { autoPrint: 'print' })}>
             <Printer size={13} /> Print All Pending
           </Button>
+          </>)}
         </div>
       </div>
 
@@ -468,7 +474,7 @@ export default function PrintManager({ students, results, setResults, filterActi
                       reached through History, where it can be reprinted. */}
                   {sheetsPending.length ? (
                     <div className="flex flex-col items-start gap-1">
-                      {sheetsPending.map(d => (
+                      {may('exam_section.print') && sheetsPending.map(d => (
                         <Button key={d.key} size="xs" variant="secondary" title={`Print the Semester ${d.semester} marksheet (DMC ${d.result?.dmc_no ?? '—'})`}
                           onClick={() => printOne(s, d)}>
                           <Printer size={11} /> {docTitle(d)}
@@ -485,7 +491,7 @@ export default function PrintManager({ students, results, setResults, filterActi
                           className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 whitespace-nowrap">
                           <CheckCircle2 size={10} /> {docTitle(d)}
                         </span>
-                      ) : (
+                      ) : may('exam_section.print') && (
                         <Button key={d.key} size="xs" variant="outline" onClick={() => printOne(s, d)}>
                           <Printer size={11} /> {docTitle(d)}
                         </Button>
@@ -510,19 +516,23 @@ export default function PrintManager({ students, results, setResults, filterActi
                 </Td>
                 <Td>
                   <div className="flex flex-col items-stretch gap-1 w-[92px]">
+                    {may('exam_section.print') && (
                     <Button size="xs" disabled={!p.pending.length}
                       title={p.pending.length ? 'Preview and print this student’s pending documents' : 'Nothing pending'}
                       onClick={() => openPreview([s], `Print Documents — ${s.student_name}`)}>
                       <Printer size={11} /> Print
                     </Button>
+                    )}
                     <Button size="xs" variant="secondary" onClick={() => openHistory(s)}>
                       <History size={11} /> History
                     </Button>
+                    {may('exam_section.print') && (
                     <Button size="xs" variant="outline" disabled={!done.length}
                       title={done.length ? 'Reprint a document already printed' : 'Nothing printed yet'}
                       onClick={() => openHistory(s)}>
                       <RotateCcw size={11} /> Reprint
                     </Button>
+                    )}
                   </div>
                 </Td>
               </Tr>
@@ -576,9 +586,11 @@ export default function PrintManager({ students, results, setResults, filterActi
                       <td className="px-4 py-2 text-gray-700">{e.doc.doc_type === DOC.MARKSHEET ? `Sem ${e.doc.semester}` : 'Final'}</td>
                       <td className="px-4 py-2 text-xs text-gray-500">{printCountLabel(e.doc.count)}</td>
                       <td className="px-4 py-2 text-right">
+                        {may('exam_section.print') && (
                         <Button size="xs" variant="secondary" onClick={() => printOne(e.student, e.doc)}>
                           <Printer size={11} /> Print
                         </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -588,12 +600,14 @@ export default function PrintManager({ students, results, setResults, filterActi
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex flex-wrap items-center justify-end gap-2">
               <span className="text-xs text-gray-500 mr-auto">Documents to print: <b className="text-gray-800">{pickedEntries.length}</b></span>
               <Button variant="ghost" onClick={() => setPreview(null)}>Cancel</Button>
+              {may('exam_section.print') && (<>
               <Button variant="outline" disabled={!pickedEntries.length} onClick={() => { runJob(pickedEntries, { autoPrint: 'pdf' }); setPreview(null) }}>
                 <FileText size={14} /> Download Combined PDF
               </Button>
               <Button disabled={!pickedEntries.length} onClick={() => { runJob(pickedEntries, { autoPrint: 'print' }); setPreview(null) }}>
                 <Printer size={14} /> Print Ticked Documents
               </Button>
+              </>)}
             </div>
           </div>
         </div>
@@ -645,9 +659,11 @@ export default function PrintManager({ students, results, setResults, filterActi
                             <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{d.count > 1 ? fmtDT(d.record?.last_reprinted_at) : '—'}</td>
                             <td className="px-3 py-2 text-gray-600">{d.count > 1 ? (d.record?.last_reprinted_by || '—') : '—'}</td>
                             <td className="px-3 py-2 text-right">
+                              {may('exam_section.print') && (
                               <Button size="xs" variant="outline" onClick={() => setConfirm({ student: historyFor, doc: d })}>
                                 <RotateCcw size={11} /> Reprint
                               </Button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -731,6 +747,7 @@ export default function PrintManager({ students, results, setResults, filterActi
             </div>
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
+              {may('exam_section.print') && (
               <Button onClick={() => {
                 const { student, doc } = confirm
                 setConfirm(null)
@@ -738,6 +755,7 @@ export default function PrintManager({ students, results, setResults, filterActi
               }}>
                 <RotateCcw size={14} /> Confirm Reprint
               </Button>
+              )}
             </div>
           </div>
         </div>

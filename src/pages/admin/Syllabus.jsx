@@ -4,6 +4,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import { Plus, Trash2, Save, ScrollText, Search, X, ChevronLeft, ChevronRight, BookOpen, Upload, FileText, Eye, ChevronDown, Check, Download, Layers, Pencil } from 'lucide-react'
 import { generateSyllabusPDF } from '../../utils/generateSyllabusPDF'
+import { useAuth } from '../../context/AuthContext'
 
 let _k = 0
 const uid = () => ++_k
@@ -133,6 +134,7 @@ function MultiSearchSelect({ label, allLabel, values, onChange, options, minWidt
 }
 
 export default function Syllabus() {
+  const { may } = useAuth()
   const [structs, setStructs]         = useState([])   // fee_structures master
   const [programs, setPrograms]       = useState([])
   const [departments, setDepartments] = useState([])
@@ -424,9 +426,11 @@ export default function Syllabus() {
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
             <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
               <h3 className="font-bold text-gray-800">Semester {activeSem} — Subjects / Papers</h3>
+              {may('syllabus.manage') && (
               <Button onClick={handleSave} disabled={saving}>
                 <Save size={14} /> {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Syllabus'}
               </Button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -494,22 +498,26 @@ export default function Syllabus() {
                         )}
                       </td>
                       <td className="px-4 py-2 text-center">
+                        {may('syllabus.manage') && (
                         <button onClick={() => delRow(r._key)} title="Delete subject"
                           className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-lg transition-colors">
                           <Trash2 size={13} /> Delete
                         </button>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {may('syllabus.manage') && (
             <div className="p-3 border-t border-gray-100">
               <button onClick={addRow}
                 className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold border border-dashed border-[#933d18]/30 text-[#933d18] rounded-lg hover:bg-[#933d18]/5 transition-colors">
                 <Plus size={13} /> Add Subject to Semester {activeSem}
               </button>
             </div>
+            )}
           </div>
         )}
       </div>
@@ -552,10 +560,12 @@ export default function Syllabus() {
             <X size={14} /> Clear
           </button>
         )}
+        {may('syllabus.manage') && (
         <button onClick={() => { setPicker(true); setPickQ(''); setMDept('all'); setMType('all'); setMSession('all') }}
           className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-bold text-white bg-[#933d18] hover:bg-[#7a3215] rounded-xl transition-colors ml-auto">
           <Plus size={15} /> Add
         </button>
+        )}
       </div>
 
       {picker && (
@@ -687,10 +697,12 @@ export default function Syllabus() {
                         {/* The icon follows the label: a plus only while there
                             is nothing to edit yet. It used to stay a plus on
                             done courses, so "Edit" read as another Add. */}
+                        {may('syllabus.manage') && (
                         <button onClick={() => openCourse(s)}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
                           {cnt > 0 ? <><Pencil size={13} /> Edit</> : <><Plus size={13} /> Add</>}
                         </button>
+                        )}
                         {cnt > 0 && (
                           <button onClick={() => openSemesters(s)} title="View / download each semester"
                             className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
@@ -703,6 +715,7 @@ export default function Syllabus() {
                               className="inline-flex items-center gap-1 text-xs font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 px-2.5 py-1.5 rounded-lg transition-colors">
                               <Eye size={12} /> View PDF
                             </a>
+                            {may('syllabus.manage') && (<>
                             <label className="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors">
                               <Upload size={12} /> {pdfBusyKey === keyOf(s) ? '...' : 'Replace'}
                               <input type="file" accept="application/pdf,image/*" className="hidden"
@@ -710,8 +723,9 @@ export default function Syllabus() {
                             </label>
                             <button onClick={() => removeCoursePdf(s)} title="Remove PDF"
                               className="text-red-300 hover:text-red-500"><X size={14} /></button>
+                            </>)}
                           </div>
-                        ) : (
+                        ) : may('syllabus.manage') && (
                           <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 border border-dashed border-gray-300 hover:border-[#933d18] hover:text-[#933d18] px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors">
                             <FileText size={13} /> {pdfBusyKey === keyOf(s) ? 'Uploading...' : 'Upload PDF'}
                             <input type="file" accept="application/pdf,image/*" className="hidden"

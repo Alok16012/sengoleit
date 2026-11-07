@@ -5,12 +5,14 @@ import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
 import { Edit, Trash2, Plus, Check, X, Search } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 const BOARD_TYPES = ['All', '10th', '12th', 'UG', 'PG', 'Diploma']
 
 const emptyForm = { name: '', type: 'All' }
 
 export default function Boards() {
+  const { may } = useAuth()
   const [boards, setBoards] = useState([])
   const [loading, setLoading] = useState(true)
   const [adding, setAdding] = useState(false)
@@ -81,10 +83,10 @@ export default function Boards() {
       <PageHeader
         title="Boards & Universities"
         subtitle={`${boards.length} entries`}
-        action={{
+        action={may('boards.manage') ? {
           label: <><Plus size={15} /> Add Board</>,
           onClick: () => { setAdding(true); setForm(emptyForm); setEditId(null) }
-        }}
+        } : undefined}
       />
 
       <div className="mb-4 flex items-center gap-3 flex-wrap">
@@ -165,7 +167,7 @@ export default function Boards() {
                 <Td>
                   {editId === b.id ? (
                     <SaveCancel onCancel={() => setEditId(null)} />
-                  ) : (
+                  ) : may('boards.manage') && (
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" onClick={() => { setEditId(b.id); setForm({ name: b.name, type: b.type }); setAdding(false) }}>
                         <Edit size={14} />

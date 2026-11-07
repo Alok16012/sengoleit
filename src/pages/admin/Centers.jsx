@@ -9,6 +9,7 @@ import Badge from '../../components/ui/Badge'
 import { Edit, Trash2, Plus, Search, Eye, EyeOff, Save, Pencil, ToggleLeft, ToggleRight, Lock, Check } from 'lucide-react'
 import CommissionRecipients from '../../components/admin/CommissionRecipients'
 import { ENTRY_TYPES } from '../../utils/entryTypes'
+import { useAuth } from '../../context/AuthContext'
 
 const APPROVAL_COLORS = {
   pending: 'bg-amber-50 text-amber-700 border border-amber-200',
@@ -17,6 +18,7 @@ const APPROVAL_COLORS = {
 }
 
 export default function Centers() {
+  const { may } = useAuth()
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -232,7 +234,7 @@ export default function Centers() {
       <PageHeader
         title="Centers"
         subtitle={subtitle}
-        action={{ label: <><Plus size={15} /> Add Center</>, onClick: () => navigate('/admin/centers/new') }}
+        action={may('centers.add') ? { label: <><Plus size={15} /> Add Center</>, onClick: () => navigate('/admin/centers/new') } : undefined}
       />
 
       <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
@@ -399,6 +401,7 @@ export default function Centers() {
                           {visiblePasswords[c.id] ? <EyeOff size={12} /> : <Eye size={12} />}
                         </button>
                       )}
+                      {may('centers.edit') && (
                       <button
                         onClick={() => setEditingPassword(prev => ({ ...prev, [c.id]: c.generated_password || '' }))}
                         className="text-gray-300 hover:text-[#933d18] transition-colors"
@@ -406,6 +409,7 @@ export default function Centers() {
                       >
                         <Pencil size={12} />
                       </button>
+                      )}
                     </div>
                   )}
                 </Td>
@@ -423,7 +427,7 @@ export default function Centers() {
                 </Td>
                 <Td><Badge status={c.status?.toLowerCase()}>{c.status || 'Pending'}</Badge></Td>
                 <Td>
-                  {c.approval_status === 'approved' ? (
+                  {c.approval_status === 'approved' ? may('centers.status') && (
                     <button
                       onClick={() => toggleCenterStatus(c)}
                       className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl transition-all ${
@@ -457,7 +461,7 @@ export default function Centers() {
                       {savingField[`fee_sharing-${c.id}`] ? <span className="text-[10px] text-gray-400">…</span> : <Check size={12} className="text-emerald-600" />}
                     </div>
                   ) : (
-                    <button onClick={() => setEditingFeeSharing(prev => ({ ...prev, [c.id]: c.fee_sharing ?? '' }))} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
+                    <button onClick={() => setEditingFeeSharing(prev => ({ ...prev, [c.id]: c.fee_sharing ?? '' }))} disabled={!may('centers.edit')} className="flex items-center gap-1 hover:bg-gray-50 rounded px-1 -mx-1 py-0.5 transition-colors group">
                       <span className="text-xs font-medium text-gray-700">
                         {c.fee_sharing != null ? `${Number(c.fee_sharing).toFixed(0)}%` : <span className="text-gray-300">not set</span>}
                       </span>
@@ -486,7 +490,7 @@ export default function Centers() {
                 </Td>
                 <Td>
                   <div className="flex gap-1 items-center">
-                    {c.center_type === 'center' && (
+                    {may('centers.edit') && c.center_type === 'center' && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -498,12 +502,16 @@ export default function Centers() {
                         </span>
                       </Button>
                     )}
+                    {may('centers.edit') && (
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/centers/edit/${c.id}`)}>
                       <Edit size={14} />
                     </Button>
+                    )}
+                    {may('centers.delete') && (
                     <Button size="sm" variant="ghost" onClick={() => handleDelete(c.id, c.center_name)}>
                       <Trash2 size={14} className="text-red-500" />
                     </Button>
+                    )}
                   </div>
                 </Td>
                 {/* Which entry types this centre may admit under. Nothing ticked
@@ -516,7 +524,7 @@ export default function Centers() {
                       const none = !(c.entry_types || []).length
                       return (
                         <button key={t} onClick={() => toggleEntryType(c, t)}
-                          disabled={savingField[`entry_types-${c.id}`]}
+                          disabled={savingField[`entry_types-${c.id}`] || !may('centers.edit')}
                           title={none ? 'No restriction — all entry types allowed' : on ? `${t} allowed — click to remove` : `Click to allow ${t}`}
                           className={`text-[10px] font-bold px-2 py-1 rounded-full border transition-colors disabled:opacity-40 ${
                             on ? 'bg-[#933d18] text-white border-[#933d18]'

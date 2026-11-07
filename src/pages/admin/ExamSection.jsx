@@ -23,6 +23,7 @@ import { recordFeeDeduction } from '../../utils/feeLedger'
 import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 import SemesterResultModal from '../../components/SemesterResultModal'
+import { useAuth } from '../../context/AuthContext'
 
 function ResultModal({ isOpen, onClose, student, onSaved }) {
   const [status, setStatus] = useState('Pending')
@@ -198,6 +199,7 @@ function fmtDT(val) {
 }
 
 export default function ExamSection() {
+  const { may } = useAuth()
   const [view, setView] = useState('list')   // 'list' | 'calendar' | 'result'
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -945,7 +947,7 @@ export default function ExamSection() {
                       <div className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded w-fit">
                         <BadgeCheck size={12} /> Released
                       </div>
-                    ) : (
+                    ) : may('exam_section.admit_cards') && (
                       <Button size="sm" variant="ghost" onClick={() => handleReleaseAdmitCard(s.id)} disabled={releasing === s.id} title="Release to Student Portal" className="w-fit text-[#933d18] bg-[#933d18]/5 hover:bg-[#933d18]/10">
                         <Send size={14} className={releasing === s.id ? 'animate-pulse' : ''} />
                         <span className="text-xs ml-1">Send to Student</span>
@@ -1161,7 +1163,7 @@ export default function ExamSection() {
                             className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-1 rounded whitespace-nowrap w-fit">
                             Sem {r.semester} · Sent · DMC {r.dmc_no ?? '—'}
                           </span>
-                        ) : (
+                        ) : may('exam_section.results') && (
                           <Button key={r.semester} size="sm" variant="outline"
                             disabled={sendingId === `${s.id}__${r.semester}`}
                             onClick={() => sendStudentToPrint(s, r.semester)}>
@@ -1316,11 +1318,13 @@ export default function ExamSection() {
                         </div>
                       </div>
                     )}
+                    {may('exam_section.admit_cards') && (
                     <Button variant="primary" className="w-full justify-center"
                       disabled={busy === `${admitModal.student.id}-${admitModal.pick.sem}` || (admitModal.pick.rows.length > 0 && admitModal.pick.selected.size === 0)}
                       onClick={() => handleAdmitCard(admitModal.student, admitModal.pick.sem, admitModal.pick.rows, admitModal.pick.selected, { edit: !!admitModal.pick.editing })}>
                       <ClipboardList size={14} /> {busy === `${admitModal.student.id}-${admitModal.pick.sem}` ? '…' : admitModal.pick.editing ? 'Save & Print Admit Card' : 'Generate Admit Card'}
                     </Button>
+                    )}
                   </>
                 )
               ) : !admitModal.sems?.length ? (
@@ -1381,6 +1385,7 @@ export default function ExamSection() {
                               onClick={() => reprintAdmitCard(admitModal.student, sem, card)}>
                               <ClipboardList size={13} /> {busy === `${admitModal.student.id}-${sem}` ? '…' : 'Print'}
                             </Button>
+                            {may('exam_section.admit_cards') && (<>
                             <Button size="sm" variant="secondary"
                               title="Change the papers on this card and re-issue it"
                               onClick={() => editAdmitCard(admitModal.student, sem, card)}>
@@ -1398,6 +1403,7 @@ export default function ExamSection() {
                               onClick={() => withdrawAdmitCard(admitModal.student, sem)}>
                               <Trash2 size={13} />
                             </Button>
+                            </>)}
                           </div>
                         ) : needsReReg ? (
                           // Not registered this far yet — the centre must raise
@@ -1408,7 +1414,7 @@ export default function ExamSection() {
                             title="The centre raises the Re-Registration and the university approves it; this semester unlocks here after that.">
                             <Lock size={12} /> Re-Registration required
                           </span>
-                        ) : !cleared ? (
+                        ) : !may('exam_section.admit_cards') ? null : !cleared ? (
                           // The rest of a REGISTERED semester's fee is collected
                           // here rather than leaving it locked with nowhere to
                           // pay. Deliberately a separate step from issuing the
@@ -1452,6 +1458,7 @@ export default function ExamSection() {
 }
 
 function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [], sessions = [], onSave, reloadCourses, onClose }) {
+  const { may } = useAuth()
   // Admit Card Time per course (keyed by course key).
   const [admitForm, setAdmitForm] = useState(() => {
     const init = {}
@@ -1703,7 +1710,7 @@ function ExamSchedulesModal({ courses, settings, departments = [], progTypes = [
           {/* Footer */}
           <div className="flex justify-end gap-2.5 px-7 py-4 border-t border-gray-100 bg-white">
             <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
-            <Button type="submit" disabled={saving || courses.length === 0}>{saving ? 'Saving...' : 'Save All'}</Button>
+            {may('exam_section.admit_cards') && <Button type="submit" disabled={saving || courses.length === 0}>{saving ? 'Saving...' : 'Save All'}</Button>}
           </div>
         </form>
       </div>
