@@ -1,0 +1,417 @@
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../context/AuthContext'
+import PageHeader from '../../components/ui/PageHeader'
+import Button from '../../components/ui/Button'
+import Modal from '../../components/ui/Modal'
+import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
+import { Plus, Pencil, Trash2, KeyRound, Power, PowerOff, Shield, Users, Search, Eye, EyeOff } from 'lucide-react'
+import { PERMISSION_GROUPS, ALL_PERMISSIONS } from '../../utils/permissions'
+import { formatDateTime } from '../../utils/formatDate'
+
+// User Management — custom roles (a name and a ticked list of permissions)
+// and the staff logins that hold them. Permissions are enforced by the
+// database too (add_user_management.sql); logins are created and changed
+// through the admin-users Edge Function, since that needs the service key.
+
+const inputCls = 'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]'
+const labelCls = 'block text-[11px] font-semibold text-gray-500 mb-1'
+
+// The Edge Function's own error message, not supabase-js's generic one.
+async function callUsersFn(body) {
+  const { data, error } = await supabase.functions.invoke('admin-users', { body })
+  if (error) {
+    let msg = error.message
+    try { const j = await error.context?.json?.(); if (j?.error) msg = j.error } catch { /* not JSON */ }
+    if (/Failed to send|not found|404/i.test(msg)) msg = 'The admin-users function is not deployed yet.'
+    throw new Error(msg)
+  }
+  if (data?.error) throw new Error(data.error)
+  return data
+}
+
+export default function UserManagement() {
+  const { user } = useAuth()
+  const [tab, setTab] = useState('roles')
+  const [roles, setRoles] = useState([])
+  const [staff, setStaff] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  // Role editor
+  const [roleModal, setRoleModal] = useState(null)   // null | { id?, name, description, permissions: Set }
+  const [roleQ, setRoleQ] = useState('')
+  const [savingRole, setSavingRole] = useState(false)
+
+  // User editor
+  const [userModal, setUserModal] = useState(null)   // null | { full_name, email, password, app_role_id }
+  const [pwModal, setPwModal] = useState(null)       // null | { user, password }
+  const [showPw, setShowPw] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    setLoading(true); setLoadError('')
+    const [r, u] = await Promise.all([
+      supabase.from('app_roles').select('*').order('name'),
+      supabase.rpc('list_staff_users'),
+    ])
+    if (r.error || u.error) {
+      const e = r.error || u.error
+      setLoadError(/app_roles|list_staff_users|schema cache|PGRST20/i.test(e.message)
+        ? 'User Management needs a database update — run add_user_management.sql in Supabase.'
+        : e.message)
+    }
+    setRoles(r.data || [])
+    setStaff(u.data || [])
+    setLoading(false)
+  }
+
+  const roleById = useMemo(() => Object.fromEntries(roles.map(r => [r.id, r])), [roles])
+  const usersPerRole = useMemo(() => {
+    const m = {}
+    staff.forEach(s => { if (s.app_role_id) m[s.app_role_id] = (m[s.app_role_id] || 0) + 1 })
+    return m
+  }, [staff])
+
+  // ── Roles ──────────────────────────────────────────────────────────────────
+  function openRole(r) {
+    setRoleQ('')
+    setRoleModal(r
+      ? { id: r.id, name: r.name, description: r.description || '', permissions: new Set(r.permissions || []) }
+      : { name: '', description: '', permissions: new Set() })
+  }
+
+  // Ticking anything in a module ticks its View too — every other permission
+  // in a module is useless without the page.
+  function togglePerm(group, key) {
+    setRoleModal(m => {
+      const next = new Set(m.permissions)
+      const view = `${group.key}.view`
+      if (next.has(key)) {
+        next.delete(key)
+        // Unticking View unticks the whole module.
+        if (key === view) group.perms.forEach(([k]) => next.delete(k))
+      } else {
+        next.add(key)
+        if (group.perms.some(([k]) => k === view)) next.add(view)
+      }
+      return { ...m, permissions: next }
+    })
+  }
+
+  function toggleGroup(group) {
+    setRoleModal(m => {
+      const next = new Set(m.permissions)
+      const all = group.perms.every(([k]) => next.has(k))
+      group.perms.forEach(([k]) => all ? next.delete(k) : next.add(k))
+      return { ...m, permissions: next }
+    })
+  }
+
+  function toggleEverything() {
+    setRoleModal(m => ({
+      ...m,
+      permissions: m.permissions.size === ALL_PERMISSIONS.length ? new Set() : new Set(ALL_PERMISSIONS),
+    }))
+  }
+
+  async function saveRole() {
+    const name = roleModal.name.trim()
+    if (!name) return alert('Give the role a name.')
+    if (roleModal.permissions.size === 0) return alert('Tick at least one permission.')
+    setSavingRole(true)
+    const row = {
+      name, description: roleModal.description.trim() || null,
+      permissions: ALL_PERMISSIONS.filter(k => roleModal.permissions.has(k)),
+      updated_at: new Date().toISOString(),
+    }
+    const { error } = roleModal.id
+      ? await supabase.from('app_roles').update(row).eq('id', roleModal.id)
+      : await supabase.from('app_roles').insert(row)
+    setSavingRole(false)
+    if (error) return alert(/duplicate|unique/i.test(error.message) ? 'A role with this name already exists.' : 'Could not save: ' + error.message)
+    setRoleModal(null)
+    load()
+  }
+
+  async function deleteRole(r) {
+    if (usersPerRole[r.id]) return alert(`${usersPerRole[r.id]} login(s) still have this role. Move them to another role first.`)
+    if (!confirm(`Delete the role "${r.name}"?`)) return
+    const { error } = await supabase.from('app_roles').delete().eq('id', r.id)
+    if (error) return alert('Could not delete: ' + error.message)
+    load()
+  }
+
+  // ── Users ──────────────────────────────────────────────────────────────────
+  async function createUser() {
+    const f = userModal
+    if (!f.full_name.trim()) return alert('Enter the name.')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) return alert('Enter a valid e-mail.')
+    if (f.password.length < 8) return alert('The password must be at least 8 characters.')
+    if (!f.app_role_id) return alert('Choose a role.')
+    setBusy(true)
+    try {
+      await callUsersFn({ action: 'create', email: f.email.trim(), password: f.password, full_name: f.full_name.trim(), app_role_id: f.app_role_id })
+      setUserModal(null); setShowPw(false)
+      load()
+    } catch (e) { alert('Could not create the login: ' + e.message) }
+    setBusy(false)
+  }
+
+  async function changeRole(s, roleId) {
+    const { error } = await supabase.from('profiles').update({ app_role_id: roleId || null }).eq('id', s.id)
+    if (error) return alert('Could not change the role: ' + error.message)
+    setStaff(list => list.map(x => x.id === s.id ? { ...x, app_role_id: roleId || null } : x))
+  }
+
+  async function setPassword() {
+    if (pwModal.password.length < 8) return alert('The password must be at least 8 characters.')
+    setBusy(true)
+    try {
+      await callUsersFn({ action: 'set_password', user_id: pwModal.user.id, password: pwModal.password })
+      setPwModal(null); setShowPw(false)
+      alert('Password changed. Share it with the user privately.')
+    } catch (e) { alert('Could not change the password: ' + e.message) }
+    setBusy(false)
+  }
+
+  async function toggleActive(s) {
+    const next = !s.is_active
+    if (!confirm(next ? `Switch ${s.email} back on?` : `Switch off ${s.email}? They will not be able to sign in.`)) return
+    setBusy(true)
+    try {
+      await callUsersFn({ action: 'set_active', user_id: s.id, active: next })
+      setStaff(list => list.map(x => x.id === s.id ? { ...x, is_active: next } : x))
+    } catch (e) { alert('Could not change the login: ' + e.message) }
+    setBusy(false)
+  }
+
+  const groupsShown = PERMISSION_GROUPS.filter(g => !roleQ.trim()
+    || `${g.label} ${g.perms.map(([, l]) => l).join(' ')}`.toLowerCase().includes(roleQ.toLowerCase()))
+
+  return (
+    <div className="p-6 space-y-5">
+      <PageHeader title="User Management" subtitle="Roles with ticked permissions, and the staff logins that hold them"
+        actions={tab === 'roles'
+          ? <Button onClick={() => openRole(null)}><Plus size={15} /> New Role</Button>
+          : <Button onClick={() => { setShowPw(false); setUserModal({ full_name: '', email: '', password: '', app_role_id: roles[0]?.id || '' }) }} disabled={!roles.length}><Plus size={15} /> New User</Button>} />
+
+      {loadError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>
+      )}
+
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
+        {[['roles', 'Roles', Shield], ['users', 'Users', Users]].map(([k, label, Icon]) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === k ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Icon size={15} /> {label}
+            <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">{k === 'roles' ? roles.length : staff.length}</span>
+          </button>
+        ))}
+      </div>
+
+      {tab === 'roles' ? (
+        <Table>
+          <Thead><Tr><Th>#</Th><Th>Role</Th><Th>Permissions</Th><Th>Users</Th><Th>Actions</Th></Tr></Thead>
+          <Tbody>
+            {loading ? <Tr><Td colSpan={5} className="text-center text-gray-400 py-8">Loading…</Td></Tr>
+            : roles.length === 0 ? <Tr><Td colSpan={5} className="text-center text-gray-400 py-8">No roles yet — click "New Role".</Td></Tr>
+            : roles.map((r, i) => {
+              const mods = PERMISSION_GROUPS.filter(g => g.perms.some(([k]) => (r.permissions || []).includes(k)))
+              return (
+                <Tr key={r.id}>
+                  <Td className="text-gray-400 text-xs">{i + 1}</Td>
+                  <Td>
+                    <p className="font-semibold text-gray-900">{r.name}</p>
+                    {r.description && <p className="text-xs text-gray-400">{r.description}</p>}
+                  </Td>
+                  <Td className="text-xs text-gray-600 max-w-md">
+                    <span className="font-semibold text-gray-800">{(r.permissions || []).length}</span> permissions ·{' '}
+                    {mods.map(g => g.label).join(', ') || '—'}
+                  </Td>
+                  <Td className="text-sm">{usersPerRole[r.id] || 0}</Td>
+                  <Td>
+                    <div className="flex gap-1">
+                      <button onClick={() => openRole(r)} title="Edit" className="p-1.5 rounded-lg hover:bg-[#933d18]/10 text-gray-400 hover:text-[#933d18]"><Pencil size={15} /></button>
+                      <button onClick={() => deleteRole(r)} title="Delete" className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500"><Trash2 size={15} /></button>
+                    </div>
+                  </Td>
+                </Tr>
+              )
+            })}
+          </Tbody>
+        </Table>
+      ) : (
+        <Table>
+          <Thead><Tr><Th>#</Th><Th>Name</Th><Th>E-mail</Th><Th>Role</Th><Th>Status</Th><Th>Last Sign-in</Th><Th>Actions</Th></Tr></Thead>
+          <Tbody>
+            {loading ? <Tr><Td colSpan={7} className="text-center text-gray-400 py-8">Loading…</Td></Tr>
+            : staff.length === 0 ? <Tr><Td colSpan={7} className="text-center text-gray-400 py-8">No staff logins yet — click "New User".</Td></Tr>
+            : staff.map((s, i) => (
+              <Tr key={s.id}>
+                <Td className="text-gray-400 text-xs">{i + 1}</Td>
+                <Td className="font-semibold text-gray-900">{s.full_name || '—'}</Td>
+                <Td className="text-sm text-gray-600">{s.email}</Td>
+                <Td>
+                  <select value={s.app_role_id || ''} onChange={e => changeRole(s, e.target.value)}
+                    className="px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-[#933d18]">
+                    <option value="">— No role —</option>
+                    {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  </select>
+                </Td>
+                <Td>
+                  {s.is_active
+                    ? <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Active</span>
+                    : <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">● Off</span>}
+                </Td>
+                <Td className="text-xs text-gray-500">{s.last_sign_in_at ? formatDateTime(s.last_sign_in_at) : 'Never'}</Td>
+                <Td>
+                  <div className="flex gap-1">
+                    <button onClick={() => { setShowPw(false); setPwModal({ user: s, password: '' }) }} title="Set new password" disabled={busy}
+                      className="p-1.5 rounded-lg hover:bg-[#933d18]/10 text-gray-400 hover:text-[#933d18]"><KeyRound size={15} /></button>
+                    {s.id !== user?.id && (
+                      <button onClick={() => toggleActive(s)} title={s.is_active ? 'Switch off' : 'Switch on'} disabled={busy}
+                        className={`p-1.5 rounded-lg ${s.is_active ? 'hover:bg-red-50 text-gray-300 hover:text-red-500' : 'hover:bg-emerald-50 text-gray-300 hover:text-emerald-600'}`}>
+                        {s.is_active ? <PowerOff size={15} /> : <Power size={15} />}
+                      </button>
+                    )}
+                  </div>
+                </Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </Table>
+      )}
+
+      {/* Role editor */}
+      <Modal isOpen={!!roleModal} onClose={() => !savingRole && setRoleModal(null)} title={roleModal?.id ? 'Edit Role' : 'New Role'} size="xl">
+        {roleModal && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Role Name</label>
+                <input value={roleModal.name} onChange={e => setRoleModal(m => ({ ...m, name: e.target.value }))} className={inputCls} placeholder="e.g. Accounts Staff" />
+              </div>
+              <div>
+                <label className={labelCls}>Description (optional)</label>
+                <input value={roleModal.description} onChange={e => setRoleModal(m => ({ ...m, description: e.target.value }))} className={inputCls} placeholder="What this role is for" />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="relative">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input value={roleQ} onChange={e => setRoleQ(e.target.value)} placeholder="Find a module or permission…"
+                  className="pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm w-72 focus:outline-none focus:border-[#933d18]" />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">{roleModal.permissions.size} of {ALL_PERMISSIONS.length} ticked</span>
+                <Button variant="outline" size="sm" onClick={toggleEverything}>
+                  {roleModal.permissions.size === ALL_PERMISSIONS.length ? 'Clear all' : 'Select all'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[55vh] overflow-y-auto pr-1">
+              {groupsShown.map(g => {
+                const ticked = g.perms.filter(([k]) => roleModal.permissions.has(k)).length
+                const all = ticked === g.perms.length
+                return (
+                  <div key={g.key} className={`border rounded-xl p-3 ${ticked ? 'border-[#933d18]/30 bg-[#933d18]/[0.03]' : 'border-gray-200'}`}>
+                    <label className="flex items-center justify-between gap-2 cursor-pointer select-none mb-2">
+                      <span className="flex items-center gap-2 font-bold text-sm text-gray-900">
+                        <input type="checkbox" checked={all} ref={el => { if (el) el.indeterminate = ticked > 0 && !all }}
+                          onChange={() => toggleGroup(g)} className="w-4 h-4 accent-[#933d18]" />
+                        {g.label}
+                      </span>
+                      <span className="text-[11px] text-gray-400">{ticked}/{g.perms.length}</span>
+                    </label>
+                    <div className="space-y-1.5 pl-6">
+                      {g.perms.map(([k, label]) => (
+                        <label key={k} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                          <input type="checkbox" checked={roleModal.permissions.has(k)} onChange={() => togglePerm(g, k)}
+                            className="w-3.5 h-3.5 accent-[#933d18]" />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <p className="text-[11px] text-gray-400">
+              Ticking anything in a module also ticks its "View". These are enforced by the database too, not just hidden on screen.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setRoleModal(null)} disabled={savingRole}>Cancel</Button>
+              <Button onClick={saveRole} disabled={savingRole}>{savingRole ? 'Saving…' : 'Save Role'}</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* New user */}
+      <Modal isOpen={!!userModal} onClose={() => !busy && setUserModal(null)} title="New Staff Login" size="md">
+        {userModal && (
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Name</label>
+              <input value={userModal.full_name} onChange={e => setUserModal(m => ({ ...m, full_name: e.target.value }))} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>E-mail (used to sign in)</label>
+              <input type="email" value={userModal.email} onChange={e => setUserModal(m => ({ ...m, email: e.target.value }))} className={inputCls} autoComplete="off" />
+            </div>
+            <div>
+              <label className={labelCls}>Password (at least 8 characters)</label>
+              <div className="relative">
+                <input type={showPw ? 'text' : 'password'} value={userModal.password} onChange={e => setUserModal(m => ({ ...m, password: e.target.value }))}
+                  className={`${inputCls} pr-10`} autoComplete="new-password" />
+                <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Role</label>
+              <select value={userModal.app_role_id} onChange={e => setUserModal(m => ({ ...m, app_role_id: e.target.value }))} className={`${inputCls} bg-white`}>
+                <option value="">— Choose —</option>
+                {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+              {userModal.app_role_id && roleById[userModal.app_role_id] && (
+                <p className="text-[11px] text-gray-400 mt-1">{(roleById[userModal.app_role_id].permissions || []).length} permissions</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setUserModal(null)} disabled={busy}>Cancel</Button>
+              <Button onClick={createUser} disabled={busy}>{busy ? 'Creating…' : 'Create Login'}</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Set password */}
+      <Modal isOpen={!!pwModal} onClose={() => !busy && setPwModal(null)} title="Set New Password" size="sm" allowMaximize={false}>
+        {pwModal && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 break-all">For <span className="font-semibold">{pwModal.user.email}</span></p>
+            <div className="relative">
+              <input type={showPw ? 'text' : 'password'} value={pwModal.password} onChange={e => setPwModal(m => ({ ...m, password: e.target.value }))}
+                className={`${inputCls} pr-10`} placeholder="At least 8 characters" autoComplete="new-password" />
+              <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
+                {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setPwModal(null)} disabled={busy}>Cancel</Button>
+              <Button onClick={setPassword} disabled={busy}>{busy ? 'Saving…' : 'Set Password'}</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}

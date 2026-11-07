@@ -81,6 +81,7 @@ import StudentEBooks from './pages/student/StudentEBooks'
 import EBooks from './pages/admin/EBooks'
 import CourierDetails from './pages/admin/CourierDetails'
 import CourierView from './pages/shared/CourierView'
+import UserManagement from './pages/admin/UserManagement'
 import DocumentSummary from './pages/shared/DocumentSummary'
 import SyllabusReport from './pages/shared/SyllabusReport'
 import CenterCredentials from './pages/center/CenterCredentials'
@@ -98,6 +99,7 @@ function RoleRedirect() {
   if (profile?.role === 'center') return <Navigate to="/center/dashboard" replace />
   if (profile?.role === 'student') return <Navigate to="/student/dashboard" replace />
   if (profile?.role === 'document_dept') return <Navigate to="/admin/document-department" replace />
+  if (profile?.role === 'staff') return <Navigate to="/dashboard" replace />
   return <Navigate to="/dashboard" replace />
 }
 
@@ -184,6 +186,7 @@ export default function App() {
             <Route path="/admin/syllabus" element={<Syllabus />} />
             <Route path="/admin/ebooks" element={<EBooks />} />
             <Route path="/admin/courier-details" element={<CourierDetails />} />
+            <Route path="/admin/users" element={<UserManagement />} />
 
             {/* Super Center portal */}
             <Route path="/super-center/dashboard" element={<SuperCenterDashboard />} />

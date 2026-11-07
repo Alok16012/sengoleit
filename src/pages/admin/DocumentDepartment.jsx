@@ -273,8 +273,10 @@ function studentPreVerifiedChecks(correctionFields) {
 const DOC_DEPT_HIDDEN = ['Approved', 'Forwarded']
 
 export default function DocumentDepartment() {
-  const { profile } = useAuth()
-  const isDocDept = profile?.role === 'document_dept'
+  const { profile, can } = useAuth()
+  // The queue-only view: the old Document Dept login, or a staff role without
+  // "View approved / forwarded".
+  const isDocDept = profile?.role === 'document_dept' || (profile?.role === 'staff' && !can('document_dept.view_done'))
   const studentTabs = isDocDept ? STATUS_FILTERS.filter(s => !DOC_DEPT_HIDDEN.includes(s)) : STATUS_FILTERS
   const centerTabs = isDocDept ? CENTER_STATUS_FILTERS.filter(s => !DOC_DEPT_HIDDEN.includes(s)) : CENTER_STATUS_FILTERS
   const [mainTab, setMainTab] = useState('students')

@@ -4,12 +4,27 @@ import { useAuth } from '../../context/AuthContext'
 import Sidebar from './Sidebar'
 import { Search, Bell, User, LogOut, ChevronDown, KeyRound } from 'lucide-react'
 import ChangePasswordModal from '../ChangePasswordModal'
+import { moduleForPath, firstAllowedPath, PERMISSION_GROUPS } from '../../utils/permissions'
+
+// What a staff login needs to open this path: the module's View, and for the
+// add / edit forms its Add / Edit (or Manage) permission.
+function staffMayOpen(pathname, can) {
+  const m = moduleForPath(pathname)
+  if (!m) return false
+  if (m.key === 'users') return can('users.manage')
+  if (!can(`${m.key}.view`)) return false
+  const keys = PERMISSION_GROUPS.find(g => g.key === m.key).perms.map(([k]) => k)
+  const need = (verb) => keys.includes(`${m.key}.${verb}`) ? `${m.key}.${verb}` : `${m.key}.manage`
+  if (/\/new$/.test(pathname)) return can(need('add'))
+  if (/\/edit\//.test(pathname)) return can(need('edit'))
+  return true
+}
 
 // The one page a Document Dept login works on.
 const DOC_DEPT_HOME = '/admin/document-department'
 
 function TopBar() {
-  const { profile, user, signOut } = useAuth()
+  const { profile, user, signOut, can } = useAuth()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [q, setQ] = useState('')
@@ -33,6 +48,7 @@ function TopBar() {
      role === 'super_center' ? 'Super Center' :
      role === 'center' ? 'Center User' :
      role === 'document_dept' ? 'Document Dept' :
+     role === 'staff' ? 'Staff User' :
      user?.email || 'User')
 
   // Where the "Profile" item navigates, per role
@@ -41,6 +57,7 @@ function TopBar() {
     role === 'student' ? '/student/profile' :
     role === 'super_center' ? '/super-center/profile' :
     role === 'document_dept' ? DOC_DEPT_HOME :
+    role === 'staff' ? (firstAllowedPath(can) || '/dashboard') :
     '/dashboard'
 
   // Close the dropdown when clicking outside of it
@@ -61,7 +78,7 @@ function TopBar() {
       <div className="flex-1 max-w-xl">
         {/* The header search opens the Students list — not part of the
             Document Dept login's view. */}
-        {role !== 'document_dept' && (
+        {role !== 'document_dept' && (role !== 'staff' || can('students.view')) && (
         <div className="relative group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
@@ -91,7 +108,7 @@ function TopBar() {
             <div className="flex flex-col items-end mr-1">
               <span className="text-sm font-bold text-gray-900">{name}</span>
               <span className="text-[10px] font-medium text-gray-400 capitalize">
-                {role === 'super_center' ? 'Super Center' : role === 'admin' ? 'Admin' : role === 'document_dept' ? 'Document Verification' : role}
+                {role === 'super_center' ? 'Super Center' : role === 'admin' ? 'Admin' : role === 'document_dept' ? 'Document Verification' : role === 'staff' ? 'Staff' : role}
               </span>
             </div>
             <div className="h-10 w-10 bg-[#933d18] rounded-xl flex items-center justify-center border border-[#933d18]/20 shadow-sm">
@@ -134,7 +151,7 @@ function TopBar() {
 }
 
 export default function AppLayout() {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, can, signOut } = useAuth()
   const location = useLocation()
 
   if (loading) return (
@@ -150,6 +167,22 @@ export default function AppLayout() {
   // empty or broken.
   if (profile?.role === 'document_dept' && location.pathname !== DOC_DEPT_HOME) {
     return <Navigate to={DOC_DEPT_HOME} replace />
+  }
+
+  // A staff login only goes where its role allows; anywhere else sends it to
+  // the first page it may open. The database refuses the rest regardless.
+  if (profile?.role === 'staff' && !staffMayOpen(location.pathname, can)) {
+    const home = firstAllowedPath(can)
+    if (home && home !== location.pathname) return <Navigate to={home} replace />
+    if (!home) return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="max-w-sm text-center space-y-2">
+          <p className="text-lg font-bold text-gray-900">No access yet</p>
+          <p className="text-sm text-gray-500">Your login has no permissions. Ask the admin to give your role access in User Management.</p>
+          <button onClick={() => signOut()} className="mt-3 text-sm font-semibold text-[#933d18] underline">Sign out</button>
+        </div>
+      </div>
+    )
   }
 
   return (

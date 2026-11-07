@@ -9,8 +9,9 @@ import {
   UserPlus, FileText, Truck, FileCheck, UserCheck,
   Clock, CheckCircle, XCircle, ClipboardList, CreditCard, Send,
   GraduationCap, ScrollText, BadgeCheck, TrendingUp, Ticket, Tag,
-  ChevronDown, ChevronRight, ShieldCheck, IndianRupee, FlaskConical, RefreshCw
+  ChevronDown, ChevronRight, ShieldCheck, IndianRupee, FlaskConical, RefreshCw, UserCog
 } from 'lucide-react'
+import { moduleForPath } from '../../utils/permissions'
 
 const adminLinks = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -36,6 +37,7 @@ const adminLinks = [
   { to: '/admin/exam-section', icon: ClipboardList, label: 'Exam Section' },
   { to: '/admin/syllabus', icon: ScrollText, label: 'Syllabus' },
   { to: '/admin/ebooks', icon: BookOpen, label: 'E-Books' },
+  { to: '/admin/users', icon: UserCog, label: 'User Management' },
 ]
 
 const reportItems = (base) => [
@@ -131,7 +133,7 @@ const studentNavGroups = [
 ]
 
 export default function Sidebar() {
-  const { profile, user } = useAuth()
+  const { profile, user, can } = useAuth()
   const [centerName, setCenterName] = useState('')
 
   const role = profile?.role || user?.user_metadata?.role || 'admin'
@@ -149,6 +151,11 @@ export default function Sidebar() {
 
   const navGroups =
     role === 'admin' ? [{ items: adminLinks }] :
+    // A staff login sees the admin pages its role may open.
+    role === 'staff' ? [{ items: adminLinks.filter(l => {
+      const m = moduleForPath(l.to)
+      return m && (m.key === 'users' ? can('users.manage') : can(`${m.key}.view`))
+    }) }] :
     role === 'super_center' ? superCenterNavGroups :
     role === 'center' ? centerNavGroups :
     role === 'document_dept' ? docDeptNavGroups :
@@ -159,6 +166,7 @@ export default function Sidebar() {
     role === 'super_center' ? 'Super Center Portal' :
     role === 'center' ? 'Center Portal' :
     role === 'document_dept' ? 'Document Verification' :
+    role === 'staff' ? 'Staff' :
     'Student Portal'
 
   return (
