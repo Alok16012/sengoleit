@@ -11,6 +11,7 @@ import { generateIDCard, generateRegistrationCertificate, isPhdProgram } from '.
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate, localDay } from '../../utils/formatDate'
+import DateInput from '../../components/ui/DateInput'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { matchesSearch } from '../../utils/studentSearch'
 import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
@@ -204,7 +205,14 @@ function CredModal({ studentId, onClose }) {
 }
 
 export default function Students() {
-  const { may, mayTab } = useAuth()
+  const { profile, can, may, mayTab } = useAuth()
+  // A staff role with "Show students only after a search" sees nothing until
+  // it searches by at least two of: student name, father's name, date of
+  // birth — a lookup desk, not a browsable list.
+  const searchOnly = profile?.role === 'staff' && can('students.search_only')
+  const [sName, setSName] = useState('')
+  const [sFather, setSFather] = useState('')
+  const [sDob, setSDob] = useState('')
   // The status tabs this login may open (User Management → Roles → Tabs).
   const statusTabs = STATUS_FILTERS.filter(s => mayTab('students', s.toLowerCase()))
   const [data, setData] = useState([])
@@ -359,11 +367,11 @@ export default function Students() {
 
   async function fetchData() {
     setLoading(true)
-    const FULL = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const FULL = 'id, student_name, fathers_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
     // Fallback for DBs where the exam-result / admit-card columns are not yet
     // created (run_all_migrations.sql not applied) — students still list; only
     // the admit-card / result actions stay inactive.
-    const MIN = 'id, student_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const MIN = 'id, student_name, fathers_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
 
     // Last resort: no embedded joins at all. Programme / session / centre are
     // looked up separately and attached, so a join PostgREST refuses (an
@@ -427,7 +435,16 @@ export default function Students() {
   // Center dropdown narrows to the chosen super center's centers.
   const scopedCenters = centerList.filter(c => superFilter === 'all' ? true : c.super_center_id === superFilter)
 
-  const filtered = data.filter(s => {
+  const norm = v => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim()
+  const lookupFields = [sName, sFather, sDob].filter(v => String(v).trim()).length
+  const lookupReady = !searchOnly || lookupFields >= 2
+
+  const filtered = !lookupReady ? [] : data.filter(s => {
+    if (searchOnly) {
+      if (sName.trim() && !norm(s.student_name).includes(norm(sName))) return false
+      if (sFather.trim() && !norm(s.fathers_name).includes(norm(sFather))) return false
+      if (sDob && String(s.date_of_birth || '').slice(0, 10) !== sDob) return false
+    }
     // Hidden students are excluded unless "Show Hidden" is on (then show ONLY hidden).
     if (showHidden ? !s.is_hidden : s.is_hidden) return false
     if (superFilter !== 'all' && s.centers?.super_center_id !== superFilter) return false
@@ -486,7 +503,7 @@ export default function Students() {
     <div className="p-6">
       <PageHeader
         title="Students"
-        subtitle={`${data.length} students`}
+        subtitle={searchOnly ? 'Search to find a student' : `${data.length} students`}
         action={may('students.add') ? { label: <><Plus size={15} /> Add Student</>, onClick: () => navigate('/admin/students/new') } : null}
       />
 
@@ -497,7 +514,36 @@ export default function Students() {
         </div>
       )}
 
+      {searchOnly && (
+        <div className="mb-4 bg-white border border-gray-200 rounded-2xl p-4">
+          <p className="text-sm font-bold text-gray-900 mb-0.5">Find a student</p>
+          <p className="text-xs text-gray-500 mb-3">Fill at least two of the three — the list shows only the students that match.</p>
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Student Name</label>
+              <input value={sName} onChange={e => setSName(e.target.value)} placeholder="Student name"
+                className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm w-64 focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white" />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Father Name</label>
+              <input value={sFather} onChange={e => setSFather(e.target.value)} placeholder="Father's name"
+                className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm w-64 focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white" />
+            </div>
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Date of Birth</label>
+              <div className="w-40"><DateInput bare value={sDob} onChange={e => setSDob(e.target.value)}
+                className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm w-full focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white" /></div>
+            </div>
+            {lookupFields > 0 && (
+              <button type="button" onClick={() => { setSName(''); setSFather(''); setSDob('') }}
+                className="text-xs font-semibold text-gray-500 hover:text-gray-800 underline mb-3">Clear</button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3 mb-3 items-end">
+        {!searchOnly && (
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -507,6 +553,7 @@ export default function Students() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        )}
         <div className="flex flex-col">
           <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Super Center</label>
           <select
@@ -605,7 +652,7 @@ export default function Students() {
           >
             {showHidden ? <EyeOff size={13} /> : <Eye size={13} />}
             {showHidden ? 'Hidden' : 'Show Hidden'}
-            {hiddenCount > 0 && (
+            {hiddenCount > 0 && !searchOnly && (
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showHidden ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{hiddenCount}</span>
             )}
           </button>
@@ -634,7 +681,9 @@ export default function Students() {
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No students found</Td></Tr>
+              <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">
+                {lookupReady ? 'No students found' : 'Search by at least two of: student name, father name, date of birth.'}
+              </Td></Tr>
             ) : filtered.map((s, i) => (
               <Tr key={s.id}>
                 <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
@@ -792,7 +841,7 @@ export default function Students() {
       {/* Daily / range report — exports exactly what the filters above show. */}
       <div className="flex items-center justify-between gap-3 flex-wrap mt-4">
         <p className="text-xs text-gray-500">
-          Showing <span className="font-bold text-gray-700">{filtered.length}</span> of {data.length} students
+          Showing <span className="font-bold text-gray-700">{filtered.length}</span>{searchOnly ? ' matching' : ` of ${data.length}`} students
           {(fromDate || toDate) && (
             <> · entered {fromDate ? formatDate(fromDate) : 'start'} — {toDate ? formatDate(toDate) : 'today'}</>
           )}
