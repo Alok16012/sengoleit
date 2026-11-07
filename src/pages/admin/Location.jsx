@@ -16,8 +16,9 @@ const TABS = [
 ]
 
 export default function Location() {
-  const { may } = useAuth()
-  const [tab, setTab] = useState('states')
+  const { may, mayTab } = useAuth()
+  const tabs = TABS.filter(t => mayTab('location', t.key))
+  const [tab, setTab] = useState(() => tabs[0]?.key || 'states')
   const [states, setStates] = useState([])
   const [districts, setDistricts] = useState([])
   const [countries, setCountries] = useState([])
@@ -115,7 +116,7 @@ export default function Location() {
 
       <div className="flex flex-wrap items-center gap-3 mb-6">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {TABS.map(t => (
+        {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => { setTab(t.key); setSearch('') }}

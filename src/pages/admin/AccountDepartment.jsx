@@ -36,8 +36,10 @@ const TABS = [
 ]
 
 export default function AccountDepartment() {
-  const { may } = useAuth()
-  const [tab, setTab] = useState('students')
+  const { may, mayTab } = useAuth()
+  // The tabs this login may open (User Management → Roles → Tabs).
+  const tabs = TABS.filter(t => mayTab('account_dept', t.key))
+  const [tab, setTab] = useState(() => tabs[0]?.key || 'students')
   const [appStatusFilter, setAppStatusFilter] = useState('pending')
   const [rechargeStatusFilter, setRechargeStatusFilter] = useState('pending')
   // Recharge Requests can be narrowed to one centre and a date range.
@@ -1453,7 +1455,7 @@ export default function AccountDepartment() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
-        {TABS.map(t => (
+        {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}

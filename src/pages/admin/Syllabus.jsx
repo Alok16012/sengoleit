@@ -134,7 +134,7 @@ function MultiSearchSelect({ label, allLabel, values, onChange, options, minWidt
 }
 
 export default function Syllabus() {
-  const { may } = useAuth()
+  const { may, mayTab } = useAuth()
   const [structs, setStructs]         = useState([])   // fee_structures master
   const [programs, setPrograms]       = useState([])
   const [departments, setDepartments] = useState([])
@@ -147,7 +147,7 @@ export default function Syllabus() {
   const [loading, setLoading]         = useState(true)
 
   // filters
-  const [tab, setTab]       = useState('pending')   // 'all' | 'pending' | 'done'
+  const [tab, setTab]       = useState(() => ['pending', 'done', 'all'].find(k => mayTab('syllabus', k)) || 'pending')   // 'all' | 'pending' | 'done'
   const [search, setSearch] = useState('')
   const [fDept, setFDept]   = useState('all')
   const [fType, setFType]   = useState('all')
@@ -376,7 +376,8 @@ export default function Syllabus() {
     setSaving(false); setSaved(true)
     // go back to the list and show the course under its new status
     setActive(null)
-    setTab(valid.length > 0 ? 'done' : 'pending')
+    const next = valid.length > 0 ? 'done' : 'pending'
+    if (mayTab('syllabus', next)) setTab(next)
   }
 
   const totalSems = (active ? calcSemesters(progMap[active.program_id]) : 0) || active?.total_semesters || 8
@@ -635,7 +636,7 @@ export default function Syllabus() {
           { key: 'pending', label: 'Pending', count: pendingCount, on: 'bg-amber-500 text-white', off: 'bg-amber-50 text-amber-700 hover:bg-amber-100' },
           { key: 'done',    label: 'Done',    count: doneCount,    on: 'bg-emerald-600 text-white', off: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' },
           { key: 'all',     label: 'All',     count: base.length,  on: 'bg-gray-800 text-white', off: 'bg-gray-100 text-gray-600 hover:bg-gray-200' },
-        ].map(t => (
+        ].filter(t => mayTab('syllabus', t.key)).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === t.key ? t.on : t.off}`}>
             {t.label}

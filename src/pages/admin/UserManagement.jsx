@@ -6,7 +6,7 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import { Plus, Pencil, Trash2, KeyRound, Power, PowerOff, Shield, Users, Search, Eye, EyeOff } from 'lucide-react'
-import { PERMISSION_GROUPS, ALL_PERMISSIONS } from '../../utils/permissions'
+import { PERMISSION_GROUPS, ALL_PERMISSIONS, tabPerm, groupTabPerms } from '../../utils/permissions'
 import { formatDateTime } from '../../utils/formatDate'
 
 // User Management — custom roles (a name and a ticked list of permissions)
@@ -31,8 +31,8 @@ async function callUsersFn(body) {
 }
 
 export default function UserManagement() {
-  const { user } = useAuth()
-  const [tab, setTab] = useState('roles')
+  const { user, mayTab } = useAuth()
+  const [tab, setTab] = useState(() => mayTab('users', 'roles') ? 'roles' : 'users')
   const [roles, setRoles] = useState([])
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
@@ -83,19 +83,25 @@ export default function UserManagement() {
       : { name: '', description: '', permissions: new Set() })
   }
 
+  // Everything a module can be given: its permissions and its tabs.
+  const groupKeys = g => [...g.perms.map(([k]) => k), ...groupTabPerms(g)]
+
   // Ticking anything in a module ticks its View too — every other permission
-  // in a module is useless without the page.
+  // in a module is useless without the page. Ticking View (on its own) ticks
+  // all the page's tabs, so the page opens whole; untick the ones not wanted.
   function togglePerm(group, key) {
     setRoleModal(m => {
       const next = new Set(m.permissions)
       const view = `${group.key}.view`
+      const hasView = group.perms.some(([k]) => k === view)
       if (next.has(key)) {
         next.delete(key)
         // Unticking View unticks the whole module.
-        if (key === view) group.perms.forEach(([k]) => next.delete(k))
+        if (key === view) groupKeys(group).forEach(k => next.delete(k))
       } else {
+        if (hasView && !next.has(view)) groupTabPerms(group).forEach(k => next.add(k))
         next.add(key)
-        if (group.perms.some(([k]) => k === view)) next.add(view)
+        if (hasView) next.add(view)
       }
       return { ...m, permissions: next }
     })
@@ -104,8 +110,9 @@ export default function UserManagement() {
   function toggleGroup(group) {
     setRoleModal(m => {
       const next = new Set(m.permissions)
-      const all = group.perms.every(([k]) => next.has(k))
-      group.perms.forEach(([k]) => all ? next.delete(k) : next.add(k))
+      const keys = groupKeys(group)
+      const all = keys.every(k => next.has(k))
+      keys.forEach(k => all ? next.delete(k) : next.add(k))
       return { ...m, permissions: next }
     })
   }
@@ -203,7 +210,7 @@ export default function UserManagement() {
       )}
 
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {[['roles', 'Roles', Shield], ['users', 'Users', Users]].map(([k, label, Icon]) => (
+        {[['roles', 'Roles', Shield], ['users', 'Users', Users]].filter(([k]) => mayTab('users', k)).map(([k, label, Icon]) => (
           <button key={k} onClick={() => setTab(k)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${tab === k ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
             <Icon size={15} /> {label}
@@ -316,8 +323,9 @@ export default function UserManagement() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[55vh] overflow-y-auto pr-1">
               {groupsShown.map(g => {
-                const ticked = g.perms.filter(([k]) => roleModal.permissions.has(k)).length
-                const all = ticked === g.perms.length
+                const keys = groupKeys(g)
+                const ticked = keys.filter(k => roleModal.permissions.has(k)).length
+                const all = ticked === keys.length
                 return (
                   <div key={g.key} className={`border rounded-xl p-3 ${ticked ? 'border-[#933d18]/30 bg-[#933d18]/[0.03]' : 'border-gray-200'}`}>
                     <label className="flex items-center justify-between gap-2 cursor-pointer select-none mb-2">
@@ -326,7 +334,7 @@ export default function UserManagement() {
                           onChange={() => toggleGroup(g)} className="w-4 h-4 accent-[#933d18]" />
                         {g.label}
                       </span>
-                      <span className="text-[11px] text-gray-400">{ticked}/{g.perms.length}</span>
+                      <span className="text-[11px] text-gray-400">{ticked}/{keys.length}</span>
                     </label>
                     <div className="space-y-1.5 pl-6">
                       {g.perms.map(([k, label]) => (
@@ -337,13 +345,31 @@ export default function UserManagement() {
                         </label>
                       ))}
                     </div>
+                    {g.tabs?.length > 0 && (
+                      <div className="mt-2.5 pt-2 border-t border-gray-100 pl-6">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">Tabs on this page</p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                          {g.tabs.map(([t, label]) => {
+                            const k = tabPerm(g.key, t)
+                            return (
+                              <label key={k} className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                                <input type="checkbox" checked={roleModal.permissions.has(k)} onChange={() => togglePerm(g, k)}
+                                  className="w-3.5 h-3.5 accent-[#933d18]" />
+                                {label}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
             </div>
 
             <p className="text-[11px] text-gray-400">
-              Ticking anything in a module also ticks its "View". These are enforced by the database too, not just hidden on screen.
+              Ticking anything in a module also ticks its "View", and ticking "View" ticks all of that page's tabs — untick the tabs not wanted.
+              If no tab of a page is ticked, every tab of it shows.
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setRoleModal(null)} disabled={savingRole}>Cancel</Button>

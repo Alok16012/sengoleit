@@ -29,7 +29,7 @@ function StatCard({ label, value, color = 'gray' }) {
 const STATUS_FILTERS = ['All', 'Unused', 'Used']
 
 export default function CouponManagement() {
-  const { may } = useAuth()
+  const { may, mayTab } = useAuth()
   const [coupons, setCoupons] = useState([])
   const [centers, setCenters] = useState([])
   const [programs, setPrograms] = useState([])
@@ -55,7 +55,10 @@ export default function CouponManagement() {
 
   // Direct single-code generation (Approval Code / Discounted Coupon).
   // directType is null when closed, else 'approval' | 'discount'.
-  const [directType, setDirectType] = useState(null)
+  // Opens on "All Coupons" (null), or on the first tab this login may open.
+  const [directType, setDirectType] = useState(() =>
+    mayTab('coupons', 'all') ? null
+      : (['approval', 'discount', 'course', 'pending', 'wallet', 'commission'].find(k => mayTab('coupons', k)) ?? null))
   const [directCenterId, setDirectCenterId] = useState('')
   const [directAmount, setDirectAmount] = useState('')
   const [directSaving, setDirectSaving] = useState(false)
@@ -501,7 +504,7 @@ export default function CouponManagement() {
           { k: 'pending', label: 'Pending', icon: Clock },
           { k: 'wallet', label: 'Coupon Wallet', icon: Wallet },
           { k: 'commission', label: 'Commission Wallet', icon: Wallet },
-        ].map(t => {
+        ].filter(t => mayTab('coupons', t.k ?? 'all')).map(t => {
           const active = directType === t.k
           return (
             <button key={t.label} onClick={() => {

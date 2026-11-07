@@ -273,16 +273,31 @@ function studentPreVerifiedChecks(correctionFields) {
 const DOC_DEPT_HIDDEN = ['Approved', 'Forwarded']
 
 export default function DocumentDepartment() {
-  const { profile, can, may } = useAuth()
+  const { profile, permissions, can, may } = useAuth()
   // The queue-only view: the old Document Dept login, or a staff role without
   // "View approved / forwarded".
-  const isDocDept = profile?.role === 'document_dept' || (profile?.role === 'staff' && !can('document_dept.view_done'))
-  const studentTabs = isDocDept ? STATUS_FILTERS.filter(s => !DOC_DEPT_HIDDEN.includes(s)) : STATUS_FILTERS
-  const centerTabs = isDocDept ? CENTER_STATUS_FILTERS.filter(s => !DOC_DEPT_HIDDEN.includes(s)) : CENTER_STATUS_FILTERS
-  const [mainTab, setMainTab] = useState('students')
+  // A staff role whose status tabs were never chosen keeps the old queue-only
+  // view unless it had "view approved / forwarded"; once any status tab is
+  // ticked, the ticked tabs decide.
+  //
+  // The section tabs (Student / Center / Super Center Applications) and the
+  // status tabs are chosen separately: ticking only sections must not hide
+  // every status, and the other way round.
+  const isStaff = profile?.role === 'staff'
+  const tabTicked = t => permissions.includes(`document_dept.tab.${t}`)
+  const STATUS_KEYS = ['pending', 'hold', 'forwarded', 'approved', 'rejected']
+  const statusTabsChosen = isStaff && STATUS_KEYS.some(tabTicked)
+  const mainTabsChosen = isStaff && MAIN_TABS.some(t => tabTicked(t.key))
+  const isDocDept = !statusTabsChosen
+    && (profile?.role === 'document_dept' || (isStaff && !can('document_dept.view_done')))
+  const statusAllowed = s => statusTabsChosen ? tabTicked(s.toLowerCase()) : !(isDocDept && DOC_DEPT_HIDDEN.includes(s))
+  const studentTabs = STATUS_FILTERS.filter(statusAllowed)
+  const centerTabs = CENTER_STATUS_FILTERS.filter(statusAllowed)
+  const mainTabs = MAIN_TABS.filter(t => !mainTabsChosen || tabTicked(t.key))
+  const [mainTab, setMainTab] = useState(() => mainTabs[0]?.key || 'students')
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
-  const [statusFilter, setStatusFilter] = useState('Pending')
+  const [statusFilter, setStatusFilter] = useState(() => studentTabs[0] || 'Pending')
   const [verifyModal, setVerifyModal] = useState(null)
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [rejectModal, setRejectModal] = useState(null)
@@ -296,7 +311,7 @@ export default function DocumentDepartment() {
 
   // All centers (from centers table)
   const [directCenters, setDirectCenters] = useState([])
-  const [centerStatusFilter, setCenterStatusFilter] = useState('Pending')
+  const [centerStatusFilter, setCenterStatusFilter] = useState(() => centerTabs[0] || 'Pending')
   const [dcLoading, setDcLoading] = useState(false)
   const [viewDC, setViewDC] = useState(null)
   const [dcVerifyModal, setDCVerifyModal] = useState(null)
@@ -598,7 +613,7 @@ export default function DocumentDepartment() {
 
       {/* Main tab switcher */}
       <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
-        {MAIN_TABS.map(t => (
+        {mainTabs.map(t => (
           <button key={t.key} onClick={() => setMainTab(t.key)}
             className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               mainTab === t.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'

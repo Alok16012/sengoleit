@@ -7,6 +7,7 @@ import Button from '../../components/ui/Button'
 import { formatDate, localDay } from '../../utils/formatDate'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { FileSpreadsheet, FileText } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 
 function StatCard({ label, value, sub, color = 'gray' }) {
   const colors = {
@@ -36,7 +37,9 @@ const PAYMENT_KIND = {
 }
 
 export default function WalletSummary() {
-  const [tab, setTab] = useState('balances')
+  const { mayTab } = useAuth()
+  const tabs = TABS.filter(t => mayTab('wallet_summary', t.key))
+  const [tab, setTab] = useState(() => tabs[0]?.key || 'balances')
   const [centers, setCenters] = useState([])
   const [recharges, setRecharges] = useState([])
   const [loading, setLoading] = useState(true)
@@ -316,7 +319,7 @@ export default function WalletSummary() {
       )}
 
       <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
-        {TABS.map(t => (
+        {tabs.map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
               tab === t.key ? 'bg-white text-[#933d18] shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'

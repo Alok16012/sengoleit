@@ -99,9 +99,18 @@ export function AuthProvider({ children }) {
   // always have (and the database still decides what each may do). Use this
   // on any screen, including ones a centre shares with the admin.
   const may = (perm) => profile?.role !== 'staff' || permissions.includes(perm)
+  // mayTab('students', 'pending') — whether a tab inside a page shows. A role
+  // with none of that page's tabs ticked sees every tab (roles made before
+  // tabs could be chosen); otherwise only the ticked ones.
+  const mayTab = (moduleKey, tab) => {
+    if (profile?.role !== 'staff') return true
+    const prefix = `${moduleKey}.tab.`
+    if (!permissions.some(p => p.startsWith(prefix))) return true
+    return permissions.includes(prefix + tab)
+  }
 
   return (
-    <AuthContext.Provider value={{ user, profile, permissions, can, may, loading, signIn, signInMock, signUp, signOut, isConfigured }}>
+    <AuthContext.Provider value={{ user, profile, permissions, can, may, mayTab, loading, signIn, signInMock, signUp, signOut, isConfigured }}>
       {children}
     </AuthContext.Provider>
   )

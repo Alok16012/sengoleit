@@ -4,13 +4,14 @@
 // so a key here and there must match exactly.
 //
 // Each module has a `.view` key — that one opens the page; the others are the
-// things that can be done on it. `path` is the page the module lives on.
+// things that can be done on it. `path` is the page the module lives on, and
+// `tabs` the tabs inside that page a role can be given one by one.
 
 export const PERMISSION_GROUPS = [
   { key: 'dashboard', label: 'Dashboard', path: '/dashboard', perms: [
     ['dashboard.view', 'View dashboard'],
   ] },
-  { key: 'location', label: 'Location', path: '/admin/location', perms: [
+  { key: 'location', label: 'Location', path: '/admin/location', tabs: [['states','States'],['districts','Districts'],['countries','Countries']], perms: [
     ['location.view', 'View countries / states / districts'],
     ['location.manage', 'Add, edit, delete locations'],
   ] },
@@ -52,7 +53,7 @@ export const PERMISSION_GROUPS = [
     ['centers.delete', 'Delete center'],
     ['centers.status', 'Activate / deactivate'],
   ] },
-  { key: 'students', label: 'Students', path: '/admin/students', perms: [
+  { key: 'students', label: 'Students', path: '/admin/students', tabs: [['all','All'],['pending','Pending'],['hold','Hold'],['approved','Approved'],['rejected','Rejected'],['rr','RR (Re-Registration)']], perms: [
     ['students.view', 'View students'],
     ['students.add', 'Add student'],
     ['students.edit', 'Edit student'],
@@ -63,9 +64,8 @@ export const PERMISSION_GROUPS = [
     ['students.credentials', 'View / change student login'],
     ['students.re_register', 'Raise re-registration'],
   ] },
-  { key: 'document_dept', label: 'Document Dept.', path: '/admin/document-department', perms: [
-    ['document_dept.view', 'View pending / hold / rejected'],
-    ['document_dept.view_done', 'View approved / forwarded'],
+  { key: 'document_dept', label: 'Document Dept.', path: '/admin/document-department', tabs: [['students','Student Applications'],['centers','Center Applications'],['super_centers','Super Center Applications'],['pending','Pending'],['hold','Hold'],['forwarded','Forwarded (centers)'],['approved','Approved'],['rejected','Rejected']], perms: [
+    ['document_dept.view', 'View document department'],
     ['document_dept.verify', 'Verify and forward students'],
     ['document_dept.hold', 'Put on hold / ask for correction'],
     ['document_dept.reject', 'Reject students'],
@@ -77,7 +77,7 @@ export const PERMISSION_GROUPS = [
     ['courier.edit', 'Edit courier'],
     ['courier.delete', 'Delete courier'],
   ] },
-  { key: 'account_dept', label: 'Account Dept.', path: '/admin/account-department', perms: [
+  { key: 'account_dept', label: 'Account Dept.', path: '/admin/account-department', tabs: [['students','Student Applications'],['approvals','Center Applications'],['center_apps','Sub-Center Applications'],['super_approvals','Super Center Applications'],['recharges','Recharge Requests'],['re_registrations','Re-Registrations'],['approval_codes','Approval Code Requests']], perms: [
     ['account_dept.view', 'View account department'],
     ['account_dept.students', 'Approve / reject student fee'],
     ['account_dept.recharge_verify', 'Verify / reject recharge requests'],
@@ -90,14 +90,14 @@ export const PERMISSION_GROUPS = [
   { key: 'payment_summary', label: 'Payment Summary', path: '/admin/payment-summary', perms: [
     ['payment_summary.view', 'View payment summary'],
   ] },
-  { key: 'research_dept', label: 'Research Dept.', path: '/admin/research-department', perms: [
+  { key: 'research_dept', label: 'Research Dept.', path: '/admin/research-department', tabs: [['master','Master Panel'],['letters','Candidates'],['exam','Forward to Exam']], perms: [
     ['research_dept.view', 'View research department'],
     ['research_dept.manage', 'Issue letters / forward Ph.D students'],
   ] },
-  { key: 'wallet_summary', label: 'Wallet Summary', path: '/admin/wallet-summary', perms: [
+  { key: 'wallet_summary', label: 'Wallet Summary', path: '/admin/wallet-summary', tabs: [['balances','Center Balances'],['recharges','Recharge History'],['online','Student Online Payments']], perms: [
     ['wallet_summary.view', 'View wallet summary'],
   ] },
-  { key: 'coupons', label: 'Coupon Management', path: '/admin/coupons', perms: [
+  { key: 'coupons', label: 'Coupon Management', path: '/admin/coupons', tabs: [['all','All Coupons'],['approval','Approval Codes'],['discount','Discounted Coupons'],['course','Course Coupons'],['pending','Pending'],['wallet','Coupon Wallet'],['commission','Commission Wallet']], perms: [
     ['coupons.view', 'View coupons'],
     ['coupons.generate', 'Generate coupons / approval codes'],
     ['coupons.edit', 'Edit coupon amount'],
@@ -113,14 +113,14 @@ export const PERMISSION_GROUPS = [
     ['center_pricing.view', 'View center pricing'],
     ['center_pricing.manage', 'Change center pricing'],
   ] },
-  { key: 'exam_section', label: 'Exam Section', path: '/admin/exam-section', perms: [
+  { key: 'exam_section', label: 'Exam Section', path: '/admin/exam-section', tabs: [['list','Student List'],['schedule','Date Sheet'],['calendar','Examination Calendar'],['result','Result'],['print','Print']], perms: [
     ['exam_section.view', 'View exam section'],
     ['exam_section.admit_cards', 'Issue admit cards / hall tickets'],
     ['exam_section.results', 'Enter marks and declare results'],
     ['exam_section.print', 'Print marksheets and certificates'],
     ['exam_section.calendar', 'Examination calendar'],
   ] },
-  { key: 'syllabus', label: 'Syllabus', path: '/admin/syllabus', perms: [
+  { key: 'syllabus', label: 'Syllabus', path: '/admin/syllabus', tabs: [['pending','Pending'],['done','Done'],['all','All']], perms: [
     ['syllabus.view', 'View syllabus'],
     ['syllabus.manage', 'Add, edit syllabus'],
   ] },
@@ -128,12 +128,18 @@ export const PERMISSION_GROUPS = [
     ['ebooks.view', 'View e-books'],
     ['ebooks.manage', 'Upload / delete e-books'],
   ] },
-  { key: 'users', label: 'User Management', path: '/admin/users', perms: [
+  { key: 'users', label: 'User Management', path: '/admin/users', tabs: [['roles','Roles'],['users','Users']], perms: [
     ['users.manage', 'Manage roles and staff logins'],
   ] },
 ]
 
-export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(g => g.perms.map(([k]) => k))
+// A module's tabs are permissions too: '<module>.tab.<tab>'. Ticking one shows
+// that tab; a role with none of a module's tabs ticked sees them all (roles
+// made before tabs could be chosen keep working).
+export const tabPerm = (moduleKey, tab) => `${moduleKey}.tab.${tab}`
+export const groupTabPerms = g => (g.tabs || []).map(([t]) => tabPerm(g.key, t))
+
+export const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(g => [...g.perms.map(([k]) => k), ...groupTabPerms(g)])
 
 // The module a path belongs to — for sending a staff login only where it may go.
 export function moduleForPath(pathname) {

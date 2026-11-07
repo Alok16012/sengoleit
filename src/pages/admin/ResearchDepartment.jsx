@@ -19,10 +19,10 @@ const SETTINGS_KEY = 'phd_doc_settings'
 const OPTIONAL_COLS = 'stream, offer_letter_active, entrance_letter_active, research_forwarded_at'
 
 export default function ResearchDepartment() {
-  const { may } = useAuth()
+  const { may, mayTab } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('letters')      // 'letters' | 'exam'
+  const [tab, setTab] = useState(() => ['letters', 'exam', 'master'].find(k => mayTab('research_dept', k)) || 'letters')      // 'letters' | 'exam'
   const [q, setQ] = useState('')
   const [sessions, setSessions] = useState([])
   const [sessionFilter, setSessionFilter] = useState('all')
@@ -481,9 +481,9 @@ export default function ResearchDepartment() {
           the master panel is tall, and it buried the candidates below it. */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <TabBtn id="master" icon={Settings2} label="Master Panel" />
-          <TabBtn id="letters" icon={FlaskConical} label="Candidates" count={filtered.length} />
-          <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={filtered.filter(s => !s.exam_forwarded_at).length} />
+          {mayTab('research_dept', 'master') && <TabBtn id="master" icon={Settings2} label="Master Panel" />}
+          {mayTab('research_dept', 'letters') && <TabBtn id="letters" icon={FlaskConical} label="Candidates" count={filtered.length} />}
+          {mayTab('research_dept', 'exam') && <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={filtered.filter(s => !s.exam_forwarded_at).length} />}
         </div>
         {tab !== 'master' && (
           <div className="flex items-center gap-2 flex-wrap">

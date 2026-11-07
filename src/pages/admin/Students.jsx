@@ -204,14 +204,16 @@ function CredModal({ studentId, onClose }) {
 }
 
 export default function Students() {
-  const { may } = useAuth()
+  const { may, mayTab } = useAuth()
+  // The status tabs this login may open (User Management → Roles → Tabs).
+  const statusTabs = STATUS_FILTERS.filter(s => mayTab('students', s.toLowerCase()))
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   // Why the list could not be read — shown on the page. A failed read used to
   // look exactly like "No students found", with the reason only in the console.
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState(() => statusTabs[0] || 'All')
   // Form-submission date range — how many admissions came in over a period.
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -579,7 +581,7 @@ export default function Students() {
 
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="flex gap-1.5 flex-wrap">
-          {STATUS_FILTERS.map(s => (
+          {statusTabs.map(s => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}

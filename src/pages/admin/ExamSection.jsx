@@ -199,8 +199,10 @@ function fmtDT(val) {
 }
 
 export default function ExamSection() {
-  const { may } = useAuth()
-  const [view, setView] = useState('list')   // 'list' | 'calendar' | 'result'
+  const { may, mayTab } = useAuth()
+  // Opens on the first section this login may open (Date Sheet is a popup,
+  // not a section of its own).
+  const [view, setView] = useState(() => ['list', 'calendar', 'result', 'print'].find(k => mayTab('exam_section', k)) || 'list')   // 'list' | 'calendar' | 'result'
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -835,7 +837,7 @@ export default function ExamSection() {
           { key: 'calendar', label: 'Examination Calendar', icon: CalendarRange },
           { key: 'result', label: 'Result', icon: Award },
           { key: 'print', label: 'Print', icon: Printer },
-        ].map(t => {
+        ].filter(t => mayTab('exam_section', t.key)).map(t => {
           const Icon = t.icon
           const active = t.key === 'schedule' ? settingsOpen : (!settingsOpen && view === t.key)
           return (
