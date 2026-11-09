@@ -161,6 +161,7 @@ export default function App() {
             <Route path="/admin/students" element={<Students />} />
             <Route path="/admin/students/new" element={<StudentForm />} />
             <Route path="/admin/students/edit/:id" element={<StudentForm />} />
+            <Route path="/admin/students/view/:id" element={<StudentForm viewOnly />} />
 
             <Route path="/admin/departments" element={<Departments />} />
 

@@ -542,7 +542,9 @@ function toLocalDay(iso) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export default function StudentForm() {
+// viewOnly — /admin/students/view/:id: the whole record and its documents,
+// never editable (a staff role with Students → View but not Edit).
+export default function StudentForm({ viewOnly = false }) {
   const { id } = useParams()
   const navigate = useNavigate()
   const { profile, user } = useAuth()
@@ -555,7 +557,7 @@ export default function StudentForm() {
   // (Hold but not yet document-verified). Once it's forwarded to Account
   // (doc-verified), approved or rejected, the form is view-only for them.
   const ownerCanEdit = form.status === 'Pending' || (form.status === 'Hold' && !form.doc_verified_at)
-  const isReadOnly = isEdit && !isAdmin && !ownerCanEdit
+  const isReadOnly = isEdit && (viewOnly || (!isAdmin && !ownerCanEdit))
   // When a center resubmits a student sent back for correction (Hold + not yet
   // doc-verified), only the fields the Document Dept flagged may be edited — every
   // other field stays locked. The flagged list is stored on students.correction_fields.

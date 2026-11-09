@@ -644,6 +644,7 @@ export default function Students() {
               {s}
             </button>
           ))}
+          {!searchOnly && (
           <button
             onClick={() => setShowHidden(v => !v)}
             title={showHidden ? 'Back to visible students' : 'Show hidden students'}
@@ -659,6 +660,7 @@ export default function Students() {
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showHidden ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{hiddenCount}</span>
             )}
           </button>
+          )}
         </div>
       </div>
 
@@ -672,11 +674,11 @@ export default function Students() {
               <Th>Student Name</Th>
               <Th>Enrollment No</Th>
               <Th>Program</Th>
-              <Th>Center</Th>
+              {!searchOnly && <Th>Center</Th>}
               <Th>Session</Th>
               <Th>Mobile</Th>
               <Th>Entry</Th>
-              <Th>Entered On</Th>
+              {!searchOnly && <Th>Entered On</Th>}
               <Th>Status</Th>
               <Th>Courier</Th>
               <Th>Actions</Th>
@@ -684,7 +686,7 @@ export default function Students() {
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={searchOnly ? 10 : 12} className="text-center text-gray-400 py-12">
                 {lookupReady ? 'No students found' : 'Search by at least two of: student name, father name, date of birth.'}
               </Td></Tr>
             ) : filtered.map((s, i) => (
@@ -703,14 +705,16 @@ export default function Students() {
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{s.enrollment_no || '—'}</Td>
                 <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
-                <Td className="text-gray-500 text-xs">{s.centers?.center_name || '—'}</Td>
+                {!searchOnly && <Td className="text-gray-500 text-xs">{s.centers?.center_name || '—'}</Td>}
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td className="text-gray-500">{s.mobile_no || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{s.entry_type || '—'}</Td>
+                {!searchOnly && (
                 <Td className="text-gray-600 text-xs whitespace-nowrap"
                   title={s.created_at ? new Date(s.created_at).toLocaleString('en-IN') : ''}>
                   {s.created_at ? formatDate(s.created_at) : '—'}
                 </Td>
+                )}
                 <Td>
                   {/* On the RR tab the column reads the re-registration — which
                       term to which, and where the request stands. */}
@@ -739,9 +743,14 @@ export default function Students() {
                 </Td>
                 <Td>
                   <div className="flex gap-1">
-                    {may('students.edit') && (
+                    {may('students.edit') ? (
                     <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/edit/${s.id}`)}>
                       <Edit size={14} />
+                    </Button>
+                    ) : (
+                    // Without Edit: the full record and documents, read-only.
+                    <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/view/${s.id}`)} title="View student and documents">
+                      <Eye size={14} className="text-[#933d18]" />
                     </Button>
                     )}
                     {may('students.documents') && (
