@@ -123,10 +123,11 @@ export const PERMISSION_GROUPS = [
     ['center_pricing.view', 'View center pricing'],
     ['center_pricing.manage', 'Change center pricing'],
   ] },
-  { key: 'exam_section', label: 'Exam Section', path: '/admin/exam-section', tabs: [['list','Student List'],['schedule','Date Sheet'],['calendar','Examination Calendar'],['result','Result'],['print','Print']], perms: [
+  { key: 'exam_section', label: 'Exam Section', path: '/admin/exam-section', tabs: [['list','Student List'],['schedule','Date Sheet'],['calendar','Examination Calendar'],['result','Result'],['condition','Result Condition'],['print','Print']], perms: [
     ['exam_section.view', 'View exam section'],
     ['exam_section.admit_cards', 'Issue admit cards / hall tickets'],
     ['exam_section.results', 'Enter marks and declare results'],
+    ['exam_section.result_condition', 'Set result conditions and allow early results'],
     ['exam_section.print', 'Print marksheets and certificates'],
     ['exam_section.calendar', 'Examination calendar'],
   ] },

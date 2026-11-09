@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
-import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Maximize2, Minimize2, CalendarRange, Users, Printer, FileText, FileSpreadsheet } from 'lucide-react'
+import { Search, ClipboardList, X, Send, Award, FileEdit, BadgeCheck, CalendarClock, Clock, Timer, Maximize2, Minimize2, CalendarRange, Users, Printer, FileText, FileSpreadsheet } from 'lucide-react'
 import { SearchableSelect, MultiSearchSelect } from '../../components/ui/SearchSelect'
 import ExaminationCalendar from './ExaminationCalendar'
 import { generateAdmitCard } from '../../utils/generateStudentCards'
@@ -23,6 +23,7 @@ import { recordFeeDeduction } from '../../utils/feeLedger'
 import { Lock, Eye, EyeOff, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/formatDate'
 import SemesterResultModal from '../../components/SemesterResultModal'
+import ResultConditions from '../../components/ResultConditions'
 import { useAuth } from '../../context/AuthContext'
 
 function ResultModal({ isOpen, onClose, student, onSaved }) {
@@ -202,7 +203,7 @@ export default function ExamSection() {
   const { may, mayTab } = useAuth()
   // Opens on the first section this login may open (Date Sheet is a popup,
   // not a section of its own).
-  const [view, setView] = useState(() => ['list', 'calendar', 'result', 'print'].find(k => mayTab('exam_section', k)) || 'list')   // 'list' | 'calendar' | 'result'
+  const [view, setView] = useState(() => ['list', 'calendar', 'result', 'condition', 'print'].find(k => mayTab('exam_section', k)) || 'list')   // 'list' | 'calendar' | 'result'
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -319,7 +320,7 @@ export default function ExamSection() {
   async function fetchData() {
     setLoading(true)
     // Only students the Account Dept. forwarded to the Exam Section appear here.
-    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
+    const FULL = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, programme_id, session_id, date_of_submission, created_at, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, result_released_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
     // Middle tier: everything except result_released_at, which needs
     // add_phd_portal_flow.sql. Without this tier a missing release column would
     // knock the whole result block down to MIN and hide declared results.
@@ -327,7 +328,7 @@ export default function ExamSection() {
     // Minimal fallback used when the exam-result / admit-card columns have not
     // been created yet (run_all_migrations.sql not applied). The forwarded
     // students still appear; only the result/release features stay inactive.
-    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, programme_id, session_id, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
+    const MIN = 'id, student_name, mobile_no, gender, enrollment_no, registration_no, admission_number, semester_year, specialization, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, programme_id, session_id, date_of_submission, created_at, exam_forwarded_at, programs(program_name, department_id, programme_type_id, duration, semester_year), academic_sessions(session_name), centers(id, center_name, center_code)'
 
     let { data, error } = await supabase
       .from('students')
@@ -822,6 +823,7 @@ export default function ExamSection() {
         title="Exam Section"
         subtitle={
           view === 'calendar' ? 'Set examination start & end dates per session and semester' :
+          view === 'condition' ? 'When a result may be declared after the form is submitted, and the charge for an early one' :
           view === 'result' ? `${resultList.length} student${resultList.length === 1 ? '' : 's'} — declare or edit results` :
           view === 'print' ? `${printList.length} student${printList.length === 1 ? '' : 's'} — results forwarded from the Result section` :
           `${data.length} student${data.length === 1 ? '' : 's'} forwarded for examination`
@@ -836,6 +838,7 @@ export default function ExamSection() {
           { key: 'schedule', label: 'Date Sheet', icon: CalendarClock },
           { key: 'calendar', label: 'Examination Calendar', icon: CalendarRange },
           { key: 'result', label: 'Result', icon: Award },
+          { key: 'condition', label: 'Result Condition', icon: Timer },
           { key: 'print', label: 'Print', icon: Printer },
         ].filter(t => mayTab('exam_section', t.key)).map(t => {
           const Icon = t.icon
@@ -853,6 +856,8 @@ export default function ExamSection() {
       </div>
 
       {view === 'calendar' && <ExaminationCalendar />}
+
+      {view === 'condition' && <ResultConditions students={data} canEdit={may('exam_section.result_condition')} />}
 
       {view === 'list' && (<>
       <div className="flex flex-wrap gap-3 mb-4 items-end">

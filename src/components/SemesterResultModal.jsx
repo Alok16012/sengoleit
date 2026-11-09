@@ -8,6 +8,7 @@ import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStude
 import { generateSemesterMarks } from '../utils/marksFill'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
+import { checkResultAllowed } from '../utils/resultConditions'
 import { useAuth } from '../context/AuthContext'
 
 // The Fill rules — 40% floors, the 73 ceiling for 63-70%, distinct totals —
@@ -228,6 +229,13 @@ export default function SemesterResultModal({ student, special = false, onClose,
       return
     }
     setBusy(true)
+    // Result Condition: a first declaration waits the set days after the form
+    // was submitted, unless an early result was allowed. Correcting a result
+    // already declared is not held back.
+    if (!pick.result) {
+      const gate = await checkResultAllowed(student, pick.sem)
+      if (!gate.ok) { setBusy(false); alert(gate.message); return }
+    }
     // Paper marks first: the semester row is what the list reflects, so it
     // should not claim saved while the detail behind it failed.
     if (papers?.length) {
