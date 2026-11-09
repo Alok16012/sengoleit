@@ -37,7 +37,10 @@ const totalOf = (r) => {
 }
 
 export default function Schemes() {
-  const { may } = useAuth()
+  const { may, profile } = useAuth()
+  // A course's scheme is locked once it is Done — only the admin can still
+  // change it, the same rule as the Syllabus list.
+  const isAdmin = profile?.role === 'admin'
   const [programs, setPrograms]       = useState([])
   const [departments, setDepartments] = useState([])
   const [progTypes, setProgTypes]     = useState([])
@@ -401,7 +404,7 @@ export default function Schemes() {
                 <Td>
                   <div className="flex items-center gap-1.5">
                     {/* Icon follows the label, same as the Syllabus list. */}
-                    {may('schemes.manage') && (
+                    {may('schemes.manage') && (!isDone(p) || isAdmin) && (
                     <Button size="sm" variant={isDone(p) ? 'secondary' : 'primary'} onClick={() => openCourse(p)}>
                       {isDone(p) ? <><Pencil size={13} /> Edit Scheme</> : <><Plus size={13} /> Add Scheme</>}
                     </Button>
