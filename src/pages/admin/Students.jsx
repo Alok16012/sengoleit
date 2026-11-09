@@ -542,6 +542,8 @@ export default function Students() {
         </div>
       )}
 
+      {/* The search-only lookup has nothing but its own three fields. */}
+      {!searchOnly && (
       <div className="flex flex-wrap gap-3 mb-3 items-end">
         {!searchOnly && (
         <div className="relative">
@@ -625,6 +627,7 @@ export default function Students() {
           </button>
         )}
       </div>
+      )}
 
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="flex gap-1.5 flex-wrap">
