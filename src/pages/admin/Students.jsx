@@ -26,6 +26,14 @@ import { useAuth } from '../../context/AuthContext'
 // RR = students with a re-registration request, whatever its outcome.
 const STATUS_FILTERS = ['All', 'Pending', 'Hold', 'Approved', 'Rejected', 'RR']
 
+// The documents a lookup role checks for, and can upload when missing: [column, label].
+const PENDING_DOCS = [
+  ['photo_url', 'Photo'], ['signature_url', 'Signature'],
+  ['aadhar_url', 'Aadhar (front)'], ['aadhar_back_url', 'Aadhar (back)'],
+  ['declaration_url', 'Declaration'],
+  ['tenth_marksheet_url', '10th Marksheet'], ['twelfth_marksheet_url', '12th Marksheet'],
+]
+
 function genPassword() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
   let pwd = 'Sg@'
@@ -306,6 +314,28 @@ export default function Students() {
     setDeleteTarget(null)
   }
 
+  // Upload one missing document straight onto the student (lookup role).
+  // Same bucket and naming as the admission form's own uploads.
+  const [docUploading, setDocUploading] = useState(null)   // `${studentId}:${column}`
+  async function uploadPendingDoc(s, column, file) {
+    if (!file) return
+    setDocUploading(`${s.id}:${column}`)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}_${column}.${ext}`
+      const up = await supabase.storage.from('student-docs').upload(path, file, { upsert: true })
+      if (up.error) throw up.error
+      const { data: { publicUrl } } = supabase.storage.from('student-docs').getPublicUrl(path)
+      const { data: saved, error } = await supabase.from('students').update({ [column]: publicUrl }).eq('id', s.id).select('id')
+      if (error) throw error
+      if (!saved?.length) throw new Error('Not allowed to update this student — ask the admin for "Upload missing documents" on your role.')
+      setData(rows => rows.map(r => r.id === s.id ? { ...r, [column]: publicUrl } : r))
+    } catch (err) {
+      alert('Upload failed: ' + (err.message || err))
+    }
+    setDocUploading(null)
+  }
+
   async function handleDownload(studentId) {
     setDownloading(studentId)
     const { data: s } = await supabase
@@ -367,11 +397,11 @@ export default function Students() {
 
   async function fetchData() {
     setLoading(true)
-    const FULL = 'id, student_name, fathers_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const FULL = 'id, student_name, fathers_name, photo_url, signature_url, aadhar_url, aadhar_back_url, declaration_url, tenth_marksheet_url, twelfth_marksheet_url, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
     // Fallback for DBs where the exam-result / admit-card columns are not yet
     // created (run_all_migrations.sql not applied) — students still list; only
     // the admit-card / result actions stay inactive.
-    const MIN = 'id, student_name, fathers_name, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const MIN = 'id, student_name, fathers_name, photo_url, signature_url, aadhar_url, aadhar_back_url, declaration_url, tenth_marksheet_url, twelfth_marksheet_url, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
 
     // Last resort: no embedded joins at all. Programme / session / centre are
     // looked up separately and attached, so a join PostgREST refuses (an
@@ -629,6 +659,8 @@ export default function Students() {
       </div>
       )}
 
+      {/* The lookup role works inside the tab its role allows, without the tab bar. */}
+      {!searchOnly && (
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="flex gap-1.5 flex-wrap">
           {statusTabs.map(s => (
@@ -663,9 +695,118 @@ export default function Students() {
           )}
         </div>
       </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
+      ) : searchOnly ? (
+        // The lookup role's view: who the student is, and every document and
+        // certificate in one row — plus what is still missing, uploadable here.
+        <Table>
+          <Thead>
+            <tr>
+              <Th>#</Th><Th>Student Name</Th><Th>Father's Name</Th><Th>Enrollment</Th><Th>Program</Th><Th>Session</Th>
+              <Th>Admission Form</Th><Th>Documents</Th><Th>Registration Certificate</Th><Th>ID Card</Th>
+              <Th>Admit Card</Th><Th>Result</Th><Th>Pending Documents</Th><Th>View</Th>
+            </tr>
+          </Thead>
+          <Tbody>
+            {filtered.length === 0 ? (
+              <Tr><Td colSpan={14} className="text-center text-gray-400 py-12">
+                {lookupReady ? 'No students found' : 'Search by at least two of: student name, father name, date of birth.'}
+              </Td></Tr>
+            ) : filtered.map((s, i) => {
+              const approved = s.status === 'Approved'
+              const hasAdmit = s.admit_card_released_at || admitCards?.[s.id]?.length > 0
+              const hasResult = s.exam_result_status && s.exam_result_status !== 'Pending'
+              const missing = PENDING_DOCS.filter(([col]) => !s[col])
+              const dash = <span className="text-gray-300 text-xs">—</span>
+              return (
+                <Tr key={s.id}>
+                  <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>
+                  <Td>
+                    <p className="font-semibold text-gray-900">{s.student_name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{s.date_of_birth ? formatDate(s.date_of_birth) : ''}</p>
+                  </Td>
+                  <Td className="text-gray-600 text-sm">{s.fathers_name || '—'}</Td>
+                  <Td className="text-gray-500 font-mono text-xs">{s.enrollment_no || '—'}</Td>
+                  <Td className="text-gray-500 text-xs min-w-[150px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
+                  <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
+                  <Td>
+                    {may('students.documents') ? (
+                      <Button size="sm" variant="ghost" onClick={() => handleDownload(s.id)} disabled={downloading === s.id} title="Admission Form PDF">
+                        <Download size={14} className={downloading === s.id ? 'animate-pulse text-[#933d18]' : 'text-gray-600'} />
+                      </Button>
+                    ) : dash}
+                  </Td>
+                  <Td>
+                    {may('students.documents') ? (
+                      <Button size="sm" variant="ghost" onClick={() => handleAllDocuments(s.id)} disabled={downloading === `${s.id}-docs`} title="All uploaded documents">
+                        <FolderDown size={14} className={downloading === `${s.id}-docs` ? 'animate-pulse text-[#933d18]' : 'text-gray-600'} />
+                      </Button>
+                    ) : dash}
+                  </Td>
+                  <Td>
+                    {approved && !isPhdProgram(s.programs?.program_name) && may('students.documents') ? (
+                      <Button size="sm" variant="ghost" onClick={() => setRegCardStudent(s)} title="Registration Certificate">
+                        <FileText size={14} className="text-indigo-600" />
+                      </Button>
+                    ) : dash}
+                  </Td>
+                  <Td>
+                    {approved && s.enrollment_no && may('students.documents') ? (
+                      <Button size="sm" variant="ghost" onClick={() => handleCard(s.id, 'id')} disabled={downloading === `${s.id}-id`} title="ID Card">
+                        <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
+                      </Button>
+                    ) : dash}
+                  </Td>
+                  <Td>
+                    {hasAdmit ? (
+                      <Button size="sm" variant="ghost" onClick={() => setAdmitListStudent(s)} title="Admit Cards">
+                        <ClipboardList size={14} className="text-[#933d18]" />
+                      </Button>
+                    ) : dash}
+                  </Td>
+                  <Td>
+                    {hasResult ? (
+                      <Button size="sm" variant="ghost" onClick={() => setResultStudent(s)} title="Result">
+                        <Award size={14} className={s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
+                      </Button>
+                    ) : dash}
+                  </Td>
+                  <Td className="min-w-[190px]">
+                    {missing.length === 0 ? (
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">All uploaded</span>
+                    ) : (
+                      <div className="space-y-1">
+                        {missing.map(([col, label]) => {
+                          const busy = docUploading === `${s.id}:${col}`
+                          return (
+                            <div key={col} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-red-600">{label}</span>
+                              {may('students.upload_docs') && (
+                                <label className={`text-[11px] font-bold px-2 py-0.5 rounded-md border cursor-pointer ${busy ? 'text-gray-400 border-gray-200' : 'text-[#933d18] border-[#933d18]/30 hover:bg-[#933d18]/5'}`}>
+                                  {busy ? 'Uploading…' : 'Upload'}
+                                  <input type="file" accept="image/*,application/pdf" className="hidden" disabled={busy}
+                                    onChange={e => { uploadPendingDoc(s, col, e.target.files?.[0]); e.target.value = '' }} />
+                                </label>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </Td>
+                  <Td>
+                    <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/view/${s.id}`)} title="View student and documents">
+                      <Eye size={14} className="text-[#933d18]" />
+                    </Button>
+                  </Td>
+                </Tr>
+              )
+            })}
+          </Tbody>
+        </Table>
       ) : (
         <Table>
           <Thead>

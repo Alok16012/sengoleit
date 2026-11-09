@@ -62,6 +62,7 @@ export const PERMISSION_GROUPS = [
     ['students.hide', 'Hide / unhide student'],
     ['students.export', 'Export Excel / PDF'],
     ['students.documents', 'Download forms and documents'],
+    ['students.upload_docs', 'Upload missing documents'],
     ['students.credentials', 'View / change student login'],
     ['students.re_register', 'Raise re-registration'],
   ] },
@@ -79,7 +80,7 @@ export const PERMISSION_GROUPS = [
     ['courier.delete', 'Delete courier'],
   ] },
   { key: 'account_dept', label: 'Account Dept.', path: '/admin/account-department', tabs: [
-    ['students', 'Student Applications', [['pending', 'To Verify'], ['approved', 'Approved'], ['rejected', 'Rejected']]],
+    ['students', 'Student Applications', [['pending', 'To Verify'], ['exam_pending', 'Pending for Exam'], ['approved', 'Approved'], ['rejected', 'Rejected']]],
     ['approvals', 'Center Applications', [['pending', 'To Verify'], ['hold', 'Hold'], ['approved', 'Approved'], ['rejected', 'Rejected']]],
     ['center_apps', 'Sub-Center Applications'],
     ['super_approvals', 'Super Center Applications', [['pending', 'To Verify'], ['hold', 'Hold'], ['approved', 'Approved'], ['rejected', 'Rejected']]],

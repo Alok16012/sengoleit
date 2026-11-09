@@ -155,8 +155,15 @@ export default function UserManagement() {
   }
 
   async function deleteRole(r) {
-    if (usersPerRole[r.id]) return alert(`${usersPerRole[r.id]} login(s) still have this role. Move them to another role first.`)
-    if (!confirm(`Delete the role "${r.name}"?`)) return
+    // A role still held by logins can be deleted too — they are left with no
+    // role (app_role_id goes to null), which signs them into "No access" until
+    // they are given another one. Say who that is before doing it.
+    const holders = staff.filter(s => s.app_role_id === r.id)
+    const msg = holders.length
+      ? `Delete the role "${r.name}"?\n\n${holders.length} login(s) have this role and will have NO access until you give them another role:\n` +
+        holders.map(s => `• ${s.full_name ? s.full_name + ' — ' : ''}${s.email}`).join('\n')
+      : `Delete the role "${r.name}"?`
+    if (!confirm(msg)) return
     const { error } = await supabase.from('app_roles').delete().eq('id', r.id)
     if (error) return alert('Could not delete: ' + error.message)
     load()

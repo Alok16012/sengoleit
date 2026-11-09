@@ -62,7 +62,7 @@ export default function AccountDepartment() {
   // centre's own request form accepts. null = closed.
   const [addRecharge, setAddRecharge] = useState(null)
   const [addRechargeSaving, setAddRechargeSaving] = useState(false)
-  const [studentStatusFilter, setStudentStatusFilter] = useState(() => firstSub('students', ['pending', 'approved', 'rejected']))
+  const [studentStatusFilter, setStudentStatusFilter] = useState(() => firstSub('students', ['pending', 'exam_pending', 'approved', 'rejected']))
   // Approval Code requests (centers request an approval-code amount; verified
   // here credits the coupon wallet). Same shape as recharge requests.
   const [approvalReqs, setApprovalReqs] = useState([])
@@ -1344,8 +1344,12 @@ export default function AccountDepartment() {
     hold:     s => s.status === 'Hold' && !s.doc_verified_at,
     approved: s => s.status === 'Approved',
     rejected: s => s.status === 'Rejected',
+    // Approved, but not yet sent to the Exam Section (Ph.D goes through the
+    // Research Dept instead, so it never waits here).
+    exam_pending: s => s.status === 'Approved' && !s.exam_forwarded_at && !isPhdStudent(s),
   }
   const studentStatusCounts = {
+    exam_pending: holdStudents.filter(STUDENT_STATUS_MATCH.exam_pending).length,
     pending:  holdStudents.filter(STUDENT_STATUS_MATCH.pending).length,
     hold:     holdStudents.filter(STUDENT_STATUS_MATCH.hold).length,
     approved: holdStudents.filter(STUDENT_STATUS_MATCH.approved).length,
@@ -1510,6 +1514,7 @@ export default function AccountDepartment() {
             <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-xl w-fit">
               {[
                 { key: 'pending',  label: 'To Verify', color: 'bg-indigo-500' },
+                { key: 'exam_pending', label: 'Pending for Exam', color: 'bg-amber-500' },
                 { key: 'approved', label: 'Approved',  color: 'bg-emerald-500' },
                 { key: 'rejected', label: 'Rejected',  color: 'bg-red-500' },
               ].filter(s => mayTab('account_dept', 'students', s.key)).map(s => (
@@ -1546,7 +1551,7 @@ export default function AccountDepartment() {
               </Thead>
               <Tbody>
                 {studentsList.length === 0 ? (
-                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {studentStatusFilter === 'pending' ? 'student applications pending in Account Dept.' : studentStatusFilter + ' student applications'}</Td></Tr>
+                  <Tr><Td colSpan={12} className="text-center text-gray-400 py-12">No {studentStatusFilter === 'pending' ? 'student applications pending in Account Dept.' : studentStatusFilter === 'exam_pending' ? 'approved students waiting to be sent to the Exam Section' : studentStatusFilter + ' student applications'}</Td></Tr>
                 ) : studentsList.map((s, i) => (
                   <Tr key={s.id}>
                     <Td className="text-gray-400 text-xs w-10">{i + 1}</Td>

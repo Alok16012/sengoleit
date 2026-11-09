@@ -159,10 +159,7 @@ export default function AppLayout() {
   const idle = useIdleLogout({
     enabled: !!user,
     storageKey: 'idle:portal',
-    onTimeout: async () => {
-      try { sessionStorage.setItem('logout_reason', 'idle') } catch { /* storage unavailable */ }
-      await signOut()
-    },
+    onTimeout: () => signOut(),
   })
 
   if (loading) return (
