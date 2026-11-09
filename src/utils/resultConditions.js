@@ -33,9 +33,11 @@ export async function fetchFastTrack(studentIds) {
   return Object.fromEntries((data || []).map(r => [`${r.student_id}__${r.semester}`, r]))
 }
 
-// The form's submission date; a student entered without one counts from the
-// day the record was made.
-export const submittedOn = s => s?.date_of_submission || s?.created_at || null
+// The day the form actually reached the system (created_at). The form's own
+// "Date of Submission" field is typed in and is usually backdated to the
+// session — every student forwarded to exams had one older than 20 days even
+// when the form came in last week — so it is only a fallback.
+export const submittedOn = s => s?.created_at || s?.date_of_submission || null
 
 const DAY = 24 * 60 * 60 * 1000
 const dayStart = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
