@@ -11,6 +11,8 @@
 //   create        { email, password, full_name, app_role_id }
 //   set_password  { user_id, password }
 //   set_active    { user_id, active }
+//   update        { user_id, email, full_name }
+//   delete        { user_id }
 // SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are injected
 // automatically by Supabase.
 
@@ -114,6 +116,36 @@ Deno.serve(async (req) => {
       if (bErr) return json({ error: bErr.message }, 400)
       const { error: pErr } = await admin.from('profiles').update({ is_active: active }).eq('id', userId)
       if (pErr) return json({ error: pErr.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'update') {
+      const userId = String(body.user_id || '')
+      const email = String(body.email || '').trim().toLowerCase()
+      const fullName = String(body.full_name || '').trim()
+      if (!EMAIL_RE.test(email)) return json({ error: 'Enter a valid e-mail.' }, 400)
+      if (!(await staffOnly(userId))) return json({ error: 'Only staff logins can be changed here.' }, 403)
+      const { data: ctr } = await admin.from('centers').select('id').ilike('email', email).maybeSingle()
+      if (ctr) return json({ error: 'This e-mail is a centre login. Use a different e-mail.' }, 400)
+      // email_confirm: the new address works at once — no confirmation mail.
+      const { error: uErr } = await admin.auth.admin.updateUserById(userId, {
+        email, email_confirm: true, user_metadata: { role: 'staff', full_name: fullName },
+      })
+      if (uErr) return json({ error: /already/i.test(uErr.message) ? 'This e-mail is already used by another login.' : uErr.message }, 400)
+      const { error: pErr } = await admin.from('profiles').update({ full_name: fullName || null }).eq('id', userId)
+      if (pErr) return json({ error: pErr.message }, 500)
+      return json({ ok: true })
+    }
+
+    if (action === 'delete') {
+      const userId = String(body.user_id || '')
+      if (userId === me.user.id) return json({ error: 'You cannot delete your own login.' }, 400)
+      if (!(await staffOnly(userId))) return json({ error: 'Only staff logins can be deleted here.' }, 403)
+      // The profile first (it may not cascade), then the login itself.
+      const { error: pErr } = await admin.from('profiles').delete().eq('id', userId)
+      if (pErr) return json({ error: pErr.message }, 500)
+      const { error: dErr } = await admin.auth.admin.deleteUser(userId)
+      if (dErr) return json({ error: dErr.message }, 400)
       return json({ ok: true })
     }
 

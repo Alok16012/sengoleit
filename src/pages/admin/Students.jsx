@@ -18,6 +18,8 @@ import { generateAllDocumentsPDF } from '../../utils/generateAllDocumentsPDF'
 import ReRegistrationModal from '../../components/ReRegistrationModal'
 import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
 import { fetchCourierSems } from '../../utils/courierSems'
+import { fetchResultsForMany } from '../../utils/semesterResults'
+import SemesterResultViewModal from '../../components/SemesterResultViewModal'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
 import AdmitCardListModal from '../../components/AdmitCardListModal'
@@ -32,6 +34,7 @@ const PENDING_DOCS = [
   ['aadhar_url', 'Aadhar (front)'], ['aadhar_back_url', 'Aadhar (back)'],
   ['declaration_url', 'Declaration'],
   ['tenth_marksheet_url', '10th Marksheet'], ['twelfth_marksheet_url', '12th Marksheet'],
+  ['tc_url', 'Transfer Certificate (TC)'], ['migration_url', 'Migration Certificate'],
 ]
 
 function genPassword() {
@@ -317,6 +320,10 @@ export default function Students() {
   // Upload one missing document straight onto the student (lookup role).
   // Same bucket and naming as the admission form's own uploads.
   const [docUploading, setDocUploading] = useState(null)   // `${studentId}:${column}`
+  // Semester-wise results of the students a lookup found (student_results),
+  // and the student whose results are open.
+  const [semResults, setSemResults] = useState({})
+  const [semResultStudent, setSemResultStudent] = useState(null)
   async function uploadPendingDoc(s, column, file) {
     if (!file) return
     setDocUploading(`${s.id}:${column}`)
@@ -397,11 +404,11 @@ export default function Students() {
 
   async function fetchData() {
     setLoading(true)
-    const FULL = 'id, student_name, fathers_name, photo_url, signature_url, aadhar_url, aadhar_back_url, declaration_url, tenth_marksheet_url, twelfth_marksheet_url, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const FULL = 'id, student_name, fathers_name, photo_url, tc_url, migration_url, signature_url, aadhar_url, aadhar_back_url, declaration_url, tenth_marksheet_url, twelfth_marksheet_url, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, admit_card_released_at, exam_result_status, exam_result_obtained_marks, exam_result_total_marks, exam_result_marksheet_url, exam_result_declared_at, exam_result_remarks, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
     // Fallback for DBs where the exam-result / admit-card columns are not yet
     // created (run_all_migrations.sql not applied) — students still list; only
     // the admit-card / result actions stay inactive.
-    const MIN = 'id, student_name, fathers_name, photo_url, signature_url, aadhar_url, aadhar_back_url, declaration_url, tenth_marksheet_url, twelfth_marksheet_url, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
+    const MIN = 'id, student_name, fathers_name, photo_url, tc_url, migration_url, signature_url, aadhar_url, aadhar_back_url, declaration_url, tenth_marksheet_url, twelfth_marksheet_url, enrollment_no, registration_no, admission_number, mobile_no, gender, date_of_birth, status, date_of_submission, date_of_admission, created_at, entry_type, semester_year, fee_collected, coupon_discount, course_coupon_discount, fee_sharing_pct, is_hidden, center_id, programme_id, session_id, exam_forwarded_at, programs(program_name, duration, semester_year), academic_sessions(session_name), centers(center_name, center_code, super_center_id)'
 
     // Last resort: no embedded joins at all. Programme / session / centre are
     // looked up separately and attached, so a join PostgREST refuses (an
@@ -491,6 +498,20 @@ export default function Students() {
       || (statusFilter === 'RR' ? !!reReg?.[s.id] : s.status === statusFilter)
     return matchesSearch(s, search) && matchStatus
   })
+
+  // The lookup role's matches are few — fetch their semester results.
+  const lookupIds = searchOnly ? filtered.map(s => s.id).join(',') : ''
+  useEffect(() => {
+    if (!lookupIds) return
+    let cancelled = false
+    fetchResultsForMany(lookupIds.split(',')).then(byKey => {
+      if (cancelled || !byKey) return
+      const by = {}
+      Object.values(byKey).forEach(r => { if (r.status && r.status !== 'Pending') (by[r.student_id] ||= []).push(r) })
+      setSemResults(by)
+    })
+    return () => { cancelled = true }
+  }, [lookupIds])
 
   // What the Excel / PDF exports contain — the list exactly as filtered.
   const EXPORT_COLUMNS = [
@@ -718,7 +739,8 @@ export default function Students() {
             ) : filtered.map((s, i) => {
               const approved = s.status === 'Approved'
               const hasAdmit = s.admit_card_released_at || admitCards?.[s.id]?.length > 0
-              const hasResult = s.exam_result_status && s.exam_result_status !== 'Pending'
+              const semDone = semResults[s.id] || []
+              const hasResult = semDone.length > 0 || (s.exam_result_status && s.exam_result_status !== 'Pending')
               const missing = PENDING_DOCS.filter(([col]) => !s[col])
               const dash = <span className="text-gray-300 text-xs">—</span>
               return (
@@ -769,8 +791,10 @@ export default function Students() {
                   </Td>
                   <Td>
                     {hasResult ? (
-                      <Button size="sm" variant="ghost" onClick={() => setResultStudent(s)} title="Result">
-                        <Award size={14} className={s.exam_result_status === 'Pass' ? 'text-emerald-600' : 'text-red-500'} />
+                      <Button size="sm" variant="ghost" onClick={() => semDone.length ? setSemResultStudent(s) : setResultStudent(s)}
+                        title={semDone.length ? `Result — Sem ${semDone.map(r => r.semester).sort((a, b) => a - b).join(', ')}` : 'Result'}>
+                        <Award size={14} className={(semDone.length ? semDone.every(r => r.status !== 'Fail') : s.exam_result_status === 'Pass') ? 'text-emerald-600' : 'text-red-500'} />
+                        {semDone.length > 0 && <span className="text-[10px] font-bold text-gray-500">{semDone.length}</span>}
                       </Button>
                     ) : dash}
                   </Td>
@@ -1026,7 +1050,7 @@ export default function Students() {
       )}
 
       {regCardStudent && (
-        <RegistrationCardModal student={regCardStudent} onClose={() => setRegCardStudent(null)} />
+        <RegistrationCardModal student={regCardStudent} onClose={() => setRegCardStudent(null)} actionLabel={searchOnly ? 'Download' : 'Generate'} />
       )}
 
       {admitListStudent && (
@@ -1039,6 +1063,9 @@ export default function Students() {
 
       {resultStudent && (
         <ResultViewModal student={resultStudent} onClose={() => setResultStudent(null)} />
+      )}
+      {semResultStudent && (
+        <SemesterResultViewModal student={semResultStudent} onClose={() => setSemResultStudent(null)} />
       )}
 
       {deleteTarget && (

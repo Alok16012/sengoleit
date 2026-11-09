@@ -8,7 +8,10 @@ import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 // The Registration Certificate is issued once per YEAR of the course — a
 // 6-semester course has three (Sem 1, Sem 3, Sem 5). A year unlocks once the
 // fee up to its opening semester is cleared, matching the admit-card gate.
-export default function RegistrationCardModal({ student, onClose }) {
+// actionLabel — the button's word. It only opens the year's certificate (the
+// same one the student portal shows); nothing new is issued, so a lookup
+// screen calls it "Download".
+export default function RegistrationCardModal({ student, onClose, actionLabel = 'Generate' }) {
   const [years, setYears] = useState(null)
   const [busy, setBusy] = useState(null)
 
@@ -68,7 +71,7 @@ export default function RegistrationCardModal({ student, onClose }) {
                     </div>
                     {y.cleared ? (
                       <Button size="sm" variant="primary" disabled={busy === y.year} onClick={() => generate(y)}>
-                        <ScrollText size={13} /> {busy === y.year ? '…' : 'Generate'}
+                        <ScrollText size={13} /> {busy === y.year ? '…' : actionLabel}
                       </Button>
                     ) : (
                       <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-400"><Lock size={12} /> Fee pending</span>

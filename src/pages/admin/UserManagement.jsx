@@ -5,7 +5,7 @@ import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
-import { Plus, Pencil, Trash2, KeyRound, Power, PowerOff, Shield, Users, Search, Eye, EyeOff } from 'lucide-react'
+import { Plus, Pencil, Trash2, KeyRound, Power, PowerOff, Shield, Users, Search, Eye, EyeOff, Copy, RefreshCw, CheckCircle } from 'lucide-react'
 import { PERMISSION_GROUPS, ALL_PERMISSIONS, tabPerm, subTabPerms, groupTabPerms } from '../../utils/permissions'
 import { formatDateTime } from '../../utils/formatDate'
 
@@ -16,6 +16,14 @@ import { formatDateTime } from '../../utils/formatDate'
 
 const inputCls = 'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]'
 const labelCls = 'block text-[11px] font-semibold text-gray-500 mb-1'
+
+// A readable random password (no 0/O, 1/l/I) for the admin to hand over.
+function makePassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
+  const a = new Uint32Array(10)
+  crypto.getRandomValues(a)
+  return Array.from(a, n => chars[n % chars.length]).join('')
+}
 
 // The Edge Function's own error message, not supabase-js's generic one.
 async function callUsersFn(body) {
@@ -45,7 +53,9 @@ export default function UserManagement() {
 
   // User editor
   const [userModal, setUserModal] = useState(null)   // null | { full_name, email, password, app_role_id }
-  const [pwModal, setPwModal] = useState(null)       // null | { user, password }
+  const [pwModal, setPwModal] = useState(null)       // null | { user, password, done? }
+  const [editModal, setEditModal] = useState(null)   // null | { user, full_name, email }
+  const [copied, setCopied] = useState(false)
   const [showPw, setShowPw] = useState(false)
   const [busy, setBusy] = useState(false)
 
@@ -196,9 +206,36 @@ export default function UserManagement() {
     setBusy(true)
     try {
       await callUsersFn({ action: 'set_password', user_id: pwModal.user.id, password: pwModal.password })
-      setPwModal(null); setShowPw(false)
-      alert('Password changed. Share it with the user privately.')
+      setPwModal(m => ({ ...m, done: true }))
     } catch (e) { alert('Could not change the password: ' + e.message) }
+    setBusy(false)
+  }
+
+  async function copyPassword() {
+    try { await navigator.clipboard.writeText(pwModal.password); setCopied(true); setTimeout(() => setCopied(false), 1500) }
+    catch { alert('Could not copy — select the password and copy it.') }
+  }
+
+  async function saveUser() {
+    const f = editModal
+    if (!f.full_name.trim()) return alert('Enter the name.')
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) return alert('Enter a valid e-mail.')
+    setBusy(true)
+    try {
+      await callUsersFn({ action: 'update', user_id: f.user.id, email: f.email.trim(), full_name: f.full_name.trim() })
+      setStaff(list => list.map(x => x.id === f.user.id ? { ...x, email: f.email.trim().toLowerCase(), full_name: f.full_name.trim() } : x))
+      setEditModal(null)
+    } catch (e) { alert('Could not save the login: ' + e.message) }
+    setBusy(false)
+  }
+
+  async function deleteUser(s) {
+    if (!confirm(`Delete the login ${s.email}${s.full_name ? ` (${s.full_name})` : ''}?\n\nThey will not be able to sign in again. This cannot be undone.`)) return
+    setBusy(true)
+    try {
+      await callUsersFn({ action: 'delete', user_id: s.id })
+      setStaff(list => list.filter(x => x.id !== s.id))
+    } catch (e) { alert('Could not delete the login: ' + e.message) }
     setBusy(false)
   }
 
@@ -294,12 +331,20 @@ export default function UserManagement() {
                 <Td className="text-xs text-gray-500">{s.last_sign_in_at ? formatDateTime(s.last_sign_in_at) : 'Never'}</Td>
                 <Td>
                   <div className="flex gap-1">
-                    <button onClick={() => { setShowPw(false); setPwModal({ user: s, password: '' }) }} title="Set new password" disabled={busy}
+                    <button onClick={() => setEditModal({ user: s, full_name: s.full_name || '', email: s.email || '' })} title="Edit name / e-mail" disabled={busy}
+                      className="p-1.5 rounded-lg hover:bg-[#933d18]/10 text-gray-400 hover:text-[#933d18]"><Pencil size={15} /></button>
+                    <button onClick={() => { setShowPw(true); setCopied(false); setPwModal({ user: s, password: makePassword() }) }} title="Set new password" disabled={busy}
                       className="p-1.5 rounded-lg hover:bg-[#933d18]/10 text-gray-400 hover:text-[#933d18]"><KeyRound size={15} /></button>
                     {s.id !== user?.id && (
                       <button onClick={() => toggleActive(s)} title={s.is_active ? 'Switch off' : 'Switch on'} disabled={busy}
                         className={`p-1.5 rounded-lg ${s.is_active ? 'hover:bg-red-50 text-gray-300 hover:text-red-500' : 'hover:bg-emerald-50 text-gray-300 hover:text-emerald-600'}`}>
                         {s.is_active ? <PowerOff size={15} /> : <Power size={15} />}
+                      </button>
+                    )}
+                    {s.id !== user?.id && (
+                      <button onClick={() => deleteUser(s)} title="Delete login" disabled={busy}
+                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500">
+                        <Trash2 size={15} />
                       </button>
                     )}
                   </div>
@@ -453,24 +498,61 @@ export default function UserManagement() {
         )}
       </Modal>
 
+      {/* Edit name / e-mail */}
+      <Modal isOpen={!!editModal} onClose={() => !busy && setEditModal(null)} title="Edit Staff Login" size="sm" allowMaximize={false}>
+        {editModal && (
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Name</label>
+              <input value={editModal.full_name} onChange={e => setEditModal(m => ({ ...m, full_name: e.target.value }))} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>E-mail (used to sign in)</label>
+              <input type="email" value={editModal.email} onChange={e => setEditModal(m => ({ ...m, email: e.target.value }))} className={inputCls} autoComplete="off" />
+              <p className="text-[11px] text-gray-400 mt-1">The new e-mail works at once; the password stays the same.</p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setEditModal(null)} disabled={busy}>Cancel</Button>
+              <Button onClick={saveUser} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* Set password */}
-      <Modal isOpen={!!pwModal} onClose={() => !busy && setPwModal(null)} title="Set New Password" size="sm" allowMaximize={false}>
-        {pwModal && (
+      <Modal isOpen={!!pwModal} onClose={() => !busy && setPwModal(null)} title={pwModal?.done ? 'Password Set' : 'Set New Password'} size="sm" allowMaximize={false}>
+        {pwModal && (pwModal.done ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-emerald-700 text-sm font-semibold"><CheckCircle size={18} /> Password changed</div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-1 text-sm">
+              <p className="break-all"><span className="text-gray-500">E-mail:</span> <span className="font-semibold">{pwModal.user.email}</span></p>
+              <p className="break-all"><span className="text-gray-500">Password:</span> <span className="font-mono font-semibold select-all">{pwModal.password}</span></p>
+            </div>
+            <p className="text-[11px] text-gray-400">Note it down now — passwords are stored scrambled, so it cannot be shown again later. If it is lost, set a new one.</p>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={copyPassword}><Copy size={14} /> {copied ? 'Copied' : 'Copy'}</Button>
+              <Button onClick={() => setPwModal(null)}>Done</Button>
+            </div>
+          </div>
+        ) : (
           <div className="space-y-4">
             <p className="text-sm text-gray-600 break-all">For <span className="font-semibold">{pwModal.user.email}</span></p>
             <div className="relative">
               <input type={showPw ? 'text' : 'password'} value={pwModal.password} onChange={e => setPwModal(m => ({ ...m, password: e.target.value }))}
-                className={`${inputCls} pr-10`} placeholder="At least 8 characters" autoComplete="new-password" />
-              <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700">
-                {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
-              </button>
+                className={`${inputCls} pr-16 font-mono`} placeholder="At least 8 characters" autoComplete="new-password" />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex gap-2">
+                <button type="button" onClick={() => setPwModal(m => ({ ...m, password: makePassword() }))} title="Generate" className="text-gray-400 hover:text-gray-700"><RefreshCw size={15} /></button>
+                <button type="button" onClick={() => setShowPw(v => !v)} title={showPw ? 'Hide' : 'Show'} className="text-gray-400 hover:text-gray-700">
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setPwModal(null)} disabled={busy}>Cancel</Button>
               <Button onClick={setPassword} disabled={busy}>{busy ? 'Saving…' : 'Set Password'}</Button>
             </div>
           </div>
-        )}
+        ))}
       </Modal>
     </div>
   )
