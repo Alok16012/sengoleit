@@ -134,7 +134,10 @@ function MultiSearchSelect({ label, allLabel, values, onChange, options, minWidt
 }
 
 export default function Syllabus() {
-  const { may, mayTab } = useAuth()
+  const { may, mayTab, profile } = useAuth()
+  // A course's syllabus is locked once it is Done — only the admin can still
+  // change it, so a finished entry is not edited by accident.
+  const isAdmin = profile?.role === 'admin'
   const [structs, setStructs]         = useState([])   // fee_structures master
   const [programs, setPrograms]       = useState([])
   const [departments, setDepartments] = useState([])
@@ -698,7 +701,7 @@ export default function Syllabus() {
                         {/* The icon follows the label: a plus only while there
                             is nothing to edit yet. It used to stay a plus on
                             done courses, so "Edit" read as another Add. */}
-                        {may('syllabus.manage') && (
+                        {may('syllabus.manage') && (cnt === 0 || isAdmin) && (
                         <button onClick={() => openCourse(s)}
                           className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
                           {cnt > 0 ? <><Pencil size={13} /> Edit</> : <><Plus size={13} /> Add</>}
