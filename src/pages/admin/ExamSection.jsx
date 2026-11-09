@@ -919,12 +919,11 @@ export default function ExamSection() {
               <Th>Registration / Application No</Th>
               <Th>Forwarded On</Th>
               <Th>Admit Card</Th>
-              <Th>Result</Th>
             </tr>
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={10} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={9} className="text-center text-gray-400 py-12">
                 {search ? 'No students match your search.' : 'No students have been forwarded to the Exam Section yet.'}
               </Td></Tr>
             ) : filtered.map((s, i) => (
@@ -984,13 +983,6 @@ export default function ExamSection() {
                       )
                     })()}
                   </div>
-                </Td>
-                {/* Results are entered per semester — the same semesters the
-                    admit card is issued for. */}
-                <Td>
-                  <Button size="sm" variant="outline" onClick={() => setResultModalStudent(s)}>
-                    <Award size={13} /> Results
-                  </Button>
                 </Td>
               </Tr>
             ))}
@@ -1292,7 +1284,9 @@ export default function ExamSection() {
                       </div>
                     </div>
                     {!admitModal.pick.rows.length ? (
-                      <p className="text-[12px] text-gray-500 mb-4">No papers found in the syllabus for Semester {admitModal.pick.sem}. The admit card will print “as per university curriculum”.</p>
+                      <p className="text-[12px] text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2 mb-4">
+                        No syllabus for Semester {admitModal.pick.sem} of this course. Add its papers in Syllabus first — the admit card cannot be generated without them.
+                      </p>
                     ) : (
                       <div className="mb-4">
                         <div className="flex items-center justify-between text-[11px] text-gray-400 mb-2">
@@ -1322,7 +1316,7 @@ export default function ExamSection() {
                     )}
                     {may('exam_section.admit_cards') && (
                     <Button variant="primary" className="w-full justify-center"
-                      disabled={busy === `${admitModal.student.id}-${admitModal.pick.sem}` || (admitModal.pick.rows.length > 0 && admitModal.pick.selected.size === 0)}
+                      disabled={busy === `${admitModal.student.id}-${admitModal.pick.sem}` || admitModal.pick.rows.length === 0 || admitModal.pick.selected.size === 0}
                       onClick={() => handleAdmitCard(admitModal.student, admitModal.pick.sem, admitModal.pick.rows, admitModal.pick.selected, { edit: !!admitModal.pick.editing })}>
                       <ClipboardList size={14} /> {busy === `${admitModal.student.id}-${admitModal.pick.sem}` ? '…' : admitModal.pick.editing ? 'Save & Print Admit Card' : 'Generate Admit Card'}
                     </Button>
