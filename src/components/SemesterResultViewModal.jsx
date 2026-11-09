@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { X, Award, Eye, ChevronUp } from 'lucide-react'
+import { X, Award, Eye, ChevronUp, Printer } from 'lucide-react'
 import Button from './ui/Button'
 import { supabase } from '../lib/supabase'
 import { fetchResultsForMany } from '../utils/semesterResults'
 import { fetchMarksheetFor } from '../utils/paperMarks'
 import ResultSheetView from './ResultSheetView'
+import { generateStatementOfGrades, sgpaOf } from '../utils/generateStudentCards'
+import { formatMonthYear } from '../utils/formatDate'
 
 // A centre's read-only view of its student's released results, semester by
 // semester, with the result sheet each one opens.
@@ -14,7 +16,11 @@ import ResultSheetView from './ResultSheetView'
 // student it belongs to are never looking at different numbers. It opens in
 // the page; there is no print or download here. Only the Exam Section issues
 // the university's Statement of Marks.
-export default function SemesterResultViewModal({ student, onClose }) {
+//
+// printable — also offer the printed Statement of Grades (with its date of
+// issue) for a semester the Exam Section has sent to Print. Read-only: it does
+// not mark anything printed.
+export default function SemesterResultViewModal({ student, onClose, printable = false }) {
   const [rows, setRows] = useState(null)
   const [openSem, setOpenSem] = useState(null)
   const [busySem, setBusySem] = useState(null)
@@ -23,6 +29,7 @@ export default function SemesterResultViewModal({ student, onClose }) {
   // The list row carries no course_code, and the sheet prints one — read the
   // full student once, the first time a sheet is opened.
   const [full, setFull] = useState(null)
+  const [printingSem, setPrintingSem] = useState(null)
 
   useEffect(() => {
     let alive = true
@@ -48,6 +55,37 @@ export default function SemesterResultViewModal({ student, onClose }) {
     if (whole && !full) setFull(whole)
     if (sheet) setSheets(s => ({ ...s, [r.semester]: sheet }))
     else setFailed(f => ({ ...f, [r.semester]: reason }))
+  }
+
+  // The same sheet and dates the Print tab uses: the calendar's Marksheet
+  // Printing Date, else the day the result went to Print. Each earlier
+  // semester's SGPA comes from its own marksheet.
+  async function printMarksheet(r) {
+    setPrintingSem(r.semester)
+    try {
+      const sems = Array.from({ length: r.semester }, (_, i) => i + 1)
+      const [sheets, whole] = await Promise.all([
+        Promise.all(sems.map(n => fetchMarksheetFor(student.id, n))),
+        full ? Promise.resolve(full) : supabase.from('students')
+          .select('*, programs(program_name, semester_year), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
+          .eq('id', student.id).single().then(res => res.data),
+      ])
+      const last = sheets[sheets.length - 1]
+      if (!last?.sheet) return alert(last?.reason || 'The marksheet could not be read.')
+      const sheet = last.sheet
+      if (whole && !full) setFull(whole)
+      const semSgpas = {}
+      sheets.forEach((x, i) => { const g = x.sheet ? sgpaOf(x.sheet.papers) : null; if (g != null) semSgpas[i + 1] = g })
+      generateStatementOfGrades(whole || student, sheet.papers, {
+        dmcNo: r.dmc_no ? String(r.dmc_no) : '',
+        semSgpas,
+        issueDate: sheet.result_published ? `${sheet.result_published}T12:00:00` : (r.print_forwarded_at || null),
+        semester: `Semester ${r.semester}`,
+        examHeld: String(sheet.exam_held || '').trim() || formatMonthYear(sheet.exam_start),
+        resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
+        cgpa: sgpaOf(sheet.upto || []),
+      })
+    } finally { setPrintingSem(null) }
   }
 
   const pct = (o, t) => (o && t ? `${((Number(o) / Number(t)) * 100).toFixed(1)}%` : '—')
@@ -87,11 +125,20 @@ export default function SemesterResultViewModal({ student, onClose }) {
                           {' · '}{r.obtained_marks || '—'}/{r.total_marks || '—'} · {pct(r.obtained_marks, r.total_marks)}
                         </p>
                       </div>
-                      <Button size="sm" variant="secondary" disabled={busySem === r.semester}
-                        onClick={() => toggleView(r)}>
-                        {open ? <ChevronUp size={13} /> : <Eye size={13} />}
-                        {busySem === r.semester ? '…' : open ? 'Hide' : 'View'}
-                      </Button>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button size="sm" variant="secondary" disabled={busySem === r.semester}
+                          onClick={() => toggleView(r)}>
+                          {open ? <ChevronUp size={13} /> : <Eye size={13} />}
+                          {busySem === r.semester ? '…' : open ? 'Hide' : 'View'}
+                        </Button>
+                        {printable && (r.print_forwarded_at ? (
+                          <Button size="sm" variant="primary" disabled={printingSem === r.semester} onClick={() => printMarksheet(r)}>
+                            <Printer size={13} /> {printingSem === r.semester ? '…' : 'Marksheet'}
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] text-gray-400" title="The Exam Section has not sent this semester to Print yet">Not printed yet</span>
+                        ))}
+                      </div>
                     </div>
 
                     {open && (

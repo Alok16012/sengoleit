@@ -1050,7 +1050,7 @@ export default function Students() {
       )}
 
       {regCardStudent && (
-        <RegistrationCardModal student={regCardStudent} onClose={() => setRegCardStudent(null)} actionLabel={searchOnly ? 'Download' : 'Generate'} />
+        <RegistrationCardModal student={regCardStudent} onClose={() => setRegCardStudent(null)} actionLabel={searchOnly ? 'Download' : 'Generate'} showFee={!searchOnly} />
       )}
 
       {admitListStudent && (
@@ -1065,7 +1065,7 @@ export default function Students() {
         <ResultViewModal student={resultStudent} onClose={() => setResultStudent(null)} />
       )}
       {semResultStudent && (
-        <SemesterResultViewModal student={semResultStudent} onClose={() => setSemResultStudent(null)} />
+        <SemesterResultViewModal student={semResultStudent} onClose={() => setSemResultStudent(null)} printable />
       )}
 
       {deleteTarget && (
