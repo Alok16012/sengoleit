@@ -4,12 +4,13 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
-import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard } from 'lucide-react'
+import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard, IndianRupee } from 'lucide-react'
 import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
 import { useAuth } from '../../context/AuthContext'
+import ResearchPaymentConditions from '../../components/ResearchPaymentConditions'
 import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, unassignRef, deleteLetterSetting, setSitting } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
@@ -22,11 +23,14 @@ export default function ResearchDepartment() {
   const { may, mayTab } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState(() => ['letters', 'exam', 'master'].find(k => mayTab('research_dept', k)) || 'letters')      // 'letters' | 'exam'
+  const [tab, setTab] = useState(() => ['letters', 'exam', 'master', 'payment'].find(k => mayTab('research_dept', k)) || 'letters')      // 'letters' | 'exam'
   const [q, setQ] = useState('')
   const [sessions, setSessions] = useState([])
   const [sessionFilter, setSessionFilter] = useState('all')
   const [busy, setBusy] = useState(null)
+  // Payment Condition — least fee paid before each document; null = loading.
+  const [payRules, setPayRules] = useState(null)
+  const [payMissing, setPayMissing] = useState(false)
   // True once a query proves the new columns are missing — drives the banner.
   const [needsSql, setNeedsSql] = useState(false)
   // Master panel — each letter type has its own reference series + date.
@@ -45,6 +49,7 @@ export default function ResearchDepartment() {
     { name: 'Entrance Certificate', prefix: '', nextNum: 1, date: today, testDate: '' },
   ]
   const LETTER_NAMES = ['Hall Ticket', 'Offer Letter', 'Entrance Certificate']
+  const PAY_DOCS = [...LETTER_NAMES, 'Enrollment / ID Card', 'Forward to Exam']
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
   // Open while asking which exam sitting a candidate's letter is for.
   const [sittingAsk, setSittingAsk] = useState(null)   // { letter, resolve }
@@ -208,7 +213,11 @@ export default function ResearchDepartment() {
     // to a blank letter and quietly issue "001" with no prefix — e.g. when
     // Generate was pressed before the shared settings finished loading, or for
     // a session that was never set up. Fail loudly instead of numbering junk.
-    if (!letter || !String(letter.prefix || '').trim()) {
+    // The Hall Ticket prints the application number, not this one — it needs
+    // no series, but the number is still claimed so the ticket counts as
+    // issued (Print, not Generate) for every admin.
+    const noSeries = !letter || !String(letter.prefix || '').trim()
+    if (noSeries && letterName !== 'Hall Ticket') {
       alert(`No ${letterName} reference series is set up for ${student.academic_sessions?.session_name || 'this student’s session'} yet.\n\nSet its prefix in the Master Panel and press Save, then Generate again. This copy prints with the application number instead.`)
       return null
     }
@@ -218,14 +227,14 @@ export default function ResearchDepartment() {
     // Walk forward past every taken number; persisting num+1 also heals the
     // drifted series.
     const taken = new Set(Object.values(map).map(Number))
-    num = Number(letter.nextNum) || 1
+    num = Number(letter?.nextNum) || 1
     while (taken.has(num)) num++
     const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
-    const nextLetters = letters.map(l => l === letter ? { ...l, nextNum: num + 1 } : l)
+    const nextLetters = letter ? letters.map(l => l === letter ? { ...l, nextNum: num + 1 } : l) : letters
     setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
     // Record the claim so every admin — and the student's own copy — reuses it.
     if (settingsInDb) assignRef(letterName, student.id, num)
-    return `${letter.prefix}${refSerial(num)}`
+    return `${letter?.prefix || ''}${refSerial(num)}`
   }
   function docOptsFor(student, letterName, sitting = 1) {
     const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
@@ -305,7 +314,8 @@ export default function ResearchDepartment() {
   // the button promises the same document back.
   async function issue(student, letterName, generate) {
     const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
-    const alreadyIssued = assigned[letterName]?.[student.id] != null
+    const alreadyIssued = hasLetter(student, letterName)
+    if (!alreadyIssued && payBlocked(student, letterName)) return
     const recorded = sittings[letterName]?.[student.id]
     const sitting = alreadyIssued ? (recorded || 1) : await askSitting(letter)
     if (!sitting) return                       // cancelled
@@ -326,6 +336,12 @@ export default function ResearchDepartment() {
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    supabase.from('research_payment_rules').select('doc, min_fee').then(({ data, error }) => {
+      setPayMissing(!!error)
+      setPayRules(Object.fromEntries((data || []).map(r => [r.doc, Number(r.min_fee) || 0])))
+    })
+  }, [])
   useEffect(() => {
     supabase.from('academic_sessions').select('id, session_name, status').order('session_name', { ascending: false })
       .then(({ data }) => setSessions((data || []).filter(s => (s.status || 'Active').toLowerCase() !== 'inactive')))
@@ -407,8 +423,22 @@ export default function ResearchDepartment() {
 
   // All three letters must have an issued reference number before the
   // enrollment number can be generated — that is the Research Dept's rule.
-  const lettersDone = (s) =>
-    LETTER_NAMES.every(n => assigned[n]?.[s.id] != null)
+  // Issued = a number is on record. Hall Tickets printed before they were
+  // numbered have none, but one that is Visible was plainly issued.
+  function hasLetter(s, name) {
+    return assigned[name]?.[s.id] != null || (name === 'Hall Ticket' && !!s.hall_ticket_active)
+  }
+  const lettersDone = (s) => LETTER_NAMES.every(n => hasLetter(s, n))
+
+  // Payment Condition: true (with a message) when the candidate has not yet
+  // paid the least fee set for this document.
+  function payBlocked(student, doc) {
+    const min = Number(payRules?.[doc]) || 0
+    const paid = Number(student.fee_collected) || 0
+    if (paid >= min) return false
+    alert(`${student.student_name} has paid ₹${paid.toLocaleString('en-IN')}.\n\nThe ${doc} needs at least ₹${min.toLocaleString('en-IN')} paid first (Research Dept → Payment Condition).`)
+    return true
+  }
 
   // Generate the enrollment number from the Candidates row (once the Hall
   // Ticket, Offer Letter and Entrance Certificate are all issued), and open
@@ -417,6 +447,7 @@ export default function ResearchDepartment() {
   async function generateEnrollment(student) {
     if (student.enrollment_no) return
     if (!lettersDone(student)) return
+    if (payBlocked(student, 'Enrollment / ID Card')) return
     if (!confirm(`Generate the Enrollment Number for ${student.student_name}?\n\nThe ID card will be generated along with it.`)) return
     setBusy(`${student.id}-enroll`)
     const enrollNo = await generateEnrollmentNumber(student)
@@ -438,6 +469,7 @@ export default function ResearchDepartment() {
   // it is minted here as a fallback.
   async function forwardToExam(student) {
     if (student.exam_forwarded_at) return
+    if (payBlocked(student, 'Forward to Exam')) return
     if (!confirm(`Forward ${student.student_name} to the Exam Section?\n\nAn Enrollment Number will be generated now.`)) return
     setBusy(`${student.id}-exam`)
     const enrollNo = student.enrollment_no || await generateEnrollmentNumber(student)
@@ -484,8 +516,9 @@ export default function ResearchDepartment() {
           {mayTab('research_dept', 'master') && <TabBtn id="master" icon={Settings2} label="Master Panel" />}
           {mayTab('research_dept', 'letters') && <TabBtn id="letters" icon={FlaskConical} label="Candidates" count={filtered.length} />}
           {mayTab('research_dept', 'exam') && <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={filtered.filter(s => !s.exam_forwarded_at).length} />}
+          {mayTab('research_dept', 'payment') && <TabBtn id="payment" icon={IndianRupee} label="Payment Condition" />}
         </div>
-        {tab !== 'master' && (
+        {tab !== 'master' && tab !== 'payment' && (
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -534,6 +567,11 @@ export default function ResearchDepartment() {
       </div>
 
       {/* Master panel — per-letter reference series + date */}
+      {tab === 'payment' && (payRules == null
+        ? <p className="text-center text-gray-400 py-12 text-sm">Loading…</p>
+        : <ResearchPaymentConditions docs={PAY_DOCS} rules={payRules} missing={payMissing}
+            canEdit={may('research_dept.manage')} onSaved={setPayRules} />)}
+
       {tab === 'master' && (
       <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
         <div className="flex items-center gap-2">
@@ -851,7 +889,7 @@ export default function ResearchDepartment() {
                 <Td className="text-sm">{s.specialization || '—'}</Td>
                 <Td className="text-sm">{s.academic_sessions?.session_name || s.academic_year || '—'}</Td>
                 <LetterCell student={s} field="hall_ticket_active" busy={busy}
-                  issued={assigned['Hall Ticket']?.[s.id] != null}
+                  issued={hasLetter(s, 'Hall Ticket')}
                   refNo={issuedRef(s, 'Hall Ticket')}
                   onWithdraw={() => clearRef(s, 'Hall Ticket', 'hall_ticket_active')}
                   onGenerate={() => hallTicketFor(s)}

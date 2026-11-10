@@ -857,7 +857,7 @@ export default function ExamSection() {
 
       {view === 'calendar' && <ExaminationCalendar />}
 
-      {view === 'condition' && <ResultConditions students={data} canEdit={may('exam_section.result_condition')} />}
+      {view === 'condition' && <ResultConditions canEdit={may('exam_section.result_condition')} />}
 
       {view === 'list' && (<>
       <div className="flex flex-wrap gap-3 mb-4 items-end">

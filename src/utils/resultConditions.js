@@ -93,7 +93,9 @@ export async function chargeFor(student, sem, rules, slab) {
   return Math.round(Number(slab.multiplier || 0) * fee + Number(slab.extra || 0))
 }
 
-// May this semester's result be declared today? { ok, message }.
+// May this semester's result be declared today? { ok } or, when it is too
+// early, { ok: false, message, day, slab, charge } — slab is null when no slab
+// covers today, and then there is no early result at all.
 export async function checkResultAllowed(student, sem) {
   const rules = await fetchResultRules()
   if (!rules) return { ok: true }
@@ -102,12 +104,21 @@ export async function checkResultAllowed(student, sem) {
   const ft = await fetchFastTrack([student.id])
   if (ft[`${student.id}__${sem}`]) return { ok: true }
   const ready = readyOn(submittedOn(student), rules)
+  const slab = slabFor(rules, day)
+  const charge = slab ? await chargeFor(student, sem, rules, slab) : 0
   return {
-    ok: false,
+    ok: false, day, slab, charge,
     message:
       `${student.student_name}'s result can be declared from ${ready.toLocaleDateString('en-GB')} ` +
-      `(${rules.standard_days} days after the form was submitted; today is day ${day}).\n\n` +
-      `For an earlier result, allow it from Exam Section → Result Condition — ` +
-      `today's charge: ${slabLabel(slabFor(rules, day), rules)}.`,
+      `(${rules.standard_days} days after the form was entered; today is day ${day}).`,
   }
+}
+
+// Record that the early-result charge was paid, so the result may be declared.
+export async function recordFastTrack(student, sem, day, amount, note) {
+  const { error } = await supabase.from('result_fast_track').upsert({
+    student_id: student.id, semester: sem, allowed_day: day,
+    amount: Number(amount) || 0, note: note || null,
+  }, { onConflict: 'student_id,semester' })
+  return { error }
 }

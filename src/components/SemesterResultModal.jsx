@@ -8,7 +8,7 @@ import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStude
 import { generateSemesterMarks } from '../utils/marksFill'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
 import { fetchExamDates } from '../utils/examSettings'
-import { checkResultAllowed } from '../utils/resultConditions'
+import { checkResultAllowed, recordFastTrack, slabLabel, fetchResultRules } from '../utils/resultConditions'
 import { useAuth } from '../context/AuthContext'
 
 // The Fill rules — 40% floors, the 73 ceiling for 63-70%, distinct totals —
@@ -234,7 +234,23 @@ export default function SemesterResultModal({ student, special = false, onClose,
     // already declared is not held back.
     if (!pick.result) {
       const gate = await checkResultAllowed(student, pick.sem)
-      if (!gate.ok) { setBusy(false); alert(gate.message); return }
+      if (!gate.ok) {
+        // No slab for today, or no permission to take the charge: wait.
+        if (!gate.slab || !may('exam_section.result_condition')) {
+          setBusy(false)
+          alert(gate.message + (gate.slab ? `\n\nAn early result costs ₹${gate.charge.toLocaleString('en-IN')}.` : ''))
+          return
+        }
+        const rules = await fetchResultRules()
+        const note = prompt(
+          `${gate.message}\n\nEarly result charge (day ${gate.slab.from}–${gate.slab.to}: ${slabLabel(gate.slab, rules)}): ` +
+          `₹${gate.charge.toLocaleString('en-IN')}\n\n` +
+          'Only once it is paid: enter the receipt no. / note and press OK to declare the result. Cancel to wait.',
+          '')
+        if (note == null) { setBusy(false); return }
+        const { error: ftErr } = await recordFastTrack(student, pick.sem, gate.day, gate.charge, note.trim())
+        if (ftErr) { setBusy(false); alert('Could not record the early-result charge: ' + ftErr.message); return }
+      }
     }
     // Paper marks first: the semester row is what the list reflects, so it
     // should not claim saved while the detail behind it failed.

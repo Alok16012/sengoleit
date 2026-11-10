@@ -100,7 +100,7 @@ export const PERMISSION_GROUPS = [
   { key: 'payment_summary', label: 'Payment Summary', path: '/admin/payment-summary', perms: [
     ['payment_summary.view', 'View payment summary'],
   ] },
-  { key: 'research_dept', label: 'Research Dept.', path: '/admin/research-department', tabs: [['master','Master Panel'],['letters','Candidates'],['exam','Forward to Exam']], perms: [
+  { key: 'research_dept', label: 'Research Dept.', path: '/admin/research-department', tabs: [['master','Master Panel'],['letters','Candidates'],['exam','Forward to Exam'],['payment','Payment Condition']], perms: [
     ['research_dept.view', 'View research department'],
     ['research_dept.manage', 'Issue letters / forward Ph.D students'],
   ] },
