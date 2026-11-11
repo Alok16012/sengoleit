@@ -48,7 +48,37 @@ export default function SemesterResultModal({ student, special = false, onClose,
   }
   useEffect(() => { load() }, [student])
 
-  function edit(row) {
+  const declared = row => !!row?.result && row.result.status !== 'Pending'
+
+  // Result Condition: a first declaration waits the set days after the form
+  // was entered. Early, it needs the slab's charge — asked for here, recorded
+  // once paid. No slab for today (or no permission): it simply waits.
+  async function passGate(sem) {
+    const gate = await checkResultAllowed(student, sem)
+    if (gate.ok) return true
+    if (!gate.slab || !may('exam_section.result_condition')) {
+      alert(gate.message + (gate.slab ? `\n\nAn early result costs ₹${gate.charge.toLocaleString('en-IN')}.` : ''))
+      return false
+    }
+    const rules = await fetchResultRules()
+    const note = prompt(
+      `${gate.message}\n\nEarly result charge (day ${gate.slab.from}–${gate.slab.to}: ${slabLabel(gate.slab, rules)}): ` +
+      `₹${gate.charge.toLocaleString('en-IN')}\n\n` +
+      'Only once it is paid: enter the receipt no. / note and press OK to enter the result. Cancel to wait.',
+      '')
+    if (note == null) return false
+    const { error } = await recordFastTrack(student, sem, gate.day, gate.charge, note.trim())
+    if (error) { alert('Could not record the early-result charge: ' + error.message); return false }
+    return true
+  }
+
+  async function edit(row) {
+    if (!declared(row)) {
+      setBusy(true)
+      const ok = await passGate(row.sem)
+      setBusy(false)
+      if (!ok) return
+    }
     setPick(row)
     setJustSaved(null)
     setPapers(null)
@@ -229,29 +259,9 @@ export default function SemesterResultModal({ student, special = false, onClose,
       return
     }
     setBusy(true)
-    // Result Condition: a first declaration waits the set days after the form
-    // was submitted, unless an early result was allowed. Correcting a result
-    // already declared is not held back.
-    if (!pick.result) {
-      const gate = await checkResultAllowed(student, pick.sem)
-      if (!gate.ok) {
-        // No slab for today, or no permission to take the charge: wait.
-        if (!gate.slab || !may('exam_section.result_condition')) {
-          setBusy(false)
-          alert(gate.message + (gate.slab ? `\n\nAn early result costs ₹${gate.charge.toLocaleString('en-IN')}.` : ''))
-          return
-        }
-        const rules = await fetchResultRules()
-        const note = prompt(
-          `${gate.message}\n\nEarly result charge (day ${gate.slab.from}–${gate.slab.to}: ${slabLabel(gate.slab, rules)}): ` +
-          `₹${gate.charge.toLocaleString('en-IN')}\n\n` +
-          'Only once it is paid: enter the receipt no. / note and press OK to declare the result. Cancel to wait.',
-          '')
-        if (note == null) { setBusy(false); return }
-        const { error: ftErr } = await recordFastTrack(student, pick.sem, gate.day, gate.charge, note.trim())
-        if (ftErr) { setBusy(false); alert('Could not record the early-result charge: ' + ftErr.message); return }
-      }
-    }
+    // Result Condition, checked again at save in case the day turned while the
+    // sheet was open. A result already declared can still be corrected.
+    if (!declared(pick) && !(await passGate(pick.sem))) { setBusy(false); return }
     // Paper marks first: the semester row is what the list reflects, so it
     // should not claim saved while the detail behind it failed.
     if (papers?.length) {

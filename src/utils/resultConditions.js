@@ -41,16 +41,20 @@ export const submittedOn = s => s?.created_at || s?.date_of_submission || null
 
 const DAY = 24 * 60 * 60 * 1000
 const dayStart = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
+// The local calendar day of a date — the same day the Students list shows as
+// "Entered On". A bare YYYY-MM-DD is that day; a timestamp is converted from
+// UTC first, so a form entered just after midnight is not counted a day early.
+const localDayOf = date => dayStart(/^\d{4}-\d{2}-\d{2}$/.test(String(date)) ? `${date}T00:00:00` : date)
 
 // Whole days from submission to today (submission day = day 0).
 export function daysSince(date) {
   if (!date) return null
-  return Math.floor((dayStart(new Date()) - dayStart(String(date).slice(0, 10) + 'T00:00:00')) / DAY)
+  return Math.round((dayStart(new Date()) - localDayOf(date)) / DAY)
 }
 
 export function readyOn(date, rules) {
   if (!date) return null
-  const d = dayStart(String(date).slice(0, 10) + 'T00:00:00')
+  const d = localDayOf(date)
   d.setDate(d.getDate() + (Number(rules?.standard_days) || 0))
   return d
 }
