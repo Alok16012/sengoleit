@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase'
 import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import { IndianRupee } from 'lucide-react'
+import StudentPayOnline from '../../components/StudentPayOnline'
 
 function calcTotals(feeItems, totalSems) {
   const sems = totalSems || 1
@@ -27,6 +28,7 @@ export default function StudentFees() {
   const { student } = useStudentAuth()
   const [feeData, setFeeData] = useState(null)
   const [prog, setProg] = useState(null)
+  const [me, setMe] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -35,6 +37,7 @@ export default function StudentFees() {
       const s = await fetchStudentSelf()
       if (!s) { setLoading(false); return }
       setProg(s.programs)
+      setMe(s)
       // fee_structures keys on program_id, and the items live in the related
       // fee_items table. Prefer the student's own session; fall back to the
       // programme's only structure (mirrors courseFee.js) so the page still
@@ -73,6 +76,8 @@ export default function StudentFees() {
         <h1 className="text-xl font-black text-gray-900">Fee Details</h1>
         {prog && <p className="text-sm text-gray-500 mt-0.5">{prog.program_name}</p>}
       </div>
+
+      {me && <StudentPayOnline student={me} />}
 
       {!feeData ? (
         <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
