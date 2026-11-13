@@ -1616,7 +1616,7 @@ export default function AccountDepartment() {
                           <span className="text-[11px] font-semibold text-gray-400 whitespace-nowrap" title="Ph.D candidates are forwarded by the Research Dept., which issues the Enrollment Number">
                             Forwarded by Research Dept.
                           </span>
-                        ) : may('account_dept.students') && (
+                        ) : (may('account_dept.students') || may('account_dept.forward_exam')) && (
                           <Button size="sm" variant="primary" onClick={() => forwardToExam(s)} title="Forward this enrolled student to the Exam Section">
                             <Send size={13} /> Forward to Exam Section
                           </Button>

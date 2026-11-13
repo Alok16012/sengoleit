@@ -90,6 +90,7 @@ export const PERMISSION_GROUPS = [
   ], perms: [
     ['account_dept.view', 'View account department'],
     ['account_dept.students', 'Approve / reject student fee'],
+    ['account_dept.forward_exam', 'Forward students to the Exam Section'],
     ['account_dept.recharge_verify', 'Verify / reject recharge requests'],
     ['account_dept.recharge_edit', 'Add / edit recharge'],
     ['account_dept.recharge_delete', 'Delete recharge'],
