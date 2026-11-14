@@ -70,6 +70,7 @@ import StudentLayout from './pages/student/StudentLayout'
 import StudentDashboard from './pages/student/StudentDashboard'
 import StudentProfile from './pages/student/StudentProfile'
 import StudentFees from './pages/student/StudentFees'
+import StudentPayFees from './pages/student/StudentPayFees'
 import StudentResults from './pages/student/StudentResults'
 import StudentAdmissionForm from './pages/student/StudentAdmissionForm'
 import StudentSettings from './pages/student/StudentSettings'
@@ -122,6 +123,7 @@ export default function App() {
             <Route path="/student/profile" element={<StudentProfile />} />
             <Route path="/student/settings" element={<StudentSettings />} />
             <Route path="/student/fees" element={<StudentFees />} />
+            <Route path="/student/pay" element={<StudentPayFees />} />
             <Route path="/student/results" element={<StudentResults />} />
             <Route path="/student/admission-form" element={<StudentAdmissionForm />} />
             <Route path="/student/registration-slip" element={<StudentRegistrationSlip />} />

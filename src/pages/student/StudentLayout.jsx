@@ -20,6 +20,7 @@ const baseNavItems = [
   // lives in the center and admin panels only. (StudentAdmitCard.jsx is kept
   // for when it comes back; its route redirects to the dashboard for now.)
   { to: '/student/results',          icon: GraduationCap,   label: 'Results' },
+  { to: '/student/pay',              icon: IndianRupee,     label: 'Pay Fees' },
   // Online Exam is an unbuilt "Coming Soon" shell — hidden from the menu
   // until it exists (its route remains for when it's ready).
   { to: '/student/syllabus',         icon: BookMarked,      label: 'Syllabus' },
@@ -164,6 +165,10 @@ export default function StudentLayout() {
             </div>
           </div>
           <div className="flex items-center space-x-4">
+            <button onClick={() => navigate('/student/pay')}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors">
+              <CreditCard size={16} /> <span className="hidden sm:inline">Pay Now</span>
+            </button>
             <button className="p-2.5 bg-white border border-gray-100 rounded-xl text-gray-500 hover:text-[#933d18] hover:border-[#933d18]/20 transition-all shadow-sm">
               <Bell size={18} />
             </button>
