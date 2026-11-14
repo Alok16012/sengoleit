@@ -3,8 +3,8 @@ import { useStudentAuth } from '../../context/StudentAuthContext'
 import { fetchStudentSelf } from '../../utils/studentSelf'
 import StudentPayOnline from '../../components/StudentPayOnline'
 
-// Pay Fees — only what is due and the PayU button. The full fee structure
-// (Fee Details) stays hidden from students by university policy.
+// Pay Fees — an amount box and the PayU button, nothing else. The fee
+// structure (Fee Details) stays hidden from students by university policy.
 export default function StudentPayFees() {
   const { student } = useStudentAuth()
   const [me, setMe] = useState(null)
@@ -19,7 +19,7 @@ export default function StudentPayFees() {
     <div className="p-6 space-y-4 max-w-3xl">
       <div>
         <h1 className="text-xl font-black text-gray-900">Pay Fees</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Pay your due fee online — UPI, card or net banking.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Enter the amount and pay.</p>
       </div>
       {loading ? <p className="text-gray-400 text-sm">Loading…</p>
         : me ? <StudentPayOnline student={me} />
