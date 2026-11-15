@@ -42,7 +42,9 @@ export async function fetchExamDates(student, sem, token) {
       // keep printing on an unmigrated database.
       const build = (cols) => supabase.from('exam_calendar').select(cols)
         .eq('session_id', sid).gt('semester', offset).lte('semester', offset + 12)
-      ;({ data, error } = await build('semester, start_date, end_date, exam_held, result_published, result_declared_on'))
+      // admit_card_issued_on arrives with add_exam_calendar_admit_issue.sql.
+      ;({ data, error } = await build('semester, start_date, end_date, exam_held, result_published, result_declared_on, admit_card_issued_on'))
+      if (error) ({ data, error } = await build('semester, start_date, end_date, exam_held, result_published, result_declared_on'))
       if (error) ({ data, error } = await build('semester, start_date, end_date, exam_held, result_published'))
       if (error) ({ data } = await build('semester, start_date, end_date'))
     }
@@ -82,6 +84,8 @@ export async function fetchExamDates(student, sem, token) {
       // The calendar's Result Published Date — the day the result was
       // declared, as opposed to the day marksheets are printed (above).
       resultDeclaredRaw: semMatch ? (row.result_declared_on || '') : '',
+      // The calendar's Admit Card Issue Date, printed on the card as "Issued".
+      admitCardIssued: semMatch && row.admit_card_issued_on ? formatDayMonthYear(row.admit_card_issued_on) : '',
     }
   } catch {
     return { examDates: '', examTerm: '' }

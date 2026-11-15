@@ -3,154 +3,115 @@ import { supabase } from '../../lib/supabase'
 import Button from '../../components/ui/Button'
 import DateInput, { isoToDisplay } from '../../components/ui/DateInput'
 import { SearchableSelect } from '../../components/ui/SearchSelect'
-import { Save, CalendarRange, CalendarDays, GraduationCap, FlaskConical } from 'lucide-react'
+import { Save, CalendarRange, CalendarDays, Plus, Pencil, Trash2, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
-// Regular is semester-based (Sem 1–10); Ph.D is yearly (Year 1–6). Ph.D rows are
-// stored at a 100+ offset (101–106) in the SAME exam_calendar table so the two
-// calendars stay independent; courseFee maps the offset back to 1-based terms
-// (offset 100 for Year-based programmes) when reading a Ph.D student's calendar.
-const REGULAR = Array.from({ length: 10 }, (_, i) => ({ n: i + 1, label: `Sem ${i + 1}` }))
-const PHD = Array.from({ length: 6 }, (_, i) => ({ n: 101 + i, label: `Year ${i + 1}` }))
+// Examination Calendar — pick a session, then one row per semester with its
+// examination dates. Rows are added, edited and deleted one at a time. One row
+// per (session, semester) in `exam_calendar`.
+//
+// Ph.D years (stored at 101+) belong to the Research Dept. and are not shown
+// or touched here.
+const MAX_SEM = 10
+const BLANK = { start_date: '', end_date: '', exam_held: '', admit_card_issued_on: '', result_declared_on: '', result_published: '' }
+const COLS = 'semester, start_date, end_date, exam_held, admit_card_issued_on, result_declared_on, result_published'
 
-// Examination Calendar — pick a session, then set the exam start & end date for
-// each semester / Ph.D year. One row per (session, semester) in `exam_calendar`.
+const inputCls = 'w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]'
+
 export default function ExaminationCalendar() {
   const { may } = useAuth()
-  const [mode, setMode] = useState('regular')          // 'regular' | 'phd'
+  const canEdit = may('exam_section.calendar')
   const [sessions, setSessions] = useState([])
   const [sessionId, setSessionId] = useState('')       // '' = none picked
-  const [activeSem, setActiveSem] = useState(1)
-  const [cal, setCal] = useState({})                   // semester -> { start_date, end_date }
+  const [rows, setRows] = useState({})                 // semester -> saved row
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [missingTable, setMissingTable] = useState(false)
-  const [needsPhdSql, setNeedsPhdSql] = useState(false)
-  const [needsHeldSql, setNeedsHeldSql] = useState(false)
-  const [needsDeclaredSql, setNeedsDeclaredSql] = useState(false)
-
-  const periods = mode === 'phd' ? PHD : REGULAR
-  const nums = periods.map(p => p.n)
-  const labelFor = n => periods.find(p => p.n === n)?.label || `Sem ${n}`
+  const [missing, setMissing] = useState('')           // database update needed
+  const [edit, setEdit] = useState(null)               // { sem, isNew, ...fields }
+  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     supabase.from('academic_sessions').select('id, session_name').or('status.eq.Active,status.is.null').order('session_name', { ascending: false })
       .then(({ data }) => setSessions(data || []))
   }, [])
 
-  // Keep the active period valid when the mode switches.
-  useEffect(() => { setActiveSem(periods[0].n); setSaved(false) }, [mode])
-
-  // Load the chosen session's saved calendar (all rows — regular + Ph.D coexist).
-  // exam_held needs add_exam_calendar_held.sql — retry without it so an
-  // unmigrated database still shows its dates instead of "table not found".
   useEffect(() => {
-    if (!sessionId) { setCal({}); return }
-    setLoading(true); setSaved(false); setMissingTable(false)
-    async function load() {
-      let { data, error } = await supabase.from('exam_calendar')
-        .select('semester, start_date, end_date, exam_held, result_published, result_declared_on')
-        .eq('session_id', sessionId)
-      // result_declared_on arrives with add_exam_calendar_result_declared.sql.
-      if (error && /result_declared_on/.test(error.message || '')) {
-        setNeedsDeclaredSql(true)
-        ;({ data, error } = await supabase.from('exam_calendar')
-          .select('semester, start_date, end_date, exam_held, result_published')
-          .eq('session_id', sessionId))
-      }
-      if (error) {
-        setNeedsHeldSql(true)
-        ;({ data, error } = await supabase.from('exam_calendar')
-          .select('semester, start_date, end_date')
-          .eq('session_id', sessionId))
-      }
-      if (error) { setMissingTable(true); setCal({}); setLoading(false); return }
-      const m = {}
-      ;(data || []).forEach(r => { m[r.semester] = { start_date: r.start_date || '', end_date: r.end_date || '', exam_held: r.exam_held || '', result_published: r.result_published || '', result_declared_on: r.result_declared_on || '' } })
-      setCal(m); setLoading(false)
-    }
-    load()
+    if (!sessionId) return undefined
+    let alive = true
+    supabase.from('exam_calendar').select(COLS).eq('session_id', sessionId).lte('semester', MAX_SEM)
+      .then(({ data, error }) => {
+        if (!alive) return
+        if (error) {
+          setMissing(/admit_card_issued_on/.test(error.message || '') ? 'add_exam_calendar_admit_issue.sql' : 'add_exam_calendar.sql')
+          setRows({}); setLoading(false); return
+        }
+        const m = {}
+        ;(data || []).forEach(r => { m[r.semester] = Object.fromEntries(Object.keys(BLANK).map(k => [k, r[k] || ''])) })
+        setRows(m); setLoading(false)
+      })
+    return () => { alive = false }
   }, [sessionId])
 
-  const cur = cal[activeSem] || { start_date: '', end_date: '', exam_held: '', result_published: '', result_declared_on: '' }
-  const setCur = (field, val) => setCal(p => ({
-    ...p,
-    [activeSem]: { ...(p[activeSem] || { start_date: '', end_date: '', exam_held: '', result_published: '', result_declared_on: '' }), [field]: val },
-  }))
+  const sems = Object.keys(rows).map(Number).sort((a, b) => a - b)
+  const freeSems = Array.from({ length: MAX_SEM }, (_, i) => i + 1).filter(n => !rows[n])
 
-  const semHasDates = n => cal[n] && (cal[n].start_date || cal[n].end_date || cal[n].exam_held || cal[n].result_published || cal[n].result_declared_on)
-  const rangeInvalid = cur.start_date && cur.end_date && cur.end_date < cur.start_date
+  function startAdd() {
+    if (!freeSems.length) return
+    setEdit({ sem: freeSems[0], isNew: true, ...BLANK })
+  }
+  const set = (k, v) => setEdit(e => ({ ...e, [k]: v }))
 
-  async function save() {
-    if (!sessionId || saving) return
-    for (const n of nums) {
-      const c = cal[n]
-      if (c?.start_date && c?.end_date && c.end_date < c.start_date) {
-        alert(`${labelFor(n)}: End date can't be before start date.`)
-        setActiveSem(n)
-        return
-      }
+  async function saveRow() {
+    const e = edit
+    if (e.start_date && e.end_date && e.end_date < e.start_date) return alert("End date can't be before the start date.")
+    const row = {
+      session_id: sessionId, semester: Number(e.sem),
+      start_date: e.start_date || null, end_date: e.end_date || null,
+      exam_held: (e.exam_held || '').trim() || null,
+      admit_card_issued_on: e.admit_card_issued_on || null,
+      result_declared_on: e.result_declared_on || null,
+      result_published: e.result_published || null,
     }
-    setSaving(true); setSaved(false)
-    const rows = nums
-      .filter(n => semHasDates(n))
-      .map(n => ({
-        session_id: sessionId,
-        semester: n,
-        start_date: cal[n].start_date || null,
-        end_date: cal[n].end_date || null,
-        exam_held: (cal[n].exam_held || '').trim() || null,
-        result_published: cal[n].result_published || null,
-        result_declared_on: cal[n].result_declared_on || null,
-      }))
-    // Replace only THIS mode's rows for the session (scoped by its period range).
-    const del = await supabase.from('exam_calendar').delete().eq('session_id', sessionId).in('semester', nums)
-    if (del.error) { setMissingTable(true); setSaving(false); return }
-    if (rows.length) {
-      let ins = await supabase.from('exam_calendar').insert(rows)
-      // Without add_exam_calendar_result_declared.sql, save everything but
-      // the new date rather than lose the calendar to one column.
-      if (ins.error && /result_declared_on/.test(ins.error.message || '')) {
-        setNeedsDeclaredSql(true)
-        ins = await supabase.from('exam_calendar').insert(rows.map(r =>
-          Object.fromEntries(Object.entries(r).filter(([k]) => k !== 'result_declared_on'))))
-      }
-      // exam_held column missing (add_exam_calendar_held.sql not run) — save
-      // the dates anyway rather than losing the whole calendar to one column.
-      if (ins.error && /exam_held|result_published/.test(ins.error.message || '')) {
-        setNeedsHeldSql(true)
-        ins = await supabase.from('exam_calendar').insert(rows.map(r => ({
-          session_id: r.session_id, semester: r.semester, start_date: r.start_date, end_date: r.end_date,
-        })))
-      }
-      if (ins.error) {
-        // Ph.D rows use a 100+ semester offset that the old CHECK (1-12) rejects.
-        if (/semester_check/.test(ins.error.message || '')) setNeedsPhdSql(true)
-        else alert('Could not save: ' + ins.error.message)
-        setSaving(false); return
-      }
-    }
-    setSaving(false); setSaved(true)
+    setBusy(true)
+    const del = await supabase.from('exam_calendar').delete().eq('session_id', sessionId).eq('semester', row.semester)
+    const ins = del.error ? del : await supabase.from('exam_calendar').insert(row)
+    setBusy(false)
+    if (ins.error) return alert('Could not save: ' + ins.error.message)
+    setRows(r => ({ ...r, [row.semester]: Object.fromEntries(Object.keys(BLANK).map(k => [k, row[k] || ''])) }))
+    setEdit(null)
+  }
+
+  async function removeRow(sem) {
+    if (!confirm(`Delete Semester ${sem}'s examination dates for this session?`)) return
+    setBusy(true)
+    const { error } = await supabase.from('exam_calendar').delete().eq('session_id', sessionId).eq('semester', sem)
+    setBusy(false)
+    if (error) return alert('Could not delete: ' + error.message)
+    setRows(r => { const n = { ...r }; delete n[sem]; return n })
   }
 
   const sessionName = sessions.find(s => s.id === sessionId)?.session_name || ''
-  const isPhd = mode === 'phd'
+  const editing = sem => edit && !edit.isNew && edit.sem === sem
+  const dash = <span className="text-gray-300">—</span>
+
+  const editCells = (
+    <>
+      <td className="px-3 py-2"><DateInput value={edit?.start_date} onChange={ev => set('start_date', ev.target.value)} bare className={inputCls} /></td>
+      <td className="px-3 py-2"><DateInput value={edit?.end_date} onChange={ev => set('end_date', ev.target.value)} bare min={edit?.start_date || undefined} className={inputCls} /></td>
+      <td className="px-3 py-2"><input value={edit?.exam_held || ''} onChange={ev => set('exam_held', ev.target.value)} placeholder="e.g. January 2026" maxLength={40} className={inputCls} /></td>
+      <td className="px-3 py-2"><DateInput value={edit?.admit_card_issued_on} onChange={ev => set('admit_card_issued_on', ev.target.value)} bare className={inputCls} /></td>
+      <td className="px-3 py-2"><DateInput value={edit?.result_declared_on} onChange={ev => set('result_declared_on', ev.target.value)} bare className={inputCls} /></td>
+      <td className="px-3 py-2"><DateInput value={edit?.result_published} onChange={ev => set('result_published', ev.target.value)} bare className={inputCls} /></td>
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" onClick={saveRow} disabled={busy}><Save size={13} /> {busy ? '…' : 'Save'}</Button>
+          <button onClick={() => setEdit(null)} title="Cancel" className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"><X size={15} /></button>
+        </div>
+      </td>
+    </>
+  )
 
   return (
     <div>
-      {/* Mode toggle: Regular vs Ph.D */}
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setMode('regular')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${!isPhd ? 'bg-[#933d18] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#933d18]'}`}>
-          <GraduationCap size={15} /> Regular
-        </button>
-        <button onClick={() => setMode('phd')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${isPhd ? 'bg-[#933d18] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#933d18]'}`}>
-          <FlaskConical size={15} /> Ph.D
-        </button>
-      </div>
-
       {/* Session picker */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-5 shadow-sm">
         <div className="flex flex-wrap items-end gap-4">
@@ -159,157 +120,109 @@ export default function ExaminationCalendar() {
             allLabel="Select a session"
             minWidth={240}
             value={sessionId || 'all'}
-            onChange={v => { setSessionId(v === 'all' ? '' : v); setSaved(false); setActiveSem(periods[0].n) }}
+            onChange={v => {
+              const id = v === 'all' ? '' : v
+              setSessionId(id); setEdit(null); setMissing(''); setRows({}); setLoading(!!id)
+            }}
             options={sessions.map(s => ({ id: s.id, label: s.session_name }))}
           />
           {sessionId && (
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <CalendarRange size={16} className="text-[#933d18]" />
-              Set the {isPhd ? 'Ph.D' : ''} examination start &amp; end date for each {isPhd ? 'year' : 'semester'} of
-              <strong className="text-gray-700">{sessionName}</strong>.
+              Examination dates of <strong className="text-gray-700">{sessionName}</strong>
             </div>
           )}
         </div>
       </div>
 
-      {missingTable && (
+      {missing && (
         <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
           <CalendarDays size={16} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">Examination Calendar table not found.</p>
-            <p className="text-xs mt-0.5">Run <code className="font-mono">add_exam_calendar.sql</code> once in Supabase → SQL Editor to enable this feature.</p>
-          </div>
-        </div>
-      )}
-
-      {needsHeldSql && (
-        <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
-          <CalendarDays size={16} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">The "Exam. Held" and "Result Published" columns need a one-time database update.</p>
-            <p className="text-xs mt-0.5">Run <code className="font-mono">add_exam_calendar_held.sql</code> and <code className="font-mono">add_exam_calendar_result_date.sql</code> once in Supabase → SQL Editor. The examination dates keep saving; only these two are skipped until then.</p>
-          </div>
-        </div>
-      )}
-
-      {needsDeclaredSql && (
-        <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
-          <CalendarDays size={16} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">"Result Published Date" needs a one-time database update.</p>
-            <p className="text-xs mt-0.5">Run <code className="font-mono">add_exam_calendar_result_declared.sql</code> once in Supabase → SQL Editor. Everything else keeps saving; only this date is skipped until then.</p>
-          </div>
-        </div>
-      )}
-
-      {needsPhdSql && (
-        <div className="mb-4 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
-          <CalendarDays size={16} className="mt-0.5 shrink-0" />
-          <div>
-            <p className="font-semibold">Ph.D calendar needs a one-time database update.</p>
-            <p className="text-xs mt-0.5">Run <code className="font-mono">add_exam_calendar_phd.sql</code> once in Supabase → SQL Editor, then save again.</p>
-          </div>
+          <p>The Examination Calendar needs a database update — run <code className="font-mono">{missing}</code> once in Supabase → SQL Editor.</p>
         </div>
       )}
 
       {!sessionId ? (
         <div className="flex flex-col items-center justify-center py-24 text-gray-300">
           <CalendarRange size={52} className="mb-3" />
-          <p className="text-base font-semibold text-gray-400">Select a session to set its {isPhd ? 'Ph.D ' : ''}examination calendar</p>
+          <p className="text-base font-semibold text-gray-400">Select a session to see its examination calendar</p>
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : (
-        <>
-          {/* Period selector */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-4 mb-4">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">Select {isPhd ? 'Year' : 'Semester'}</p>
-            <div className="flex flex-wrap gap-2">
-              {periods.map(({ n, label }) => (
-                <button key={n} onClick={() => setActiveSem(n)}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${activeSem === n ? 'bg-[#933d18] text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-[#933d18]'}`}>
-                  {label}
-                  {semHasDates(n) && <span className={`w-1.5 h-1.5 rounded-full ${activeSem === n ? 'bg-white' : 'bg-emerald-500'}`} />}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Active period's dates */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
-              <h3 className="font-bold text-gray-800">{labelFor(activeSem)} — Examination Dates</h3>
-              {may('exam_section.calendar') && (
-              <Button onClick={save} disabled={saving}>
-                <Save size={14} /> {saving ? 'Saving...' : saved ? '✓ Saved' : 'Save Calendar'}
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+            <h3 className="font-bold text-gray-800">Examination Dates — {sessionName}</h3>
+            {canEdit && (
+              <Button size="sm" onClick={startAdd} disabled={!!edit || !freeSems.length}>
+                <Plus size={14} /> Add Semester
               </Button>
-              )}
-            </div>
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-600 ml-0.5">Start Examination Date</label>
-                <DateInput value={cur.start_date} onChange={e => setCur('start_date', e.target.value)} bare
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-600 ml-0.5">End Examination Date</label>
-                <DateInput value={cur.end_date} onChange={e => setCur('end_date', e.target.value)} bare min={cur.start_date || undefined}
-                  className={`w-full bg-white border rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18] ${rangeInvalid ? 'border-red-400' : 'border-gray-200'}`} />
-                {rangeInvalid && <p className="text-[11px] text-red-500 ml-0.5">End date can’t be before the start date.</p>}
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-600 ml-0.5">Exam. Held (Month &amp; Year)</label>
-                <input type="text" value={cur.exam_held || ''} onChange={e => setCur('exam_held', e.target.value)}
-                  placeholder="e.g. January 2026" maxLength={40}
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]" />
-                <p className="text-[11px] text-gray-400 ml-0.5">Printed on the admit card and the marksheet as the examination session.</p>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-600 ml-0.5">Result Published Date</label>
-                <DateInput value={cur.result_declared_on} onChange={e => setCur('result_declared_on', e.target.value)} bare
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]" />
-                <p className="text-[11px] text-gray-400 ml-0.5">The day the result is declared. Recorded on each result when it is saved.</p>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-gray-600 ml-0.5">Marksheet Printing Date</label>
-                <DateInput value={cur.result_published} onChange={e => setCur('result_published', e.target.value)} bare
-                  className="w-full bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]" />
-                <p className="text-[11px] text-gray-400 ml-0.5">Printed on the marksheet as the Date of Issue, so every copy carries the same date.</p>
-              </div>
-            </div>
-
-            {/* Quick overview of all periods for this session/mode */}
-            <div className="px-5 pb-5">
-              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-2">This Session — All {isPhd ? 'Years' : 'Semesters'}</p>
-              <div className="border border-gray-100 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50 text-gray-500">
-                      <th className="text-left font-semibold px-4 py-2">{isPhd ? 'Year' : 'Semester'}</th>
-                      <th className="text-left font-semibold px-4 py-2">Start Date</th>
-                      <th className="text-left font-semibold px-4 py-2">End Date</th>
-                      <th className="text-left font-semibold px-4 py-2">Exam. Held</th>
-                      <th className="text-left font-semibold px-4 py-2">Result Published</th>
-                      <th className="text-left font-semibold px-4 py-2">Marksheet Printing</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {periods.map(({ n, label }) => (
-                      <tr key={n} className={`border-t border-gray-50 ${activeSem === n ? 'bg-[#933d18]/5' : ''}`}>
-                        <td className="px-4 py-2 font-semibold text-gray-700">{label}</td>
-                        <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.start_date) || <span className="text-gray-300">—</span>}</td>
-                        <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.end_date) || <span className="text-gray-300">—</span>}</td>
-                        <td className="px-4 py-2 text-gray-600">{cal[n]?.exam_held || <span className="text-gray-300">—</span>}</td>
-                        <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.result_declared_on) || <span className="text-gray-300">—</span>}</td>
-                        <td className="px-4 py-2 text-gray-600">{isoToDisplay(cal[n]?.result_published) || <span className="text-gray-300">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            )}
           </div>
-        </>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-gray-500 text-left">
+                  <th className="font-semibold px-3 py-2.5 whitespace-nowrap">Semester</th>
+                  <th className="font-semibold px-3 py-2.5 whitespace-nowrap">Start Date</th>
+                  <th className="font-semibold px-3 py-2.5 whitespace-nowrap">End Date</th>
+                  <th className="font-semibold px-3 py-2.5 whitespace-nowrap">Exam. Held</th>
+                  <th className="font-semibold px-3 py-2.5 whitespace-nowrap">Admit Card Issue Date</th>
+                  <th className="font-semibold px-3 py-2.5 whitespace-nowrap">Result Published</th>
+                  <th className="font-semibold px-3 py-2.5 whitespace-nowrap">Marksheet Printing</th>
+                  {canEdit && <th className="font-semibold px-3 py-2.5 whitespace-nowrap">Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {sems.map(n => (
+                  <tr key={n} className={`border-t border-gray-50 ${editing(n) ? 'bg-[#933d18]/5' : ''}`}>
+                    <td className="px-3 py-2.5 font-semibold text-gray-700 whitespace-nowrap">Sem {n}</td>
+                    {editing(n) ? editCells : (
+                      <>
+                        <td className="px-3 py-2.5 text-gray-600">{isoToDisplay(rows[n].start_date) || dash}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{isoToDisplay(rows[n].end_date) || dash}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{rows[n].exam_held || dash}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{isoToDisplay(rows[n].admit_card_issued_on) || dash}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{isoToDisplay(rows[n].result_declared_on) || dash}</td>
+                        <td className="px-3 py-2.5 text-gray-600">{isoToDisplay(rows[n].result_published) || dash}</td>
+                        {canEdit && (
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => setEdit({ sem: n, isNew: false, ...rows[n] })} disabled={!!edit || busy} title="Edit"
+                                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg disabled:opacity-40">
+                                <Pencil size={12} /> Edit
+                              </button>
+                              <button onClick={() => removeRow(n)} disabled={!!edit || busy} title="Delete"
+                                className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 disabled:opacity-40">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </>
+                    )}
+                  </tr>
+                ))}
+                {edit?.isNew && (
+                  <tr className="border-t border-gray-50 bg-[#933d18]/5">
+                    <td className="px-3 py-2">
+                      <select value={edit.sem} onChange={ev => set('sem', Number(ev.target.value))} className={`${inputCls} w-24`}>
+                        {freeSems.map(n => <option key={n} value={n}>Sem {n}</option>)}
+                      </select>
+                    </td>
+                    {editCells}
+                  </tr>
+                )}
+                {!sems.length && !edit && (
+                  <tr><td colSpan={canEdit ? 8 : 7} className="px-3 py-10 text-center text-gray-400">No semester added yet{canEdit ? ' — click "Add Semester".' : '.'}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="px-5 py-3 text-[11px] text-gray-400 border-t border-gray-50">
+            Exam. Held is printed on the admit card and the marksheet as the examination session · Admit Card Issue Date is printed on the admit card · Marksheet Printing Date is the marksheet's Date of Issue.
+          </p>
+        </div>
       )}
     </div>
   )

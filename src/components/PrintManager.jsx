@@ -67,13 +67,15 @@ function countLine(d) {
 }
 
 export default function PrintManager({ students, results, setResults, filterActive, exportMeta }) {
-  const { may } = useAuth()
+  const { may, mayTab } = useAuth()
+  // The status tabs this role may see (all, when none are ticked).
+  const tabs = TABS.filter(t => mayTab('exam_section', 'print', t.key))
   // print_documents by docKey. `mode` is 'loading', 'ok', or 'missing' (the
   // tables are not there yet — add_print_documents.sql not run).
   const [records, setRecords] = useState({})
   const [mode, setMode] = useState('loading')
   const [loadError, setLoadError] = useState('')
-  const [tab, setTab] = useState('pending')
+  const [tab, setTab] = useState(() => (tabs[0] || TABS[0]).key)
   const [selected, setSelected] = useState(() => new Set())
   // Which documents Preview Selected / Print All Pending take; all of them
   // until narrowed.
@@ -338,7 +340,7 @@ export default function PrintManager({ students, results, setResults, filterActi
     <>
       {/* Status tabs + export */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {TABS.map(t => (
+        {tabs.map(t => (
           <button key={t.key} onClick={() => switchTab(t.key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === t.key ? t.on : t.off}`}>
             {t.label}

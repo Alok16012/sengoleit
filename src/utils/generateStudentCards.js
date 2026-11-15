@@ -331,7 +331,9 @@ export function admitCardHTML(s, subjects = [], meta = {}) {
   const isPhd = isPhdProgram(prog)
   const defaultSubjects = subjects.length ? subjects : []
   const examSchedule  = meta.examSchedule || ''
-  const admitCardTime = meta.admitCardTime || ''
+  // The Examination Calendar's Admit Card Issue Date wins; the course's
+  // admit-card release time is the fallback.
+  const admitCardTime = meta.admitCardIssued || meta.admitCardTime || ''
   const semester      = meta.semester || ''
   const acadYear      = s.academic_year || ''
 

@@ -223,13 +223,14 @@ export default function ExamSection() {
   // Which students still need THIS semester's admit card. After a
   // re-registration is verified the student moves into a new term with no card
   // yet, and the list gave no way to tell who was waiting.
-  const [admitTab, setAdmitTab] = useState('pending')
+  // Inner tabs a staff role may see (all, when none of that tab's are ticked).
+  const [admitTab, setAdmitTab] = useState(() => ['pending', 'done', 'all'].find(k => mayTab('exam_section', 'list', k)) || 'pending')
   // Issued cards for every listed student, keyed by student id.
   const [admitCards, setAdmitCards] = useState({})
   // Result view: master sheet vs one student at a time, and which students
   // still owe a result.
   const [resultTab, setResultTab] = useState('student')   // 'student' | 'master'
-  const [resTab, setResTab] = useState('pending')         // 'awaiting' | 'pending' | 'done' | 'all'
+  const [resTab, setResTab] = useState(() => ['pending', 'awaiting', 'done', 'print', 'all'].find(k => mayTab('exam_section', 'result', k)) || 'pending')         // 'awaiting' | 'pending' | 'done' | 'all'
   const [results, setResults] = useState({})              // `${id}__${sem}` -> row
   const [examEnds, setExamEnds] = useState({})            // `${session}:${sem}` -> end date
   const [allPrograms, setAllPrograms] = useState([])
@@ -896,7 +897,7 @@ export default function ExamSection() {
           { key: 'pending', label: 'Admit Card Pending', on: 'bg-amber-500 text-white',   off: 'bg-amber-50 text-amber-700' },
           { key: 'done',    label: 'Issued',             on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
           { key: 'all',     label: 'All',                on: 'bg-gray-700 text-white',    off: 'bg-gray-100 text-gray-600' },
-        ].map(t => {
+        ].filter(t => mayTab('exam_section', 'list', t.key)).map(t => {
           const count = t.key === 'all' ? byFilters.length
             : byFilters.filter(s => (t.key === 'done' ? currentCardDone(s) : !currentCardDone(s))).length
           return (
@@ -1057,7 +1058,7 @@ export default function ExamSection() {
           { key: 'done',     label: 'Done',     on: 'bg-emerald-500 text-white', off: 'bg-emerald-50 text-emerald-700' },
           { key: 'print',    label: 'Print',    on: 'bg-violet-600 text-white',  off: 'bg-violet-50 text-violet-700' },
           { key: 'all',      label: 'All',      on: 'bg-gray-700 text-white',    off: 'bg-gray-100 text-gray-600' },
-        ].map(t => {
+        ].filter(t => mayTab('exam_section', 'result', t.key)).map(t => {
           const count = t.key === 'all'
             ? byFilters.filter(s => currentCardDone(s)).length
             : byFilters.filter(s => currentCardDone(s) && resultTabOf(s) === t.key).length
