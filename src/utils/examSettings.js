@@ -23,6 +23,17 @@ const BLANK = { examSchedule: '', admitCardTime: '', admitCardAt: '' }
 // shifting the admission batch six months per semester. Semester 1 printed
 // "July 2025", the admission batch itself. Pass the token and the same rows
 // come back through the student's own function.
+// The Examination Calendar's dates are also gates: no admit card before the
+// Admit Card Issue Date, no result declared before the Result Published Date,
+// no marksheet printed before the Marksheet Printing Date. A blank date is no
+// gate. `raw` is 'YYYY-MM-DD'; compared with today's local date.
+export function dateReached(raw) {
+  if (!raw) return true
+  const t = new Date()
+  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+  return today >= String(raw).slice(0, 10)
+}
+
 export async function fetchExamDates(student, sem, token) {
   try {
     const sid = student?.session_id || null
@@ -84,8 +95,11 @@ export async function fetchExamDates(student, sem, token) {
       // The calendar's Result Published Date — the day the result was
       // declared, as opposed to the day marksheets are printed (above).
       resultDeclaredRaw: semMatch ? (row.result_declared_on || '') : '',
+      resultDeclared: semMatch && row.result_declared_on ? formatDayMonthYear(row.result_declared_on) : '',
       // The calendar's Admit Card Issue Date, printed on the card as "Issued".
       admitCardIssued: semMatch && row.admit_card_issued_on ? formatDayMonthYear(row.admit_card_issued_on) : '',
+      // The same date raw — no card of this semester is issued before it.
+      admitCardIssuedRaw: semMatch ? (row.admit_card_issued_on || '') : '',
     }
   } catch {
     return { examDates: '', examTerm: '' }

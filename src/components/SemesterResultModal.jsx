@@ -7,7 +7,7 @@ import { fetchPaperMarks, fetchPaperMarksUpto, savePaperMarks } from '../utils/p
 import { generateMarksStatement, gradeFor, sgpaOf } from '../utils/generateStudentCards'
 import { generateSemesterMarks } from '../utils/marksFill'
 import { resolveStudentDocUrls } from '../utils/resolveStudentDocs'
-import { fetchExamDates } from '../utils/examSettings'
+import { fetchExamDates, dateReached } from '../utils/examSettings'
 import { checkResultAllowed, recordFastTrack, slabLabel, fetchResultRules } from '../utils/resultConditions'
 import { useAuth } from '../context/AuthContext'
 
@@ -54,6 +54,13 @@ export default function SemesterResultModal({ student, special = false, onClose,
   // was entered. Early, it needs the slab's charge — asked for here, recorded
   // once paid. No slab for today (or no permission): it simply waits.
   async function passGate(sem) {
+    // Examination Calendar → Result Published Date: no result of this
+    // session's semester is declared before it.
+    const cal = await fetchExamDates(student, sem)
+    if (!dateReached(cal.resultDeclaredRaw)) {
+      alert(`Semester ${sem} results of ${student.academic_sessions?.session_name || 'this session'} can be declared from ${cal.resultDeclared}.\n\nThe Result Published Date is set in Exam Section → Examination Calendar.`)
+      return false
+    }
     const gate = await checkResultAllowed(student, sem)
     if (gate.ok) return true
     if (!gate.slab || !may('exam_section.result_condition')) {

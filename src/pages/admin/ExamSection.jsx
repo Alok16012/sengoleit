@@ -11,7 +11,7 @@ import PrintManager from '../../components/PrintManager'
 import { exportCsv, exportPdf } from '../../utils/exportTable'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
-import { fetchExamDates, fetchExamEndDates, examEndDateFor } from '../../utils/examSettings'
+import { fetchExamDates, fetchExamEndDates, examEndDateFor, dateReached } from '../../utils/examSettings'
 import { fetchResultsForMany } from '../../utils/semesterResults'
 import MasterMarksEntry from '../../components/MasterMarksEntry'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
@@ -560,7 +560,17 @@ export default function ExamSection() {
   // Step 2: after picking a fee-cleared semester, load its papers so the admin
   // can choose which ones appear on the admit card — one subject per paper,
   // the first of each pre-ticked.
+  // Examination Calendar → Admit Card Issue Date: no admit card of this
+  // session's semester is issued before that day. Returns true when it may be.
+  async function admitIssueOpen(student, sem) {
+    const { admitCardIssuedRaw, admitCardIssued } = await fetchExamDates(student, sem)
+    if (dateReached(admitCardIssuedRaw)) return true
+    alert(`Semester ${sem} admit cards of ${student.academic_sessions?.session_name || 'this session'} can be issued from ${admitCardIssued}.\n\nThe Admit Card Issue Date is set in Exam Section → Examination Calendar.`)
+    return false
+  }
+
   async function chooseSem(student, sem) {
+    if (!(await admitIssueOpen(student, sem))) return
     setAdmitModal(m => m && { ...m, pick: { sem, loading: true, rows: [], selected: new Set() } })
     const rows = await fetchSemesterSubjectRows(student, sem)
     setAdmitModal(m => m && { ...m, pick: { sem, loading: false, rows, selected: onePerPaper(rows) } })
@@ -599,6 +609,9 @@ export default function ExamSection() {
   // papers the admin selected. `edit` re-issues an existing card with new
   // papers, which must not touch its visibility the way a fresh issue does.
   async function handleAdmitCard(student, sem, rows, selected, { record = true, edit = false } = {}) {
+    // A first issue waits for the calendar's issue date (checked again here
+    // in case the page stayed open across the change).
+    if (record && !edit && !(await admitIssueOpen(student, sem))) return
     setBusy(`${student.id}-${sem}`)
     const { data: s } = await supabase
       .from('students')

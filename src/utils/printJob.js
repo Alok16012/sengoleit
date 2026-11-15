@@ -14,7 +14,7 @@
 
 import { supabase } from '../lib/supabase'
 import { fetchPaperMarks, fetchPaperMarksUpto } from './paperMarks'
-import { fetchExamDates } from './examSettings'
+import { fetchExamDates, dateReached } from './examSettings'
 import {
   BRAND, statementOfGradesHTML, STATEMENT_OF_GRADES_STYLE, sgpaOf, sgpaBySemester, divisionFor,
   provisionalCertificateSvg, migrationCertificateSvg, degreeCertificateSvg, generateConsolidatedMarksheet,
@@ -74,6 +74,10 @@ async function buildSheet(entry, cache, { issueDate } = {}) {
       fetchExamDates(full, r.semester),
       fetchPaperMarksUpto(s, r.semester),
     ])
+    // Examination Calendar → Marksheet Printing Date: none printed before it.
+    if (!dateReached(dates.resultPublishedRaw)) {
+      throw new Error(`Semester ${r.semester} marksheets can be printed from ${dates.resultPublished} (Examination Calendar → Marksheet Printing).`)
+    }
     return {
       kind: 'sog',
       html: statementOfGradesHTML(full, rows, {
