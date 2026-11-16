@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import HoverText from '../../components/ui/HoverText'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import PageHeader from '../../components/ui/PageHeader'
@@ -694,7 +695,7 @@ export default function DocumentDepartment() {
                       </div>
                       <p className="text-xs text-gray-400">{c.email}</p>
                       {c.approval_status === 'hold' && c.approval_notes && (
-                        <p className="text-[11px] text-amber-600 mt-0.5 max-w-[200px] truncate" title={c.approval_notes}>“{c.approval_notes}”</p>
+                        <HoverText text={c.approval_notes} className="text-[11px] text-amber-600 mt-0.5 max-w-[200px]" />
                       )}
                     </Td>
                     <Td className="text-gray-500">{c.contact_person || '—'}</Td>
@@ -1480,7 +1481,7 @@ export default function DocumentDepartment() {
                 </Td>
                 <Td className="text-gray-400 text-xs">{formatDate(s.created_at)}</Td>
                 <Td className="font-mono text-xs text-gray-700">{s.admission_number || '—'}</Td>
-                <Td className="text-gray-500 text-xs max-w-[120px] truncate" title={s.remarks}>{s.remarks || '—'}</Td>
+                <Td className="text-gray-500 text-xs max-w-[140px]"><HoverText text={s.remarks} /></Td>
                 <Td>
                   <Badge status={s.status?.toLowerCase()}>{s.status || 'Pending'}</Badge>
                   {s.status === 'Hold' && (

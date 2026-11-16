@@ -233,6 +233,12 @@ export default function Students() {
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(() => statusTabs[0] || 'All')
+  // A lookup role may also be given status tabs (e.g. Pending) to work a
+  // list from. Those it was ticked show as tabs beside "Search Student"; with
+  // none ticked it is the lookup alone. `lookup` is the search view.
+  const listTabs = searchOnly && statusTabs.length < STATUS_FILTERS.length ? statusTabs : []
+  const [view, setView] = useState('search')          // 'search' | a status tab
+  const lookup = searchOnly && view === 'search'
   // Form-submission date range — how many admissions came in over a period.
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -474,10 +480,10 @@ export default function Students() {
 
   const norm = v => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim()
   const lookupFields = [sName, sFather, sDob].filter(v => String(v).trim()).length
-  const lookupReady = !searchOnly || lookupFields >= 2
+  const lookupReady = !lookup || lookupFields >= 2
 
   const filtered = !lookupReady ? [] : data.filter(s => {
-    if (searchOnly) {
+    if (lookup) {
       if (sName.trim() && !norm(s.student_name).includes(norm(sName))) return false
       if (sFather.trim() && !norm(s.fathers_name).includes(norm(sFather))) return false
       if (sDob && String(s.date_of_birth || '').slice(0, 10) !== sDob) return false
@@ -494,13 +500,13 @@ export default function Students() {
     const day = localDay(s.created_at)
     if (fromDate && (!day || day < fromDate)) return false
     if (toDate && (!day || day > toDate)) return false
-    const matchStatus = statusFilter === 'All'
+    const matchStatus = lookup || statusFilter === 'All'
       || (statusFilter === 'RR' ? !!reReg?.[s.id] : s.status === statusFilter)
     return matchesSearch(s, search) && matchStatus
   })
 
   // The lookup role's matches are few — fetch their semester results.
-  const lookupIds = searchOnly ? filtered.map(s => s.id).join(',') : ''
+  const lookupIds = lookup ? filtered.map(s => s.id).join(',') : ''
   useEffect(() => {
     if (!lookupIds) return
     let cancelled = false
@@ -554,7 +560,7 @@ export default function Students() {
     <div className="p-6">
       <PageHeader
         title="Students"
-        subtitle={searchOnly ? 'Search to find a student' : `${data.length} students`}
+        subtitle={lookup ? 'Search to find a student' : `${data.length} students`}
         action={may('students.add') ? { label: <><Plus size={15} /> Add Student</>, onClick: () => navigate('/admin/students/new') } : null}
       />
 
@@ -565,7 +571,18 @@ export default function Students() {
         </div>
       )}
 
-      {searchOnly && (
+      {listTabs.length > 0 && (
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-4">
+          {[['search', 'Search Student'], ...listTabs.map(t => [t, t])].map(([k, label]) => (
+            <button key={k} onClick={() => { setView(k); if (k !== 'search') setStatusFilter(k) }}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${view === k ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {lookup && (
         <div className="mb-4 bg-white border border-gray-200 rounded-2xl p-4">
           <p className="text-sm font-bold text-gray-900 mb-0.5">Find a student</p>
           <p className="text-xs text-gray-500 mb-3">Fill at least two of the three — the list shows only the students that match.</p>
@@ -594,9 +611,9 @@ export default function Students() {
       )}
 
       {/* The search-only lookup has nothing but its own three fields. */}
-      {!searchOnly && (
+      {!lookup && (
       <div className="flex flex-wrap gap-3 mb-3 items-end">
-        {!searchOnly && (
+        {!lookup && (
         <div className="relative">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -680,7 +697,7 @@ export default function Students() {
       </div>
       )}
 
-      {/* The lookup role works inside the tab its role allows, without the tab bar. */}
+      {/* A lookup role picks its list from the tabs above, not this bar. */}
       {!searchOnly && (
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="flex gap-1.5 flex-wrap">
@@ -697,7 +714,7 @@ export default function Students() {
               {s}
             </button>
           ))}
-          {!searchOnly && (
+          {!lookup && (
           <button
             onClick={() => setShowHidden(v => !v)}
             title={showHidden ? 'Back to visible students' : 'Show hidden students'}
@@ -709,7 +726,7 @@ export default function Students() {
           >
             {showHidden ? <EyeOff size={13} /> : <Eye size={13} />}
             {showHidden ? 'Hidden' : 'Show Hidden'}
-            {hiddenCount > 0 && !searchOnly && (
+            {hiddenCount > 0 && !lookup && (
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showHidden ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{hiddenCount}</span>
             )}
           </button>
@@ -720,7 +737,7 @@ export default function Students() {
 
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
-      ) : searchOnly ? (
+      ) : lookup ? (
         // The lookup role's view: who the student is, and every document and
         // certificate in one row — plus what is still missing, uploadable here.
         <Table>
@@ -839,11 +856,11 @@ export default function Students() {
               <Th>Student Name</Th>
               <Th>Enrollment No</Th>
               <Th>Program</Th>
-              {!searchOnly && <Th>Center</Th>}
+              {!lookup && <Th>Center</Th>}
               <Th>Session</Th>
               <Th>Mobile</Th>
               <Th>Entry</Th>
-              {!searchOnly && <Th>Entered On</Th>}
+              {!lookup && <Th>Entered On</Th>}
               <Th>Status</Th>
               <Th>Courier</Th>
               <Th>Actions</Th>
@@ -851,7 +868,7 @@ export default function Students() {
           </Thead>
           <Tbody>
             {filtered.length === 0 ? (
-              <Tr><Td colSpan={searchOnly ? 10 : 12} className="text-center text-gray-400 py-12">
+              <Tr><Td colSpan={lookup ? 10 : 12} className="text-center text-gray-400 py-12">
                 {lookupReady ? 'No students found' : 'Search by at least two of: student name, father name, date of birth.'}
               </Td></Tr>
             ) : filtered.map((s, i) => (
@@ -870,11 +887,11 @@ export default function Students() {
                 </Td>
                 <Td className="text-gray-500 font-mono text-xs">{s.enrollment_no || '—'}</Td>
                 <Td className="text-gray-500 text-xs min-w-[160px] whitespace-normal break-words">{s.programs?.program_name || '—'}</Td>
-                {!searchOnly && <Td className="text-gray-500 text-xs">{s.centers?.center_name || '—'}</Td>}
+                {!lookup && <Td className="text-gray-500 text-xs">{s.centers?.center_name || '—'}</Td>}
                 <Td className="text-gray-500 text-xs">{s.academic_sessions?.session_name || '—'}</Td>
                 <Td className="text-gray-500">{s.mobile_no || '—'}</Td>
                 <Td className="text-gray-500 text-xs">{s.entry_type || '—'}</Td>
-                {!searchOnly && (
+                {!lookup && (
                 <Td className="text-gray-600 text-xs whitespace-nowrap"
                   title={s.created_at ? new Date(s.created_at).toLocaleString('en-IN') : ''}>
                   {s.created_at ? formatDate(s.created_at) : '—'}
@@ -1018,7 +1035,7 @@ export default function Students() {
       {/* Daily / range report — exports exactly what the filters above show. */}
       <div className="flex items-center justify-between gap-3 flex-wrap mt-4">
         <p className="text-xs text-gray-500">
-          Showing <span className="font-bold text-gray-700">{filtered.length}</span>{searchOnly ? ' matching' : ` of ${data.length}`} students
+          Showing <span className="font-bold text-gray-700">{filtered.length}</span>{lookup ? ' matching' : ` of ${data.length}`} students
           {(fromDate || toDate) && (
             <> · entered {fromDate ? formatDate(fromDate) : 'start'} — {toDate ? formatDate(toDate) : 'today'}</>
           )}
