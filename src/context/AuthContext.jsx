@@ -31,6 +31,25 @@ export function AuthProvider({ children }) {
     return () => subscription.unsubscribe()
   }, [])
 
+  // A password change deletes every session of that login on the server
+  // (add_logout_on_password_change.sql). Ask the server about this one every
+  // minute and whenever the tab comes back; once it is gone, sign out here too.
+  const userId = user?.id
+  useEffect(() => {
+    if (!isConfigured || !userId) return undefined
+    let stopped = false
+    const check = async () => {
+      if (stopped || document.visibilityState === 'hidden') return
+      const { error } = await supabase.auth.getUser()
+      if (!stopped && error && (error.status === 401 || error.status === 403 || /session|jwt|token/i.test(error.message || ''))) {
+        await supabase.auth.signOut({ scope: 'local' })
+      }
+    }
+    const timer = setInterval(check, 60 * 1000)
+    document.addEventListener('visibilitychange', check)
+    return () => { stopped = true; clearInterval(timer); document.removeEventListener('visibilitychange', check) }
+  }, [userId])
+
   async function fetchProfile(userId) {
     try {
       const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()

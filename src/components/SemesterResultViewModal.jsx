@@ -5,9 +5,7 @@ import { supabase } from '../lib/supabase'
 import { fetchResultsForMany } from '../utils/semesterResults'
 import { fetchMarksheetFor } from '../utils/paperMarks'
 import ResultSheetView from './ResultSheetView'
-import { generateStatementOfGrades, sgpaOf } from '../utils/generateStudentCards'
-import { formatMonthYear, formatDayMonthYear } from '../utils/formatDate'
-import { dateReached } from '../utils/examSettings'
+import { openStatementOfGrades } from '../utils/printedDocs'
 
 // A centre's read-only view of its student's released results, semester by
 // semester, with the result sheet each one opens.
@@ -58,38 +56,12 @@ export default function SemesterResultViewModal({ student, onClose, printable = 
     else setFailed(f => ({ ...f, [r.semester]: reason }))
   }
 
-  // The same sheet and dates the Print tab uses: the calendar's Marksheet
-  // Printing Date, else the day the result went to Print. Each earlier
-  // semester's SGPA comes from its own marksheet.
+  // The same sheet and dates the Print tab uses (utils/printedDocs.js).
   async function printMarksheet(r) {
     setPrintingSem(r.semester)
     try {
-      const sems = Array.from({ length: r.semester }, (_, i) => i + 1)
-      const [sheets, whole] = await Promise.all([
-        Promise.all(sems.map(n => fetchMarksheetFor(student.id, n))),
-        full ? Promise.resolve(full) : supabase.from('students')
-          .select('*, programs(program_name, semester_year), academic_sessions(session_name), centers(center_name, center_code), departments(name)')
-          .eq('id', student.id).single().then(res => res.data),
-      ])
-      const last = sheets[sheets.length - 1]
-      if (!last?.sheet) return alert(last?.reason || 'The marksheet could not be read.')
-      const sheet = last.sheet
-      // Examination Calendar → Marksheet Printing Date: not before it.
-      if (!dateReached(sheet.result_published)) {
-        return alert(`Semester ${r.semester} marksheets can be printed from ${formatDayMonthYear(sheet.result_published)}.`)
-      }
-      if (whole && !full) setFull(whole)
-      const semSgpas = {}
-      sheets.forEach((x, i) => { const g = x.sheet ? sgpaOf(x.sheet.papers) : null; if (g != null) semSgpas[i + 1] = g })
-      generateStatementOfGrades(whole || student, sheet.papers, {
-        dmcNo: r.dmc_no ? String(r.dmc_no) : '',
-        semSgpas,
-        issueDate: sheet.result_published ? `${sheet.result_published}T12:00:00` : (r.print_forwarded_at || null),
-        semester: `Semester ${r.semester}`,
-        examHeld: String(sheet.exam_held || '').trim() || formatMonthYear(sheet.exam_start),
-        resultStatus: r.status === 'Fail' ? 'Failed' : 'Passed',
-        cgpa: sgpaOf(sheet.upto || []),
-      })
+      const err = await openStatementOfGrades(student, r)
+      if (err) alert(err)
     } finally { setPrintingSem(null) }
   }
 

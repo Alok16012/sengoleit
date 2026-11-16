@@ -20,6 +20,8 @@ import { fetchReRegistrations, nextTerm } from '../../utils/reRegistration'
 import { fetchCourierSems } from '../../utils/courierSems'
 import { fetchResultsForMany } from '../../utils/semesterResults'
 import SemesterResultViewModal from '../../components/SemesterResultViewModal'
+import { fetchPrintedDocs, openStatementOfGrades, openFinalCertificate } from '../../utils/printedDocs'
+import { docTitle } from '../../utils/printDocs'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
 import AdmitCardListModal from '../../components/AdmitCardListModal'
@@ -332,6 +334,9 @@ export default function Students() {
   // Semester-wise results of the students a lookup found (student_results),
   // and the student whose results are open.
   const [semResults, setSemResults] = useState({})
+  // What the Exam Section has printed for the students a lookup found.
+  const [printedDocs, setPrintedDocs] = useState({})
+  const [openingDoc, setOpeningDoc] = useState(null)
   const [semResultStudent, setSemResultStudent] = useState(null)
   async function uploadPendingDoc(s, column, file) {
     if (!file) return
@@ -519,8 +524,25 @@ export default function Students() {
       Object.values(byKey).forEach(r => { if (r.status && r.status !== 'Pending') (by[r.student_id] ||= []).push(r) })
       setSemResults(by)
     })
+    fetchPrintedDocs(lookupIds.split(',')).then(m => { if (!cancelled) setPrintedDocs(m) })
     return () => { cancelled = true }
   }, [lookupIds])
+
+  // Open a printed document again, as the Print tab printed it.
+  async function openPrinted(s, d) {
+    setOpeningDoc(`${s.id}:${d.doc_type}:${d.semester}`)
+    try {
+      const results = semResults[s.id] || []
+      const err = d.doc_type === 'MARKSHEET'
+        ? await (async () => {
+            const r = results.find(x => Number(x.semester) === Number(d.semester))
+            return r ? openStatementOfGrades(s, r) : 'This semester has no result on record.'
+          })()
+        : await openFinalCertificate(s, d, results)
+      if (err) alert(err)
+    } catch (e) { alert('Could not open the document: ' + (e.message || e)) }
+    setOpeningDoc(null)
+  }
 
   // What the Excel / PDF exports contain — the list exactly as filtered.
   const EXPORT_COLUMNS = [
@@ -816,7 +838,22 @@ export default function Students() {
                         <Award size={14} className={(semDone.length ? semDone.every(r => r.status !== 'Fail') : s.exam_result_status === 'Pass') ? 'text-emerald-600' : 'text-red-500'} />
                         {semDone.length > 0 && <span className="text-[10px] font-bold text-gray-500">{semDone.length}</span>}
                       </Button>
-                    ) : dash}
+                    ) : !printedDocs[s.id]?.length && dash}
+                    {/* Printed by the Exam Section — click to see it again. */}
+                    {printedDocs[s.id]?.length > 0 && (
+                      <div className="flex flex-col items-start gap-1 mt-1">
+                        {printedDocs[s.id].map(d => {
+                          const k = `${s.id}:${d.doc_type}:${d.semester}`
+                          return (
+                            <button key={k} onClick={() => openPrinted(s, d)} disabled={openingDoc === k}
+                              title={`View the printed ${docTitle(d)}`}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 whitespace-nowrap disabled:opacity-50">
+                              <Eye size={10} /> {openingDoc === k ? '…' : docTitle(d)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
                   </Td>
                   <Td className="min-w-[190px]">
                     {missing.length === 0 ? (

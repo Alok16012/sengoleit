@@ -16,6 +16,26 @@ export function StudentAuthProvider({ children }) {
     setLoading(false)
   }, [])
 
+  // A new password ends the student's other sessions on the server
+  // (add_logout_on_password_change.sql). Check this one every minute and when
+  // the tab comes back; student_self answers null once it is gone.
+  const token = student?.token
+  useEffect(() => {
+    if (!token) return undefined
+    let stopped = false
+    const check = async () => {
+      if (stopped || document.visibilityState === 'hidden') return
+      const { data, error } = await supabase.rpc('student_self', { p_token: token })
+      if (!stopped && !error && !data) {
+        localStorage.removeItem('student_session')
+        setStudent(null)
+      }
+    }
+    const timer = setInterval(check, 60 * 1000)
+    document.addEventListener('visibilitychange', check)
+    return () => { stopped = true; clearInterval(timer); document.removeEventListener('visibilitychange', check) }
+  }, [token])
+
   function storeSession(session) {
     markActive('idle:student')
     localStorage.setItem('student_session', JSON.stringify(session))

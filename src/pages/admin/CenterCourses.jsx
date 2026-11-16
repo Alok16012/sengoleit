@@ -72,6 +72,12 @@ export default function CenterCourses() {
   })
 
   const [busy, setBusy] = useState(null)
+  // Bulk allotment to several centers at once.
+  const [bulkCenters, setBulkCenters] = useState(new Set())
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkQ, setBulkQ] = useState('')
+  const [bulkPicked, setBulkPicked] = useState(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
 
   // [] means "no session filter", which is every session — so on screen every
   // session is ticked, not none of them. The empty array is only how that is
@@ -381,6 +387,34 @@ export default function CenterCourses() {
   }
 
   // ═══════════════ CENTER LIST VIEW ═══════════════
+  // Bulk allotment: tick centers (or all of them), then the courses — every
+  // pair not already allotted is added in one go.
+  const allListTicked = listCenters.length > 0 && listCenters.every(c => bulkCenters.has(c.id))
+  const toggleBulkCenter = id => setBulkCenters(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const toggleAllCenters = () => setBulkCenters(allListTicked ? new Set() : new Set(listCenters.map(c => c.id)))
+  const structLabel = st => `${st.programs?.program_name || 'Course'} — ${st.academic_sessions?.session_name || 'All Sessions'}`
+  const bulkStructs = structs
+    .filter(st => !bulkQ.trim() || structLabel(st).toLowerCase().includes(bulkQ.trim().toLowerCase()))
+    .sort((a, b) => structLabel(a).localeCompare(structLabel(b)))
+  async function runBulkAllot() {
+    const have = new Set(ccRows.map(r => `${r.center_id}|${r.fee_structure_id}`))
+    const now = new Date().toISOString()
+    const rows = []
+    for (const cid of bulkCenters) for (const sid of bulkPicked) {
+      if (!have.has(`${cid}|${sid}`)) rows.push({ center_id: cid, fee_structure_id: sid, status: 'approved', approved_at: now })
+    }
+    if (!rows.length) { alert('These centers already have all the chosen courses.'); return }
+    if (!confirm(`Allot ${bulkPicked.size} course session(s) to ${bulkCenters.size} center(s)?\n\n${rows.length} new allotment(s) will be added; ones already there are left as they are.`)) return
+    setBulkBusy(true)
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await supabase.from('center_courses').insert(rows.slice(i, i + 200))
+      if (error) { setBulkBusy(false); alert('Could not allot: ' + error.message); loadCounts(); return }
+    }
+    setBulkBusy(false); setBulkOpen(false); setBulkPicked(new Set()); setBulkCenters(new Set())
+    loadCounts()
+    alert(`${rows.length} allotment(s) added.`)
+  }
+
   if (!centerId) {
     return (
       <div>
@@ -423,6 +457,18 @@ export default function CenterCourses() {
           </div>
         </div>
 
+        {bulkCenters.size > 0 && (
+          <div className="mb-3 flex items-center justify-between gap-3 bg-[#933d18]/5 border border-[#933d18]/20 rounded-xl px-4 py-2.5">
+            <p className="text-sm text-gray-700"><strong>{bulkCenters.size}</strong> center{bulkCenters.size === 1 ? '' : 's'} selected</p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setBulkCenters(new Set())} className="text-xs font-semibold text-gray-500 hover:text-gray-800">Clear</button>
+              <Button size="sm" onClick={() => { setBulkQ(''); setBulkPicked(new Set()); setBulkOpen(true) }}>
+                <Plus size={14} /> Allot Courses to {bulkCenters.size} Center{bulkCenters.size === 1 ? '' : 's'}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <p className="text-xs text-gray-400 mb-3">
           All centers in one list — the ones with no course yet come first.
           <strong> Pending</strong> is the courses that have a fee in Fee Master but are not with
@@ -434,6 +480,10 @@ export default function CenterCourses() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#933d18]">
+                <th className="px-4 py-3 w-10">
+                  <input type="checkbox" checked={allListTicked} onChange={toggleAllCenters} title="Select all centers in this list"
+                    className="w-4 h-4 accent-white cursor-pointer" />
+                </th>
                 <th className="text-left text-white font-semibold px-4 py-3">#</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Center</th>
                 <th className="text-left text-white font-semibold px-4 py-3">Type</th>
@@ -446,13 +496,17 @@ export default function CenterCourses() {
             </thead>
             <tbody>
               {centersLoading ? (
-                <tr><td colSpan={8} className="text-center text-gray-400 py-12">Loading...</td></tr>
+                <tr><td colSpan={9} className="text-center text-gray-400 py-12">Loading...</td></tr>
               ) : listCenters.length === 0 ? (
-                <tr><td colSpan={8} className="text-center text-gray-400 py-12">No centers found</td></tr>
+                <tr><td colSpan={9} className="text-center text-gray-400 py-12">No centers found</td></tr>
               ) : listCenters.map((c, i) => {
                 const cnt = counts[c.id] || { pending: 0, approved: 0 }
                 return (
-                  <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${i % 2 ? 'bg-gray-50/50' : ''}`}>
+                  <tr key={c.id} className={`border-b border-gray-50 hover:bg-gray-50 transition-colors ${bulkCenters.has(c.id) ? 'bg-[#933d18]/5' : i % 2 ? 'bg-gray-50/50' : ''}`}>
+                    <td className="px-4 py-3">
+                      <input type="checkbox" checked={bulkCenters.has(c.id)} onChange={() => toggleBulkCenter(c.id)}
+                        className="w-4 h-4 accent-[#933d18] cursor-pointer" />
+                    </td>
                     <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">{c.center_name}</td>
                     <td className="px-4 py-3">
@@ -480,6 +534,52 @@ export default function CenterCourses() {
             </tbody>
           </table>
         </div>
+
+        {bulkOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !bulkBusy && setBulkOpen(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <div>
+                  <h3 className="font-bold text-gray-900">Allot Courses</h3>
+                  <p className="text-xs text-gray-400">To {bulkCenters.size} selected center{bulkCenters.size === 1 ? '' : 's'} · {bulkPicked.size} course session{bulkPicked.size === 1 ? '' : 's'} ticked</p>
+                </div>
+                <button onClick={() => !bulkBusy && setBulkOpen(false)} className="text-gray-400 hover:text-gray-700"><X size={18} /></button>
+              </div>
+              <div className="px-5 pt-4 flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={bulkQ} onChange={e => setBulkQ(e.target.value)} placeholder="Search course or session…" autoFocus
+                    className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:border-[#933d18]" />
+                </div>
+                <button onClick={() => setBulkPicked(prev => {
+                    const ids = bulkStructs.map(st => st.id)
+                    const all = ids.every(id => prev.has(id))
+                    const n = new Set(prev); ids.forEach(id => (all ? n.delete(id) : n.add(id))); return n
+                  })}
+                  className="text-xs font-semibold text-[#933d18] whitespace-nowrap">
+                  {bulkStructs.length && bulkStructs.every(st => bulkPicked.has(st.id)) ? 'Untick shown' : 'Tick all shown'}
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1">
+                {bulkStructs.length === 0 ? <p className="text-sm text-gray-400 py-8 text-center">No course with a fee matches.</p>
+                  : bulkStructs.map(st => (
+                    <label key={st.id} className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer ${bulkPicked.has(st.id) ? 'bg-[#933d18]/5' : 'hover:bg-gray-50'}`}>
+                      <input type="checkbox" checked={bulkPicked.has(st.id)} className="w-4 h-4 accent-[#933d18]"
+                        onChange={() => setBulkPicked(prev => { const n = new Set(prev); n.has(st.id) ? n.delete(st.id) : n.add(st.id); return n })} />
+                      <span className="text-sm text-gray-800">{st.programs?.program_name || 'Course'}</span>
+                      <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">{st.academic_sessions?.session_name || 'All Sessions'}</span>
+                    </label>
+                  ))}
+              </div>
+              <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setBulkOpen(false)} disabled={bulkBusy}>Cancel</Button>
+                <Button onClick={runBulkAllot} disabled={bulkBusy || !bulkPicked.size}>
+                  <Check size={14} /> {bulkBusy ? 'Allotting…' : `Allot to ${bulkCenters.size} Center${bulkCenters.size === 1 ? '' : 's'}`}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

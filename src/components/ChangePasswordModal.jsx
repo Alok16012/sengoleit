@@ -40,10 +40,12 @@ export default function ChangePasswordModal({ isOpen, onClose, email }) {
     }
     const { error: updErr } = await supabase.auth.updateUser({ password: next })
     if (updErr) { setBusy(false); return setError('Could not change the password: ' + updErr.message) }
-    // A new password must end every other open session — Supabase leaves
-    // them signed in, so a browser that was logged in with the old password
-    // stayed in. This one stays signed in.
+    // A new password ends every session of this login on the server
+    // (add_logout_on_password_change.sql), this one included — sign this
+    // browser straight back in with the new password. Without that SQL, end
+    // the other sessions the old way.
     await supabase.auth.signOut({ scope: 'others' }).catch(() => {})
+    await supabase.auth.signInWithPassword({ email, password: next }).catch(() => {})
     setBusy(false)
     setDone(true)
   }
