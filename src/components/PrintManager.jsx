@@ -274,6 +274,12 @@ export default function PrintManager({ students, results, setResults, filterActi
     runJob([entryOf(s, doc)])
   }
 
+  // View a document already printed, as it prints. Nothing is recorded unless
+  // it is printed from that window and confirmed there.
+  function viewOne(s, doc) {
+    runJob([entryOf(s, doc)], { title: `${docTitle(doc)} — ${s.student_name || ''}` })
+  }
+
   // A student's own Print button takes everything pending; the bulk actions
   // only the document types ticked in the bulk bar.
   const pendingEntries = (ss, types = null) => ss.flatMap(s => plans[s.id].pending
@@ -321,14 +327,14 @@ export default function PrintManager({ students, results, setResults, filterActi
     { header: 'Center', value: s => s.centers?.center_name || '' },
     { header: 'Center Code', value: s => s.centers?.center_code || '' },
     { header: 'Enrollment No', value: s => s.enrollment_no || '' },
-    { header: 'Pending Documents', value: s => plans[s.id].pending.map(docTitle).join(', ') },
-    { header: 'Final Documents', value: s => {
+    { header: 'Printed Documents', value: s => printedDocsOf(plans[s.id]).map(docTitle).join(', ') },
+    { header: 'Pending Documents', value: s => {
       const p = plans[s.id]
-      if (!p.finalsDue) return `Not Eligible (${p.finalsReason})`
-      return p.finals.map(d => `${docTitle(d)}: ${printCountLabel(d.count)}`).join('; ')
+      const left = p.pending.map(docTitle).join(', ')
+      return p.finalsDue ? left : [left, `Certificates not eligible (${p.finalsReason})`].filter(Boolean).join('; ')
     } },
     { header: 'Status', value: s => STATUS_TEXT[plans[s.id].status] },
-    { header: 'Printed', value: s => `${plans[s.id].printedDue.length} of ${plans[s.id].due.length}` },
+    { header: 'Printed', value: s => `${printedDocsOf(plans[s.id]).length} of ${plans[s.id].totalDocs}` },
     { header: 'Print Count', value: s => printedDocsOf(plans[s.id]).map(d => `${docTitle(d)}: ${d.count}`).join('; ') },
   ]
   const tabLabel = TABS.find(t => t.key === tab)?.label || tab
@@ -432,8 +438,8 @@ export default function PrintManager({ students, results, setResults, filterActi
             <Th>Programme</Th>
             <Th>Center</Th>
             <Th>Enrollment No.</Th>
+            <Th>Printed Documents</Th>
             <Th>Pending Documents</Th>
-            <Th>Final Documents</Th>
             <Th>Status</Th>
             <Th>Print Count / Summary</Th>
             <Th>Actions</Th>
@@ -452,7 +458,6 @@ export default function PrintManager({ students, results, setResults, filterActi
             </Td></Tr>
           ) : list.map(s => {
             const p = plans[s.id]
-            const sheetsPending = p.pending.filter(d => d.doc_type === DOC.MARKSHEET)
             const done = printedDocsOf(p)
             const lastAt = done.map(d => d.record?.last_printed_at || d.record?.first_printed_at).filter(Boolean).sort().pop()
             return (
@@ -472,39 +477,37 @@ export default function PrintManager({ students, results, setResults, filterActi
                 </Td>
                 <Td className="font-mono text-xs font-bold text-emerald-700">{s.enrollment_no || '—'}</Td>
                 <Td>
-                  {/* Only what has never been printed. A printed marksheet is
-                      reached through History, where it can be reprinted. */}
-                  {sheetsPending.length ? (
+                  {/* Printed so far — click one to see it again as it prints
+                      (a view; it is recorded only if printed and confirmed). */}
+                  {done.length ? (
                     <div className="flex flex-col items-start gap-1">
-                      {may('exam_section.print') && sheetsPending.map(d => (
-                        <Button key={d.key} size="xs" variant="secondary" title={`Print the Semester ${d.semester} marksheet (DMC ${d.result?.dmc_no ?? '—'})`}
-                          onClick={() => printOne(s, d)}>
-                          <Printer size={11} /> {docTitle(d)}
-                        </Button>
+                      {done.map(d => (
+                        <button key={d.key} onClick={() => viewOne(s, d)} title={`View the printed ${docTitle(d)} · ${countLine(d)}`}
+                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 whitespace-nowrap">
+                          <Eye size={10} /> {docTitle(d)}
+                        </button>
                       ))}
                     </div>
-                  ) : <span className="block text-xs text-emerald-700 font-semibold max-w-[110px] whitespace-normal">All marksheets printed</span>}
+                  ) : <span className="text-xs text-gray-300">—</span>}
                 </Td>
                 <Td>
-                  {p.finalsDue ? (
-                    <div className="flex flex-col items-start gap-1">
-                      {p.finals.map(d => d.count >= 1 ? (
-                        <span key={d.key} title={countLine(d)}
-                          className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 whitespace-nowrap">
-                          <CheckCircle2 size={10} /> {docTitle(d)}
-                        </span>
-                      ) : may('exam_section.print') && (
-                        <Button key={d.key} size="xs" variant="outline" onClick={() => printOne(s, d)}>
-                          <Printer size={11} /> {docTitle(d)}
-                        </Button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div>
-                      <span className="text-[10px] font-bold px-2 py-1 rounded bg-gray-100 text-gray-500 whitespace-nowrap">Not Eligible</span>
-                      <p className="text-[10px] text-gray-400 mt-1 max-w-[130px] whitespace-normal">{p.finalsReason}</p>
-                    </div>
-                  )}
+                  {/* Still to print. Once printed it moves to Printed Documents. */}
+                  <div className="flex flex-col items-start gap-1">
+                    {may('exam_section.print') && p.pending.map(d => (
+                      <Button key={d.key} size="xs" variant={d.doc_type === DOC.MARKSHEET ? 'secondary' : 'outline'}
+                        title={d.doc_type === DOC.MARKSHEET ? `Print the Semester ${d.semester} marksheet (DMC ${d.result?.dmc_no ?? '—'})` : `Print the ${docTitle(d)}`}
+                        onClick={() => printOne(s, d)}>
+                        <Printer size={11} /> {docTitle(d)}
+                      </Button>
+                    ))}
+                    {!p.finalsDue && (
+                      <div title={p.finalsReason}>
+                        <span className="text-[10px] font-bold px-2 py-1 rounded bg-gray-100 text-gray-500 whitespace-nowrap">Certificates: Not Eligible</span>
+                        <p className="text-[10px] text-gray-400 mt-1 max-w-[130px] whitespace-normal">{p.finalsReason}</p>
+                      </div>
+                    )}
+                    {!p.pending.length && p.finalsDue && <span className="text-xs text-emerald-700 font-semibold">All printed</span>}
+                  </div>
                 </Td>
                 <Td>
                   <span className={`text-[11px] font-bold px-2 py-1 rounded-lg border whitespace-nowrap ${STATUS_BADGE[p.status]}`}>
@@ -512,7 +515,7 @@ export default function PrintManager({ students, results, setResults, filterActi
                   </span>
                 </Td>
                 <Td className="text-xs whitespace-nowrap">
-                  <p className="font-semibold text-gray-800">{p.printedDue.length} of {p.due.length} printed</p>
+                  <p className="font-semibold text-gray-800">{done.length} of {p.totalDocs} printed</p>
                   {p.reprints > 0 && <p className="text-amber-700 font-semibold mt-0.5">Reprints: {p.reprints}</p>}
                   {lastAt && <p className="text-gray-400 mt-0.5">Last: {fmtD(lastAt)}</p>}
                 </Td>

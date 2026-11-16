@@ -13,7 +13,6 @@ import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { fetchAdmitCardSubjects, fetchSemesterSubjectRows, formatSubjectRow } from '../../utils/fetchSyllabus'
 import { fetchExamDates, fetchExamEndDates, examEndDateFor, dateReached } from '../../utils/examSettings'
 import { fetchResultsForMany } from '../../utils/semesterResults'
-import MasterMarksEntry from '../../components/MasterMarksEntry'
 import { computeSemesterFeeStatus } from '../../utils/courseFee'
 import { admitCardsFor, admitCardsForMany, pickCardRows, saveAdmitCard, updateAdmitCardSubjects, setAdmitCardVisible, deleteAdmitCard } from '../../utils/semesterAdmitCards'
 import { termForSemester, currentSemOf } from '../../utils/reRegistration'
@@ -229,11 +228,10 @@ export default function ExamSection() {
   const [admitCards, setAdmitCards] = useState({})
   // Result view: master sheet vs one student at a time, and which students
   // still owe a result.
-  const [resultTab, setResultTab] = useState('student')   // 'student' | 'master'
+  const [resultTab, setResultTab] = useState('student')   // 'student' | 'special'
   const [resTab, setResTab] = useState(() => ['pending', 'awaiting', 'done', 'print', 'all'].find(k => mayTab('exam_section', 'result', k)) || 'pending')         // 'awaiting' | 'pending' | 'done' | 'all'
   const [results, setResults] = useState({})              // `${id}__${sem}` -> row
   const [examEnds, setExamEnds] = useState({})            // `${session}:${sem}` -> end date
-  const [allPrograms, setAllPrograms] = useState([])
   // Courses that have a syllabus added — the source for the Exam Schedules list.
   const [syllabusCourses, setSyllabusCourses] = useState([])
 
@@ -366,8 +364,6 @@ export default function ExamSection() {
     setAdmitCards(await admitCardsForMany(forwarded.map(s => s.id)) || {})
     setResults(await fetchResultsForMany(forwarded.map(s => s.id)) || {})
     setExamEnds(await fetchExamEndDates(forwarded.map(s => s.session_id)))
-    const { data: progs } = await supabase.from('programs').select('id, program_name, duration, semester_year')
-    setAllPrograms(progs || [])
     setLoading(false)
   }
 
@@ -1015,10 +1011,9 @@ export default function ExamSection() {
       <div className="flex items-center gap-1 flex-wrap bg-gray-100 p-1 rounded-xl w-fit mb-4">
         {[
           { key: 'student', label: 'Student Entry',  icon: Users },
-          { key: 'master',  label: 'Master Entry',   icon: ClipboardList },
           // Same list; what changes is the band the marks auto-fill within.
           { key: 'special', label: 'Special Result', icon: Award },
-        ].map(t => {
+        ].filter(t => t.key !== 'special' || may('exam_section.special_result')).map(t => {
           const Icon = t.icon
           return (
             <button key={t.key} type="button" onClick={() => setResultTab(t.key)}
@@ -1031,9 +1026,7 @@ export default function ExamSection() {
         })}
       </div>
 
-      {resultTab === 'master' ? (
-        <MasterMarksEntry students={data} programs={allPrograms} />
-      ) : (<>
+      {(<>
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div className="relative max-w-sm flex-1 min-w-[220px]">
           <label className="block text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Search</label>

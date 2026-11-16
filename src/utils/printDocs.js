@@ -124,12 +124,16 @@ export function studentPrintPlan(student, results = [], printed = {}) {
   const printedDue = due.filter(d => d.count >= 1)
   const reprints = [...marksheets, ...finals].reduce((a, d) => a + Math.max(d.count - 1, 0), 0)
 
+  // Completed means the whole course is printed — every semester's
+  // marksheet and all the final documents. A student whose later semesters
+  // are still to come is Partially Printed, however much is printed so far.
+  const totalDocs = totalSems ? totalSems + FINAL_DOCS.length : due.length
   const status = !due.length ? 'none'
     : !printedDue.length ? 'pending'
-      : pending.length ? 'partial'
-        : 'completed'
+      : (finalsDue && !pending.length) ? 'completed'
+        : 'partial'
 
-  return { totalSems, marksheets, finals, finalsDue, finalsReason, due, pending, printedDue, reprints, status }
+  return { totalSems, totalDocs, marksheets, finals, finalsDue, finalsReason, due, pending, printedDue, reprints, status }
 }
 
 // Every document of a student that has been printed at least once — what the

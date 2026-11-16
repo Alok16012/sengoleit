@@ -135,6 +135,7 @@ export const PERMISSION_GROUPS = [
     ['exam_section.view', 'View exam section'],
     ['exam_section.admit_cards', 'Issue admit cards / hall tickets'],
     ['exam_section.results', 'Enter marks and declare results'],
+    ['exam_section.special_result', 'Special Result (declare above 70%)'],
     ['exam_section.result_condition', 'Set result conditions and allow early results'],
     ['exam_section.print', 'Print marksheets and certificates'],
     ['exam_section.calendar', 'Examination calendar'],
