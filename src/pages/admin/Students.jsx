@@ -233,12 +233,15 @@ export default function Students() {
   const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(() => statusTabs[0] || 'All')
-  // A lookup role may also be given status tabs (e.g. Pending) to work a
-  // list from. Those it was ticked show as tabs beside "Search Student"; with
-  // none ticked it is the lookup alone. `lookup` is the search view.
+  // A lookup role always searches — no tab ever lists students without one.
+  // The status tabs its role ticks (e.g. Pending, Approved) narrow the search
+  // to that status; with none ticked it searches every student. In the
+  // Pending tab a found student can also be edited (with Edit student); in
+  // the others only missing documents are uploaded.
   const listTabs = searchOnly && statusTabs.length < STATUS_FILTERS.length ? statusTabs : []
-  const [view, setView] = useState('search')          // 'search' | a status tab
-  const lookup = searchOnly && view === 'search'
+  const [view, setView] = useState(() => listTabs[0] || 'all')
+  const lookup = searchOnly
+  const lookupCanEdit = searchOnly && view === 'Pending' && may('students.edit')
   // Form-submission date range — how many admissions came in over a period.
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -500,7 +503,7 @@ export default function Students() {
     const day = localDay(s.created_at)
     if (fromDate && (!day || day < fromDate)) return false
     if (toDate && (!day || day > toDate)) return false
-    const matchStatus = lookup || statusFilter === 'All'
+    const matchStatus = lookup ? (view === 'all' || s.status === view) : statusFilter === 'All'
       || (statusFilter === 'RR' ? !!reReg?.[s.id] : s.status === statusFilter)
     return matchesSearch(s, search) && matchStatus
   })
@@ -573,8 +576,8 @@ export default function Students() {
 
       {listTabs.length > 0 && (
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit mb-4">
-          {[['search', 'Search Student'], ...listTabs.map(t => [t, t])].map(([k, label]) => (
-            <button key={k} onClick={() => { setView(k); if (k !== 'search') setStatusFilter(k) }}
+          {listTabs.map(t => [t, t]).map(([k, label]) => (
+            <button key={k} onClick={() => setView(k)}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${view === k ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {label}
             </button>
@@ -839,9 +842,16 @@ export default function Students() {
                     )}
                   </Td>
                   <Td>
-                    <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/view/${s.id}`)} title="View student and documents">
-                      <Eye size={14} className="text-[#933d18]" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/view/${s.id}`)} title="View student and documents">
+                        <Eye size={14} className="text-[#933d18]" />
+                      </Button>
+                      {lookupCanEdit && (
+                        <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/students/edit/${s.id}`)} title="Edit student">
+                          <Edit size={14} />
+                        </Button>
+                      )}
+                    </div>
                   </Td>
                 </Tr>
               )
