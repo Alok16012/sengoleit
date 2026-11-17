@@ -4,7 +4,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
-import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, Plus, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard, IndianRupee } from 'lucide-react'
+import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard, IndianRupee } from 'lucide-react'
 import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
@@ -18,6 +18,35 @@ const SETTINGS_KEY = 'phd_doc_settings'
 // Optional columns that only exist after add_phd_portal_flow.sql has been run.
 // Every query and update degrades gracefully when they are still missing.
 const OPTIONAL_COLS = 'stream, offer_letter_active, entrance_letter_active, research_forwarded_at'
+
+// The Ph.D documents, in the order they are issued, and what the Master Panel
+// asks for each. ref = the reference series (prefix + next number) under the
+// label the document uses; ref2 a second series; date the date of issue.
+const PHD_DOCS = [
+  { name: 'Hall Ticket', fields: [
+    { k: 'testDate', label: 'Entrance (Exam) Date' },
+    { k: 'testDate2', label: '2nd Sitting Date', optional: true },
+    { k: 'examTime', label: 'Exam Time', placeholder: '10.00 a.m. to 01.00 p.m.' },
+    { k: 'reportTime', label: 'Reporting Time', placeholder: '09.00 a.m.' },
+    { k: 'examCentre', label: 'Examination Centre', placeholder: 'Centre name and full address' },
+  ] },
+  { name: 'Entrance Certificate', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' },
+    { k: 'testDate', label: 'Entrance Test' }, { k: 'testDate2', label: '2nd Sitting Test Date', optional: true }] },
+  { name: 'Offer Letter', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+  { name: 'Enrollment Certificate', refLabel: 'Provisional Registration No', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+  { name: 'Admission Confirmation and Research Proposal', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+  { name: 'Course Work Completion Marksheet', refLabel: 'S.no', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+  { name: 'Allocation of Guide / Supervisor', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+  { name: 'Thesis Submission Letter', fields: [{ k: 'date', label: 'Date of Issue' }] },
+  { name: 'Final Viva - Voce Intimation Letter', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+  { name: 'Notification', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+  { name: 'Provisional Certificate', refLabel: 'Registration No', ref2Label: 'S.no', fields: [{ k: 'ref' }, { k: 'ref2' }] },
+  { name: 'Title of Thesis', refLabel: 'Provisional Registration No', ref2Label: 'S.no', fields: [{ k: 'ref' }, { k: 'ref2' }] },
+  { name: 'Compliance Certificate', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+]
+// A letter added by name only gets the common pair.
+const docSpec = name => PHD_DOCS.find(d => d.name.toLowerCase() === String(name).toLowerCase())
+  || { name, fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] }
 
 export default function ResearchDepartment() {
   const { may, mayTab } = useAuth()
@@ -53,7 +82,9 @@ export default function ResearchDepartment() {
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
   // Open while asking which exam sitting a candidate's letter is for.
   const [sittingAsk, setSittingAsk] = useState(null)   // { letter, resolve }
-  const [newName, setNewName] = useState('')
+  // Master Panel: Entry (one document at a time) or Complete.
+  const [masterTab, setMasterTab] = useState('entry')
+  const [docSel, setDocSel] = useState('Hall Ticket')
   // Types down the session list — sessions pile up year on year, so picking one
   // out of a plain dropdown gets slow.
   const [sessionSearch, setSessionSearch] = useState('')
@@ -122,19 +153,24 @@ export default function ResearchDepartment() {
   const editingSession = sessionFilter !== 'all' ? sessionFilter : ''
   const letterNames = [...new Set([...LETTER_NAMES, ...letters.map(l => l.name)])].filter(Boolean)
   const blankLetter = (name, session = '') =>
-    ({ name, session, prefix: '', nextNum: 1, date: today, testDate: '', examTime: '', reportTime: '', examCentre: '' })
-  // Every letter for the session on screen, so the whole set is filled in one go.
-  // A letter with no entry of its own shows the "Any session" fallback's values.
-  const sessionLetters = letterNames.map(name => ({
-    name,
-    entry: entryFor(editingSession, name) || blankLetter(name, editingSession),
-    // False while the card is still showing the fallback (or nothing at all).
-    own: letters.some(l => l.name === name && (l.session || '') === (editingSession || '')),
-  }))
+    ({ name, session, prefix: '', nextNum: 1, prefix2: '', nextNum2: 1, date: today, testDate: '', examTime: '', reportTime: '', examCentre: '' })
   // Only sessions matching the search box, plus whichever one is selected so it
   // never vanishes from under the user mid-edit.
   const shownSessions = sessions.filter(s =>
     s.id === sessionFilter || s.session_name.toLowerCase().includes(sessionSearch.trim().toLowerCase()))
+
+  // The documents in the Master Panel's dropdown: the Ph.D set in its order,
+  // then any other letter that was added by name.
+  const docNames = [...new Set([...PHD_DOCS.map(d => d.name), ...letterNames])]
+  const docComplete = (name, entry) => {
+    if (!entry) return false
+    const has = v => String(v ?? '').trim() !== ''
+    return docSpec(name).fields.filter(f => !f.optional).every(f =>
+      f.k === 'ref' ? has(entry.prefix) : f.k === 'ref2' ? has(entry.prefix2) : has(entry[f.k]))
+  }
+  // Every entry, any session, that has everything its document needs.
+  const completeRows = letters.filter(l => docComplete(l.name, l))
+    .sort((x, y) => (sessionName(x.session) || '').localeCompare(sessionName(y.session) || '') || docNames.indexOf(x.name) - docNames.indexOf(y.name))
 
   // Keep the browser copy as a fallback, but the DB is the shared source of truth.
   function persist(nextLetters, nextAssigned) {
@@ -158,15 +194,6 @@ export default function ResearchDepartment() {
     if (error) { alert('Could not save letter settings.\n\n' + error.message); return }
     setSettingsInDb(true); setSettingsNeedSeed(false)
     setSaved(true); setTimeout(() => setSaved(false), 1500)
-  }
-
-  function addLetter() {
-    const name = newName.trim()
-    if (!name) return
-    setNewName('')
-    if (letters.some(l => l.name.toLowerCase() === name.toLowerCase())) return
-    const next = [...letters, blankLetter(name, editingSession)]
-    setLetters(next); persist(next, assigned)
   }
 
   // Remove one letter entry. Needed to clear out duplicates and the session-less
@@ -574,223 +601,177 @@ export default function ResearchDepartment() {
 
       {tab === 'master' && (
       <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Settings2 size={16} className="text-[#933d18]" />
-          <p className="text-sm font-bold text-gray-900">Master Panel — Letters, Reference Series & Date</p>
-        </div>
-
-        {/* Add a new letter name */}
-        {may('research_dept.manage') && (
-        <div className="flex items-end gap-2 flex-wrap">
-          <div>
-            <label className="block text-[11px] font-semibold text-gray-500 mb-1">Add Letter Name</label>
-            <input value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addLetter()}
-              className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-56" placeholder="e.g. Provisional Letter" />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Settings2 size={16} className="text-[#933d18]" />
+            <p className="text-sm font-bold text-gray-900">Master Panel — Ph.D Documents</p>
           </div>
-          <Button variant="secondary" size="md" onClick={addLetter}><Plus size={14} /> Add</Button>
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-xl">
+            {[['entry', 'Entry'], ['done', `Complete (${completeRows.length})`]].map(([k, label]) => (
+              <button key={k} type="button" onClick={() => setMasterTab(k)}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${masterTab === k ? 'bg-white text-[#933d18] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-        )}
 
-        {/* Pick a session, then fill in every letter for it in one pass. */}
-        <div className="border-t border-gray-100 pt-4 space-y-3">
-          <div className="flex items-end gap-3 flex-wrap">
+        {masterTab === 'entry' ? (
+          <div className="space-y-4">
+            {/* Session and document, then only that document's fields. */}
+            <div className="flex items-end gap-3 flex-wrap">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Search Session</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={sessionSearch} onChange={e => setSessionSearch(e.target.value)} placeholder="Type a session…"
+                    className="pl-8 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-40" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Session</label>
+                <select value={sessionFilter} onChange={e => setSessionFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-52">
+                  <option value="all">All Sessions (fallback)</option>
+                  {shownSessions.map(x => <option key={x.id} value={x.id}>{x.session_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1">Name of Document</label>
+                <select value={docSel} onChange={e => setDocSel(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-80">
+                  {docNames.map(n => <option key={n} value={n}>{n}{docComplete(n, entryFor(editingSession, n)) ? ' ✓' : ''}</option>)}
+                </select>
+              </div>
+              {may('research_dept.manage') && (
+                <Button variant="primary" size="md" onClick={saveCfg}>
+                  <Save size={14} /> {saved ? 'Saved ✓' : 'Save'}
+                </Button>
+              )}
+            </div>
+            <p className="text-[11px] text-gray-500 -mt-2">
+              {editingSession
+                ? <>Setting up <strong className="text-gray-700">{sessionName(editingSession)}</strong> — <strong className="text-gray-700">{docSel}</strong>.</>
+                : <>No session picked — this is the fallback for any session without its own entry.</>}
+            </p>
+
+            {(() => {
+              const entry = entryFor(editingSession, docSel) || blankLetter(docSel, editingSession)
+              const set = patch => updateLetter(docSel, patch)
+              const inp = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white'
+              const req = <span className="text-red-500">*</span>
+              const opt = <span className="font-normal text-gray-400"> — optional</span>
+              const series = (label, pk, nk, optional) => {
+                const bad = endsInDigit(entry[pk])
+                return [
+                    <div key={pk}>
+                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">{label} (prefix) {optional ? opt : req}</label>
+                      <input value={entry[pk] || ''} onChange={e => set({ [pk]: e.target.value })} placeholder="SIU/DR/AL/26/"
+                        className={`${inp} ${bad || !String(entry[pk] || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`} />
+                      {!String(entry[pk] || '').trim() && <p className="text-[10px] text-amber-700 mt-1">No prefix — prints a bare serial</p>}
+                      {bad && may('research_dept.manage') && pk === 'prefix' && (
+                        <button type="button" onClick={() => { const f = migratePrefix(entry); set({ prefix: f.prefix, nextNum: f.nextNum }) }}
+                          className="text-[10px] font-semibold text-[#933d18] underline">
+                          Fix → {String(entry.prefix || '').replace(/\d+$/, '')}{refSerial(migratePrefix(entry).nextNum)}
+                        </button>
+                      )}
+                    </div>,
+                    <div key={`${nk}-n`}>
+                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">Next No.</label>
+                      <input type="number" min="0" value={entry[nk] ?? 1} onChange={e => set({ [nk]: e.target.value })} className={inp} />
+                    </div>,
+                    <div key={`${nk}-r`}>
+                      <label className="block text-[11px] font-semibold text-gray-600 mb-1">Next Reference</label>
+                      <p className="px-3 py-2 rounded-xl bg-white border border-dashed border-gray-200 font-mono text-sm font-bold text-[#933d18] truncate">
+                        {entry[pk] || ''}{refSerial(entry[nk] ?? 1)}
+                      </p>
+                    </div>,
+                ]
+              }
+              const spec = docSpec(docSel)
+              return (
+                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/40">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3">Required for {docSel}</p>
+                  <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {spec.fields.flatMap(f => {
+                      if (f.k === 'ref') return series(spec.refLabel || 'Ref No', 'prefix', 'nextNum', f.optional)
+                      if (f.k === 'ref2') return series(spec.ref2Label || 'S.no', 'prefix2', 'nextNum2', f.optional)
+                      const isDate = ['date', 'testDate', 'testDate2'].includes(f.k)
+                      return (
+                        <div key={f.k} className={f.k === 'examCentre' ? 'sm:col-span-2' : ''}>
+                          <label className="block text-[11px] font-semibold text-gray-600 mb-1">{f.label} {f.optional ? opt : req}</label>
+                          <input type={isDate ? 'date' : 'text'} value={entry[f.k] || ''} onChange={e => set({ [f.k]: e.target.value })}
+                            placeholder={f.placeholder || ''} className={inp} />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {entry.testDate2 && /hall|entrance/i.test(docSel) && (
+                    <p className="text-[11px] text-gray-500 mt-3">Two sittings set — issuing this letter will ask which sitting the candidate gets.</p>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Finished documents of this session, below the form. */}
             <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Search Session</label>
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input value={sessionSearch} onChange={e => setSessionSearch(e.target.value)}
-                  placeholder="Type a session…"
-                  className="pl-8 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 w-44" />
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Completed for {editingSession ? sessionName(editingSession) : 'the fallback'} — {docNames.filter(n => docComplete(n, entryFor(editingSession, n))).length} of {docNames.length}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {docNames.map(n => {
+                  const done = docComplete(n, entryFor(editingSession, n))
+                  return (
+                    <button key={n} type="button" onClick={() => setDocSel(n)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                        n === docSel ? 'border-[#933d18] text-[#933d18] bg-[#933d18]/5'
+                          : done ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'border-gray-200 text-gray-500 bg-white hover:border-gray-300'}`}>
+                      {done ? '✓ ' : ''}{n}
+                    </button>
+                  )
+                })}
               </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Session</label>
-              <select value={sessionFilter} onChange={e => setSessionFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-52">
-                <option value="all">All Sessions (fallback)</option>
-                {shownSessions.map(s => <option key={s.id} value={s.id}>{s.session_name}</option>)}
-              </select>
-            </div>
-            {may('research_dept.manage') && (
-            <Button variant="primary" size="md" onClick={saveCfg}>
-              <Save size={14} /> {saved ? 'Saved ✓' : 'Save All Letters'}
-            </Button>
-            )}
-            <p className="text-[11px] text-gray-500 pb-2">
-              {editingSession
-                ? <>Setting up <strong className="text-gray-700">{sessionName(editingSession)}</strong> — fill every letter below, then Save once.</>
-                : <>No session picked — you're editing the fallback that any session without its own series will use.</>}
-            </p>
           </div>
-
-          {sessionSearch.trim() && shownSessions.length === 0 && (
-            <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-              No session matches “{sessionSearch}”.
-            </p>
-          )}
-
-          {/* One row per letter — all of them for the chosen session at once.
-              A field a letter does not print is a dash. */}
-          <div className="border border-gray-200 rounded-xl overflow-x-auto">
+        ) : (
+          <div className="border border-gray-100 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500 text-left">
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Letter</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Reference No. (prefix)</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Next No.</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Letter Date</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Exam / Test Date</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">2nd Sitting Date</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Exam Time</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Reporting</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Examination Centre</th>
-                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Next Reference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessionLetters.map(({ name, entry, own }) => {
-                  const isHall = /hall/i.test(name)
-                  const hasTestDate = isHall || /entrance/i.test(name)
-                  const bad = endsInDigit(entry.prefix)
-                  const set = (patch) => updateLetter(name, patch)
-                  const cell = 'w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white'
-                  const none = <span className="text-gray-300">—</span>
-                  return (
-                    <tr key={name} className="border-t border-gray-100 align-top">
-                      <td className="px-3 py-2 min-w-[150px]">
-                        <p className="font-bold text-gray-900">{name}</p>
-                        {editingSession && !own && (
-                          <span className="text-[10px] font-semibold text-gray-400"
-                            title="This session has no series of its own yet — showing the “Any session” fallback. Edit any field to give it one.">
-                            inherited
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 min-w-[170px]">
-                        <input value={entry.prefix || ''} onChange={e => set({ prefix: e.target.value })}
-                          title="Everything before the running serial — end it with a slash, e.g. SIU/DR/AL/26/"
-                          className={`${cell} ${bad || !String(entry.prefix || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`} placeholder="SIU/DR/AL/26/" />
-                        {bad && may('research_dept.manage') && (
-                          <button type="button" onClick={() => { const f = migratePrefix(entry); set({ prefix: f.prefix, nextNum: f.nextNum }) }}
-                            className="mt-1 text-[10px] font-semibold text-[#933d18] underline">
-                            Fix → {String(entry.prefix || '').replace(/\d+$/, '')}{refSerial(migratePrefix(entry).nextNum)}
-                          </button>
-                        )}
-                        {!String(entry.prefix || '').trim() && <p className="mt-1 text-[10px] text-amber-700">No prefix — prints a bare serial</p>}
-                      </td>
-                      <td className="px-3 py-2 w-24">
-                        <input type="number" min="0" value={entry.nextNum ?? 1} onChange={e => set({ nextNum: e.target.value })}
-                          title="Serial the next candidate will get. It counts up by 1 automatically after each letter is issued." className={cell} />
-                      </td>
-                      <td className="px-3 py-2 min-w-[150px]">
-                        <input type="date" value={entry.date || ''} onChange={e => set({ date: e.target.value })} title="Date printed on the letter" className={cell} />
-                      </td>
-                      <td className="px-3 py-2 min-w-[150px]">
-                        {hasTestDate ? (
-                          <input type="date" value={entry.testDate || ''} onChange={e => set({ testDate: e.target.value })}
-                            title={isHall ? 'Exam date printed on the Hall Ticket' : 'Entrance Test date printed on the certificate. Leave empty for a blank rule.'} className={cell} />
-                        ) : none}
-                      </td>
-                      <td className="px-3 py-2 min-w-[150px]">
-                        {hasTestDate ? (
-                          <input type="date" value={entry.testDate2 || ''} onChange={e => set({ testDate2: e.target.value })}
-                            title="Only when the same exam is held a second time. Issuing a letter then asks which sitting the candidate gets." className={cell} />
-                        ) : none}
-                      </td>
-                      <td className="px-3 py-2 min-w-[170px]">
-                        {isHall ? (
-                          <input value={entry.examTime || ''} onChange={e => set({ examTime: e.target.value })} className={cell} placeholder="10.00 a.m. to 01.00 p.m." />
-                        ) : none}
-                      </td>
-                      <td className="px-3 py-2 min-w-[110px]">
-                        {isHall ? (
-                          <input value={entry.reportTime || ''} onChange={e => set({ reportTime: e.target.value })} className={cell} placeholder="09.00 a.m." />
-                        ) : none}
-                      </td>
-                      <td className="px-3 py-2 min-w-[200px]">
-                        {isHall ? (
-                          <input value={entry.examCentre || ''} onChange={e => set({ examCentre: e.target.value })} className={cell} placeholder="Centre name and full address" />
-                        ) : none}
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap font-mono text-xs font-bold text-[#933d18]">
-                        {entry.prefix}{refSerial(entry.nextNum)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-          {sessionLetters.some(({ name, entry }) => /hall|entrance/i.test(name) && entry.testDate2) && (
-            <p className="text-[11px] text-gray-500">A 2nd sitting date is set — issuing that letter will ask which sitting the candidate gets.</p>
-          )}
-        </div>
-        {!settingsInDb && (
-          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
-            These settings are saved in this browser only. Run <span className="font-mono">add_letter_settings.sql</span> in
-            Supabase → SQL Editor to share one reference series across all admins and show the same Ref. No. on the student's own copy.
-            <br />
-            <strong>Already ran it?</strong> Then your <span className="font-mono">letter_settings</span> table is from an earlier
-            version of that script and is missing a column. Re-run it — it now upgrades an existing table instead of skipping it.
-            The browser console shows the exact reason.
-          </p>
-        )}
-        {settingsInDb && settingsNeedSeed && (
-          <p className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mt-2">
-            Press <strong>Save</strong> once to publish this reference series to the shared settings.
-          </p>
-        )}
-
-        {/* Every configured letter at a glance — the cards above only cover the
-            session on screen, so without this you can't see the other sessions. */}
-        <div className="mt-4">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">All Letters — every session you've set up</p>
-          <div className="border border-gray-100 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500">
-                  <th className="text-left font-semibold px-3 py-2">Session</th>
-                  <th className="text-left font-semibold px-3 py-2">Letter</th>
-                  <th className="text-left font-semibold px-3 py-2">Next Reference No.</th>
-                  <th className="text-left font-semibold px-3 py-2">Date</th>
-                  <th className="text-left font-semibold px-3 py-2">Test Date</th>
+                  <th className="font-semibold px-3 py-2">Session</th>
+                  <th className="font-semibold px-3 py-2">Document</th>
+                  <th className="font-semibold px-3 py-2">Next Number</th>
+                  <th className="font-semibold px-3 py-2">Date of Issue</th>
+                  <th className="font-semibold px-3 py-2">Details</th>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {letters.length === 0 && (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-400 text-xs">
-                    Nothing set up yet — pick a session above, fill the letters in, then Save.
-                  </td></tr>
+                {completeRows.length === 0 && (
+                  <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400 text-sm">Nothing complete yet — set documents up in the Entry tab.</td></tr>
                 )}
-                {letters.map((l, i) => {
-                  // The cards above already show every letter, so a row only has
-                  // to say whether its session is the one currently on screen.
-                  const isSel = (l.session || '') === (editingSession || '')
+                {completeRows.map((l, i) => {
+                  const spec = docSpec(l.name)
+                  const has = k => spec.fields.some(f => f.k === k)
                   return (
-                    <tr key={`${l.session || 'any'}-${l.name}-${i}`} className={`border-t border-gray-100 ${isSel ? 'bg-[#933d18]/5' : ''}`}>
-                      <td className="px-3 py-2 text-gray-700">{l.session ? sessionName(l.session)
-                        : <span className="text-gray-400 italic"
-                            title="No session of its own — this entry is the fallback used by every session that has none. To give a session its own series, pick it in the Session dropdown above, then set the reference and Save.">
-                            Any session
-                          </span>}</td>
+                    <tr key={`${l.session || 'any'}-${l.name}-${i}`} className="border-t border-gray-100">
+                      <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{l.session ? sessionName(l.session) : <span className="text-gray-400 italic">Any session</span>}</td>
                       <td className="px-3 py-2 font-semibold text-gray-800">{l.name}</td>
-                      <td className="px-3 py-2 font-mono text-[#933d18]">{l.prefix}{refSerial(l.nextNum)}</td>
-                      <td className="px-3 py-2 text-gray-600">{l.date ? formatDate(l.date) : '—'}</td>
-                      <td className="px-3 py-2 text-gray-600">{l.testDate ? formatDateLong(l.testDate) : '—'}</td>
+                      <td className="px-3 py-2 font-mono text-xs text-[#933d18] whitespace-nowrap">
+                        {has('ref') && <p>{spec.refLabel || 'Ref No'}: {l.prefix}{refSerial(l.nextNum)}</p>}
+                        {has('ref2') && <p>{spec.ref2Label || 'S.no'}: {l.prefix2}{refSerial(l.nextNum2 ?? 1)}</p>}
+                        {!has('ref') && !has('ref2') && <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{has('date') && l.date ? formatDate(l.date) : '—'}</td>
+                      <td className="px-3 py-2 text-xs text-gray-500">
+                        {[l.testDate && `Exam/Test: ${formatDate(l.testDate)}`, l.testDate2 && `2nd: ${formatDate(l.testDate2)}`, l.examTime, l.reportTime && `Reporting ${l.reportTime}`, l.examCentre].filter(Boolean).join(' · ') || '—'}
+                      </td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
-                        <button type="button"
-                          onClick={() => setSessionFilter(l.session || 'all')}
-                          title="Load this session's letters into the cards above"
-                          className={`text-xs font-semibold ${isSel ? 'text-gray-400' : 'text-[#933d18] hover:underline'}`}>
-                          {isSel ? 'Editing' : 'Edit'}
-                        </button>
+                        <button type="button" onClick={() => { setSessionFilter(l.session || 'all'); setDocSel(l.name); setMasterTab('entry') }}
+                          className="text-xs font-semibold text-[#933d18] hover:underline">Edit</button>
                         {may('research_dept.manage') && (
-                        <button type="button" onClick={() => removeLetter(l)}
-                          title={`Remove this ${l.name} entry`}
-                          className="ml-3 align-middle text-gray-300 hover:text-red-500 transition-colors">
-                          <Trash2 size={13} />
-                        </button>
+                          <button type="button" onClick={() => removeLetter(l)} title={`Remove this ${l.name} entry`}
+                            className="ml-3 align-middle text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={13} /></button>
                         )}
                       </td>
                     </tr>
@@ -799,7 +780,19 @@ export default function ResearchDepartment() {
               </tbody>
             </table>
           </div>
-        </div>
+        )}
+
+        {!settingsInDb && (
+          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            These settings are saved in this browser only. Run <span className="font-mono">add_letter_settings.sql</span> in
+            Supabase → SQL Editor to share them across all admins.
+          </p>
+        )}
+        {settingsInDb && settingsNeedSeed && (
+          <p className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            Press <strong>Save</strong> once to publish these settings to the shared copy.
+          </p>
+        )}
       </div>
       )}
 

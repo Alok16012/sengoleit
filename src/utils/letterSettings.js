@@ -18,12 +18,19 @@ export function buildRef(prefix, num) {
 // The Hall Ticket's exam columns only exist after add_hall_ticket.sql has been
 // run — every read/write retries without them so an older schema keeps working.
 const EXAM_COLS = 'exam_time, reporting_time, exam_centre, test_date_2'
+// The second number series (e.g. a certificate's S.no) — add_letter_series_2.sql.
+const SERIES2_COLS = 'prefix_2, next_num_2'
 
 // Load every letter's settings. Returns null when the table is missing.
 export async function loadLetterSettings() {
   let { data, error } = await supabase
     .from('letter_settings')
-    .select(`session_key, name, prefix, next_num, letter_date, test_date, ${EXAM_COLS}`)
+    .select(`session_key, name, prefix, next_num, letter_date, test_date, ${EXAM_COLS}, ${SERIES2_COLS}`)
+  if (error) {
+    ;({ data, error } = await supabase
+      .from('letter_settings')
+      .select(`session_key, name, prefix, next_num, letter_date, test_date, ${EXAM_COLS}`))
+  }
   if (error) {
     ;({ data, error } = await supabase
       .from('letter_settings')
@@ -47,6 +54,8 @@ export async function loadLetterSettings() {
     reportTime: r.reporting_time || '',
     examCentre: r.exam_centre || '',
     testDate2: r.test_date_2 || '',
+    prefix2: r.prefix_2 || '',
+    nextNum2: r.next_num_2 ?? 1,
   }))
 }
 
@@ -62,10 +71,17 @@ export async function saveLetterSettings(letters) {
     reporting_time: l.reportTime || null,
     exam_centre: l.examCentre || null,
     test_date_2: l.testDate2 || null,
+    prefix_2: l.prefix2 || null,
+    next_num_2: Number(l.nextNum2) || 1,
     updated_at: new Date().toISOString(),
   }))
   if (!rows.length) return { error: null }
   let { error } = await supabase.from('letter_settings').upsert(rows, { onConflict: 'session_key,name' })
+  if (error) {
+    // Without add_letter_series_2.sql — save everything but the second series.
+    ;({ error } = await supabase.from('letter_settings')
+      .upsert(rows.map(({ prefix_2, next_num_2, ...r }) => r), { onConflict: 'session_key,name' }))  // eslint-disable-line no-unused-vars
+  }
   if (error) {
     // Exam columns missing (add_hall_ticket.sql not run) — save the rest.
     const legacy = rows.map(({ exam_time, reporting_time, exam_centre, test_date_2, ...r }) => r)
