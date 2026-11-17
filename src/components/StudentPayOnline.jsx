@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { CreditCard } from 'lucide-react'
 
 // Pay Now from the student's own login: the student types an amount and pays
-// it through the university website's PayU checkout. The website checks the
-// student and the amount on its server and hands back the signed PayU form;
-// the PayU callback credits the payment to the student. The keys never reach
+// it through the university website's checkout (PayU or ICICI, as the website's
+// PAYMENT_GATEWAY says). The website checks the student and the amount on its
+// server and hands back the gateway form; the gateway's return credits the
+// payment to the student. The keys never reach
 // the browser.
 //
 // Served on the website's own address this is same-origin; on the portal
@@ -30,7 +31,7 @@ export default function StudentPayOnline({ student }) {
   const [paying, setPaying] = useState(false)
 
   // Student types the amount and pays — the 'fee' kind takes any amount from
-  // Rs 1 to Rs 5,00,000, credited to the student's fee once PayU confirms it.
+  // Rs 1 to Rs 5,00,000, credited to the student's fee once the gateway confirms it.
   async function pay(e) {
     e.preventDefault()
     const value = Math.round(Number(amount) * 100) / 100
@@ -42,9 +43,10 @@ export default function StudentPayOnline({ student }) {
         reference, mobile, kind: 'fee', amount: value,
         firstname: student.student_name, email: student.email,
       })
-      // Hand over to PayU with the signed form the website built.
+      // Hand over to the payment gateway with the form the website built.
       const form = document.createElement('form')
-      form.method = 'POST'
+      // PayU takes a POST; ICICI a GET with its tranCtx (website's PAYMENT_GATEWAY).
+      form.method = r.method === 'GET' ? 'GET' : 'POST'
       form.action = r.paymentUrl
       Object.entries(r.params).forEach(([k, v]) => {
         const i = document.createElement('input')
@@ -80,9 +82,9 @@ export default function StudentPayOnline({ student }) {
       </div>
       <button type="submit" disabled={paying}
         className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl text-base font-bold disabled:opacity-50 transition-colors">
-        <CreditCard size={18} /> {paying ? 'Opening PayU…' : `Pay${Number(amount) >= 1 ? ` ${fmt(amount)}` : ''}`}
+        <CreditCard size={18} /> {paying ? 'Opening payment…' : `Pay${Number(amount) >= 1 ? ` ${fmt(amount)}` : ''}`}
       </button>
-      <p className="text-[11px] text-gray-400 text-center">Secure payment by PayU — UPI, card or net banking.</p>
+      <p className="text-[11px] text-gray-400 text-center">Secure online payment — UPI, card or net banking.</p>
     </form>
   )
 }
