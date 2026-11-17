@@ -629,137 +629,101 @@ export default function ResearchDepartment() {
             </p>
           )}
 
-          {/* One card per letter — all of them for the chosen session at once. */}
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {sessionLetters.map(({ name, entry, own }) => {
-              const isHall = /hall/i.test(name)
-              const hasTestDate = isHall || /entrance/i.test(name)
-              const bad = endsInDigit(entry.prefix)
-              const set = (patch) => updateLetter(name, patch)
-              return (
-                <div key={name} className="border border-gray-200 rounded-xl p-3.5 space-y-2.5 bg-gray-50/40">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-gray-900">{name}</p>
-                    {editingSession && !own && (
-                      <span className="text-[10px] font-semibold text-gray-400 bg-white border border-gray-200 px-1.5 py-0.5 rounded"
-                        title="This session has no series of its own yet — showing the “Any session” fallback. Edit any field to give it one.">
-                        inherited
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <div className="flex-1 min-w-0">
-                      <label className="block text-[10px] font-semibold text-gray-500 mb-1">Reference No. (prefix)</label>
-                      <input value={entry.prefix || ''} onChange={e => set({ prefix: e.target.value })}
-                        title="Everything before the running serial — end it with a slash, e.g. SIU/DR/AL/26/"
-                        className={`w-full px-2.5 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 ${
-                          bad ? 'border-amber-400 bg-amber-50' : 'border-gray-200'}`} placeholder="SIU/DR/AL/26/" />
-                    </div>
-                    <div className="w-20 shrink-0">
-                      <label className="block text-[10px] font-semibold text-gray-500 mb-1">Next No.</label>
-                      <input type="number" min="0" value={entry.nextNum ?? 1} onChange={e => set({ nextNum: e.target.value })}
-                        title="Serial the next candidate will get. It counts up by 1 automatically after each letter is issued."
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <div className="flex-1 min-w-0">
-                      <label className="block text-[10px] font-semibold text-gray-500 mb-1">Letter Date</label>
-                      <input type="date" value={entry.date || ''} onChange={e => set({ date: e.target.value })}
-                        title="Date printed on the letter"
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
-                    </div>
-                    {/* The certificate's "conducted on ____" blank; the Hall
-                        Ticket prints the same date as "Date & Time of Exam". */}
-                    {hasTestDate && (
-                      <div className="flex-1 min-w-0">
-                        <label className="block text-[10px] font-semibold text-gray-500 mb-1">{isHall ? 'Exam Date' : 'Test Conducted On'}</label>
-                        <input type="date" value={entry.testDate || ''} onChange={e => set({ testDate: e.target.value })}
-                          title="Entrance Test date printed on the letter. Leave empty to print a blank rule to fill in by hand."
-                          className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* The Ph.D entrance exam is held twice for one session — the
-                      same paper on two dates. Fill the second in and the letter
-                      asks which sitting the candidate is being given. */}
-                  {hasTestDate && (
-                    <div>
-                      <label className="block text-[10px] font-semibold text-gray-500 mb-1">
-                        2nd Sitting {isHall ? 'Exam Date' : 'Test Date'} <span className="font-normal text-gray-400">— optional</span>
-                      </label>
-                      <input type="date" value={entry.testDate2 || ''} onChange={e => set({ testDate2: e.target.value })}
-                        title="Fill this only when the same exam is held a second time (e.g. August and September). You then pick the sitting when issuing each candidate's letter."
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30" />
-                      {entry.testDate2 && (
-                        <p className="text-[10px] text-gray-400 mt-1">
-                          Two sittings set — issuing a letter will ask which one the candidate gets.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Hall Ticket only — exam time, reporting time, exam centre. */}
-                  {isHall && (
-                    <>
-                      <div className="flex gap-2">
-                        <div className="flex-1 min-w-0">
-                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Exam Time</label>
-                          <input value={entry.examTime || ''} onChange={e => set({ examTime: e.target.value })}
-                            title="Printed after the exam date, e.g. 10.00 a.m. to 01.00 p.m."
-                            className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30"
-                            placeholder="10.00 a.m. to 01.00 p.m." />
-                        </div>
-                        <div className="w-28 shrink-0">
-                          <label className="block text-[10px] font-semibold text-gray-500 mb-1">Reporting</label>
-                          <input value={entry.reportTime || ''} onChange={e => set({ reportTime: e.target.value })}
-                            title='Printed as "… (Mandatory)". Leave empty for a blank rule.'
-                            className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30"
-                            placeholder="09.00 a.m." />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-semibold text-gray-500 mb-1">Examination Centre</label>
-                        <input value={entry.examCentre || ''} onChange={e => set({ examCentre: e.target.value })}
-                          title="Full address of the exam centre. Leave empty for a blank rule to fill in by hand."
-                          className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30"
-                          placeholder="Centre name and full address" />
-                      </div>
-                    </>
-                  )}
-
-                  <p className="text-[10px] text-gray-400">
-                    Next → <span className="font-mono font-bold text-[#933d18]">{entry.prefix}{refSerial(entry.nextNum)}</span>
-                  </p>
-
-                  {/* A blank prefix is almost always an unfinished setup — the
-                      reference then prints as a bare serial with nothing to
-                      identify the university, the letter or the year. */}
-                  {!String(entry.prefix || '').trim() && (
-                    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-                      No prefix set — this letter's reference will print as just
-                      <span className="font-mono font-bold"> {refSerial(entry.nextNum)}</span>.
-                    </p>
-                  )}
-
-                  {bad && (
-                    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-                      The prefix ends in a number, so the serial is added on top of it.
-                      {may('research_dept.manage') && (
-                      <button type="button" onClick={() => { const f = migratePrefix(entry); set({ prefix: f.prefix, nextNum: f.nextNum }) }}
-                        className="ml-1 font-semibold text-[#933d18] underline">
-                        Fix → {String(entry.prefix || '').replace(/\d+$/, '')}{refSerial(migratePrefix(entry).nextNum)}
-                      </button>
-                      )}
-                    </p>
-                  )}
-                </div>
-              )
-            })}
+          {/* One row per letter — all of them for the chosen session at once.
+              A field a letter does not print is a dash. */}
+          <div className="border border-gray-200 rounded-xl overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-[11px] uppercase tracking-wider text-gray-500 text-left">
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Letter</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Reference No. (prefix)</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Next No.</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Letter Date</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Exam / Test Date</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">2nd Sitting Date</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Exam Time</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Reporting</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Examination Centre</th>
+                  <th className="font-semibold px-3 py-2 whitespace-nowrap">Next Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessionLetters.map(({ name, entry, own }) => {
+                  const isHall = /hall/i.test(name)
+                  const hasTestDate = isHall || /entrance/i.test(name)
+                  const bad = endsInDigit(entry.prefix)
+                  const set = (patch) => updateLetter(name, patch)
+                  const cell = 'w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white'
+                  const none = <span className="text-gray-300">—</span>
+                  return (
+                    <tr key={name} className="border-t border-gray-100 align-top">
+                      <td className="px-3 py-2 min-w-[150px]">
+                        <p className="font-bold text-gray-900">{name}</p>
+                        {editingSession && !own && (
+                          <span className="text-[10px] font-semibold text-gray-400"
+                            title="This session has no series of its own yet — showing the “Any session” fallback. Edit any field to give it one.">
+                            inherited
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 min-w-[170px]">
+                        <input value={entry.prefix || ''} onChange={e => set({ prefix: e.target.value })}
+                          title="Everything before the running serial — end it with a slash, e.g. SIU/DR/AL/26/"
+                          className={`${cell} ${bad || !String(entry.prefix || '').trim() ? 'border-amber-400 bg-amber-50' : ''}`} placeholder="SIU/DR/AL/26/" />
+                        {bad && may('research_dept.manage') && (
+                          <button type="button" onClick={() => { const f = migratePrefix(entry); set({ prefix: f.prefix, nextNum: f.nextNum }) }}
+                            className="mt-1 text-[10px] font-semibold text-[#933d18] underline">
+                            Fix → {String(entry.prefix || '').replace(/\d+$/, '')}{refSerial(migratePrefix(entry).nextNum)}
+                          </button>
+                        )}
+                        {!String(entry.prefix || '').trim() && <p className="mt-1 text-[10px] text-amber-700">No prefix — prints a bare serial</p>}
+                      </td>
+                      <td className="px-3 py-2 w-24">
+                        <input type="number" min="0" value={entry.nextNum ?? 1} onChange={e => set({ nextNum: e.target.value })}
+                          title="Serial the next candidate will get. It counts up by 1 automatically after each letter is issued." className={cell} />
+                      </td>
+                      <td className="px-3 py-2 min-w-[150px]">
+                        <input type="date" value={entry.date || ''} onChange={e => set({ date: e.target.value })} title="Date printed on the letter" className={cell} />
+                      </td>
+                      <td className="px-3 py-2 min-w-[150px]">
+                        {hasTestDate ? (
+                          <input type="date" value={entry.testDate || ''} onChange={e => set({ testDate: e.target.value })}
+                            title={isHall ? 'Exam date printed on the Hall Ticket' : 'Entrance Test date printed on the certificate. Leave empty for a blank rule.'} className={cell} />
+                        ) : none}
+                      </td>
+                      <td className="px-3 py-2 min-w-[150px]">
+                        {hasTestDate ? (
+                          <input type="date" value={entry.testDate2 || ''} onChange={e => set({ testDate2: e.target.value })}
+                            title="Only when the same exam is held a second time. Issuing a letter then asks which sitting the candidate gets." className={cell} />
+                        ) : none}
+                      </td>
+                      <td className="px-3 py-2 min-w-[170px]">
+                        {isHall ? (
+                          <input value={entry.examTime || ''} onChange={e => set({ examTime: e.target.value })} className={cell} placeholder="10.00 a.m. to 01.00 p.m." />
+                        ) : none}
+                      </td>
+                      <td className="px-3 py-2 min-w-[110px]">
+                        {isHall ? (
+                          <input value={entry.reportTime || ''} onChange={e => set({ reportTime: e.target.value })} className={cell} placeholder="09.00 a.m." />
+                        ) : none}
+                      </td>
+                      <td className="px-3 py-2 min-w-[200px]">
+                        {isHall ? (
+                          <input value={entry.examCentre || ''} onChange={e => set({ examCentre: e.target.value })} className={cell} placeholder="Centre name and full address" />
+                        ) : none}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap font-mono text-xs font-bold text-[#933d18]">
+                        {entry.prefix}{refSerial(entry.nextNum)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
+          {sessionLetters.some(({ name, entry }) => /hall|entrance/i.test(name) && entry.testDate2) && (
+            <p className="text-[11px] text-gray-500">A 2nd sitting date is set — issuing that letter will ask which sitting the candidate gets.</p>
+          )}
         </div>
         {!settingsInDb && (
           <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">

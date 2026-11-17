@@ -226,6 +226,7 @@ export default function Students() {
   const [sName, setSName] = useState('')
   const [sFather, setSFather] = useState('')
   const [sDob, setSDob] = useState('')
+  const [sEnroll, setSEnroll] = useState('')
   // The status tabs this login may open (User Management → Roles → Tabs).
   const statusTabs = STATUS_FILTERS.filter(s => mayTab('students', s.toLowerCase()))
   const [data, setData] = useState([])
@@ -487,7 +488,7 @@ export default function Students() {
   const scopedCenters = centerList.filter(c => superFilter === 'all' ? true : c.super_center_id === superFilter)
 
   const norm = v => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim()
-  const lookupFields = [sName, sFather, sDob].filter(v => String(v).trim()).length
+  const lookupFields = [sName, sFather, sDob, sEnroll].filter(v => String(v).trim()).length
   const lookupReady = !lookup || lookupFields >= 2
 
   const filtered = !lookupReady ? [] : data.filter(s => {
@@ -495,6 +496,7 @@ export default function Students() {
       if (sName.trim() && !norm(s.student_name).includes(norm(sName))) return false
       if (sFather.trim() && !norm(s.fathers_name).includes(norm(sFather))) return false
       if (sDob && String(s.date_of_birth || '').slice(0, 10) !== sDob) return false
+      if (sEnroll.trim() && !norm(s.enrollment_no).includes(norm(sEnroll))) return false
     }
     // Hidden students are excluded unless "Show Hidden" is on (then show ONLY hidden).
     if (showHidden ? !s.is_hidden : s.is_hidden) return false
@@ -610,7 +612,7 @@ export default function Students() {
       {lookup && (
         <div className="mb-4 bg-white border border-gray-200 rounded-2xl p-4">
           <p className="text-sm font-bold text-gray-900 mb-0.5">Find a student</p>
-          <p className="text-xs text-gray-500 mb-3">Fill at least two of the three — the list shows only the students that match.</p>
+          <p className="text-xs text-gray-500 mb-3">Fill at least two of the four — the list shows only the students that match.</p>
           <div className="flex flex-wrap gap-3 items-end">
             <div className="flex flex-col">
               <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Student Name</label>
@@ -627,8 +629,13 @@ export default function Students() {
               <div className="w-40"><DateInput bare value={sDob} onChange={e => setSDob(e.target.value)}
                 className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm w-full focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white" /></div>
             </div>
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">Enrollment No.</label>
+              <input value={sEnroll} onChange={e => setSEnroll(e.target.value)} placeholder="Enrollment no."
+                className="py-2.5 px-3 border border-gray-200 rounded-xl text-sm w-52 font-mono focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/15 bg-white" />
+            </div>
             {lookupFields > 0 && (
-              <button type="button" onClick={() => { setSName(''); setSFather(''); setSDob('') }}
+              <button type="button" onClick={() => { setSName(''); setSFather(''); setSDob(''); setSEnroll('') }}
                 className="text-xs font-semibold text-gray-500 hover:text-gray-800 underline mb-3">Clear</button>
             )}
           </div>
@@ -776,7 +783,7 @@ export default function Students() {
           <Tbody>
             {filtered.length === 0 ? (
               <Tr><Td colSpan={14} className="text-center text-gray-400 py-12">
-                {lookupReady ? 'No students found' : 'Search by at least two of: student name, father name, date of birth.'}
+                {lookupReady ? 'No students found' : 'Search by at least two of: student name, father name, date of birth, enrollment no.'}
               </Td></Tr>
             ) : filtered.map((s, i) => {
               const approved = s.status === 'Approved'
@@ -916,7 +923,7 @@ export default function Students() {
           <Tbody>
             {filtered.length === 0 ? (
               <Tr><Td colSpan={lookup ? 10 : 12} className="text-center text-gray-400 py-12">
-                {lookupReady ? 'No students found' : 'Search by at least two of: student name, father name, date of birth.'}
+                {lookupReady ? 'No students found' : 'Search by at least two of: student name, father name, date of birth, enrollment no.'}
               </Td></Tr>
             ) : filtered.map((s, i) => (
               <Tr key={s.id}>

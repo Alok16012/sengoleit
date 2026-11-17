@@ -55,7 +55,7 @@ export const PERMISSION_GROUPS = [
   ] },
   { key: 'students', label: 'Students', path: '/admin/students', tabs: [['all','All'],['pending','Pending'],['hold','Hold'],['approved','Approved'],['rejected','Rejected'],['rr','RR (Re-Registration)']], perms: [
     ['students.view', 'View students'],
-    ['students.search_only', 'Show students only after a search (name, father name, DOB)'],
+    ['students.search_only', 'Show students only after a search (name, father name, DOB, enrollment no.)'],
     ['students.add', 'Add student'],
     ['students.edit', 'Edit student'],
     ['students.delete', 'Delete student'],
