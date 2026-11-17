@@ -22,6 +22,7 @@ const OPTIONAL_COLS = 'stream, offer_letter_active, entrance_letter_active, rese
 // The Ph.D documents, in the order they are issued, and what the Master Panel
 // asks for each. ref = the reference series (prefix + next number) under the
 // label the document uses; ref2 a second series; date the date of issue.
+// noNextRef hides the Next Reference preview for that document.
 const PHD_DOCS = [
   { name: 'Hall Ticket', fields: [
     { k: 'testDate', label: 'Entrance (Exam) Date' },
@@ -33,7 +34,7 @@ const PHD_DOCS = [
   { name: 'Entrance Certificate', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' },
     { k: 'testDate', label: 'Entrance Test' }, { k: 'testDate2', label: '2nd Sitting Test Date', optional: true }] },
   { name: 'Offer Letter', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
-  { name: 'Enrollment Certificate', refLabel: 'Provisional Registration No', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
+  { name: 'Enrollment Certificate', refLabel: 'Provisional Registration No', noNextRef: true, fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
   { name: 'Admission Confirmation and Research Proposal', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
   { name: 'Course Work Completion Marksheet', refLabel: 'S.no', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
   { name: 'Allocation of Guide / Supervisor', fields: [{ k: 'ref' }, { k: 'date', label: 'Date of Issue' }] },
@@ -680,7 +681,7 @@ export default function ResearchDepartment() {
                       <label className="block text-[11px] font-semibold text-gray-600 mb-1">Next No.</label>
                       <input type="number" min="0" value={entry[nk] ?? 1} onChange={e => set({ [nk]: e.target.value })} className={inp} />
                     </div>,
-                    <div key={`${nk}-r`}>
+                    !docSpec(docSel).noNextRef && <div key={`${nk}-r`}>
                       <label className="block text-[11px] font-semibold text-gray-600 mb-1">Next Reference</label>
                       <p className="px-3 py-2 rounded-xl bg-white border border-dashed border-gray-200 font-mono text-sm font-bold text-[#933d18] truncate">
                         {entry[pk] || ''}{refSerial(entry[nk] ?? 1)}
