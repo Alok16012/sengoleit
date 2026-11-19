@@ -4,8 +4,8 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
-import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard, IndianRupee } from 'lucide-react'
-import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard } from '../../utils/generateStudentCards'
+import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard, IndianRupee, FileText } from 'lucide-react'
+import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard, generatePhdDocument, LATER_PHD_DOCS, PHD_DOC_EXTRAS } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
@@ -14,6 +14,11 @@ import ResearchPaymentConditions from '../../components/ResearchPaymentCondition
 import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, unassignRef, deleteLetterSetting, setSitting } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
+// Guide's name, thesis title, viva date… typed when a later document is issued,
+// kept per candidate so a re-print offers the same answers again.
+const EXTRAS_KEY = 'phd_doc_extras'
+// The second series (S.no) of a document is claimed under its own name.
+const ref2Key = name => `${name} — S.no`
 
 // Optional columns that only exist after add_phd_portal_flow.sql has been run.
 // Every query and update degrades gracefully when they are still missing.
@@ -79,12 +84,14 @@ export default function ResearchDepartment() {
     { name: 'Entrance Certificate', prefix: '', nextNum: 1, date: today, testDate: '' },
   ]
   const LETTER_NAMES = ['Hall Ticket', 'Offer Letter', 'Entrance Certificate']
-  const PAY_DOCS = [...LETTER_NAMES, 'Enrollment / ID Card', 'Forward to Exam']
+  // Every Ph.D document from the Master Panel, plus the ID card and the forward.
+  const PAY_DOCS = [...new Set([...PHD_DOCS.map(d => d.name), 'Enrollment / ID Card', 'Forward to Exam'])]
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
   // Open while asking which exam sitting a candidate's letter is for.
   const [sittingAsk, setSittingAsk] = useState(null)   // { letter, resolve }
   // Master Panel: Entry (one document at a time) or Complete.
   const [masterTab, setMasterTab] = useState('entry')
+  const [completeSession, setCompleteSession] = useState('all')
   const [docSel, setDocSel] = useState('Hall Ticket')
   // Types down the session list — sessions pile up year on year, so picking one
   // out of a plain dropdown gets slow.
@@ -171,6 +178,8 @@ export default function ResearchDepartment() {
   }
   // Every entry, any session, that has everything its document needs.
   const completeRows = letters.filter(l => docComplete(l.name, l))
+  const completeSessions = [...new Set(completeRows.map(l => l.session || ''))]
+  const shownCompleteRows = completeSession === 'all' ? completeRows : completeRows.filter(l => (l.session || '') === completeSession)
     .sort((x, y) => (sessionName(x.session) || '').localeCompare(sessionName(y.session) || '') || docNames.indexOf(x.name) - docNames.indexOf(y.name))
 
   // Keep the browser copy as a fallback, but the DB is the shared source of truth.
@@ -230,13 +239,17 @@ export default function ResearchDepartment() {
 
   // Assign / reuse a student's reference for a specific letter type. The series
   // comes from the STUDENT's own session, not whichever session is on screen.
-  function refFor(student, letterName) {
+  // `second` claims from the document's second series (prefix2 / nextNum2 —
+  // the S.no on the Provisional Certificate and Title of Thesis).
+  function refFor(student, letterName, second = false) {
     const letter = entryFor(student.session_id, letterName)
-    const map = assigned[letterName] || {}
+    const key = second ? ref2Key(letterName) : letterName
+    const pf = second ? 'prefix2' : 'prefix', nf = second ? 'nextNum2' : 'nextNum'
+    const map = assigned[key] || {}
     let num = map[student.id]
     // An already-issued number is shown with whatever series exists — even a
     // missing one — so the admin can still see (and ×-clear) a stale claim.
-    if (num != null) return `${letter?.prefix || ''}${refSerial(num)}`
+    if (num != null) return `${letter?.[pf] || ''}${refSerial(num)}`
     // Never mint a number without a configured series. This used to fall back
     // to a blank letter and quietly issue "001" with no prefix — e.g. when
     // Generate was pressed before the shared settings finished loading, or for
@@ -244,9 +257,12 @@ export default function ResearchDepartment() {
     // The Hall Ticket prints the application number, not this one — it needs
     // no series, but the number is still claimed so the ticket counts as
     // issued (Print, not Generate) for every admin.
-    const noSeries = !letter || !String(letter.prefix || '').trim()
-    if (noSeries && letterName !== 'Hall Ticket') {
-      alert(`No ${letterName} reference series is set up for ${student.academic_sessions?.session_name || 'this student’s session'} yet.\n\nSet its prefix in the Master Panel and press Save, then Generate again. This copy prints with the application number instead.`)
+    // A document with no reference series of its own (the Thesis Submission
+    // Letter) is the same: claimed only so it counts as issued.
+    const needsSeries = second || (letterName !== 'Hall Ticket' && docSpec(letterName).fields.some(f => f.k === 'ref'))
+    const noSeries = !letter || !String(letter[pf] || '').trim()
+    if (noSeries && needsSeries) {
+      alert(`No ${second ? `${letterName} ${docSpec(letterName).ref2Label || 'S.no'}` : letterName} reference series is set up for ${student.academic_sessions?.session_name || 'this student’s session'} yet.\n\nSet its prefix in the Master Panel and press Save, then Generate again. This copy prints with the application number instead.`)
       return null
     }
     // Never hand out a serial another candidate already holds — the panel's
@@ -255,14 +271,14 @@ export default function ResearchDepartment() {
     // Walk forward past every taken number; persisting num+1 also heals the
     // drifted series.
     const taken = new Set(Object.values(map).map(Number))
-    num = Number(letter?.nextNum) || 1
+    num = Number(letter?.[nf]) || 1
     while (taken.has(num)) num++
-    const nextAssigned = { ...assigned, [letterName]: { ...map, [student.id]: num } }
-    const nextLetters = letter ? letters.map(l => l === letter ? { ...l, nextNum: num + 1 } : l) : letters
+    const nextAssigned = { ...assigned, [key]: { ...map, [student.id]: num } }
+    const nextLetters = letter ? letters.map(l => l === letter ? { ...l, [nf]: num + 1 } : l) : letters
     setAssigned(nextAssigned); setLetters(nextLetters); persist(nextLetters, nextAssigned)
     // Record the claim so every admin — and the student's own copy — reuses it.
-    if (settingsInDb) assignRef(letterName, student.id, num)
-    return `${letter?.prefix || ''}${refSerial(num)}`
+    if (settingsInDb) assignRef(key, student.id, num)
+    return `${letter?.[pf] || ''}${refSerial(num)}`
   }
   function docOptsFor(student, letterName, sitting = 1) {
     const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
@@ -318,10 +334,18 @@ export default function ResearchDepartment() {
     const map = { ...(assigned[letterName] || {}) }
     delete map[student.id]
     const nextAssigned = { ...assigned, [letterName]: map }
+    // The S.no goes with it, so a fresh issue takes a fresh pair.
+    const had2 = assigned[ref2Key(letterName)]?.[student.id] != null
+    if (had2) {
+      const map2 = { ...assigned[ref2Key(letterName)] }
+      delete map2[student.id]
+      nextAssigned[ref2Key(letterName)] = map2
+    }
     setAssigned(nextAssigned)
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ letters, assigned: nextAssigned }))
     if (settingsInDb) {
       const { error } = await unassignRef(letterName, student.id)
+      if (had2) await unassignRef(ref2Key(letterName), student.id)
       if (error) alert('Cleared here, but the shared copy could not be removed:\n\n' + error.message)
     }
   }
@@ -361,6 +385,36 @@ export default function ResearchDepartment() {
   async function hallTicketFor(student) {
     await issue(student, 'Hall Ticket', async (opts) =>
       generateHallTicket(await resolveStudentDocUrls(student), opts))
+  }
+
+  // The documents after enrolment (Enrollment Certificate … Compliance
+  // Certificate). Same rules as the first three: Payment Condition on a first
+  // issue, the number claimed from the student's session series and reused on
+  // every re-print. They follow the Enrollment Number, which several print.
+  async function issueLater(student, name) {
+    if (!student.enrollment_no) return alert(`Generate ${student.student_name}'s Enrollment Number first — the ${name} follows it.`)
+    const alreadyIssued = assigned[name]?.[student.id] != null
+    if (!alreadyIssued && payBlocked(student, name)) return
+    // Ask for the facts the database does not hold, offering the last answers.
+    let saved = {}
+    try { saved = JSON.parse(localStorage.getItem(EXTRAS_KEY) || '{}') } catch { /* ignore */ }
+    const extra = { ...(saved[student.id] || {}) }
+    for (const [k, label] of PHD_DOC_EXTRAS[name] || []) {
+      const ans = prompt(`${name} — ${student.student_name}\n\n${label} (leave blank to fill in by hand):`, extra[k] || '')
+      if (ans === null) return                 // cancelled
+      extra[k] = ans.trim()
+    }
+    try { localStorage.setItem(EXTRAS_KEY, JSON.stringify({ ...saved, [student.id]: extra })) } catch { /* ignore */ }
+    const spec = docSpec(name)
+    const opts = docOptsFor(student, name)
+    if (!opts.refNo && spec.fields.some(f => f.k === 'ref')) return
+    // No series of its own: the letterhead's Ref. No. shows the Enrollment No.
+    if (!spec.fields.some(f => f.k === 'ref')) opts.refNo = student.enrollment_no
+    if (spec.fields.some(f => f.k === 'ref2')) {
+      opts.ref2 = refFor(student, name, true)
+      if (!opts.ref2) return
+    }
+    generatePhdDocument(student, name, { ...opts, extra })
   }
 
   useEffect(() => { load() }, [])
@@ -735,6 +789,18 @@ export default function ResearchDepartment() {
             </div>
           </div>
         ) : (
+          <div className="space-y-3">
+          <div className="flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-500 mb-1">Session</label>
+              <select value={completeSession} onChange={e => setCompleteSession(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 min-w-40">
+                <option value="all">All sessions</option>
+                {completeSessions.map(s => <option key={s || 'any'} value={s}>{s ? sessionName(s) : 'Any session'}</option>)}
+              </select>
+            </div>
+            <p className="text-xs text-gray-400 pb-2">{shownCompleteRows.length} of {completeRows.length}</p>
+          </div>
           <div className="border border-gray-100 rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -748,10 +814,10 @@ export default function ResearchDepartment() {
                 </tr>
               </thead>
               <tbody>
-                {completeRows.length === 0 && (
-                  <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400 text-sm">Nothing complete yet — set documents up in the Entry tab.</td></tr>
+                {shownCompleteRows.length === 0 && (
+                  <tr><td colSpan={6} className="px-3 py-8 text-center text-gray-400 text-sm">{completeRows.length === 0 ? 'Nothing complete yet — set documents up in the Entry tab.' : 'Nothing complete for this session.'}</td></tr>
                 )}
-                {completeRows.map((l, i) => {
+                {shownCompleteRows.map((l, i) => {
                   const spec = docSpec(l.name)
                   const has = k => spec.fields.some(f => f.k === k)
                   return (
@@ -780,6 +846,7 @@ export default function ResearchDepartment() {
                 })}
               </tbody>
             </table>
+          </div>
           </div>
         )}
 
@@ -812,13 +879,14 @@ export default function ResearchDepartment() {
               <Th>Offer Letter</Th>
               <Th>Entrance Certificate</Th>
               <Th>Enrollment / ID Card</Th>
+              <Th>Further Documents</Th>
             </Tr>
           </Thead>
           <Tbody>
             {loading ? (
-              <Tr><Td colSpan={11} className="text-center text-gray-400 py-8">Loading...</Td></Tr>
+              <Tr><Td colSpan={12} className="text-center text-gray-400 py-8">Loading...</Td></Tr>
             ) : filtered.length === 0 ? (
-              <Tr><Td colSpan={11} className="text-center text-gray-400 py-8">No Ph.D candidates forwarded by the Document Dept yet.</Td></Tr>
+              <Tr><Td colSpan={12} className="text-center text-gray-400 py-8">No Ph.D candidates forwarded by the Document Dept yet.</Td></Tr>
             ) : filtered.map((s, i) => (
               <Tr key={s.id}>
                 <Td>{i + 1}</Td>
@@ -890,6 +958,8 @@ export default function ResearchDepartment() {
                     </Button>
                   )}
                 </Td>
+                <LaterDocsCell student={s} issuedRef={name => issuedRef(s, name)}
+                  onIssue={name => issueLater(s, name)} onWithdraw={name => clearRef(s, name, null)} />
               </Tr>
             ))}
           </Tbody>
@@ -1036,6 +1106,45 @@ function LetterCell({ student, field, busy, issued, refNo, onGenerate, onToggle,
           {active ? 'Visible' : 'Hidden'}
         </button>
         )}
+      </div>
+    </Td>
+  )
+}
+
+// The documents after enrolment, one dropdown per candidate: pick a document,
+// then Generate (first issue) or Print (same number again). A tick in the list
+// marks the ones already issued.
+function LaterDocsCell({ student, issuedRef, onIssue, onWithdraw }) {
+  const { may } = useAuth()
+  const [doc, setDoc] = useState(LATER_PHD_DOCS[0])
+  const ref = issuedRef(doc)
+  const issuedCount = LATER_PHD_DOCS.filter(n => issuedRef(n)).length
+  if (!student.enrollment_no) {
+    return <Td><span className="text-[11px] text-gray-400">After Enrollment</span></Td>
+  }
+  return (
+    <Td>
+      <div className="flex flex-col gap-1.5 min-w-52">
+        <select value={doc} onChange={e => setDoc(e.target.value)}
+          className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:border-[#933d18]">
+          {LATER_PHD_DOCS.map(n => <option key={n} value={n}>{issuedRef(n) ? '✓ ' : ''}{n}</option>)}
+        </select>
+        {ref && <p className="text-[10px] font-mono text-gray-400 leading-none">{ref}</p>}
+        <div className="flex items-center gap-1">
+          {(ref || may('research_dept.manage')) && (
+            <Button size="sm" variant="secondary" className="w-fit" onClick={() => onIssue(doc)}
+              title={ref ? `Print ${doc} again with the same number` : `Generate ${doc}`}>
+              <FileText size={13} /> {ref ? 'Print' : 'Generate'}
+            </Button>
+          )}
+          {ref && may('research_dept.manage') && (
+            <button onClick={() => onWithdraw(doc)} title={`Withdraw this ${doc}`}
+              className="inline-flex items-center p-1.5 rounded text-red-500 hover:bg-red-50 transition-colors">
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+        <p className="text-[10px] text-gray-400">{issuedCount} of {LATER_PHD_DOCS.length} issued</p>
       </div>
     </Td>
   )

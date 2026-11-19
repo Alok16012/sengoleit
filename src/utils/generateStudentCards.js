@@ -1890,3 +1890,127 @@ export function generateConsolidatedMarksheet(s, sems = [], opts = {}) {
     width: 820,
   }), 'Consolidated Marksheet')
 }
+
+/* ───────────────────────────────────────────────────
+   Ph.D DOCUMENTS AFTER ENROLMENT — one generator for the later letters the
+   Research Dept issues (Enrollment Certificate through Compliance
+   Certificate). Same letterhead and Registrar signature as the Offer Letter.
+   Facts the database does not hold — guide's name, thesis title, viva date —
+   come in through opts.extra; left blank they print as a rule to fill by hand.
+─────────────────────────────────────────────────── */
+const blankRule = (w = 170) => `<span style="display:inline-block;min-width:${w}px;border-bottom:1px solid #000;">&nbsp;</span>`
+const filled = (val, w) => (val && String(val).trim() ? `<strong>${esc(String(val).trim())}</strong>` : blankRule(w))
+
+function phdDetails(s, rows) {
+  const tr = (label, value) => `<tr>
+    <td style="width:190px;font-size:12.5px;color:#000;font-weight:700;padding:3px 0;vertical-align:top;">${label}</td>
+    <td style="font-size:12.5px;color:#000;padding:3px 0;vertical-align:top;">: &nbsp;${value}</td></tr>`
+  const base = [
+    ['Name of the Scholar', `<strong>${v(s.student_name)}</strong>`],
+    ["Father's Name", v(s.fathers_name)],
+    ['Enrollment No.', v(s.enrollment_no)],
+    ['Programme', v(s.programs?.program_name || s.program_name || 'Ph.D.')],
+    ['Subject / Specialization', v(s.specialization || s.departments?.name)],
+    ['Session', v(s.academic_sessions?.session_name || s.session_name || s.academic_year)],
+  ]
+  return `<table style="border-collapse:collapse;margin:0 0 14px;">${[...base, ...(rows || [])].map(([l, val]) => tr(l, val)).join('')}</table>`
+}
+
+const PHD_DOC_BODIES = {
+  'Enrollment Certificate': (s, o, P) => `
+    ${phdDetails(s, [['Provisional Registration No.', filled(o.refNo)]])}
+    <p style="${P}">This is to certify that the above-named scholar has been duly enrolled in the <strong>Ph.D. Programme</strong> of ${UNI_NAME} for the session mentioned above, after verification of the documents submitted and payment of the prescribed fee.</p>
+    <p style="${P}">The enrolment is provisional and is governed by the Ph.D. Regulations of the University. The scholar is required to complete the prescribed Course Work and to abide by all the rules and regulations of the University during the period of research.</p>
+    <p style="${P}">This certificate is issued on the request of the scholar for whatever purpose it may serve.</p>`,
+
+  'Admission Confirmation and Research Proposal': (s, o, P) => `
+    ${phdDetails(s)}
+    <p style="${P}">With reference to your application and the completion of the admission formalities, we are pleased to confirm your admission to the <strong>Ph.D. Programme</strong> of ${UNI_NAME}.</p>
+    <p style="${P}">You are now required to prepare and submit your <strong>Research Proposal (Synopsis)</strong> in the prescribed format, in consultation with your Research Supervisor, for presentation before the Research Advisory Committee (RAC). The proposal should state the proposed title, objectives, review of literature, research methodology and expected outcome of the research.</p>
+    <p style="${P}">The Research Proposal is to be submitted on or before ${filled(o.extra?.lastDate, 150)}. The research work shall formally commence on approval of the proposal by the Committee.</p>
+    <p style="${P}">We wish you all success in your research.</p>`,
+
+  'Course Work Completion Marksheet': (s, o, P) => {
+    const papers = ['Research Methodology', 'Research and Publication Ethics', 'Review of Literature / Subject Specific Paper']
+    const cell = 'border:1px solid #000;padding:6px 8px;font-size:12px;color:#000;'
+    return `
+    ${phdDetails(s)}
+    <p style="${P}">This is to certify that the above-named scholar has completed the Ph.D. Course Work prescribed by the University and has secured the following marks:</p>
+    <table style="border-collapse:collapse;width:100%;margin:0 0 14px;">
+      <tr><th style="${cell}width:40px;">S.No.</th><th style="${cell}text-align:left;">Paper</th><th style="${cell}width:90px;">Max. Marks</th><th style="${cell}width:110px;">Marks Obtained</th><th style="${cell}width:70px;">Result</th></tr>
+      ${papers.map((p, i) => `<tr><td style="${cell}text-align:center;">${i + 1}</td><td style="${cell}">${p}</td><td style="${cell}text-align:center;">100</td><td style="${cell}"></td><td style="${cell}"></td></tr>`).join('')}
+      <tr><td style="${cell}" colspan="2"><strong>Total</strong></td><td style="${cell}text-align:center;"><strong>300</strong></td><td style="${cell}"></td><td style="${cell}"></td></tr>
+    </table>
+    <p style="${P}">Minimum pass marks in each paper are as per the Ph.D. Regulations of the University. On successful completion of the Course Work the scholar is eligible to proceed with the research work.</p>`
+  },
+
+  'Allocation of Guide / Supervisor': (s, o, P) => `
+    ${phdDetails(s)}
+    <p style="${P}">On the recommendation of the Research Advisory Committee, ${filled(o.extra?.guide, 220)} has been allocated as the <strong>Research Guide / Supervisor</strong> of the above-named scholar for the Ph.D. Programme.</p>
+    <p style="${P}">The scholar shall carry out the research work under the guidance and supervision of the allocated Guide, maintain regular contact, and submit the six-monthly progress reports through the Guide as required by the Ph.D. Regulations of the University.</p>
+    <p style="${P}">Any change of Guide / Supervisor shall be made only with the approval of the University.</p>`,
+
+  'Thesis Submission Letter': (s, o, P) => `
+    ${phdDetails(s, [['Title of the Thesis', filled(o.extra?.title, 260)]])}
+    <p style="${P}">This is to acknowledge that the above-named scholar has submitted the Ph.D. Thesis to the University for evaluation, along with the plagiarism report, the soft copy and the certificate of the Research Guide, as required by the Ph.D. Regulations.</p>
+    <p style="${P}">The thesis will now be sent to the examiners appointed by the University. The scholar will be informed of the date of the Final Viva-Voce examination in due course.</p>`,
+
+  'Final Viva - Voce Intimation Letter': (s, o, P) => `
+    ${phdDetails(s, [['Title of the Thesis', filled(o.extra?.title, 260)]])}
+    <p style="${P}">We are pleased to inform you that the evaluation reports of your Ph.D. Thesis have been received and found satisfactory. Your <strong>Final Viva-Voce Examination</strong> has accordingly been scheduled as under:</p>
+    <table style="border-collapse:collapse;margin:0 0 14px 20px;">
+      <tr><td style="width:120px;font-size:12.5px;font-weight:700;padding:3px 0;">Date</td><td style="font-size:12.5px;padding:3px 0;">: &nbsp;${filled(o.extra?.vivaDate, 160)}</td></tr>
+      <tr><td style="font-size:12.5px;font-weight:700;padding:3px 0;">Time</td><td style="font-size:12.5px;padding:3px 0;">: &nbsp;${filled(o.extra?.vivaTime, 160)}</td></tr>
+      <tr><td style="font-size:12.5px;font-weight:700;padding:3px 0;">Venue</td><td style="font-size:12.5px;padding:3px 0;">: &nbsp;${filled(o.extra?.vivaVenue, 260)}</td></tr>
+    </table>
+    <p style="${P}">You are requested to be present at the venue at least 30 minutes before the scheduled time, with this letter, your identity card and a copy of your thesis, and to prepare a presentation of your research work.</p>`,
+
+  'Notification': (s, o, P) => `
+    <div style="text-align:center;margin:0 0 12px;"><span style="font-size:14px;font-weight:700;text-decoration:underline;">NOTIFICATION</span></div>
+    <p style="${P}">On the basis of the reports of the examiners and the recommendation of the Board of the Final Viva-Voce Examination, it is hereby notified that the scholar named below has <strong>successfully completed</strong> all the requirements for the award of the degree of <strong>Doctor of Philosophy (Ph.D.)</strong> of ${UNI_NAME}.</p>
+    ${phdDetails(s, [['Title of the Thesis', filled(o.extra?.title, 260)], ['Research Guide', filled(o.extra?.guide, 220)]])}
+    <p style="${P}">The degree shall be conferred on the scholar at the ensuing Convocation of the University. This notification is issued with the approval of the competent authority.</p>`,
+
+  'Provisional Certificate': (s, o, P) => `
+    ${phdDetails(s, [['Registration No.', filled(o.refNo)], ['S.No.', filled(o.ref2)], ['Title of the Thesis', filled(o.extra?.title, 260)]])}
+    <p style="${P}">This is to certify that the above-named scholar has fulfilled all the requirements prescribed for the degree of <strong>Doctor of Philosophy (Ph.D.)</strong> of ${UNI_NAME} and has been found eligible for its award.</p>
+    <p style="${P}">The degree will be formally conferred at the next Convocation of the University. This Provisional Certificate is valid until the Degree Certificate is issued.</p>`,
+
+  'Title of Thesis': (s, o, P) => `
+    ${phdDetails(s, [['Provisional Registration No.', filled(o.refNo)], ['S.No.', filled(o.ref2)]])}
+    <p style="${P}">On the recommendation of the Research Advisory Committee, the University hereby approves the following as the title of the Ph.D. Thesis of the above-named scholar:</p>
+    <p style="font-size:13.5px;color:#000;line-height:1.6;margin:0 0 14px;text-align:center;padding:10px 14px;border:1px solid #000;">${filled(o.extra?.title, 420)}</p>
+    <p style="${P}">The scholar shall carry out the research and submit the thesis under this title. Any change in the title shall require the prior approval of the University.</p>`,
+
+  'Compliance Certificate': (s, o, P) => `
+    ${phdDetails(s)}
+    <p style="${P}">This is to certify that the above-named scholar has complied with all the requirements of the Ph.D. Regulations of ${UNI_NAME}, including the Course Work, the minimum period of research, the pre-submission seminar, the publication requirements and the plagiarism check of the thesis as per the UGC norms.</p>
+    <p style="${P}">The scholar is accordingly permitted to submit the Ph.D. Thesis to the University for evaluation.</p>`,
+}
+
+// Which later documents ask for which extra facts, so the page can prompt for them.
+export const PHD_DOC_EXTRAS = {
+  'Admission Confirmation and Research Proposal': [['lastDate', 'Last date to submit the Research Proposal']],
+  'Allocation of Guide / Supervisor': [['guide', "Guide / Supervisor's name"]],
+  'Thesis Submission Letter': [['title', 'Title of the Thesis']],
+  'Final Viva - Voce Intimation Letter': [['title', 'Title of the Thesis'], ['vivaDate', 'Viva-Voce date'], ['vivaTime', 'Viva-Voce time'], ['vivaVenue', 'Viva-Voce venue']],
+  'Notification': [['title', 'Title of the Thesis'], ['guide', "Research Guide's name"]],
+  'Provisional Certificate': [['title', 'Title of the Thesis']],
+  'Title of Thesis': [['title', 'Title of the Thesis']],
+}
+export const LATER_PHD_DOCS = Object.keys(PHD_DOC_BODIES)
+
+export function generatePhdDocument(s, docName, opts = {}) {
+  const make = PHD_DOC_BODIES[docName]
+  if (!make) return alert(`No print format for ${docName} yet.`)
+  const refNo = opts.refNo || s.enrollment_no || s.admission_number
+  const dateStr = opts.date || fmtDate(new Date())
+  const P = 'font-size:12.5px;color:#000;line-height:1.55;margin:0 0 10px;text-align:justify;'
+  const title = docName === 'Notification' ? '' : `
+    <div style="text-align:center;margin:6px 0 16px;">
+      <span style="font-size:15.5px;font-weight:700;color:#000;text-decoration:underline;text-transform:uppercase;">${esc(docName)}</span>
+    </div>`
+  const body = `${title}${make(s, { ...opts, refNo }, P)}
+    <div style="margin-top:26px;">${registrarSignBlock(true)}</div>`
+  openWindow(letterheadDoc(docName, s.student_name, refNo, dateStr, body), docName)
+}
