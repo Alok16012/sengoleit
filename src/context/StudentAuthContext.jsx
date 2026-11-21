@@ -54,6 +54,7 @@ export function StudentAuthProvider({ children }) {
 
     if (!error) {
       if (data?.error === 'not_approved') return { error: 'Account not approved yet. Please contact your center.' }
+      if (data?.error === 'deactivated') return { error: 'Your account has been deactivated. Please contact your center.' }
       if (data?.error || !data?.token) return { error: 'Invalid login details or password.' }
       return storeSession({ token: data.token, ...data.student })
     }

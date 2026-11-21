@@ -10,6 +10,7 @@ import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, Badge
 import CommissionWallet from '../../components/admin/CommissionWallet'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import { useAuth } from '../../context/AuthContext'
+import { fetchCouponUsers, couponKey } from '../../utils/couponUsers'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -75,6 +76,19 @@ export default function CouponManagement() {
   const [courseGenResult, setCourseGenResult] = useState(null) // { codes: [{id, coupon_code}], amount, qty, centerName, programName }
   const [viewStatus, setViewStatus] = useState('All')    // status tab inside the type panel
   const [genMode, setGenMode] = useState(false)          // inline generate form inside the panel
+  // Coupon code → the student (enrollment + name) it was used for.
+  const [usedBy, setUsedBy] = useState({})
+  const usedCell = c => (
+    <div>
+      <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
+      {usedBy[couponKey(c)] && (
+        <div className="mt-1.5">
+          <p className="font-mono text-[11px] font-bold text-gray-800">{usedBy[couponKey(c)].enrollment || '—'}</p>
+          <p className="text-[10px] text-gray-500">{usedBy[couponKey(c)].name}</p>
+        </div>
+      )}
+    </div>
+  )
   const [panelQ, setPanelQ] = useState('')               // search within the type panel
   // Edit-amount modal for an unused approval code (admin only).
   const [editCode, setEditCode] = useState(null)
@@ -240,7 +254,7 @@ export default function CouponManagement() {
     setLoading(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { fetchData(); fetchCouponUsers().then(setUsedBy) }, [])
 
   // Every coupon the Pending tab works from. Fetched RAW — the sub-tab used to
   // be applied here, which made each sub-tab's count meaningless: the list was
@@ -367,7 +381,8 @@ export default function CouponManagement() {
   const panelList = panelCoupons.filter(c => {
     if (!(PANEL_MATCH[viewStatus] || (() => true))(c)) return false
     if (panelQ) {
-      const hay = `${c.id || ''} ${c.centers?.center_name || ''} ${c.centers?.center_code || ''}`.toLowerCase()
+      const who = usedBy[couponKey(c)]
+      const hay = `${c.id || ''} ${c.coupon_code || ''} ${c.centers?.center_name || ''} ${c.centers?.center_code || ''} ${who?.enrollment || ''} ${who?.name || ''}`.toLowerCase()
       if (!hay.includes(panelQ.toLowerCase())) return false
     }
     return true
@@ -499,7 +514,7 @@ export default function CouponManagement() {
         {[
           { k: null, label: 'All Coupons', icon: Ticket },
           { k: 'approval', label: 'Approval Codes', icon: BadgeCheck },
-          { k: 'discount', label: 'Discounted Coupons', icon: Tag },
+          { k: 'discount', label: 'Admission Coupon', icon: Tag },
           { k: 'course', label: 'Course Coupons', icon: GraduationCap },
           { k: 'pending', label: 'Pending', icon: Clock },
           { k: 'wallet', label: 'Coupon Wallet', icon: Wallet },
@@ -1141,7 +1156,7 @@ export default function CouponManagement() {
                       className="mt-1 w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white" />
                   </div>
                   <p className="text-xs text-gray-500">
-                    A single {directType === 'approval' ? 'approval code' : 'discounted coupon'} will be created for the selected center with this amount.
+                    A single {directType === 'approval' ? 'approval code' : 'admission coupon'} will be created for the selected center with this amount.
                   </p>
                   <div className="flex gap-3">
                     {may('coupons.generate') && (
@@ -1416,7 +1431,7 @@ export default function CouponManagement() {
                           <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
                           <td className="px-5 py-3.5">
                             {used ? (
-                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
+                              usedCell(c)
                             ) : (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">● Unused</span>
                             )}
@@ -1463,7 +1478,7 @@ export default function CouponManagement() {
                   <tbody>
                     {panelList.length === 0 ? (
                       <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-400">
-                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}discounted coupons {panelQ ? 'match your search.' : 'yet.'}
+                        No {viewStatus !== 'All' ? viewStatus.toLowerCase() + ' ' : ''}admission coupons {panelQ ? 'match your search.' : 'yet.'}
                       </td></tr>
                     ) : panelList.map((c, i) => {
                       const used = !!(c.is_used || c.used_at)
@@ -1486,7 +1501,7 @@ export default function CouponManagement() {
                           <td className="px-5 py-3.5 text-gray-400 text-xs">{formatDate(c.created_at)}</td>
                           <td className="px-5 py-3.5">
                             {used ? (
-                              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">Used</span>
+                              usedCell(c)
                             ) : c.is_activated ? (
                               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">● Activated</span>
                             ) : (

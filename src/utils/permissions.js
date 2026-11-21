@@ -60,6 +60,7 @@ export const PERMISSION_GROUPS = [
     ['students.edit', 'Edit student'],
     ['students.delete', 'Delete student'],
     ['students.hide', 'Hide / unhide student'],
+    ['students.activate', 'Activate / deactivate student login'],
     ['students.export', 'Export Excel / PDF'],
     ['students.documents', 'Download forms and documents'],
     ['students.upload_docs', 'Upload missing documents'],
@@ -108,7 +109,7 @@ export const PERMISSION_GROUPS = [
   { key: 'wallet_summary', label: 'Wallet Summary', path: '/admin/wallet-summary', tabs: [['balances','Center Balances'],['recharges','Recharge History'],['online','Student Online Payments']], perms: [
     ['wallet_summary.view', 'View wallet summary'],
   ] },
-  { key: 'coupons', label: 'Coupon Management', path: '/admin/coupons', tabs: [['all','All Coupons'],['approval','Approval Codes'],['discount','Discounted Coupons'],['course','Course Coupons'],['pending','Pending'],['wallet','Coupon Wallet'],['commission','Commission Wallet']], perms: [
+  { key: 'coupons', label: 'Coupon Management', path: '/admin/coupons', tabs: [['all','All Coupons'],['approval','Approval Codes'],['discount','Admission Coupon'],['course','Course Coupons'],['pending','Pending'],['wallet','Coupon Wallet'],['commission','Commission Wallet']], perms: [
     ['coupons.view', 'View coupons'],
     ['coupons.generate', 'Generate coupons / approval codes'],
     ['coupons.edit', 'Edit coupon amount'],

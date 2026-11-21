@@ -5,7 +5,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award, FileSpreadsheet, FolderDown, Truck } from 'lucide-react'
+import { Plus, Search, Edit, Download, KeyRound, Copy, RefreshCw, X, Trash2, AlertTriangle, Eye, EyeOff, Send, BadgeCheck, FileText, CreditCard, ClipboardList, Award, FileSpreadsheet, FolderDown, Truck, Power, PowerOff } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
 import { generateIDCard, generateRegistrationCertificate, isPhdProgram } from '../../utils/generateStudentCards'
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
@@ -271,6 +271,10 @@ export default function Students() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
   const [showHidden, setShowHidden] = useState(false)
+  // Whether students.is_active exists (add_student_active.sql); until it does
+  // the Activate / Deactivate controls stay hidden.
+  const [activeReady, setActiveReady] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
   // Filter dropdowns
   const [superFilter, setSuperFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
@@ -296,6 +300,32 @@ export default function Students() {
       setSessionList(se.data || [])
     })()
   }, [])
+
+  // Activate / Deactivate the student's portal login. A deactivated student
+  // cannot sign in, and their open portal sessions end (add_student_active.sql).
+  async function toggleActive(s) {
+    const next = s.is_active === false
+    if (!next && !confirm(`Deactivate ${s.student_name}?\n\nThey will be signed out of the student portal and cannot log in until activated again.`)) return
+    const { error } = await supabase.from('students').update({ is_active: next }).eq('id', s.id)
+    if (error) { alert('Could not update: ' + error.message); return }
+    setData(prev => prev.map(x => x.id === s.id ? { ...x, is_active: next } : x))
+  }
+
+  // Every student on screen for the chosen centre at once.
+  async function bulkActive(next, list, centerName) {
+    const targets = list.filter(s => (s.is_active !== false) !== next)
+    if (!targets.length) return alert(`All ${list.length} students shown are already ${next ? 'active' : 'deactivated'}.`)
+    if (!confirm(`${next ? 'Activate' : 'Deactivate'} ${targets.length} student${targets.length === 1 ? '' : 's'} of ${centerName}?${next ? '' : '\n\nThey will be signed out of the student portal and cannot log in until activated again.'}`)) return
+    setBulkBusy(true)
+    const ids = targets.map(s => s.id)
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200)
+      const { error } = await supabase.from('students').update({ is_active: next }).in('id', chunk)
+      if (error) { setBulkBusy(false); alert(`Stopped after ${i} students — ${error.message}`); return }
+      setData(prev => prev.map(x => chunk.includes(x.id) ? { ...x, is_active: next } : x))
+    }
+    setBulkBusy(false)
+  }
 
   async function toggleHide(s) {
     const newVal = !s.is_hidden
@@ -455,6 +485,15 @@ export default function Students() {
       setLoadError([error.message, error.code && `(${error.code})`, error.details, error.hint].filter(Boolean).join(' '))
     }
     setData(data || [])
+    // Read on its own so a database without the column still lists students.
+    {
+      const { data: act, error: actErr } = await fetchAllRows(() => supabase.from('students').select('id, is_active').order('id'))
+      setActiveReady(!actErr)
+      if (!actErr) {
+        const off = new Set(act.filter(r => r.is_active === false).map(r => r.id))
+        setData(prev => prev.map(x => ({ ...x, is_active: !off.has(x.id) })))
+      }
+    }
     // The extras below decorate the list; none of them may stop it showing.
     try {
       // null = add_re_registration.sql not run yet, so the feature stays hidden.
@@ -767,6 +806,27 @@ export default function Students() {
       </div>
       )}
 
+      {!loading && !lookup && activeReady && may('students.activate') && centerFilter !== 'all' && filtered.length > 0 && (() => {
+        const cName = centerList.find(c => c.id === centerFilter)?.center_name || 'this centre'
+        const inactive = filtered.filter(s => s.is_active === false).length
+        return (
+          <div className="flex items-center justify-between gap-3 flex-wrap bg-white border border-gray-200 rounded-xl px-4 py-2.5">
+            <p className="text-sm text-gray-700">
+              <span className="font-semibold">{cName}</span> — {filtered.length} student{filtered.length === 1 ? '' : 's'} shown
+              <span className="text-gray-400"> · {filtered.length - inactive} active · {inactive} inactive</span>
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" disabled={bulkBusy} onClick={() => bulkActive(true, filtered, cName)}>
+                <Power size={13} className="text-emerald-600" /> Activate all
+              </Button>
+              <Button size="sm" variant="secondary" disabled={bulkBusy} onClick={() => bulkActive(false, filtered, cName)}>
+                <PowerOff size={13} className="text-red-500" /> Deactivate all
+              </Button>
+            </div>
+          </div>
+        )
+      })()}
+
       {loading ? (
         <div className="flex items-center justify-center py-20 text-gray-400 text-sm">Loading...</div>
       ) : lookup ? (
@@ -936,6 +996,11 @@ export default function Students() {
                         <EyeOff size={9} /> Hidden
                       </span>
                     )}
+                    {s.is_active === false && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 inline-flex items-center gap-0.5">
+                        <PowerOff size={9} /> Inactive
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">{s.gender}{s.date_of_birth ? ` · ${formatDate(s.date_of_birth)}` : ''}</p>
                 </Td>
@@ -1065,6 +1130,13 @@ export default function Students() {
                           </Button>
                         )}
                       </>
+                    )}
+                    {activeReady && may('students.activate') && (
+                    <Button size="sm" variant="ghost" onClick={() => toggleActive(s)} title={s.is_active === false ? 'Activate Student (allow portal login)' : 'Deactivate Student (block portal login)'}>
+                      {s.is_active === false
+                        ? <Power size={14} className="text-emerald-600" />
+                        : <PowerOff size={14} className="text-gray-500" />}
+                    </Button>
                     )}
                     {may('students.hide') && (
                     <Button size="sm" variant="ghost" onClick={() => toggleHide(s)} title={s.is_hidden ? 'Unhide Student' : 'Hide Student'}>

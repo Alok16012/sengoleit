@@ -43,4 +43,5 @@ export const LEDGER_KIND_LABEL = {
   re_registration: 'Re-Registration',
   exam_balance: 'Exam Balance',
   opening: 'Earlier Collection',
+  coupon_refund: 'Coupon Refund',
 }

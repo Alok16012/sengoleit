@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { fetchCouponUsers, couponKey } from '../../utils/couponUsers'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -24,6 +25,8 @@ export default function CouponView({ type = 'wallet' }) {
   const [hideTotal, setHideTotal] = useState(false)
   // Course name per programme id — Course Coupons are each for one course.
   const [programNames, setProgramNames] = useState({})
+  // Coupon code → the student it was used for.
+  const [usedBy, setUsedBy] = useState({})
   // Approval-code activation modal
   const [actModal, setActModal] = useState(null)   // the coupon being activated
   const [actEmail, setActEmail] = useState('')
@@ -45,6 +48,7 @@ export default function CouponView({ type = 'wallet' }) {
               if (!rErr) setRequests(reqs || [])
             })
         }
+        if (type !== 'approval') fetchCouponUsers(data.id).then(setUsedBy)
         if (type === 'course') {
           supabase.from('programs').select('id, program_name')
             .then(({ data: pr }) => setProgramNames(Object.fromEntries((pr || []).map(p => [p.id, p.program_name]))))
@@ -286,6 +290,7 @@ export default function CouponView({ type = 'wallet' }) {
                 <Th>Face Value</Th>
                 <Th>{showPaymentDate ? 'Payment Date' : 'Generated On'}</Th>
                 <Th>Used On</Th>
+                <Th>Used By</Th>
                 <Th>Status</Th>
               </>
             )}
@@ -294,7 +299,7 @@ export default function CouponView({ type = 'wallet' }) {
         <Tbody>
           {filtered.length === 0 ? (
             <Tr>
-              <Td colSpan={unusedView ? 5 : isApproval ? 10 : isCourse ? 7 : 6} className="text-center text-gray-400 py-16">
+              <Td colSpan={unusedView ? 5 : isApproval ? 10 : isCourse ? 8 : 7} className="text-center text-gray-400 py-16">
                 <Ticket size={28} className="mx-auto mb-2 opacity-30" />
                 <p>No coupons found</p>
               </Td>
@@ -424,6 +429,14 @@ export default function CouponView({ type = 'wallet' }) {
                 <Td className="font-bold text-gray-900">₹{Number(c.face_value || 0).toLocaleString('en-IN')}</Td>
                 <Td className="text-gray-400 text-xs">{showPaymentDate ? (paymentDateFromTxn(c.payment_txn_id) ? formatDate(paymentDateFromTxn(c.payment_txn_id)) : (center?.payment_date ? formatDate(center.payment_date) : '—')) : formatDate(c.created_at)}</Td>
                 <Td className="text-gray-400 text-xs">{formatDate(c.used_at)}</Td>
+                <Td>
+                  {usedBy[couponKey(c)] ? (
+                    <div>
+                      <p className="font-mono text-xs font-bold text-gray-800">{usedBy[couponKey(c)].enrollment || '—'}</p>
+                      <p className="text-[11px] text-gray-500">{usedBy[couponKey(c)].name}</p>
+                    </div>
+                  ) : <span className="text-xs text-gray-300">—</span>}
+                </Td>
                 <Td>
                   {statusBadge}
                 </Td>
