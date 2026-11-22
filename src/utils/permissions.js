@@ -115,6 +115,7 @@ export const PERMISSION_GROUPS = [
     ['coupons.edit', 'Edit coupon amount'],
     ['coupons.delete', 'Delete coupons'],
     ['coupons.toggle', 'Activate / deactivate'],
+    ['coupons.apply', 'Apply a coupon to a student later'],
     ['coupons.commission', 'Commission wallet and payouts'],
   ] },
   { key: 'fee_management', label: 'Fee Management', path: '/admin/fee-management', perms: [

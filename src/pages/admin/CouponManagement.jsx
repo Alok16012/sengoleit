@@ -6,11 +6,12 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { formatDate, approvalPaymentDate } from '../../utils/formatDate'
-import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2, Clock, GraduationCap } from 'lucide-react'
+import { Ticket, Wallet, Sparkles, Eye, EyeOff, ChevronDown, ChevronRight, BadgeCheck, Tag, Copy, Search, Power, PowerOff, Pencil, Trash2, Clock, GraduationCap, UserPlus } from 'lucide-react'
 import CommissionWallet from '../../components/admin/CommissionWallet'
 import { fetchAllRows } from '../../utils/fetchAllRows'
 import { useAuth } from '../../context/AuthContext'
 import { fetchCouponUsers, couponKey } from '../../utils/couponUsers'
+import { previewLateCoupon, applyLateCoupon } from '../../utils/applyLateCoupon'
 
 function StatCard({ label, value, color = 'gray' }) {
   const colors = {
@@ -88,6 +89,38 @@ export default function CouponManagement() {
         </div>
       )}
     </div>
+  )
+  // Apply an unused Admission / Course Coupon to a student after entry.
+  const [applyFor, setApplyFor] = useState(null)
+  const [applyEnroll, setApplyEnroll] = useState('')
+  const [applyPreview, setApplyPreview] = useState(null)
+  const [applyBusy, setApplyBusy] = useState(false)
+  function closeApply() { setApplyFor(null); setApplyEnroll(''); setApplyPreview(null) }
+  async function checkApply() {
+    setApplyBusy(true); setApplyPreview(null)
+    const r = await previewLateCoupon(applyFor, applyEnroll)
+    setApplyBusy(false)
+    setApplyPreview(r)
+  }
+  async function confirmApply() {
+    const p = applyPreview
+    if (!p?.student) return
+    setApplyBusy(true)
+    const { data, error } = await applyLateCoupon(applyFor, p)
+    setApplyBusy(false)
+    if (error) { alert('Could not apply: ' + error.message); return }
+    const now = new Date().toISOString()
+    setCoupons(prev => prev.map(x => x.id === applyFor.id ? { ...x, is_used: true, used_at: now } : x))
+    setUsedBy(prev => ({ ...prev, [couponKey(applyFor)]: { name: p.student.student_name, enrollment: p.student.enrollment_no } }))
+    const refund = Number(data?.refund || 0)
+    alert(`Coupon applied to ${p.student.student_name}.` + (refund > 0 ? ` ₹${refund.toLocaleString('en-IN')} returned to the centre wallet.` : ''))
+    closeApply()
+  }
+  const applyBtn = c => may('coupons.apply') && (
+    <button onClick={() => setApplyFor(c)} title="Apply this coupon to a student"
+      className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-lg transition-colors">
+      <UserPlus size={13} /> Apply
+    </button>
   )
   const [panelQ, setPanelQ] = useState('')               // search within the type panel
   // Edit-amount modal for an unused approval code (admin only).
@@ -920,6 +953,65 @@ export default function CouponManagement() {
         )}
       </Modal>
 
+      {/* Apply an unused Admission / Course Coupon to a student after entry. */}
+      <Modal isOpen={!!applyFor} onClose={closeApply} title={applyFor?.coupon_type === 'course' ? 'Apply Course Coupon' : 'Apply Admission Coupon'}>
+        {applyFor && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 flex items-center justify-between">
+              <div>
+                <p className="font-mono font-bold text-gray-900">{applyFor.coupon_code || applyFor.id?.slice(0, 8).toUpperCase()}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{applyFor.centers?.center_name || '—'}{applyFor.program_id && programNameById[applyFor.program_id] ? ` · ${programNameById[applyFor.program_id]}` : ''}</p>
+              </div>
+              <p className="font-bold text-gray-900">₹{Number(applyFor.face_value || 0).toLocaleString('en-IN')}</p>
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Student Enrollment / Application No.</label>
+              <div className="mt-1 flex gap-2">
+                <input autoFocus value={applyEnroll}
+                  onChange={e => { setApplyEnroll(e.target.value); setApplyPreview(null) }}
+                  onKeyDown={e => { if (e.key === 'Enter' && applyEnroll.trim()) checkApply() }}
+                  placeholder="e.g. EN25PGDCA0013"
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono uppercase focus:outline-none focus:border-[#933d18] focus:ring-2 focus:ring-[#933d18]/10 bg-white" />
+                <Button variant="outline" onClick={checkApply} disabled={applyBusy || !applyEnroll.trim()}>
+                  {applyBusy && !applyPreview ? 'Checking...' : 'Check'}
+                </Button>
+              </div>
+            </div>
+            {applyPreview?.error && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2.5">{applyPreview.error}</p>
+            )}
+            {applyPreview?.student && (() => {
+              const p = applyPreview
+              const rs = n => `₹${Math.round(Number(n) || 0).toLocaleString('en-IN')}`
+              return (
+                <div className="rounded-xl border border-gray-100 p-4 space-y-2 text-sm">
+                  <div>
+                    <p className="font-bold text-gray-900">{p.student.student_name}</p>
+                    <p className="text-xs text-gray-500">{p.student.enrollment_no || '—'} · {p.student.programs?.program_name || '—'} · {p.term.currentLabel}</p>
+                  </div>
+                  <div className="flex justify-between"><span className="text-gray-500">Fee collected so far</span><span className="font-semibold">{rs(p.collected)}</span></div>
+                  {p.nextDueBefore != null && (
+                    <div className="flex justify-between"><span className="text-gray-500">Due for {p.term.nextLabel}</span>
+                      <span className="font-semibold"><s className="text-gray-400 mr-2">{rs(p.nextDueBefore)}</s>{rs(p.nextDueAfter)}</span></div>
+                  )}
+                  <div className="flex justify-between"><span className="text-gray-500">Total course due</span>
+                    <span className="font-semibold"><s className="text-gray-400 mr-2">{rs(p.totalDueBefore)}</s>{rs(p.totalDueAfter)}</span></div>
+                  <div className={`flex justify-between rounded-lg px-3 py-2 ${p.refund > 0 ? 'bg-emerald-50 text-emerald-800' : 'bg-gray-50 text-gray-500'}`}>
+                    <span>Back to centre wallet</span><span className="font-bold">{rs(p.refund)}</span>
+                  </div>
+                </div>
+              )
+            })()}
+            <div className="flex gap-3">
+              <Button onClick={confirmApply} disabled={applyBusy || !applyPreview?.student} className="flex-1 justify-center">
+                {applyBusy && applyPreview ? 'Applying...' : 'Apply Coupon'}
+              </Button>
+              <Button variant="outline" onClick={closeApply} className="flex-1 justify-center">Cancel</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* Edit amount for an unused approval code (admin only). */}
       <Modal isOpen={!!editCode} onClose={() => { setEditCode(null); setEditAmount('') }} title="Edit Approval Code">
         {editCode && (
@@ -1242,6 +1334,7 @@ export default function CouponManagement() {
                             <div className="text-center"><span className="text-xs text-gray-300">—</span></div>
                           ) : (
                             <div className="flex items-center justify-center gap-2">
+                                {applyBtn(c)}
                               {may('coupons.edit') && (
                               <button onClick={() => { setEditCode(c); setEditAmount(String(Math.round(Number(c.face_value || 0)))) }}
                                 title="Edit amount"
@@ -1511,16 +1604,21 @@ export default function CouponManagement() {
                           <td className="px-5 py-3.5 text-center">
                             {used ? (
                               <span className="text-xs text-gray-300">—</span>
-                            ) : c.is_activated ? may('coupons.toggle') && (
-                              <button onClick={() => toggleActivate(c)}
-                                className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
-                                <PowerOff size={13} /> Deactivate
-                              </button>
-                            ) : may('coupons.toggle') && (
-                              <button onClick={() => toggleActivate(c)}
-                                className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
-                                <Power size={13} /> Activate
-                              </button>
+                            ) : (
+                              <div className="flex items-center justify-center gap-2">
+                                {applyBtn(c)}
+                                {may('coupons.toggle') && (c.is_activated ? (
+                                  <button onClick={() => toggleActivate(c)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                                    <PowerOff size={13} /> Deactivate
+                                  </button>
+                                ) : (
+                                  <button onClick={() => toggleActivate(c)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                                    <Power size={13} /> Activate
+                                  </button>
+                                ))}
+                              </div>
                             )}
                           </td>
                         </tr>
