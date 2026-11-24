@@ -2005,7 +2005,12 @@ export const LATER_PHD_DOCS = Object.keys(PHD_DOC_BODIES)
 // Condition are all saved under that name — but it is issued as the
 // Registration Certificate.
 const PHD_DOC_LABELS = { 'Enrollment Certificate': 'Registration Certificate' }
-export const phdDocLabel = name => PHD_DOC_LABELS[name] || name
+// Matched loosely: a name saved in the Master Panel may differ in case or spacing.
+const norm = n => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase()
+export const phdDocLabel = name => {
+  const hit = Object.keys(PHD_DOC_LABELS).find(k => norm(k) === norm(name))
+  return hit ? PHD_DOC_LABELS[hit] : name
+}
 
 export function generatePhdDocument(s, docName, opts = {}) {
   const make = PHD_DOC_BODIES[docName]
