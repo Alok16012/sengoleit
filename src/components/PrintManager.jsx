@@ -66,6 +66,18 @@ function countLine(d) {
   return `${printCountLabel(d.count)} · last ${fmtD(r?.last_reprinted_at || r?.last_printed_at)}`
 }
 
+// yyyy-mm-dd in local time.
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+// The Date of Issue a final document was FIRST printed with: stored on the
+// record (add_print_issue_date.sql), else the day of its first print. Every
+// View and Reprint prints this date, and History shows it.
+function issueDateOf(record) {
+  if (record?.issue_date) return String(record.issue_date).slice(0, 10)
+  return record?.first_printed_at ? ymd(new Date(record.first_printed_at)) : null
+}
+const FINAL_TYPES = new Set([DOC.PROVISIONAL, DOC.MIGRATION, DOC.DEGREE])
+const fmtIssue = v => (v ? v.split('-').reverse().join('/') : '—')
+
 export default function PrintManager({ students, results, setResults, filterActive, exportMeta }) {
   const { may, mayTab } = useAuth()
   // The status tabs this role may see (all, when none are ticked).
@@ -172,6 +184,16 @@ export default function PrintManager({ students, results, setResults, filterActi
     const { data, error } = await supabase.rpc('record_document_prints', { p_items: items, p_job: jobId || null })
     if (!error) {
       const rows = Array.isArray(data) ? data : []
+      // A final document printed for the first time keeps the Date of Issue
+      // this job carried; reprints never change it.
+      const jobDate = jobDates.current[jobId] || ymd(new Date())
+      const firsts = rows.filter(r => Number(r.print_count) === 1 && FINAL_TYPES.has(r.doc_type))
+      if (firsts.length) {
+        const { error: dErr } = await supabase.rpc('set_print_issue_dates', {
+          p_items: firsts.map(r => ({ student_id: r.student_id, doc_type: r.doc_type, issue_date: jobDate })),
+        })
+        if (!dErr) for (const r of firsts) r.issue_date = jobDate
+      }
       setRecords(prev => {
         const next = { ...prev }
         for (const r of rows) {
@@ -236,6 +258,8 @@ export default function PrintManager({ students, results, setResults, filterActi
   const windows = useRef(new Set())
   // The listener is set up once; it reaches the latest record() through this.
   const recordRef = useRef(null)
+  // jobId → the Date of Issue that job printed on first prints.
+  const jobDates = useRef({})
   useEffect(() => { recordRef.current = record })
   useEffect(() => {
     async function onMessage(e) {
@@ -263,10 +287,16 @@ export default function PrintManager({ students, results, setResults, filterActi
     const win = openPrintJobWindow(name)
     if (!win) return
     windows.current.add(win)
-    fillPrintJob(win, entries, { jobId: newJobId(), title: name, autoPrint, issueDate: issueDate || undefined })
+    const jobId = newJobId()
+    jobDates.current[jobId] = issueDate || undefined
+    fillPrintJob(win, entries, { jobId, title: name, autoPrint, issueDate: issueDate || undefined })
       .catch(err => { try { win.document.body.textContent = 'Could not prepare the documents: ' + (err?.message || err) } catch { /* closed */ } })
   }
-  const entryOf = (s, doc) => ({ student: s, doc, results: resultsBySid[s.id] || [] })
+  // Printed before: its own first Date of Issue, not the date in the box.
+  const entryOf = (s, doc) => ({
+    student: s, doc, results: resultsBySid[s.id] || [],
+    issueDate: doc.count >= 1 ? (issueDateOf(doc.record) || undefined) : undefined,
+  })
 
   // A document printed before goes through Confirm Reprint first.
   function printOne(s, doc) {
@@ -641,6 +671,7 @@ export default function PrintManager({ students, results, setResults, filterActi
                         <tr className="text-left text-[11px] uppercase tracking-wider text-gray-500">
                           <th className="px-3 py-2.5">Document</th>
                           <th className="px-3 py-2.5">Semester / Type</th>
+                          <th className="px-3 py-2.5">Date of Issue</th>
                           <th className="px-3 py-2.5">First Printed On</th>
                           <th className="px-3 py-2.5">Printed By</th>
                           <th className="px-3 py-2.5">Print Count</th>
@@ -654,6 +685,7 @@ export default function PrintManager({ students, results, setResults, filterActi
                           <tr key={d.key}>
                             <td className="px-3 py-2 font-semibold text-gray-900 whitespace-nowrap">{DOC_LABEL[d.doc_type]}</td>
                             <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{d.doc_type === DOC.MARKSHEET ? `Sem ${d.semester}` : 'Final Document'}</td>
+                            <td className="px-3 py-2 font-semibold text-gray-800 whitespace-nowrap">{d.doc_type === DOC.MARKSHEET ? '—' : fmtIssue(issueDateOf(d.record))}</td>
                             <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtDT(d.record?.first_printed_at)}</td>
                             <td className="px-3 py-2 text-gray-600">{d.record?.first_printed_by || '—'}</td>
                             <td className="px-3 py-2 whitespace-nowrap">

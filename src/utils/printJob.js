@@ -94,6 +94,8 @@ async function buildSheet(entry, cache, { issueDate } = {}) {
     }
   }
   const { passingYear, division } = finalsSummary(results)
+  // A document printed before keeps the Date of Issue it was first printed with.
+  issueDate = entry.issueDate || issueDate
   const certNo = doc.doc_type === DOC.PROVISIONAL ? await certificateNo(s.id, doc.doc_type) : ''
   const svg = doc.doc_type === DOC.PROVISIONAL ? provisionalCertificateSvg(full, { passingYear, division, certNo, issueDate })
     : doc.doc_type === DOC.MIGRATION ? migrationCertificateSvg(full, { passingYear, issueDate })

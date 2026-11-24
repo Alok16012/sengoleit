@@ -77,7 +77,8 @@ export async function openFinalCertificate(student, record, results = []) {
   const passingYear = lastDeclared ? new Date(lastDeclared).getFullYear() : ''
   const division = maximum > 0 ? divisionFor((obtained / maximum) * 100) : ''
   const d = record.first_printed_at ? new Date(record.first_printed_at) : null
-  const issueDate = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : undefined
+  const issueDate = record.issue_date
+    || (d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : undefined)
 
   if (record.doc_type === DOC.PROVISIONAL) {
     const { data } = await supabase.from('certificate_numbers').select('cert_no')
