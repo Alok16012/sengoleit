@@ -2004,7 +2004,7 @@ export const LATER_PHD_DOCS = Object.keys(PHD_DOC_BODIES)
 // 'Enrollment Certificate' — its reference series, issued numbers and Payment
 // Condition are all saved under that name — but it is issued as the
 // Registration Certificate.
-const PHD_DOC_LABELS = { 'Enrollment Certificate': 'Registration Certificate' }
+const PHD_DOC_LABELS = { 'Enrollment Certificate': 'Registration Certificate', 'Enrollment / ID Card': 'Registration / ID Card' }
 // Matched loosely: a name saved in the Master Panel may differ in case or spacing.
 const norm = n => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase()
 export const phdDocLabel = name => {

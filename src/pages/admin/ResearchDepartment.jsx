@@ -317,7 +317,7 @@ export default function ResearchDepartment() {
     // The Registration Certificate's number is the candidate's Enrollment No.;
     // releasing it would hand the same number to the next candidate.
     if (letterName === 'Enrollment Certificate' && student.enrollment_no) {
-      alert(`${student.student_name}'s Enrollment No. (${student.enrollment_no}) is this certificate's number, so it cannot be withdrawn.`)
+      alert(`${student.student_name}'s Registration No. (${student.enrollment_no}) is this certificate's number, so it cannot be withdrawn.`)
       return
     }
     const letter = entryFor(student.session_id, letterName)
@@ -399,7 +399,7 @@ export default function ResearchDepartment() {
   // issue, the number claimed from the student's session series and reused on
   // every re-print. They follow the Enrollment Number, which several print.
   async function issueLater(student, name) {
-    if (!student.enrollment_no) return alert(`Generate ${student.student_name}'s Enrollment Number first — the ${phdDocLabel(name)} follows it.`)
+    if (!student.enrollment_no) return alert(`Generate ${student.student_name}'s Registration Number first — the ${phdDocLabel(name)} follows it.`)
     const alreadyIssued = assigned[name]?.[student.id] != null
     if (!alreadyIssued && payBlocked(student, name)) return
     // Ask for the facts the database does not hold, offering the last answers.
@@ -522,14 +522,16 @@ export default function ResearchDepartment() {
     if (student.enrollment_no) return
     if (!lettersDone(student)) return
     if (payBlocked(student, 'Enrollment / ID Card')) return
-    if (!confirm(`Generate the Enrollment Number for ${student.student_name}?\n\nThe ID card will be generated along with it.`)) return
+    // The number IS the Registration Certificate's, so its condition applies too.
+    if (payBlocked(student, ENROLL_DOC)) return
+    if (!confirm(`Generate the Registration Number for ${student.student_name}?\n\nThe ID card will be generated along with it.`)) return
     const enrollNo = generateEnrollmentNumber(student)
     if (!enrollNo) return
     setBusy(`${student.id}-enroll`)
     const { error } = await supabase.from('students')
       .update({ enrollment_no: enrollNo }).eq('id', student.id)
     if (error) {
-      alert('Could not save the enrollment number: ' + error.message)
+      alert('Could not save the registration number: ' + error.message)
       setBusy(null)
       return
     }
@@ -545,7 +547,8 @@ export default function ResearchDepartment() {
   async function forwardToExam(student) {
     if (student.exam_forwarded_at) return
     if (payBlocked(student, 'Forward to Exam')) return
-    if (!confirm(`Forward ${student.student_name} to the Exam Section?\n\nAn Enrollment Number will be generated now.`)) return
+    if (!student.enrollment_no && payBlocked(student, ENROLL_DOC)) return
+    if (!confirm(`Forward ${student.student_name} to the Exam Section?\n\nA Registration Number will be generated now.`)) return
     const enrollNo = student.enrollment_no || generateEnrollmentNumber(student)
     if (!enrollNo) return
     setBusy(`${student.id}-exam`)
@@ -615,7 +618,7 @@ export default function ResearchDepartment() {
                 { header: 'Stream', value: s => s.stream || '' },
                 { header: 'Programme', value: s => s.programs?.program_name || '' },
                 { header: 'Fee Status', value: s => (s.status === 'Approved' ? 'Approved' : s.status || 'Pending') },
-                { header: 'Enrollment No', value: s => s.enrollment_no || '' },
+                { header: 'Registration No', value: s => s.enrollment_no || '' },
                 { header: 'Forwarded', value: s => (s.exam_forwarded_at ? 'Forwarded' : 'Pending') },
               ] : [
                 { header: 'Student', value: s => s.student_name || '' },
@@ -637,7 +640,7 @@ export default function ResearchDepartment() {
                 { header: 'Hall Ticket', value: s => (s.hall_ticket_active ? 'Visible' : 'Hidden') },
                 { header: 'Offer Letter', value: s => (s.offer_letter_active ? 'Visible' : 'Hidden') },
                 { header: 'Entrance Certificate', value: s => (s.entrance_letter_active ? 'Visible' : 'Hidden') },
-                { header: 'Enrollment No', value: s => s.enrollment_no || '' },
+                { header: 'Registration No', value: s => s.enrollment_no || '' },
               ]} />
           </div>
         )}
@@ -878,7 +881,7 @@ export default function ResearchDepartment() {
               <Th>Hall Ticket</Th>
               <Th>Offer Letter</Th>
               <Th>Entrance Certificate</Th>
-              <Th>Enrollment / ID Card</Th>
+              <Th>Registration / ID Card</Th>
               <Th>Further Documents</Th>
             </Tr>
           </Thead>
@@ -951,10 +954,10 @@ export default function ResearchDepartment() {
                     <Button size="sm" variant="primary" className="w-fit"
                       disabled={!lettersDone(s) || busy === `${s.id}-enroll`}
                       title={lettersDone(s)
-                        ? 'Generate the Enrollment Number — the ID card opens along with it'
+                        ? 'Generate the Registration Number — the ID card opens along with it'
                         : 'Generate the Hall Ticket, Offer Letter and Entrance Certificate first'}
                       onClick={() => generateEnrollment(s)}>
-                      <Hash size={13} /> {busy === `${s.id}-enroll` ? '…' : 'Enrollment'}
+                      <Hash size={13} /> {busy === `${s.id}-enroll` ? '…' : 'Registration'}
                     </Button>
                   )}
                 </Td>
@@ -976,7 +979,7 @@ export default function ResearchDepartment() {
               <Th>Stream</Th>
               <Th>Programme</Th>
               <Th>Fee Status</Th>
-              <Th>Enrollment No</Th>
+              <Th>Registration No</Th>
               <Th>Action</Th>
             </Tr>
           </Thead>
@@ -1012,7 +1015,7 @@ export default function ResearchDepartment() {
                       </span>
                     ) : may('research_dept.manage') && (
                       <Button size="sm" variant="primary" disabled={!feeCleared || busy === `${s.id}-exam`}
-                        title={feeCleared ? 'Forward to Exam Section & generate Enrollment No' : 'Waiting for Account Dept approval'}
+                        title={feeCleared ? 'Forward to Exam Section & generate Registration No' : 'Waiting for Account Dept approval'}
                         onClick={() => forwardToExam(s)}>
                         <Send size={13} /> {busy === `${s.id}-exam` ? '…' : 'Forward to Exam'}
                       </Button>
@@ -1120,7 +1123,7 @@ function LaterDocsCell({ student, issuedRef, onIssue, onWithdraw }) {
   const ref = issuedRef(doc)
   const issuedCount = LATER_PHD_DOCS.filter(n => issuedRef(n)).length
   if (!student.enrollment_no) {
-    return <Td><span className="text-[11px] text-gray-400">After Enrollment</span></Td>
+    return <Td><span className="text-[11px] text-gray-400">After Registration</span></Td>
   }
   return (
     <Td>
