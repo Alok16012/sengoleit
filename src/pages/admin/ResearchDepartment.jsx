@@ -4,13 +4,14 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '../../components/ui/Table'
 import PageHeader from '../../components/ui/PageHeader'
 import ExportButtons from '../../components/ExportButtons'
 import Button from '../../components/ui/Button'
-import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard, IndianRupee, FileText } from 'lucide-react'
-import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard, generatePhdDocument, LATER_PHD_DOCS, PHD_DOC_EXTRAS } from '../../utils/generateStudentCards'
+import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard, IndianRupee, FileText, Wallet } from 'lucide-react'
+import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard, generatePhdDocument, LATER_PHD_DOCS, PHD_DOC_EXTRAS, phdDocLabel } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { isPhdStudent } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
 import { useAuth } from '../../context/AuthContext'
 import ResearchPaymentConditions from '../../components/ResearchPaymentConditions'
+import ResearchFeeEntry from '../../components/ResearchFeeEntry'
 import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, unassignRef, deleteLetterSetting, setSitting } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
@@ -58,7 +59,7 @@ export default function ResearchDepartment() {
   const { may, mayTab } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState(() => ['letters', 'exam', 'master', 'payment'].find(k => mayTab('research_dept', k)) || 'letters')      // 'letters' | 'exam'
+  const [tab, setTab] = useState(() => ['letters', 'exam', 'master', 'payment', 'fee'].find(k => mayTab('research_dept', k)) || 'letters')      // 'letters' | 'exam'
   const [q, setQ] = useState('')
   const [sessions, setSessions] = useState([])
   const [sessionFilter, setSessionFilter] = useState('all')
@@ -313,6 +314,12 @@ export default function ResearchDepartment() {
   // student portal — leaving it downloadable after the number is gone would show
   // the candidate a letter the office no longer has a record of.
   async function clearRef(student, letterName, field) {
+    // The Registration Certificate's number is the candidate's Enrollment No.;
+    // releasing it would hand the same number to the next candidate.
+    if (letterName === 'Enrollment Certificate' && student.enrollment_no) {
+      alert(`${student.student_name}'s Enrollment No. (${student.enrollment_no}) is this certificate's number, so it cannot be withdrawn.`)
+      return
+    }
     const letter = entryFor(student.session_id, letterName)
     const cur = `${letter?.prefix || ''}${refSerial(assigned[letterName]?.[student.id])}`
     if (!confirm(`Withdraw ${student.student_name}'s ${letterName} (${cur})?\n\nIt disappears from the student portal, and pressing Generate again issues the NEXT number of the current series — not this one.`)) return
@@ -392,7 +399,7 @@ export default function ResearchDepartment() {
   // issue, the number claimed from the student's session series and reused on
   // every re-print. They follow the Enrollment Number, which several print.
   async function issueLater(student, name) {
-    if (!student.enrollment_no) return alert(`Generate ${student.student_name}'s Enrollment Number first — the ${name} follows it.`)
+    if (!student.enrollment_no) return alert(`Generate ${student.student_name}'s Enrollment Number first — the ${phdDocLabel(name)} follows it.`)
     const alreadyIssued = assigned[name]?.[student.id] != null
     if (!alreadyIssued && payBlocked(student, name)) return
     // Ask for the facts the database does not hold, offering the last answers.
@@ -400,7 +407,7 @@ export default function ResearchDepartment() {
     try { saved = JSON.parse(localStorage.getItem(EXTRAS_KEY) || '{}') } catch { /* ignore */ }
     const extra = { ...(saved[student.id] || {}) }
     for (const [k, label] of PHD_DOC_EXTRAS[name] || []) {
-      const ans = prompt(`${name} — ${student.student_name}\n\n${label} (leave blank to fill in by hand):`, extra[k] || '')
+      const ans = prompt(`${phdDocLabel(name)} — ${student.student_name}\n\n${label} (leave blank to fill in by hand):`, extra[k] || '')
       if (ans === null) return                 // cancelled
       extra[k] = ans.trim()
     }
@@ -477,30 +484,15 @@ export default function ResearchDepartment() {
     setBusy(null)
   }
 
-  // Enrollment numbers are sequential per program + session: EN<yy><code><nnnn>.
-  // Mirrors the Account Dept's generator so both pipelines stay consistent.
-  async function generateEnrollmentNumber(student) {
-    const enrollCode = student.programs?.enrollment_code || 'GEN'
-    const sessName = student.academic_sessions?.session_name || ''
-    const yearMatch = sessName.match(/(\d{4})/)
-    const yy = yearMatch ? yearMatch[1].slice(-2) : String(new Date().getFullYear()).slice(-2)
-    const prefix = `EN${yy}${enrollCode}`
-    let qy = supabase.from('students').select('*', { count: 'exact', head: true })
-      .not('enrollment_no', 'is', null).neq('enrollment_no', '')
-    if (student.programme_id) qy = qy.eq('programme_id', student.programme_id)
-    if (student.session_id) qy = qy.eq('session_id', student.session_id)
-    const { count } = await qy
-    // The count is a snapshot, so two admins acting at once — or a number
-    // issued under an older counting rule — can land on a taken serial.
-    // Walk forward until a free one is found.
-    let n = (count || 0) + 1
-    for (let tries = 0; tries < 50; tries++, n++) {
-      const candidate = `${prefix}${String(n).padStart(4, '0')}`
-      const { count: taken } = await supabase.from('students')
-        .select('*', { count: 'exact', head: true }).eq('enrollment_no', candidate)
-      if (!taken) return candidate
-    }
-    return `${prefix}${String(n).padStart(4, '0')}`
+  // A Ph.D candidate's Enrollment No. IS the Registration (Enrollment)
+  // Certificate's Provisional Registration No. — the series set in the Master
+  // Panel for the student's session (e.g. SIUPHDPE + 25001), not the
+  // programme's enrollment code. Claiming it here also records it against the
+  // certificate, so the certificate prints the same number. null (with an
+  // alert) when no series is set up for the session.
+  const ENROLL_DOC = 'Enrollment Certificate'
+  function generateEnrollmentNumber(student) {
+    return refFor(student, ENROLL_DOC)
   }
 
   // All three letters must have an issued reference number before the
@@ -518,7 +510,7 @@ export default function ResearchDepartment() {
     const min = Number(payRules?.[doc]) || 0
     const paid = Number(student.fee_collected) || 0
     if (paid >= min) return false
-    alert(`${student.student_name} has paid ₹${paid.toLocaleString('en-IN')}.\n\nThe ${doc} needs at least ₹${min.toLocaleString('en-IN')} paid first (Research Dept → Payment Condition).`)
+    alert(`${student.student_name} has paid ₹${paid.toLocaleString('en-IN')}.\n\nThe ${phdDocLabel(doc)} needs at least ₹${min.toLocaleString('en-IN')} paid first (Research Dept → Payment Condition).`)
     return true
   }
 
@@ -531,8 +523,9 @@ export default function ResearchDepartment() {
     if (!lettersDone(student)) return
     if (payBlocked(student, 'Enrollment / ID Card')) return
     if (!confirm(`Generate the Enrollment Number for ${student.student_name}?\n\nThe ID card will be generated along with it.`)) return
+    const enrollNo = generateEnrollmentNumber(student)
+    if (!enrollNo) return
     setBusy(`${student.id}-enroll`)
-    const enrollNo = await generateEnrollmentNumber(student)
     const { error } = await supabase.from('students')
       .update({ enrollment_no: enrollNo }).eq('id', student.id)
     if (error) {
@@ -553,8 +546,9 @@ export default function ResearchDepartment() {
     if (student.exam_forwarded_at) return
     if (payBlocked(student, 'Forward to Exam')) return
     if (!confirm(`Forward ${student.student_name} to the Exam Section?\n\nAn Enrollment Number will be generated now.`)) return
+    const enrollNo = student.enrollment_no || generateEnrollmentNumber(student)
+    if (!enrollNo) return
     setBusy(`${student.id}-exam`)
-    const enrollNo = student.enrollment_no || await generateEnrollmentNumber(student)
     const now = new Date().toISOString()
     const { error } = await supabase.from('students')
       .update({ exam_forwarded_at: now, enrollment_no: enrollNo }).eq('id', student.id)
@@ -599,8 +593,9 @@ export default function ResearchDepartment() {
           {mayTab('research_dept', 'letters') && <TabBtn id="letters" icon={FlaskConical} label="Candidates" count={filtered.length} />}
           {mayTab('research_dept', 'exam') && <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={filtered.filter(s => !s.exam_forwarded_at).length} />}
           {mayTab('research_dept', 'payment') && <TabBtn id="payment" icon={IndianRupee} label="Payment Condition" />}
+          {mayTab('research_dept', 'fee') && <TabBtn id="fee" icon={Wallet} label="Fee Entry" />}
         </div>
-        {tab !== 'master' && tab !== 'payment' && (
+        {tab !== 'master' && tab !== 'payment' && tab !== 'fee' && (
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -632,7 +627,7 @@ export default function ResearchDepartment() {
                 { header: 'Session', value: s => s.academic_sessions?.session_name || s.academic_year || '' },
                 // The reference numbers the office copies carry.
                 ...letterNames.map(name => ({
-                  header: `${name} Ref`,
+                  header: `${phdDocLabel(name)} Ref`,
                   value: s => {
                     const num = assigned[name]?.[s.id]
                     if (num == null) return ''
@@ -653,6 +648,11 @@ export default function ResearchDepartment() {
         ? <p className="text-center text-gray-400 py-12 text-sm">Loading…</p>
         : <ResearchPaymentConditions docs={PAY_DOCS} rules={payRules} missing={payMissing}
             canEdit={may('research_dept.manage')} onSaved={setPayRules} />)}
+
+      {tab === 'fee' && (payRules == null
+        ? <p className="text-center text-gray-400 py-12 text-sm">Loading…</p>
+        : <ResearchFeeEntry sessions={sessions} canEdit={may('research_dept.manage')}
+            minFee={Math.max(0, ...Object.values(payRules).map(Number).filter(Number.isFinite))} />)}
 
       {tab === 'master' && (
       <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
@@ -695,7 +695,7 @@ export default function ResearchDepartment() {
                 <label className="block text-[11px] font-semibold text-gray-500 mb-1">Name of Document</label>
                 <select value={docSel} onChange={e => setDocSel(e.target.value)}
                   className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/30 bg-white w-80">
-                  {docNames.map(n => <option key={n} value={n}>{n}{docComplete(n, entryFor(editingSession, n)) ? ' ✓' : ''}</option>)}
+                  {docNames.map(n => <option key={n} value={n}>{phdDocLabel(n)}{docComplete(n, entryFor(editingSession, n)) ? ' ✓' : ''}</option>)}
                 </select>
               </div>
               {may('research_dept.manage') && (
@@ -706,7 +706,7 @@ export default function ResearchDepartment() {
             </div>
             <p className="text-[11px] text-gray-500 -mt-2">
               {editingSession
-                ? <>Setting up <strong className="text-gray-700">{sessionName(editingSession)}</strong> — <strong className="text-gray-700">{docSel}</strong>.</>
+                ? <>Setting up <strong className="text-gray-700">{sessionName(editingSession)}</strong> — <strong className="text-gray-700">{phdDocLabel(docSel)}</strong>.</>
                 : <>No session picked — this is the fallback for any session without its own entry.</>}
             </p>
 
@@ -746,7 +746,7 @@ export default function ResearchDepartment() {
               const spec = docSpec(docSel)
               return (
                 <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/40">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3">Required for {docSel}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3">Required for {phdDocLabel(docSel)}</p>
                   <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     {spec.fields.flatMap(f => {
                       if (f.k === 'ref') return series(spec.refLabel || 'Ref No', 'prefix', 'nextNum', f.optional)
@@ -781,7 +781,7 @@ export default function ResearchDepartment() {
                       className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
                         n === docSel ? 'border-[#933d18] text-[#933d18] bg-[#933d18]/5'
                           : done ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'border-gray-200 text-gray-500 bg-white hover:border-gray-300'}`}>
-                      {done ? '✓ ' : ''}{n}
+                      {done ? '✓ ' : ''}{phdDocLabel(n)}
                     </button>
                   )
                 })}
@@ -905,7 +905,7 @@ export default function ResearchDepartment() {
                     const letter = entryFor(s.session_id, name)
                     return (
                       <div key={name} className="text-[10px] text-gray-400 font-normal mt-0.5">
-                        {name}: {letter?.prefix}{refSerial(num)}
+                        {phdDocLabel(name)}: {letter?.prefix}{refSerial(num)}
                       </div>
                     )
                   })}
@@ -1127,7 +1127,7 @@ function LaterDocsCell({ student, issuedRef, onIssue, onWithdraw }) {
       <div className="flex flex-col gap-1.5 min-w-52">
         <select value={doc} onChange={e => setDoc(e.target.value)}
           className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:border-[#933d18]">
-          {LATER_PHD_DOCS.map(n => <option key={n} value={n}>{issuedRef(n) ? '✓ ' : ''}{n}</option>)}
+          {LATER_PHD_DOCS.map(n => <option key={n} value={n}>{issuedRef(n) ? '✓ ' : ''}{phdDocLabel(n)}</option>)}
         </select>
         {ref && <p className="text-[10px] font-mono text-gray-400 leading-none">{ref}</p>}
         <div className="flex items-center gap-1">

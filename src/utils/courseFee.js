@@ -74,7 +74,26 @@ export async function centerSharingPct(center_id) {
   return Math.min(Math.max(Number(c.fee_sharing) || 0, 0), 100)
 }
 
+// The Ph.D fee the Research Dept set (Research Dept → Fee Entry), or null when
+// none is set — or the table is not there yet — so the caller falls back to
+// Fee Management. The session's own row wins over the all-sessions fallback.
+// It is what the CENTRE pays: no sharing comes off it.
+export async function researchFeeFor(programme_id, session_id) {
+  if (!programme_id) return null
+  const { data, error } = await supabase.from('research_fees')
+    .select('session_id, fee').eq('program_id', programme_id)
+  if (error || !data?.length) return null
+  const row = data.find(r => session_id && r.session_id === session_id) || data.find(r => !r.session_id)
+  return row ? Math.round(Number(row.fee) || 0) : null
+}
+
 export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration, programName, center_id, sharing_pct }) {
+  // Ph.D: the whole course fee the Research Dept set, due from admission.
+  const rFee = await researchFeeFor(programme_id, session_id)
+  if (rFee != null) {
+    const totalSems = Number(duration) || 1
+    return { courseFee: rFee, grossFee: rFee, centerShare: 0, sharingPct: 0, dueSem: totalSems, totalSems, calendarActive: false, researchFee: true }
+  }
   const { data: structures } = await supabase
     .from('fee_structures')
     .select('id, session_id, total_semesters')
@@ -221,6 +240,15 @@ export function holdAmount(courseFee, discount, courseFeeDiscount = 0) {
 // comes back — which is what the university-wide screens want.
 export async function computeSemesterFeeStatus({ programme_id, session_id, duration, fee_collected, coupon_discount, course_coupon_discount, center_id, sharing_pct }) {
   const totalSems = Number(duration) || 1
+  const rFee = await researchFeeFor(programme_id, session_id)
+  if (rFee != null) {
+    const collected = Number(fee_collected) || 0
+    const due = Math.max(rFee - (Number(coupon_discount) || 0) - (Number(course_coupon_discount) || 0), 0)
+    const sems = Array.from({ length: totalSems }, (_, i) => ({
+      sem: i + 1, cumFee: rFee, grossFee: rFee, dueFee: due, cleared: collected + 1 >= due,
+    }))
+    return { totalSems, collected: Math.round(collected), sharingPct: 0, sems }
+  }
   const { data: structures } = await supabase
     .from('fee_structures').select('id, session_id').eq('program_id', programme_id)
   const fs = (structures || []).find(s => s.session_id === session_id) || (structures || [])[0]

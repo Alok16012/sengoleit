@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import Button from './ui/Button'
 import { Save } from 'lucide-react'
+import { phdDocLabel } from '../utils/generateStudentCards'
 
 // Research Dept → Payment Condition. For each document the candidate is
 // issued, the least fee they must have paid first. 0 = no condition.
@@ -40,7 +41,7 @@ export default function ResearchPaymentConditions({ docs, rules, missing, canEdi
         <tbody>
           {docs.map(d => (
             <tr key={d} className="border-t border-gray-100">
-              <td className="py-2.5 font-semibold text-gray-800">{d}</td>
+              <td className="py-2.5 font-semibold text-gray-800">{phdDocLabel(d)}</td>
               <td className="py-2">
                 <input type="number" min="0" value={draft[d]} disabled={!canEdit}
                   onChange={e => setDraft(x => ({ ...x, [d]: e.target.value }))}

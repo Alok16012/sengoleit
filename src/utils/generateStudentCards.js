@@ -259,7 +259,7 @@ export function generateIDCard(s) {
       <div style="flex:1;padding-top:2px;">
         <table style="width:100%;">
           ${row(regLabel, regNo, true)}
-          ${row('Enrollment No', s.enrollment_no)}
+          ${row(isPhdProgram(prog) ? 'Provisional Registration No.' : 'Enrollment No', s.enrollment_no)}
           ${row('Name', s.student_name)}
           ${row('F./H. Name', s.fathers_name)}
           ${row('D.O.B.', fmtDate(s.date_of_birth))}
@@ -1908,7 +1908,7 @@ function phdDetails(s, rows) {
   const base = [
     ['Name of the Scholar', `<strong>${v(s.student_name)}</strong>`],
     ["Father's Name", v(s.fathers_name)],
-    ['Enrollment No.', v(s.enrollment_no)],
+    ['Provisional Registration No.', v(s.enrollment_no)],
     ['Programme', v(s.programs?.program_name || s.program_name || 'Ph.D.')],
     ['Subject / Specialization', v(s.specialization || s.departments?.name)],
     ['Session', v(s.academic_sessions?.session_name || s.session_name || s.academic_year)],
@@ -1918,7 +1918,7 @@ function phdDetails(s, rows) {
 
 const PHD_DOC_BODIES = {
   'Enrollment Certificate': (s, o, P) => `
-    ${phdDetails(s, [['Provisional Registration No.', filled(o.refNo)]])}
+    ${phdDetails(s)}
     <p style="${P}">This is to certify that the above-named scholar has been duly enrolled in the <strong>Ph.D. Programme</strong> of ${UNI_NAME} for the session mentioned above, after verification of the documents submitted and payment of the prescribed fee.</p>
     <p style="${P}">The enrolment is provisional and is governed by the Ph.D. Regulations of the University. The scholar is required to complete the prescribed Course Work and to abide by all the rules and regulations of the University during the period of research.</p>
     <p style="${P}">This certificate is issued on the request of the scholar for whatever purpose it may serve.</p>`,
@@ -2000,6 +2000,13 @@ export const PHD_DOC_EXTRAS = {
 }
 export const LATER_PHD_DOCS = Object.keys(PHD_DOC_BODIES)
 
+// What a Ph.D document is CALLED on screen and in print. The stored key stays
+// 'Enrollment Certificate' — its reference series, issued numbers and Payment
+// Condition are all saved under that name — but it is issued as the
+// Registration Certificate.
+const PHD_DOC_LABELS = { 'Enrollment Certificate': 'Registration Certificate' }
+export const phdDocLabel = name => PHD_DOC_LABELS[name] || name
+
 export function generatePhdDocument(s, docName, opts = {}) {
   const make = PHD_DOC_BODIES[docName]
   if (!make) return alert(`No print format for ${docName} yet.`)
@@ -2008,9 +2015,9 @@ export function generatePhdDocument(s, docName, opts = {}) {
   const P = 'font-size:12.5px;color:#000;line-height:1.55;margin:0 0 10px;text-align:justify;'
   const title = docName === 'Notification' ? '' : `
     <div style="text-align:center;margin:6px 0 16px;">
-      <span style="font-size:15.5px;font-weight:700;color:#000;text-decoration:underline;text-transform:uppercase;">${esc(docName)}</span>
+      <span style="font-size:15.5px;font-weight:700;color:#000;text-decoration:underline;text-transform:uppercase;">${esc(phdDocLabel(docName))}</span>
     </div>`
   const body = `${title}${make(s, { ...opts, refNo }, P)}
     <div style="margin-top:26px;">${registrarSignBlock(true)}</div>`
-  openWindow(letterheadDoc(docName, s.student_name, refNo, dateStr, body), docName)
+  openWindow(letterheadDoc(phdDocLabel(docName), s.student_name, refNo, dateStr, body), phdDocLabel(docName))
 }

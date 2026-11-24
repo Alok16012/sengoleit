@@ -1097,7 +1097,7 @@ export default function StudentForm({ viewOnly = false }) {
     try {
       // Shared source of truth so the entry fee here exactly matches the fee held
       // at forward (StudentListReport) and collected at Account Dept.
-      const { courseFee, grossFee, centerShare, sharingPct, dueSem, calendarActive } = await computeCumulativeCourseFee({
+      const { courseFee, grossFee, centerShare, sharingPct, dueSem, calendarActive, researchFee } = await computeCumulativeCourseFee({
         programme_id: form.programme_id,
         session_id: form.session_id,
         semester_year: form.semester_year,
@@ -1123,7 +1123,7 @@ export default function StudentForm({ viewOnly = false }) {
       // any admission coupon discount.
       const minRequired = holdAmount(courseFee, coupon.discount, courseCoupon.discount)
       const ok = courseFee === 0 || balance >= minRequired
-      setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive })
+      setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive, researchFee })
       return ok
     } catch (err) {
       // Fail closed. Passing the check because it could not be RUN is how a
@@ -1868,7 +1868,11 @@ export default function StudentForm({ viewOnly = false }) {
                               the one number that explains the fee: a centre on
                               60% that is being charged the full amount looked
                               exactly like a centre with no sharing at all. */}
-                          {walletInfo.sharingPct > 0 ? (
+                          {walletInfo.researchFee ? (
+                            <span className="text-emerald-700 font-semibold">
+                              &nbsp;(Ph.D fee set by the Research Dept)
+                            </span>
+                          ) : walletInfo.sharingPct > 0 ? (
                             <span className="text-emerald-700 font-semibold">
                               &nbsp;(₹{Number(walletInfo.grossFee || 0).toLocaleString('en-IN')} − {walletInfo.sharingPct}% your share
                               = ₹{Number(walletInfo.centerShare || 0).toLocaleString('en-IN')} kept)
