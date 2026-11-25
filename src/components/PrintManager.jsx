@@ -203,6 +203,35 @@ export default function PrintManager({ students, results, setResults, filterActi
   })
   const toggleAll = () => setSelected(allChecked ? new Set() : new Set(list.map(s => s.id)))
 
+  // Certificates already printed for the ticked students (of the ticked
+  // document types) — their Date of Issue can be set to the date in the box.
+  const selectedPrintedFinals = selectedHere.flatMap(s => printedDocsOf(plans[s.id])
+    .filter(d => FINAL_TYPES.has(d.doc_type) && bulkTypes.has(d.doc_type)).map(d => ({ s, d })))
+  const [settingDates, setSettingDates] = useState(false)
+  async function setDatesOnPrinted() {
+    if (!issueDate) return alert('Pick the Certificate Date of Issue first.')
+    const n = selectedPrintedFinals.length
+    if (!window.confirm(`Set the Date of Issue to ${fmtIssue(issueDate)} on ${n} printed certificate${n === 1 ? '' : 's'} of ${selectedHere.length} student${selectedHere.length === 1 ? '' : 's'}?\n\nUse the date printed on the paper. View, Reprint and History will show this date.`)) return
+    setSettingDates(true)
+    const failed = []
+    const done = {}
+    for (const { s, d } of selectedPrintedFinals) {
+      const { error } = await supabase.rpc('change_print_issue_date', { p_student: s.id, p_doc_type: d.doc_type, p_date: issueDate })
+      if (error) failed.push(`${s.student_name} — ${docTitle(d)}: ${error.message}`)
+      else done[docKey(s.id, d.doc_type, 0)] = issueDate
+    }
+    setRecords(prev => {
+      const next = { ...prev }
+      for (const [k, v] of Object.entries(done)) next[k] = { ...(next[k] || {}), issue_date: v }
+      return next
+    })
+    setSettingDates(false)
+    const ok = Object.keys(done).length
+    setNotice(failed.length
+      ? { tone: 'error', text: `Date of Issue set on ${ok}; not on ${failed.length}: ${failed.slice(0, 3).join('; ')}${failed.length > 3 ? '…' : ''}` }
+      : { tone: 'ok', text: `Date of Issue set to ${fmtIssue(issueDate)} on ${ok} printed certificate${ok === 1 ? '' : 's'}.` })
+  }
+
   // ── Recording what the print window reports back ──────────────────────────
   async function record(items, jobId) {
     const { data, error } = await supabase.rpc('record_document_prints', { p_items: items, p_job: jobId || null })
@@ -476,6 +505,11 @@ export default function PrintManager({ students, results, setResults, filterActi
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
           )}
           {may('exam_section.print') && (<>
+          <Button size="sm" variant="outline" disabled={!selectedPrintedFinals.length || settingDates}
+            title="Put the Date of Issue in the box on the certificates already printed for the ticked students (the date on the paper)"
+            onClick={setDatesOnPrinted}>
+            <Pencil size={13} /> {settingDates ? 'Saving…' : `Set Date of Issue${selectedPrintedFinals.length ? ` (${selectedPrintedFinals.length})` : ''}`}
+          </Button>
           <Button size="sm" variant="outline" disabled={!selectedPending}
             onClick={() => openPreview(selectedHere, `Print Preview — ${selectedHere.length} student${selectedHere.length === 1 ? '' : 's'}`, bulkTypes)}>
             <Eye size={13} /> Preview Selected
@@ -543,6 +577,7 @@ export default function PrintManager({ students, results, setResults, filterActi
                         <button key={d.key} onClick={() => viewOne(s, d)} title={`View the printed ${docTitle(d)} · ${countLine(d)}`}
                           className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 whitespace-nowrap">
                           <Eye size={10} /> {docTitle(d)}
+                          {FINAL_TYPES.has(d.doc_type) && <span className="font-semibold text-emerald-600/80">· {fmtIssue(issueDateOf(d.record))}</span>}
                         </button>
                       ))}
                     </div>

@@ -19,7 +19,7 @@ RETURNS void
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
 DECLARE it jsonb;
 BEGIN
-  IF NOT (is_admin() OR staff_can('print_documents', 'w')) THEN
+  IF NOT (is_admin() OR has_perm('exam_section.print') OR staff_can('print_documents', 'w')) THEN
     RAISE EXCEPTION 'Not allowed to record printed documents.';
   END IF;
   FOR it IN SELECT * FROM jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) LOOP
@@ -44,7 +44,7 @@ CREATE OR REPLACE FUNCTION change_print_issue_date(p_student uuid, p_doc_type te
 RETURNS void
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
 BEGIN
-  IF NOT (is_admin() OR staff_can('print_documents', 'w')) THEN
+  IF NOT (is_admin() OR has_perm('exam_section.print') OR staff_can('print_documents', 'w')) THEN
     RAISE EXCEPTION 'Not allowed to change a printed document.';
   END IF;
   IF p_date IS NULL THEN RAISE EXCEPTION 'Pick a date.'; END IF;
