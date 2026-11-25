@@ -17,7 +17,7 @@ import { DOC } from './printDocs'
 export async function fetchPrintedDocs(studentIds) {
   if (!studentIds?.length) return {}
   const { data, error } = await supabase.from('print_documents')
-    .select('student_id, doc_type, semester, print_count, first_printed_at, last_printed_at')
+    .select('student_id, doc_type, semester, print_count, first_printed_at, last_printed_at, issue_date')
     .in('student_id', studentIds).gt('print_count', 0)
   if (error) return {}
   const out = {}

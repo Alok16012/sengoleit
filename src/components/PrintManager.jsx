@@ -116,9 +116,16 @@ export default function PrintManager({ students, results, setResults, filterActi
         : 'Could not change the date: ' + error.message)
       return
     }
+    // Read it back, so what is shown is what the database now holds.
+    const { data: row } = await supabase.from('print_documents').select('*')
+      .eq('student_id', student.id).eq('doc_type', d.doc_type).eq('semester', 0).maybeSingle()
+    const saved = row?.issue_date ? String(row.issue_date).slice(0, 10) : null
     const k = docKey(student.id, d.doc_type, 0)
-    setRecords(prev => ({ ...prev, [k]: { ...(prev[k] || {}), issue_date: value } }))
+    setRecords(prev => ({ ...prev, [k]: { ...(prev[k] || {}), ...(row || {}), issue_date: saved || value } }))
     setEditIssue(null)
+    if (row && saved !== value) {
+      alert(`The Date of Issue did not save — the database still has ${fmtIssue(saved)}. Run add_print_issue_date.sql again in Supabase → SQL Editor, then try once more.`)
+    }
   }
   const [notice, setNotice] = useState(null)         // { tone, text }
   const [consolidating, setConsolidating] = useState(null)
@@ -204,12 +211,14 @@ export default function PrintManager({ students, results, setResults, filterActi
       // A final document printed for the first time keeps the Date of Issue
       // this job carried; reprints never change it.
       const jobDate = jobDates.current[jobId] || ymd(new Date())
+      let dateErr = ''
       const firsts = rows.filter(r => Number(r.print_count) === 1 && FINAL_TYPES.has(r.doc_type))
       if (firsts.length) {
         const { error: dErr } = await supabase.rpc('set_print_issue_dates', {
           p_items: firsts.map(r => ({ student_id: r.student_id, doc_type: r.doc_type, issue_date: jobDate })),
         })
         if (!dErr) for (const r of firsts) r.issue_date = jobDate
+        else dateErr = dErr.message || 'unknown error'
       }
       setRecords(prev => {
         const next = { ...prev }
@@ -223,7 +232,9 @@ export default function PrintManager({ students, results, setResults, filterActi
       const reprints = rows.filter(r => r.print_count > 1).length
       const text = `${rows.length} document${rows.length === 1 ? '' : 's'} recorded as printed`
         + (reprints ? ` (${reprints} as reprint${reprints === 1 ? '' : 's'}).` : '.')
-      setNotice({ tone: 'ok', text })
+      setNotice(dateErr
+        ? { tone: 'error', text: `${text} But the Date of Issue was not saved (${dateErr}) — set it from History → Date of Issue → ✏️.` }
+        : { tone: 'ok', text })
       if (historyFor) loadHistory(historyFor)
       return { ok: true, message: text }
     }
