@@ -87,12 +87,26 @@ export async function researchFeeFor(programme_id, session_id) {
   return row ? Math.round(Number(row.fee) || 0) : null
 }
 
+// Ph.D admission: what the centre's wallet must hold to submit the form — the
+// least fee any document needs (Research Dept → Payment Condition), i.e. the
+// first document's amount. It replaces the 50% every other course uses.
+// null when no condition can be read (add_research_wallet_collect.sql not run),
+// so the caller falls back to 50%; 0 when every condition is 0.
+export async function researchEntryHold() {
+  const { data, error } = await supabase.from('research_payment_rules').select('doc, min_fee')
+  if (error || !data?.length) return null
+  // Two conditions that were dropped; a value left behind must not count.
+  const set = data.filter(r => !['Enrollment / ID Card', 'Forward to Exam'].includes(r.doc)).map(r => Math.round(Number(r.min_fee) || 0)).filter(n => n > 0)
+  return set.length ? Math.min(...set) : 0
+}
+
 export async function computeCumulativeCourseFee({ programme_id, session_id, semester_year, semYear, duration, programName, center_id, sharing_pct }) {
   // Ph.D: the whole course fee the Research Dept set, due from admission.
   const rFee = await researchFeeFor(programme_id, session_id)
   if (rFee != null) {
     const totalSems = Number(duration) || 1
-    return { courseFee: rFee, grossFee: rFee, centerShare: 0, sharingPct: 0, dueSem: totalSems, totalSems, calendarActive: false, researchFee: true }
+    const entryHold = await researchEntryHold()
+    return { courseFee: rFee, grossFee: rFee, centerShare: 0, sharingPct: 0, dueSem: totalSems, totalSems, calendarActive: false, researchFee: true, entryHold }
   }
   const { data: structures } = await supabase
     .from('fee_structures')
@@ -208,8 +222,10 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
 // 50% directly. `discount` (the admission "Discounted Coupon") still comes
 // off the 50% on top of that, exactly as before — the two stack but apply
 // at different points, matching the order they're meant to be used in.
-export function holdAmount(courseFee, discount, courseFeeDiscount = 0) {
+export function holdAmount(courseFee, discount, courseFeeDiscount = 0, entryHold = null) {
   const effectiveFee = Math.max(Number(courseFee || 0) - Number(courseFeeDiscount || 0), 0)
+  // Ph.D: the first document's Payment Condition, never more than the fee.
+  if (entryHold != null) return Math.max(Math.min(Number(entryHold) || 0, effectiveFee) - Number(discount || 0), 0)
   return Math.max(Math.ceil(effectiveFee * 0.5) - Number(discount || 0), 0)
 }
 

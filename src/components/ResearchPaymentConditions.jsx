@@ -6,6 +6,9 @@ import { phdDocLabel } from '../utils/generateStudentCards'
 
 // Research Dept → Payment Condition. For each document the candidate is
 // issued, the least fee they must have paid first. 0 = no condition.
+// The Registration Certificate's condition covers the ID card too.
+const rowLabel = d => (d === 'Enrollment Certificate' ? 'Registration / ID Card' : phdDocLabel(d))
+
 export default function ResearchPaymentConditions({ docs, rules, missing, canEdit, onSaved }) {
   const [draft, setDraft] = useState(() => Object.fromEntries(docs.map(d => [d, rules[d] != null ? String(rules[d]) : '0'])))
   const [saving, setSaving] = useState(false)
@@ -41,7 +44,7 @@ export default function ResearchPaymentConditions({ docs, rules, missing, canEdi
         <tbody>
           {docs.map(d => (
             <tr key={d} className="border-t border-gray-100">
-              <td className="py-2.5 font-semibold text-gray-800">{phdDocLabel(d)}</td>
+              <td className="py-2.5 font-semibold text-gray-800">{rowLabel(d)}</td>
               <td className="py-2">
                 <input type="number" min="0" value={draft[d]} disabled={!canEdit}
                   onChange={e => setDraft(x => ({ ...x, [d]: e.target.value }))}

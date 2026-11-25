@@ -85,8 +85,9 @@ export default function ResearchDepartment() {
     { name: 'Entrance Certificate', prefix: '', nextNum: 1, date: today, testDate: '' },
   ]
   const LETTER_NAMES = ['Hall Ticket', 'Offer Letter', 'Entrance Certificate']
-  // Every Ph.D document from the Master Panel, plus the ID card and the forward.
-  const PAY_DOCS = [...new Set([...PHD_DOCS.map(d => d.name), 'Enrollment / ID Card', 'Forward to Exam'])]
+  // Every Ph.D document from the Master Panel. The Registration Certificate's
+  // condition covers the Registration No. and the ID card.
+  const PAY_DOCS = PHD_DOCS.map(d => d.name)
   const [letters, setLetters] = useState(DEFAULT_LETTERS)
   // Open while asking which exam sitting a candidate's letter is for.
   const [sittingAsk, setSittingAsk] = useState(null)   // { letter, resolve }
@@ -374,7 +375,7 @@ export default function ResearchDepartment() {
   async function issue(student, letterName, generate) {
     const letter = entryFor(student.session_id, letterName) || blankLetter(letterName)
     const alreadyIssued = hasLetter(student, letterName)
-    if (!alreadyIssued && payBlocked(student, letterName)) return
+    if (!alreadyIssued && !(await ensurePaid(student, letterName))) return
     const recorded = sittings[letterName]?.[student.id]
     const sitting = alreadyIssued ? (recorded || 1) : await askSitting(letter)
     if (!sitting) return                       // cancelled
@@ -401,7 +402,7 @@ export default function ResearchDepartment() {
   async function issueLater(student, name) {
     if (!student.enrollment_no) return alert(`Generate ${student.student_name}'s Registration Number first — the ${phdDocLabel(name)} follows it.`)
     const alreadyIssued = assigned[name]?.[student.id] != null
-    if (!alreadyIssued && payBlocked(student, name)) return
+    if (!alreadyIssued && !(await ensurePaid(student, name))) return
     // Ask for the facts the database does not hold, offering the last answers.
     let saved = {}
     try { saved = JSON.parse(localStorage.getItem(EXTRAS_KEY) || '{}') } catch { /* ignore */ }
@@ -441,7 +442,7 @@ export default function ResearchDepartment() {
   // the fee is approved; forwarding to the Exam Section still waits for it.
   async function load() {
     setLoading(true)
-    const base = 'id, student_name, status, registration_no, enrollment_no, admission_number, session_id, programme_id, fathers_name, mobile_no, date_of_birth, gender, photo_url, signature_url, academic_year, fee_collected, exam_forwarded_at, doc_verified_at, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, enrollment_code, duration, complete_duration, semester_year, programme_types(programme_type_name)), academic_sessions(session_name, start_date), departments(name), centers(center_name, center_code)'
+    const base = 'id, student_name, status, registration_no, enrollment_no, admission_number, session_id, programme_id, fathers_name, mobile_no, date_of_birth, gender, photo_url, signature_url, academic_year, fee_collected, fee_held, center_id, exam_forwarded_at, doc_verified_at, student_perm_village_town, student_perm_landmark, student_perm_city, student_perm_district, student_perm_state, student_perm_pin_code, programs(program_name, enrollment_code, duration, complete_duration, semester_year, programme_types(programme_type_name)), academic_sessions(session_name, start_date), departments(name), centers(center_name, center_code)'
     const cols = `specialization, ${OPTIONAL_COLS}, ${base}`
 
     // Everyone the Document Dept forwarded to Research. `doc_verified_at` is
@@ -504,14 +505,56 @@ export default function ResearchDepartment() {
   }
   const lettersDone = (s) => LETTER_NAMES.every(n => hasLetter(s, n))
 
-  // Payment Condition: true (with a message) when the candidate has not yet
-  // paid the least fee set for this document.
-  function payBlocked(student, doc) {
+  // What the candidate has paid: collected, plus the hold taken at forward
+  // (it becomes collected the moment the Account Dept approves).
+  const paidOf = s => (Number(s.fee_collected) || 0) + (Number(s.fee_held) || 0)
+
+  // Payment Condition: the candidate must have paid the least fee set for this
+  // document. When short, the shortfall — or more — can be taken from the
+  // centre's wallet right here. Resolves true once the condition is met.
+  const [collectAsk, setCollectAsk] = useState(null)   // { student, doc, min, paid, amount, balance, saving, error, resolve }
+  async function ensurePaid(student, doc) {
     const min = Number(payRules?.[doc]) || 0
-    const paid = Number(student.fee_collected) || 0
-    if (paid >= min) return false
-    alert(`${student.student_name} has paid ₹${paid.toLocaleString('en-IN')}.\n\nThe ${phdDocLabel(doc)} needs at least ₹${min.toLocaleString('en-IN')} paid first (Research Dept → Payment Condition).`)
-    return true
+    const paid = paidOf(student)
+    if (paid >= min) return true
+    if (!may('research_dept.manage')) {
+      alert(`${student.student_name} has paid ₹${paid.toLocaleString('en-IN')}.\n\nThe ${phdDocLabel(doc)} needs at least ₹${min.toLocaleString('en-IN')} paid first (Research Dept → Payment Condition).`)
+      return false
+    }
+    return openCollect(student, doc, min)
+  }
+  // min 0 = a free-hand collection: any amount, nothing required.
+  function openCollect(student, doc, min = 0) {
+    const paid = paidOf(student)
+    return new Promise(resolve => {
+      setCollectAsk({ student, doc, min, paid, amount: String(Math.max(min - paid, 0) || ''), balance: null, saving: false, error: '', resolve })
+      if (student.center_id) {
+        supabase.from('centers').select('virtual_balance').eq('id', student.center_id).maybeSingle()
+          .then(({ data }) => setCollectAsk(c => c && c.student.id === student.id
+            ? { ...c, balance: data ? Number(data.virtual_balance || 0) : null } : c))
+      }
+    })
+  }
+  const closeCollect = (ok) => { collectAsk?.resolve(ok); setCollectAsk(null) }
+  async function confirmCollect() {
+    const c = collectAsk
+    if (!c || c.saving) return
+    const amount = Math.round(Number(c.amount) || 0)
+    const short = Math.max(c.min - c.paid, 0)
+    if (amount <= 0) return setCollectAsk({ ...c, error: 'Enter the amount to deduct.' })
+    if (amount < short) return setCollectAsk({ ...c, error: `At least ₹${short.toLocaleString('en-IN')} is needed for this document.` })
+    if (c.balance != null && amount > c.balance) return setCollectAsk({ ...c, error: `The centre wallet holds only ₹${c.balance.toLocaleString('en-IN')}.` })
+    setCollectAsk({ ...c, saving: true, error: '' })
+    const { data, error } = await supabase.rpc('research_collect_fee', { p_student: c.student.id, p_amount: amount, p_doc: c.doc || null })
+    if (error) {
+      setCollectAsk(x => x && { ...x, saving: false, error: /research_collect_fee/.test(error.message || '')
+        ? 'Run add_research_wallet_collect.sql in Supabase → SQL Editor first.' : error.message })
+      return
+    }
+    const row = Array.isArray(data) ? data[0] : data
+    const collected = row?.fee_collected != null ? Number(row.fee_collected) : (Number(c.student.fee_collected) || 0) + amount
+    setRows(rs => rs.map(r => r.id === c.student.id ? { ...r, fee_collected: collected } : r))
+    closeCollect(true)
   }
 
   // Generate the enrollment number from the Candidates row (once the Hall
@@ -521,9 +564,8 @@ export default function ResearchDepartment() {
   async function generateEnrollment(student) {
     if (student.enrollment_no) return
     if (!lettersDone(student)) return
-    if (payBlocked(student, 'Enrollment / ID Card')) return
-    // The number IS the Registration Certificate's, so its condition applies too.
-    if (payBlocked(student, ENROLL_DOC)) return
+    // The number IS the Registration Certificate's, so its condition applies.
+    if (!(await ensurePaid(student, ENROLL_DOC))) return
     if (!confirm(`Generate the Registration Number for ${student.student_name}?\n\nThe ID card will be generated along with it.`)) return
     const enrollNo = generateEnrollmentNumber(student)
     if (!enrollNo) return
@@ -546,8 +588,7 @@ export default function ResearchDepartment() {
   // it is minted here as a fallback.
   async function forwardToExam(student) {
     if (student.exam_forwarded_at) return
-    if (payBlocked(student, 'Forward to Exam')) return
-    if (!student.enrollment_no && payBlocked(student, ENROLL_DOC)) return
+    if (!student.enrollment_no && !(await ensurePaid(student, ENROLL_DOC))) return
     if (!confirm(`Forward ${student.student_name} to the Exam Section?\n\nA Registration Number will be generated now.`)) return
     const enrollNo = student.enrollment_no || generateEnrollmentNumber(student)
     if (!enrollNo) return
@@ -655,7 +696,7 @@ export default function ResearchDepartment() {
       {tab === 'fee' && (payRules == null
         ? <p className="text-center text-gray-400 py-12 text-sm">Loading…</p>
         : <ResearchFeeEntry sessions={sessions} canEdit={may('research_dept.manage')}
-            minFee={Math.max(0, ...Object.values(payRules).map(Number).filter(Number.isFinite))} />)}
+            minFee={Math.max(0, ...PAY_DOCS.map(d => Number(payRules[d])).filter(Number.isFinite))} />)}
 
       {tab === 'master' && (
       <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
@@ -896,6 +937,15 @@ export default function ResearchDepartment() {
                 <Td>
                   <div className="font-semibold text-gray-900">{s.student_name}</div>
                   <div className="text-xs text-gray-400 font-mono">{s.mobile_no || '—'}</div>
+                  <div className="text-[11px] text-gray-500 mt-1 whitespace-nowrap">
+                    Paid: <span className="font-bold text-emerald-700">₹{paidOf(s).toLocaleString('en-IN')}</span>
+                    {may('research_dept.manage') && (
+                      <button onClick={() => openCollect(s, null, 0)} title="Take an amount from the centre's wallet"
+                        className="ml-2 inline-flex items-center gap-1 font-bold text-[#933d18] hover:underline">
+                        <Wallet size={11} /> Deduct Fee
+                      </button>
+                    )}
+                  </div>
                 </Td>
                 <Td className="font-mono text-xs font-bold text-[#933d18]">
                   {s.admission_number || '—'}
@@ -1027,6 +1077,46 @@ export default function ResearchDepartment() {
           </Tbody>
         </Table>
       )}
+
+      {/* Take a fee from the centre's wallet — for a document's Payment
+          Condition, or any amount by hand. */}
+      {collectAsk && (() => {
+        const c = collectAsk
+        const short = Math.max(c.min - c.paid, 0)
+        const money = n => `₹${Number(n || 0).toLocaleString('en-IN')}`
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+            onClick={() => !c.saving && closeCollect(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+              <h3 className="font-bold text-gray-900 flex items-center gap-2"><Wallet size={16} className="text-[#933d18]" /> Deduct from Centre Wallet</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                {c.student.student_name}{c.doc ? ` — ${phdDocLabel(c.doc)}` : ''}
+                {c.student.centers?.center_name ? ` · ${c.student.centers.center_name}` : ''}
+              </p>
+              <div className="mt-3 space-y-1.5 text-sm bg-gray-50 border border-gray-100 rounded-xl p-3">
+                <div className="flex justify-between"><span className="text-gray-500">Fee paid so far</span><span className="font-semibold">{money(c.paid)}</span></div>
+                {c.min > 0 && <div className="flex justify-between"><span className="text-gray-500">Needed for this document</span><span className="font-semibold">{money(c.min)}</span></div>}
+                {short > 0 && <div className="flex justify-between"><span className="text-gray-500">Short by</span><span className="font-bold text-red-600">{money(short)}</span></div>}
+                <div className="flex justify-between border-t border-gray-200 pt-1.5"><span className="text-gray-500">Centre wallet balance</span><span className="font-semibold text-emerald-700">{c.balance == null ? '—' : money(c.balance)}</span></div>
+              </div>
+              <label className="block text-xs font-bold text-gray-500 mt-3 mb-1">Amount to deduct (₹)</label>
+              <input type="number" min="1" autoFocus value={c.amount} disabled={c.saving}
+                onChange={e => setCollectAsk(x => x && { ...x, amount: e.target.value, error: '' })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#933d18]" />
+              <p className="text-[11px] text-gray-400 mt-1">
+                {short > 0 ? `At least ${money(short)}; a larger amount can be entered.` : 'Any amount — it is added to the fee this candidate has paid.'}
+              </p>
+              {c.error && <p className="text-xs font-semibold text-red-600 mt-2">{c.error}</p>}
+              <div className="flex justify-end gap-2 mt-4">
+                <Button size="md" variant="secondary" disabled={c.saving} onClick={() => closeCollect(false)}>Cancel</Button>
+                <Button size="md" variant="primary" disabled={c.saving} onClick={confirmCollect}>
+                  {c.saving ? 'Deducting…' : (c.doc && short > 0 ? 'Deduct & Continue' : 'Deduct')}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Which of the two exam sittings this candidate is being given. Only
           appears when the letter has a second date set. */}

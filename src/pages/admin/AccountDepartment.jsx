@@ -928,7 +928,7 @@ export default function AccountDepartment() {
   // balance. Mirrors the calculation the center saw on the application form.
   async function computeStudentFee(student) {
     // Shared source of truth — the same cumulative fee shown at entry / held at forward.
-    const { courseFee } = await computeCumulativeCourseFee({
+    const { courseFee, entryHold } = await computeCumulativeCourseFee({
       programme_id: student.programme_id,
       session_id: student.session_id,
       semester_year: student.semester_year,
@@ -974,7 +974,7 @@ export default function AccountDepartment() {
       if (ctr) balance = Number(ctr.virtual_balance || 0)
     }
 
-    return { courseFee, discount, courseDiscount, balance, couponCode, courseCouponCode }
+    return { courseFee, discount, courseDiscount, balance, couponCode, courseCouponCode, entryHold }
   }
 
   async function handleStudentApprove(student) {
@@ -1070,7 +1070,7 @@ export default function AccountDepartment() {
       // The status is re-read from the database rather than trusted from the
       // modal: that also stops a second tab, or a reload, approving again.
       const { data: fresh, error: freshErr } = await supabase
-        .from('students').select('status, fee_held').eq('id', student.id).maybeSingle()
+        .from('students').select('status, fee_held, fee_collected').eq('id', student.id).maybeSingle()
       if (freshErr) {
         alert('Could not check this application\'s current status, so nothing was changed:\n\n' + freshErr.message)
         return
@@ -1097,7 +1097,7 @@ export default function AccountDepartment() {
       // be short if another semester's exams have finished since. Charging the
       // difference covers both cases; a hold that is already large enough is
       // left alone rather than refunded.
-      const requiredHold = holdAmount(studentFee.courseFee, studentFee.discount, studentFee.courseDiscount)
+      const requiredHold = holdAmount(studentFee.courseFee, studentFee.discount, studentFee.courseDiscount, studentFee.entryHold)
       const net = Math.max(held, requiredHold)
       const toDeduct = net - held
       if (toDeduct > 0 && studentFee.balance < toDeduct) {
@@ -1156,7 +1156,9 @@ export default function AccountDepartment() {
         remarks: studentRemarks || null,
         // Record exactly how much was collected from the center wallet for this
         // student, so the Payment Summary can show per-student fee collection.
-        fee_collected: net,
+        // A Ph.D candidate may already have paid for documents through the
+        // Research Dept before this approval — that stays, the hold adds to it.
+        fee_collected: net + (isPhd ? Number(fresh?.fee_collected || 0) : 0),
         // Hold is now consumed — clear it.
         fee_held: null,
       }).eq('id', student.id)
@@ -2583,7 +2585,7 @@ export default function AccountDepartment() {
             // Half the fee due so far, for everyone. A hold taken at forward
             // time can be short if another semester's exams have finished
             // since — the difference is collected on approval.
-            const requiredHold = holdAmount(studentFee.courseFee, studentFee.discount, studentFee.courseDiscount)
+            const requiredHold = holdAmount(studentFee.courseFee, studentFee.discount, studentFee.courseDiscount, studentFee.entryHold)
             const net = Math.max(held, requiredHold)
             const toDeduct = net - held
             const shortfall = alreadyHeld ? toDeduct : 0
@@ -2662,7 +2664,7 @@ export default function AccountDepartment() {
                           <span className="font-semibold text-emerald-600">− ₹{Number(studentFee.discount).toLocaleString('en-IN')}</span>
                         </div>
                       )}
-                      <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Deduct Now (50%)</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between border-t border-[#933d18]/10 pt-1.5"><span className="text-gray-600 font-semibold">To Deduct Now ({studentFee.entryHold != null ? 'first document' : '50%'})</span><span className="font-black text-[#933d18]">₹{net.toLocaleString('en-IN')}</span></div>
                       <div className="flex justify-between"><span className="text-gray-500">Balance After</span><span className={`font-semibold ${after < 0 ? 'text-red-600' : 'text-emerald-700'}`}>₹{after.toLocaleString('en-IN')}</span></div>
                       <p className="text-[11px] text-gray-500 pt-0.5">
                         This student was forwarded before the wallet hold existed, so the fee is

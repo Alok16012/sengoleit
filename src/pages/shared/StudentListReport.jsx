@@ -168,7 +168,7 @@ export default function StudentListReport({ status }) {
     const next = {}
     await Promise.all(Object.values(groups).map(async members => {
       const s = members[0]
-      const { courseFee } = await computeCumulativeCourseFee({
+      const { courseFee, entryHold } = await computeCumulativeCourseFee({
         programme_id: s.programme_id,
         session_id: s.session_id,
         semester_year: s.semester_year,
@@ -179,7 +179,7 @@ export default function StudentListReport({ status }) {
         sharing_pct: s.fee_sharing_pct,
       })
       // The coupon is per student, so only the course fee is shared.
-      members.forEach(m => { next[m.id] = holdAmount(courseFee, m.coupon_discount, m.course_coupon_discount) })
+      members.forEach(m => { next[m.id] = holdAmount(courseFee, m.coupon_discount, m.course_coupon_discount, entryHold) })
     }))
     setHoldDue(next)
   }
@@ -223,7 +223,7 @@ export default function StudentListReport({ status }) {
   // Mirrors the calculation in StudentForm / AccountDepartment.
   async function computeNetFee(student) {
     // Same cumulative course fee the center saw on the entry form (shared util).
-    const { courseFee } = await computeCumulativeCourseFee({
+    const { courseFee, entryHold } = await computeCumulativeCourseFee({
       programme_id: student.programme_id,
       session_id: student.session_id,
       semester_year: student.semester_year,
@@ -263,8 +263,8 @@ export default function StudentListReport({ status }) {
 
     // Hold 50% of the course fee at forward, minus any coupon — matches the
     // "50% Required" the center saw in the entry wallet check.
-    const net = holdAmount(courseFee, discount, courseDiscount)
-    return { courseFee, discount, courseDiscount, courseCouponCode, net, balance }
+    const net = holdAmount(courseFee, discount, courseDiscount, entryHold)
+    return { courseFee, discount, courseDiscount, courseCouponCode, net, balance, entryHold }
   }
 
   // Open the forward confirmation modal and load the fee that will be held.
@@ -598,12 +598,11 @@ export default function StudentListReport({ status }) {
               <p className="text-sm text-gray-600 mb-4">
                 {forwardModal.staging ? (
                   <>Transfer <span className="font-semibold text-gray-900">{forwardModal.student.student_name}</span> to a
-                  center — the form data moves as-is, <span className="font-semibold text-blue-700">50% of the fee is held
+                  center — the form data moves as-is, <span className="font-semibold text-blue-700">{forwardModal.entryHold != null ? "the first document's Payment Condition amount" : '50% of the fee'} is held
                   from that center's wallet</span>, and the application goes to the Document Department.</>
                 ) : (
                   <>Forwarding <span className="font-semibold text-gray-900">{forwardModal.student.student_name}</span> will
-                  send the application to the Document Department and <span className="font-semibold text-blue-700">hold 50%
-                  of the fee</span> from the center wallet. The hold is released if the application is rejected.</>
+                  send the application to the Document Department and <span className="font-semibold text-blue-700">hold {forwardModal.entryHold != null ? "the first document's Payment Condition amount" : '50% of the fee'}</span> from the center wallet. The hold is released if the application is rejected.</>
                 )}
               </p>
 

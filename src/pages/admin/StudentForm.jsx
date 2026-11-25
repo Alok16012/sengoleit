@@ -1097,7 +1097,7 @@ export default function StudentForm({ viewOnly = false }) {
     try {
       // Shared source of truth so the entry fee here exactly matches the fee held
       // at forward (StudentListReport) and collected at Account Dept.
-      const { courseFee, grossFee, centerShare, sharingPct, dueSem, calendarActive, researchFee } = await computeCumulativeCourseFee({
+      const { courseFee, grossFee, centerShare, sharingPct, dueSem, calendarActive, researchFee, entryHold } = await computeCumulativeCourseFee({
         programme_id: form.programme_id,
         session_id: form.session_id,
         semester_year: form.semester_year,
@@ -1121,9 +1121,9 @@ export default function StudentForm({ viewOnly = false }) {
       const balance = Number(ctr?.virtual_balance || 0)
       // Required = 50% of the course fee (less any Course Coupon), then minus
       // any admission coupon discount.
-      const minRequired = holdAmount(courseFee, coupon.discount, courseCoupon.discount)
+      const minRequired = holdAmount(courseFee, coupon.discount, courseCoupon.discount, entryHold)
       const ok = courseFee === 0 || balance >= minRequired
-      setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive, researchFee })
+      setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive, researchFee, entryHold })
       return ok
     } catch (err) {
       // Fail closed. Passing the check because it could not be RUN is how a
@@ -1174,7 +1174,7 @@ export default function StudentForm({ viewOnly = false }) {
       setCoupon(c => ({ ...c, applying: false, applied: match, discount, error: '' }))
       // Re-evaluate: required = 50% of (course fee less any Course Coupon),
       // then minus this coupon's discount.
-      const minRequired = holdAmount(walletInfo.courseFee, discount, courseCoupon.discount)
+      const minRequired = holdAmount(walletInfo.courseFee, discount, courseCoupon.discount, walletInfo.entryHold)
       setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= minRequired }))
     } catch (err) {
       setCoupon(c => ({ ...c, applying: false, error: 'Could not validate coupon. Try again.' }))
@@ -1183,7 +1183,7 @@ export default function StudentForm({ viewOnly = false }) {
 
   function removeCoupon() {
     setCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
-    setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= holdAmount(w.courseFee, 0, courseCoupon.discount) }))
+    setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= holdAmount(w.courseFee, 0, courseCoupon.discount, w.entryHold) }))
   }
 
   // Course Coupon — same shape as applyCoupon/removeCoupon above, but matched
@@ -1212,7 +1212,7 @@ export default function StudentForm({ viewOnly = false }) {
       }
       const discount = Number(match.face_value || 0)
       setCourseCoupon(c => ({ ...c, applying: false, applied: match, discount, error: '' }))
-      const minRequired = holdAmount(walletInfo.courseFee, coupon.discount, discount)
+      const minRequired = holdAmount(walletInfo.courseFee, coupon.discount, discount, walletInfo.entryHold)
       setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= minRequired }))
     } catch (err) {
       setCourseCoupon(c => ({ ...c, applying: false, error: 'Could not validate coupon. Try again.' }))
@@ -1221,7 +1221,7 @@ export default function StudentForm({ viewOnly = false }) {
 
   function removeCourseCoupon() {
     setCourseCoupon({ code: '', applying: false, applied: null, error: '', discount: 0 })
-    setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= holdAmount(w.courseFee, coupon.discount, 0) }))
+    setWalletInfo(w => ({ ...w, ok: w.courseFee === 0 || w.balance >= holdAmount(w.courseFee, coupon.discount, 0, w.entryHold) }))
   }
 
   function validateStep(s) {
@@ -1886,11 +1886,13 @@ export default function StudentForm({ viewOnly = false }) {
                             <>&nbsp;·&nbsp;Course Coupon: −₹{courseCoupon.discount.toLocaleString('en-IN')}
                             &nbsp;·&nbsp;Fee after: ₹{Math.max(walletInfo.courseFee - courseCoupon.discount, 0).toLocaleString('en-IN')}</>
                           )}
-                          &nbsp;·&nbsp;50%: ₹{Math.ceil(Math.max(walletInfo.courseFee - courseCoupon.discount, 0) * 0.5).toLocaleString('en-IN')}
+                          {walletInfo.entryHold != null
+                            ? <>&nbsp;·&nbsp;First document (Payment Condition): ₹{Number(walletInfo.entryHold).toLocaleString('en-IN')}</>
+                            : <>&nbsp;·&nbsp;50%: ₹{Math.ceil(Math.max(walletInfo.courseFee - courseCoupon.discount, 0) * 0.5).toLocaleString('en-IN')}</>}
                           {coupon.discount > 0 && (
                             <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}</>
                           )}
-                          &nbsp;·&nbsp;Required: ₹{holdAmount(walletInfo.courseFee, coupon.discount, courseCoupon.discount).toLocaleString('en-IN')}
+                          &nbsp;·&nbsp;Required: ₹{holdAmount(walletInfo.courseFee, coupon.discount, courseCoupon.discount, walletInfo.entryHold).toLocaleString('en-IN')}
                           &nbsp;·&nbsp;Your Balance: ₹{walletInfo.balance.toLocaleString('en-IN')}
                         </p>
                       </div>
