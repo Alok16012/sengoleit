@@ -1097,7 +1097,7 @@ export default function StudentForm({ viewOnly = false }) {
     try {
       // Shared source of truth so the entry fee here exactly matches the fee held
       // at forward (StudentListReport) and collected at Account Dept.
-      const { courseFee, grossFee, centerShare, sharingPct, dueSem, calendarActive, researchFee, entryHold } = await computeCumulativeCourseFee({
+      const { courseFee, grossFee, centerShare, sharingPct, dueSem, calendarActive, researchFee, entryHold, totalToUniversity } = await computeCumulativeCourseFee({
         programme_id: form.programme_id,
         session_id: form.session_id,
         semester_year: form.semester_year,
@@ -1123,7 +1123,7 @@ export default function StudentForm({ viewOnly = false }) {
       // any admission coupon discount.
       const minRequired = holdAmount(courseFee, coupon.discount, courseCoupon.discount, entryHold)
       const ok = courseFee === 0 || balance >= minRequired
-      setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive, researchFee, entryHold })
+      setWalletInfo({ checking: false, balance, courseFee, grossFee, centerShare, sharingPct, ok, checked: true, dueSem, calendarActive, researchFee, entryHold, totalToUniversity })
       return ok
     } catch (err) {
       // Fail closed. Passing the check because it could not be RUN is how a
@@ -1863,7 +1863,7 @@ export default function StudentForm({ viewOnly = false }) {
                           )}
                           {!walletInfo.researchFee && (
                             <span className={`${walletInfo.calendarActive && walletInfo.dueSem > 0 ? '' : 'ml-2 '}text-[11px] font-semibold text-[#933d18]`}>
-                              {walletInfo.calendarActive && walletInfo.dueSem > 0 ? ', ' : '· '}Total Fee = To University Fee
+                              {walletInfo.calendarActive && walletInfo.dueSem > 0 ? ', ' : '· '}Total Fee = ₹{Number(walletInfo.totalToUniversity || 0).toLocaleString('en-IN')} (To University)
                             </span>
                           )}
                         </p>

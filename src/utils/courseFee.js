@@ -211,6 +211,11 @@ export async function computeCumulativeCourseFee({ programme_id, session_id, sem
     centerShare: Math.round(cumulative) - Math.round(payable),
     sharingPct,
     dueSem, totalSems, calendarActive,
+    // The whole course, every semester — the "To University" figure the
+    // Center Course Fee page shows.
+    totalToUniversity: Math.round((fs
+      ? entryT + divideT + mulT * totalSems + mul2T * Math.max(totalSems - 1, 0)
+      : 0) * (100 - sharingPct) / 100),
   }
 }
 
