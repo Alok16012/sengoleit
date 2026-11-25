@@ -12,6 +12,7 @@ import { formatDate, formatDateLong } from '../../utils/formatDate'
 import { useAuth } from '../../context/AuthContext'
 import ResearchPaymentConditions from '../../components/ResearchPaymentConditions'
 import ResearchFeeEntry from '../../components/ResearchFeeEntry'
+import { SearchableSelect } from '../../components/ui/SearchSelect'
 import { loadLetterSettings, saveLetterSettings, loadAssignedRefs, assignRef, unassignRef, deleteLetterSetting, setSitting } from '../../utils/letterSettings'
 
 const SETTINGS_KEY = 'phd_doc_settings'
@@ -63,6 +64,14 @@ export default function ResearchDepartment() {
   const [q, setQ] = useState('')
   const [sessions, setSessions] = useState([])
   const [sessionFilter, setSessionFilter] = useState('all')
+  // Candidates / Forward to Exam filters, and the centres they pick from.
+  const [superFilter, setSuperFilter] = useState('all')
+  const [centerFilter, setCenterFilter] = useState('all')
+  const [centers, setCenters] = useState([])
+  useEffect(() => {
+    supabase.from('centers').select('id, center_name, center_code, center_type, super_center_id').order('center_name')
+      .then(({ data }) => setCenters(data || []))
+  }, [])
   const [busy, setBusy] = useState(null)
   // Payment Condition — least fee paid before each document; null = loading.
   const [payRules, setPayRules] = useState(null)
@@ -602,8 +611,28 @@ export default function ResearchDepartment() {
     setBusy(null)
   }
 
+  // A centre's super centre — a super centre is its own.
+  const centerById = Object.fromEntries(centers.map(c => [c.id, c]))
+  const superOf = id => (centerById[id]?.center_type === 'super_center' ? id : centerById[id]?.super_center_id) || null
+  // Only centres that have a Ph.D candidate here are offered.
+  const usedCenterIds = new Set(rows.map(r => r.center_id).filter(Boolean))
+  const usedSuperIds = new Set([...usedCenterIds].map(superOf).filter(Boolean))
+  const centerLabel = c => `${c.center_name}${c.center_code ? ` (${c.center_code})` : ''}`
+  const superOptions = centers.filter(c => usedSuperIds.has(c.id)).map(c => ({ id: c.id, label: centerLabel(c) }))
+  const centerOptions = centers
+    .filter(c => usedCenterIds.has(c.id) && (superFilter === 'all' || superOf(c.id) === superFilter))
+    .map(c => ({ id: c.id, label: centerLabel(c) }))
+  const sessionOptions = sessions.filter(x => rows.some(r => r.session_id === x.id)).map(x => ({ id: x.id, label: x.session_name }))
+  const filterMeta = [
+    superFilter !== 'all' && `Super Center: ${centerById[superFilter]?.center_name || ''}`,
+    centerFilter !== 'all' && `Center: ${centerById[centerFilter]?.center_name || ''}`,
+    sessionFilter !== 'all' && `Session: ${sessions.find(x => x.id === sessionFilter)?.session_name || ''}`,
+  ].filter(Boolean)
+
   const filtered = rows.filter(s => {
     if (sessionFilter !== 'all' && s.session_id !== sessionFilter) return false
+    if (centerFilter !== 'all' && s.center_id !== centerFilter) return false
+    if (superFilter !== 'all' && superOf(s.center_id) !== superFilter) return false
     if (!q.trim()) return true
     const hay = `${s.student_name} ${s.admission_number} ${s.enrollment_no} ${s.programs?.program_name} ${s.stream} ${s.specialization} ${s.centers?.center_name}`.toLowerCase()
     return hay.includes(q.toLowerCase())
@@ -659,7 +688,7 @@ export default function ResearchDepartment() {
               title={tab === 'exam' ? 'Forward to Exam' : 'Ph.D Candidates'}
               filename={tab === 'exam' ? 'phd-forward-to-exam' : 'phd-candidates'}
               rows={tab === 'exam' ? examRows : filtered}
-              meta={q ? [`Search: ${q}`] : []}
+              meta={[...filterMeta, ...(q ? [`Search: ${q}`] : [])]}
               columns={tab === 'exam' ? [
                 { header: 'Student', value: s => s.student_name || '' },
                 { header: 'Mobile', value: s => s.mobile_no || '' },
@@ -694,6 +723,22 @@ export default function ResearchDepartment() {
           </div>
         )}
       </div>
+
+      {/* Narrow the Candidates / Forward to Exam lists. */}
+      {(tab === 'letters' || tab === 'exam') && (
+        <div className="flex items-end gap-3 flex-wrap bg-white border border-gray-200 rounded-2xl px-4 py-3">
+          <SearchableSelect label="Super Center" allLabel="All Super Centers" value={superFilter} options={superOptions}
+            onChange={v => { setSuperFilter(v); setCenterFilter('all') }} minWidth={210} />
+          <SearchableSelect label="Center" allLabel="All Centers" value={centerFilter} options={centerOptions}
+            onChange={setCenterFilter} minWidth={230} />
+          <SearchableSelect label="Session" allLabel="All Sessions" value={sessionFilter} options={sessionOptions}
+            onChange={setSessionFilter} minWidth={170} />
+          {filterMeta.length > 0 && (
+            <button onClick={() => { setSuperFilter('all'); setCenterFilter('all'); setSessionFilter('all') }}
+              className="text-xs font-bold text-[#933d18] hover:underline pb-3">Clear filters</button>
+          )}
+        </div>
+      )}
 
       {/* Master panel — per-letter reference series + date */}
       {tab === 'payment' && (payRules == null
