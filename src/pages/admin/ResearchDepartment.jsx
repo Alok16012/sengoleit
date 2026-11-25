@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button'
 import { Search, FlaskConical, FileCheck2, ShieldCheck, Settings2, Save, ToggleLeft, ToggleRight, Send, GraduationCap, BadgeCheck, Ticket, Trash2, Hash, CreditCard, IndianRupee, FileText, Wallet } from 'lucide-react'
 import { generateOfferLetter, generateEntranceClearance, generateHallTicket, generateIDCard, generatePhdDocument, LATER_PHD_DOCS, PHD_DOC_EXTRAS, phdDocLabel } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
-import { isPhdStudent } from '../../utils/isPhdStudent'
+import { isPhdStudent, phdDocVisible, ID_CARD_DOC } from '../../utils/isPhdStudent'
 import { formatDate, formatDateLong } from '../../utils/formatDate'
 import { useAuth } from '../../context/AuthContext'
 import ResearchPaymentConditions from '../../components/ResearchPaymentConditions'
@@ -475,8 +475,28 @@ export default function ResearchDepartment() {
     } else {
       setNeedsSql(false)
     }
-    setRows((data || []).filter(isPhdStudent))
+    const list = (data || []).filter(isPhdStudent)
+    setRows(list)
     setLoading(false)
+    // Hide / Unhide of the later documents — read apart, so a database without
+    // add_phd_doc_visibility.sql still lists the candidates.
+    if (list.length) {
+      const { data: vis } = await supabase.from('students').select('id, phd_doc_visible').in('id', list.map(r => r.id))
+      if (vis) {
+        const byId = Object.fromEntries(vis.map(v => [v.id, v.phd_doc_visible || {}]))
+        setRows(rs => rs.map(r => ({ ...r, phd_doc_visible: byId[r.id] || {} })))
+      }
+    }
+  }
+
+  // Hide / Unhide one of the documents that has no column of its own.
+  async function toggleDoc(student, name) {
+    setBusy(`${student.id}-vis-${name}`)
+    const next = { ...(student.phd_doc_visible || {}), [name]: !phdDocVisible(student, name) }
+    const { error } = await supabase.from('students').update({ phd_doc_visible: next }).eq('id', student.id)
+    if (error) alert(`Could not update: ${error.message}\n\nRun add_phd_doc_visibility.sql in Supabase first.`)
+    else setRows(rs => rs.map(r => r.id === student.id ? { ...r, phd_doc_visible: next } : r))
+    setBusy(null)
   }
 
   // Publish / unpublish a letter. Active = the Centre and Student panels show a
@@ -1052,6 +1072,10 @@ export default function ResearchDepartment() {
                         onClick={async () => generateIDCard(await resolveStudentDocUrls(s))}>
                         <CreditCard size={13} /> ID Card
                       </Button>
+                      {may('research_dept.manage') && (
+                        <VisToggle active={phdDocVisible(s, ID_CARD_DOC)} working={busy === `${s.id}-vis-${ID_CARD_DOC}`}
+                          onToggle={() => toggleDoc(s, ID_CARD_DOC)} />
+                      )}
                     </div>
                   ) : may('research_dept.manage') && (
                     <Button size="sm" variant="primary" className="w-fit"
@@ -1064,7 +1088,8 @@ export default function ResearchDepartment() {
                     </Button>
                   )}
                 </Td>
-                <LaterDocsCell student={s} issuedRef={name => issuedRef(s, name)}
+                <LaterDocsCell student={s} issuedRef={name => issuedRef(s, name)} busy={busy}
+                  onToggle={name => toggleDoc(s, name)}
                   onIssue={name => issueLater(s, name)} onWithdraw={name => clearRef(s, name, null)} />
               </Tr>
             ))}
@@ -1210,6 +1235,18 @@ export default function ResearchDepartment() {
 // Before a letter is issued the cell offers Generate. Once it has a reference
 // number it is a real document the candidate may already hold, so the cell
 // switches to Print (the same number again), Hide/Show, and withdraw.
+// Hide / Unhide — the same chip under every document.
+function VisToggle({ active, working, onToggle }) {
+  return (
+    <button onClick={onToggle} disabled={working}
+      title={active ? 'Visible — student & center can download' : 'Hidden from student & center'}
+      className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded w-fit transition-colors ${active ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100' : 'text-gray-500 bg-gray-100 hover:bg-gray-200'}`}>
+      {active ? <ToggleRight size={13} /> : <ToggleLeft size={13} />}
+      {active ? 'Visible' : 'Hidden'}
+    </button>
+  )
+}
+
 function LetterCell({ student, field, busy, issued, refNo, onGenerate, onToggle, onWithdraw, icon: Icon, label }) {
   const { may } = useAuth()
   const active = !!student[field]
@@ -1260,7 +1297,7 @@ function LetterCell({ student, field, busy, issued, refNo, onGenerate, onToggle,
 // The documents after enrolment, one dropdown per candidate: pick a document,
 // then Generate (first issue) or Print (same number again). A tick in the list
 // marks the ones already issued.
-function LaterDocsCell({ student, issuedRef, onIssue, onWithdraw }) {
+function LaterDocsCell({ student, issuedRef, onIssue, onWithdraw, onToggle, busy }) {
   const { may } = useAuth()
   const [doc, setDoc] = useState(LATER_PHD_DOCS[0])
   const ref = issuedRef(doc)
@@ -1290,6 +1327,10 @@ function LaterDocsCell({ student, issuedRef, onIssue, onWithdraw }) {
             </button>
           )}
         </div>
+        {may('research_dept.manage') && (
+          <VisToggle active={phdDocVisible(student, doc)} working={busy === `${student.id}-vis-${doc}`}
+            onToggle={() => onToggle(doc)} />
+        )}
         <p className="text-[10px] text-gray-400">{issuedCount} of {LATER_PHD_DOCS.length} issued</p>
       </div>
     </Td>

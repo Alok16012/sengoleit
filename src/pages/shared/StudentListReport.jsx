@@ -8,6 +8,7 @@ import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import { Search, Download, FileX, Edit, FileText, CreditCard, ClipboardList, Send, Lock, X } from 'lucide-react'
 import { generateStudentPDF } from '../../utils/generateStudentPDF'
+import { phdDocVisible, ID_CARD_DOC } from '../../utils/isPhdStudent'
 import { generateIDCard, generateRegistrationCertificate, generateOfferLetter, generateEntranceClearance, generateHallTicket, isPhdProgram } from '../../utils/generateStudentCards'
 import { admitCardsForMany } from '../../utils/semesterAdmitCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
@@ -15,6 +16,9 @@ import { formatDate } from '../../utils/formatDate'
 import { computeCumulativeCourseFee, holdAmount } from '../../utils/courseFee'
 import { letterOptsFor } from '../../utils/letterSettings'
 import AdmitCardListModal from '../../components/AdmitCardListModal'
+
+// A Ph.D candidate's ID card the Research Dept has hidden (Hide / Unhide).
+const idHidden = s => isPhdProgram(s.programs?.program_name) && !phdDocVisible(s, ID_CARD_DOC)
 
 const STATUS_META = {
   Pending:    { color: 'amber',   label: 'Pending Students',    desc: 'Forms submitted — not yet forwarded to the Document Dept.' },
@@ -140,6 +144,13 @@ export default function StudentListReport({ status }) {
       if (flags) {
         const byId = Object.fromEntries(flags.map(f => [f.id, f]))
         rows = rows.map(r => ({ ...r, ...(byId[r.id] || {}) }))
+      }
+      // Hide / Unhide of the ID card (add_phd_doc_visibility.sql) — read apart
+      // so an older database keeps the flags above.
+      const { data: vis } = await supabase.from('students').select('id, phd_doc_visible').in('id', rows.map(r => r.id))
+      if (vis) {
+        const visById = Object.fromEntries(vis.map(v => [v.id, v.phd_doc_visible || {}]))
+        rows = rows.map(r => ({ ...r, phd_doc_visible: visById[r.id] || {} }))
       }
     }
     setData(rows)
@@ -533,8 +544,8 @@ export default function StudentListReport({ status }) {
                           size="sm"
                           variant="ghost"
                           onClick={() => handleCard(s.id, 'id')}
-                          disabled={!s.enrollment_no || downloading === `${s.id}-id`}
-                          title={s.enrollment_no ? 'Download ID Card' : 'ID card is issued after the Enrollment Number is generated'}
+                          disabled={!s.enrollment_no || idHidden(s) || downloading === `${s.id}-id`}
+                          title={idHidden(s) ? 'ID card not released by the Research Dept yet' : s.enrollment_no ? 'Download ID Card' : 'ID card is issued after the Enrollment Number is generated'}
                         >
                           <CreditCard size={14} className={downloading === `${s.id}-id` ? 'animate-pulse text-[#933d18]' : 'text-emerald-600'} />
                           <span className="text-xs ml-1 text-emerald-600">{downloading === `${s.id}-id` ? '...' : 'ID Card'}</span>

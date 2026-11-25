@@ -6,6 +6,7 @@ import { generateIDCard, isPhdProgram } from '../../utils/generateStudentCards'
 import { resolveStudentDocUrls } from '../../utils/resolveStudentDocs'
 import { formatDate } from '../../utils/formatDate'
 import { CreditCard, Download, Lock } from 'lucide-react'
+import { phdDocVisible, ID_CARD_DOC } from '../../utils/isPhdStudent'
 
 export default function StudentIDCard() {
   const { student } = useStudentAuth()
@@ -42,7 +43,8 @@ export default function StudentIDCard() {
     : (data.registration_no || data.enrollment_no || data.admission_number)
   // The ID card is issued only once the student has an enrollment number — for
   // Ph.D that happens when Research forwards them to the Exam Section.
-  const enrolled = !!data.enrollment_no
+  // …and, for Ph.D, while the Research Dept has not hidden it.
+  const enrolled = !!data.enrollment_no && (!isPhd || phdDocVisible(data, ID_CARD_DOC))
   const contact = data.mobile_no || data.whatsapp_no
   const address = [
     data.student_perm_village_town, data.student_perm_landmark, data.student_perm_city,
