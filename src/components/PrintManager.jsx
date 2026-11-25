@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { Table, Thead, Tbody, Th, Td, Tr } from './ui/Table'
 import Button from './ui/Button'
 import DateInput from './ui/DateInput'
-import { Printer, FileText, FileSpreadsheet, History, RotateCcw, Eye, X, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Printer, FileText, FileSpreadsheet, History, RotateCcw, Eye, X, CheckCircle2, AlertTriangle, Pencil, Check } from 'lucide-react'
 import { exportCsv, exportPdf } from '../utils/exportTable'
 import {
   DOC, DOC_LABEL, DOC_SHORT, FINAL_DOCS, docKey, docTitle, printCountLabel, studentPrintPlan, printedDocsOf,
@@ -103,6 +103,23 @@ export default function PrintManager({ students, results, setResults, filterActi
   const [historyFor, setHistoryFor] = useState(null) // student
   const [history, setHistory] = useState(null)       // print_history rows, null while loading
   const [confirm, setConfirm] = useState(null)       // { student, doc } awaiting Confirm Reprint
+  const [editIssue, setEditIssue] = useState(null)   // { key, value } — Date of Issue being corrected
+
+  // Correct a printed certificate's Date of Issue to the date on the paper.
+  async function saveIssueDate(student, d) {
+    const value = editIssue?.value
+    if (!value) return
+    const { error } = await supabase.rpc('change_print_issue_date', { p_student: student.id, p_doc_type: d.doc_type, p_date: value })
+    if (error) {
+      alert(/change_print_issue_date/.test(error.message || '')
+        ? 'Run add_print_issue_date.sql in Supabase → SQL Editor first.'
+        : 'Could not change the date: ' + error.message)
+      return
+    }
+    const k = docKey(student.id, d.doc_type, 0)
+    setRecords(prev => ({ ...prev, [k]: { ...(prev[k] || {}), issue_date: value } }))
+    setEditIssue(null)
+  }
   const [notice, setNotice] = useState(null)         // { tone, text }
   const [consolidating, setConsolidating] = useState(null)
 
@@ -685,7 +702,28 @@ export default function PrintManager({ students, results, setResults, filterActi
                           <tr key={d.key}>
                             <td className="px-3 py-2 font-semibold text-gray-900 whitespace-nowrap">{DOC_LABEL[d.doc_type]}</td>
                             <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{d.doc_type === DOC.MARKSHEET ? `Sem ${d.semester}` : 'Final Document'}</td>
-                            <td className="px-3 py-2 font-semibold text-gray-800 whitespace-nowrap">{d.doc_type === DOC.MARKSHEET ? '—' : fmtIssue(issueDateOf(d.record))}</td>
+                            <td className="px-3 py-2 font-semibold text-gray-800 whitespace-nowrap">
+                              {d.doc_type === DOC.MARKSHEET ? '—' : editIssue?.key === d.key ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <input type="date" value={editIssue.value} autoFocus
+                                    onChange={e => setEditIssue({ key: d.key, value: e.target.value })}
+                                    className="border border-gray-200 rounded-lg px-1.5 py-1 text-xs" />
+                                  <button title="Save" onClick={() => saveIssueDate(historyFor, d)}
+                                    className="p-1 rounded text-emerald-700 hover:bg-emerald-50"><Check size={14} /></button>
+                                  <button title="Cancel" onClick={() => setEditIssue(null)}
+                                    className="p-1 rounded text-gray-400 hover:bg-gray-100"><X size={14} /></button>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1">
+                                  {fmtIssue(issueDateOf(d.record))}
+                                  {may('exam_section.print') && (
+                                    <button title="Change to the date printed on the certificate"
+                                      onClick={() => setEditIssue({ key: d.key, value: issueDateOf(d.record) || '' })}
+                                      className="p-1 rounded text-gray-400 hover:text-[#933d18] hover:bg-gray-100"><Pencil size={12} /></button>
+                                  )}
+                                </span>
+                              )}
+                            </td>
                             <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtDT(d.record?.first_printed_at)}</td>
                             <td className="px-3 py-2 text-gray-600">{d.record?.first_printed_by || '—'}</td>
                             <td className="px-3 py-2 whitespace-nowrap">

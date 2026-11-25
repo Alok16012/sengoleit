@@ -37,3 +37,22 @@ GRANT EXECUTE ON FUNCTION set_print_issue_dates(jsonb) TO authenticated;
 NOTIFY pgrst, 'reload schema';
 
 SELECT 'print issue date ready' AS result;
+
+-- Correct a printed certificate's Date of Issue to the date actually on the
+-- paper (Print History -> Date of Issue -> edit). Overwrites.
+CREATE OR REPLACE FUNCTION change_print_issue_date(p_student uuid, p_doc_type text, p_date date)
+RETURNS void
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT (is_admin() OR staff_can('print_documents', 'w')) THEN
+    RAISE EXCEPTION 'Not allowed to change a printed document.';
+  END IF;
+  IF p_date IS NULL THEN RAISE EXCEPTION 'Pick a date.'; END IF;
+  UPDATE print_documents SET issue_date = p_date, updated_at = now()
+   WHERE student_id = p_student AND doc_type = upper(p_doc_type) AND semester = 0;
+  IF NOT FOUND THEN RAISE EXCEPTION 'This document has not been printed yet.'; END IF;
+END $$;
+
+GRANT EXECUTE ON FUNCTION change_print_issue_date(uuid, text, date) TO authenticated;
+
+NOTIFY pgrst, 'reload schema';
