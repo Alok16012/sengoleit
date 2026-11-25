@@ -45,4 +45,5 @@ export const LEDGER_KIND_LABEL = {
   opening: 'Earlier Collection',
   coupon_refund: 'Coupon Refund',
   research_document: 'Ph.D Document (Research Dept)',
+  research_refund: 'Ph.D Fee Refund',
 }
