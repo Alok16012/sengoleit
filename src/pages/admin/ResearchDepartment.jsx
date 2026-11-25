@@ -588,6 +588,7 @@ export default function ResearchDepartment() {
   // it is minted here as a fallback.
   async function forwardToExam(student) {
     if (student.exam_forwarded_at) return
+    if (!examReady(student)) return alert(`Issue every document up to the Admission Confirmation and Research Proposal for ${student.student_name} first.`)
     if (!student.enrollment_no && !(await ensurePaid(student, ENROLL_DOC))) return
     if (!confirm(`Forward ${student.student_name} to the Exam Section?\n\nA Registration Number will be generated now.`)) return
     const enrollNo = student.enrollment_no || generateEnrollmentNumber(student)
@@ -616,6 +617,13 @@ export default function ResearchDepartment() {
     </button>
   )
 
+  // Forward to Exam lists a candidate only once every document up to the
+  // Admission Confirmation and Research Proposal has been issued. One already
+  // forwarded stays on the list.
+  const EXAM_READY_DOCS = PHD_DOCS.slice(0, PHD_DOCS.findIndex(d => d.name === 'Admission Confirmation and Research Proposal') + 1).map(d => d.name)
+  const examReady = s => EXAM_READY_DOCS.every(n => hasLetter(s, n))
+  const examRows = filtered.filter(s => s.exam_forwarded_at || examReady(s))
+
   return (
     <div className="p-6 space-y-5">
       <PageHeader title="Research Department"
@@ -635,7 +643,7 @@ export default function ResearchDepartment() {
         <div className="flex items-center gap-2 flex-wrap">
           {mayTab('research_dept', 'master') && <TabBtn id="master" icon={Settings2} label="Master Panel" />}
           {mayTab('research_dept', 'letters') && <TabBtn id="letters" icon={FlaskConical} label="Candidates" count={filtered.length} />}
-          {mayTab('research_dept', 'exam') && <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={filtered.filter(s => !s.exam_forwarded_at).length} />}
+          {mayTab('research_dept', 'exam') && <TabBtn id="exam" icon={GraduationCap} label="Forward to Exam" count={examRows.filter(s => !s.exam_forwarded_at).length} />}
           {mayTab('research_dept', 'payment') && <TabBtn id="payment" icon={IndianRupee} label="Payment Condition" />}
           {mayTab('research_dept', 'fee') && <TabBtn id="fee" icon={Wallet} label="Fee Entry" />}
         </div>
@@ -650,7 +658,7 @@ export default function ResearchDepartment() {
             <ExportButtons
               title={tab === 'exam' ? 'Forward to Exam' : 'Ph.D Candidates'}
               filename={tab === 'exam' ? 'phd-forward-to-exam' : 'phd-candidates'}
-              rows={filtered}
+              rows={tab === 'exam' ? examRows : filtered}
               meta={q ? [`Search: ${q}`] : []}
               columns={tab === 'exam' ? [
                 { header: 'Student', value: s => s.student_name || '' },
@@ -1036,9 +1044,9 @@ export default function ResearchDepartment() {
           <Tbody>
             {loading ? (
               <Tr><Td colSpan={8} className="text-center text-gray-400 py-8">Loading...</Td></Tr>
-            ) : filtered.length === 0 ? (
-              <Tr><Td colSpan={8} className="text-center text-gray-400 py-8">No Ph.D candidates to forward.</Td></Tr>
-            ) : filtered.map((s, i) => {
+            ) : examRows.length === 0 ? (
+              <Tr><Td colSpan={8} className="text-center text-gray-400 py-8">No Ph.D candidates to forward yet — a candidate appears here once every document up to the Admission Confirmation and Research Proposal is issued.</Td></Tr>
+            ) : examRows.map((s, i) => {
               // The fee gate still belongs to the Account Dept: only an approved
               // candidate may move on to the Exam Section.
               const feeCleared = s.status === 'Approved'
