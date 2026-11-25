@@ -1880,9 +1880,6 @@ export default function StudentForm({ viewOnly = false }) {
                             <>&nbsp;·&nbsp;Course Coupon: −₹{courseCoupon.discount.toLocaleString('en-IN')}
                             &nbsp;·&nbsp;Fee after: ₹{Math.max(walletInfo.courseFee - courseCoupon.discount, 0).toLocaleString('en-IN')}</>
                           )}
-                          {walletInfo.entryHold != null && (
-                            <>&nbsp;·&nbsp;First document (Payment Condition): ₹{Number(walletInfo.entryHold).toLocaleString('en-IN')}</>
-                          )}
                           {coupon.discount > 0 && (
                             <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}</>
                           )}
