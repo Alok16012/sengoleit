@@ -1861,38 +1861,32 @@ export default function StudentForm({ viewOnly = false }) {
                               · Fee for Sem 1–{walletInfo.dueSem} (per exam calendar)
                             </span>
                           )}
+                          {!walletInfo.researchFee && (
+                            <span className={`${walletInfo.calendarActive && walletInfo.dueSem > 0 ? '' : 'ml-2 '}text-[11px] font-semibold text-[#933d18]`}>
+                              {walletInfo.calendarActive && walletInfo.dueSem > 0 ? ', ' : '· '}Total Fee = To University Fee
+                            </span>
+                          )}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
-                          {/* Always shown, including 0%. Hiding it at zero hid
-                              the one number that explains the fee: a centre on
-                              60% that is being charged the full amount looked
-                              exactly like a centre with no sharing at all. */}
-                          {walletInfo.researchFee ? (
+                          {/* The centre sees only what it owes the university —
+                              its own share is not spelled out here. */}
+                          {walletInfo.researchFee && (
                             <span className="text-emerald-700 font-semibold">
                               &nbsp;(Ph.D fee set by the Research Dept)
-                            </span>
-                          ) : walletInfo.sharingPct > 0 ? (
-                            <span className="text-emerald-700 font-semibold">
-                              &nbsp;(₹{Number(walletInfo.grossFee || 0).toLocaleString('en-IN')} − {walletInfo.sharingPct}% your share
-                              = ₹{Number(walletInfo.centerShare || 0).toLocaleString('en-IN')} kept)
-                            </span>
-                          ) : (
-                            <span className="text-amber-700 font-semibold">
-                              &nbsp;(no sharing applied — full university fee)
                             </span>
                           )}
                           {courseCoupon.discount > 0 && (
                             <>&nbsp;·&nbsp;Course Coupon: −₹{courseCoupon.discount.toLocaleString('en-IN')}
                             &nbsp;·&nbsp;Fee after: ₹{Math.max(walletInfo.courseFee - courseCoupon.discount, 0).toLocaleString('en-IN')}</>
                           )}
-                          {walletInfo.entryHold != null
-                            ? <>&nbsp;·&nbsp;First document (Payment Condition): ₹{Number(walletInfo.entryHold).toLocaleString('en-IN')}</>
-                            : <>&nbsp;·&nbsp;50%: ₹{Math.ceil(Math.max(walletInfo.courseFee - courseCoupon.discount, 0) * 0.5).toLocaleString('en-IN')}</>}
+                          {walletInfo.entryHold != null && (
+                            <>&nbsp;·&nbsp;First document (Payment Condition): ₹{Number(walletInfo.entryHold).toLocaleString('en-IN')}</>
+                          )}
                           {coupon.discount > 0 && (
                             <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}</>
                           )}
-                          &nbsp;·&nbsp;Required: ₹{holdAmount(walletInfo.courseFee, coupon.discount, courseCoupon.discount, walletInfo.entryHold).toLocaleString('en-IN')}
+                          &nbsp;·&nbsp;Required{walletInfo.entryHold == null ? ' (50%)' : ''}: ₹{holdAmount(walletInfo.courseFee, coupon.discount, courseCoupon.discount, walletInfo.entryHold).toLocaleString('en-IN')}
                           &nbsp;·&nbsp;Your Balance: ₹{walletInfo.balance.toLocaleString('en-IN')}
                         </p>
                       </div>
