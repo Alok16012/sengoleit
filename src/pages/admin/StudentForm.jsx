@@ -1868,22 +1868,19 @@ export default function StudentForm({ viewOnly = false }) {
                           )}
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}
                           {/* The centre sees only what it owes the university —
-                              its own share is not spelled out here. */}
-                          {walletInfo.researchFee && (
-                            <span className="text-emerald-700 font-semibold">
-                              &nbsp;(Ph.D fee set by the Research Dept)
-                            </span>
-                          )}
+                              its own share is not spelled out here. A Ph.D
+                              shows no course fee at all at entry: it is taken
+                              candidate by candidate after registration. */}
+                          {!walletInfo.researchFee && <>Course Fee: ₹{walletInfo.courseFee.toLocaleString('en-IN')}&nbsp;·&nbsp;</>}
                           {courseCoupon.discount > 0 && (
-                            <>&nbsp;·&nbsp;Course Coupon: −₹{courseCoupon.discount.toLocaleString('en-IN')}
-                            &nbsp;·&nbsp;Fee after: ₹{Math.max(walletInfo.courseFee - courseCoupon.discount, 0).toLocaleString('en-IN')}</>
+                            <>Course Coupon: −₹{courseCoupon.discount.toLocaleString('en-IN')}&nbsp;·&nbsp;
+                            {!walletInfo.researchFee && <>Fee after: ₹{Math.max(walletInfo.courseFee - courseCoupon.discount, 0).toLocaleString('en-IN')}&nbsp;·&nbsp;</>}</>
                           )}
                           {coupon.discount > 0 && (
-                            <>&nbsp;·&nbsp;Coupon: −₹{coupon.discount.toLocaleString('en-IN')}</>
+                            <>Coupon: −₹{coupon.discount.toLocaleString('en-IN')}&nbsp;·&nbsp;</>
                           )}
-                          &nbsp;·&nbsp;Required{walletInfo.entryHold == null ? ' (50%)' : ''}: ₹{holdAmount(walletInfo.courseFee, coupon.discount, courseCoupon.discount, walletInfo.entryHold).toLocaleString('en-IN')}
+                          Required{walletInfo.entryHold == null ? ' (50%)' : ''}: ₹{holdAmount(walletInfo.courseFee, coupon.discount, courseCoupon.discount, walletInfo.entryHold).toLocaleString('en-IN')}
                           &nbsp;·&nbsp;Your Balance: ₹{walletInfo.balance.toLocaleString('en-IN')}
                         </p>
                       </div>
