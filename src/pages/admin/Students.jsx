@@ -23,6 +23,7 @@ import SemesterResultViewModal from '../../components/SemesterResultViewModal'
 import { fetchPrintedDocs, openStatementOfGrades, openFinalCertificate } from '../../utils/printedDocs'
 import { docTitle } from '../../utils/printDocs'
 import { fetchAllRows } from '../../utils/fetchAllRows'
+import StudentExportModal from '../../components/StudentExportModal'
 import RegistrationCardModal from '../../components/RegistrationCardModal'
 import AdmitCardListModal from '../../components/AdmitCardListModal'
 import { useAuth } from '../../context/AuthContext'
@@ -234,6 +235,8 @@ export default function Students() {
   // Why the list could not be read — shown on the page. A failed read used to
   // look exactly like "No students found", with the reason only in the console.
   const [loadError, setLoadError] = useState('')
+  // Export → tick the details wanted.
+  const [exportOpen, setExportOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(() => statusTabs[0] || 'All')
   // A lookup role always searches — no tab ever lists students without one.
@@ -802,9 +805,17 @@ export default function Students() {
             )}
           </button>
           )}
+          {may('students.export') && (
+            <button onClick={() => setExportOpen(true)} title="Tick the details you want, then Excel or PDF"
+              className="px-3 py-2 rounded-xl text-xs font-semibold transition-all inline-flex items-center gap-1.5 bg-white border border-gray-200 text-[#933d18] hover:border-[#933d18]">
+              <FileSpreadsheet size={13} /> Export
+            </button>
+          )}
         </div>
       </div>
       )}
+
+      <StudentExportModal isOpen={exportOpen} onClose={() => setExportOpen(false)} students={filtered} meta={exportMeta()} />
 
       {!loading && !lookup && activeReady && may('students.activate') && centerFilter !== 'all' && filtered.length > 0 && (() => {
         const cName = centerList.find(c => c.id === centerFilter)?.center_name || 'this centre'
@@ -1168,6 +1179,10 @@ export default function Students() {
         </p>
         {may('students.export') && (
         <div className="flex gap-2">
+          <Button variant="primary" size="md" title="Tick the details you want, then Excel or PDF"
+            onClick={() => setExportOpen(true)}>
+            <FileSpreadsheet size={14} /> Export — Choose Details
+          </Button>
           <Button variant="secondary" size="md"
             onClick={() => exportCsv(exportName(), EXPORT_COLUMNS, filtered)}>
             <FileSpreadsheet size={14} /> Export Excel
