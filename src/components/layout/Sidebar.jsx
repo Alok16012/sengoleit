@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { supabase } from '../../lib/supabase'
@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronRight, ShieldCheck, IndianRupee, FlaskConical, RefreshCw, UserCog
 } from 'lucide-react'
 import { moduleForPath } from '../../utils/permissions'
+import { fetchPendingCounts } from '../../utils/pendingCounts'
 
 const adminLinks = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -161,6 +162,21 @@ export default function Sidebar() {
     role === 'document_dept' ? docDeptNavGroups :
     studentNavGroups
 
+  // Work waiting in each department this login can open — a count beside the
+  // link. Refreshed on every page change and once a minute.
+  const [pending, setPending] = useState({})
+  const { pathname } = useLocation()
+  const staffLike = role === 'admin' || role === 'staff' || role === 'document_dept'
+  const pendingPaths = staffLike ? navGroups.flatMap(g => g.items.map(i => i.to)).join('|') : ''
+  useEffect(() => {
+    if (!pendingPaths) return
+    let off = false
+    const load = () => fetchPendingCounts(pendingPaths.split('|')).then(c => { if (!off) setPending(c) }).catch(() => {})
+    load()
+    const t = setInterval(load, 60000)
+    return () => { off = true; clearInterval(t) }
+  }, [pendingPaths, pathname])
+
   const roleLabel =
     role === 'admin' ? 'Administration' :
     role === 'super_center' ? 'Super Center Portal' :
@@ -229,6 +245,13 @@ export default function Sidebar() {
                           <>
                             <Icon size={16} className={isActive ? 'text-white/80' : 'text-gray-400'} />
                             {label}
+                            {pending[to]?.total > 0 && (
+                              <span
+                                title={pending[to].parts.map(([l, n]) => `${l}: ${n}`).join('\n')}
+                                className={`ml-auto text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-5 text-center ${isActive ? 'bg-white text-[#933d18]' : 'bg-red-500 text-white'}`}>
+                                {pending[to].total > 99 ? '99+' : pending[to].total}
+                              </span>
+                            )}
                           </>
                         )}
                       </NavLink>

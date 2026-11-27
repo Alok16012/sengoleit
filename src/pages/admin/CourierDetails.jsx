@@ -52,6 +52,8 @@ export default function CourierDetails() {
   const [q, setQ] = useState('')
   const [superFilter, setSuperFilter] = useState('all')
   const [centerFilter, setCenterFilter] = useState('all')
+  // Pending = not sent yet; Done = sent (see isDone).
+  const [tab, setTab] = useState('pending')
 
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -289,7 +291,14 @@ export default function CourierDetails() {
 
   const docText = r => (r.document_types || []).map(t => t === 'Other' && r.other_document ? `Other: ${r.other_document}` : t).join(', ')
 
-  const filtered = rows.filter(r => {
+  // A courier is Done once it has actually gone out: a real tracking number
+  // (not blank, not "NA") or a receipt scan on it. Until then it is Pending.
+  const isDone = r => {
+    const t = String(r.tracking_no || '').trim()
+    return (!!t && !/^(n\.?\/?a\.?|-+|—+)$/i.test(t)) || (Array.isArray(r.receipts) && r.receipts.length > 0)
+  }
+
+  const matched = rows.filter(r => {
     if (superFilter !== 'all' && r.super_center_id !== superFilter) return false
     if (centerFilter !== 'all' && r.center_id !== centerFilter) return false
     if (!q.trim()) return true
@@ -299,6 +308,8 @@ export default function CourierDetails() {
     ].join(' ').toLowerCase()
     return hay.includes(q.toLowerCase())
   })
+  const tabCounts = { pending: matched.filter(r => !isDone(r)).length, done: matched.filter(isDone).length }
+  const filtered = matched.filter(r => (tab === 'done') === isDone(r))
 
   const inputCls = 'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#933d18]/20 focus:border-[#933d18]'
   const labelCls = 'block text-[11px] font-semibold text-gray-500 mb-1'
@@ -330,9 +341,16 @@ export default function CourierDetails() {
         </div>
       </div>
 
-      <p className="text-sm font-bold text-gray-700 flex items-center gap-2">
-        <Truck size={16} className="text-[#933d18]" /> Couriers ({filtered.length})
-      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        {[['pending', 'Pending'], ['done', 'Done']].map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)}
+            title={k === 'done' ? 'Sent — a tracking number or a receipt is on it' : 'Not sent yet — no tracking number and no receipt'}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${tab === k ? 'bg-[#933d18] text-white' : 'bg-[#933d18]/8 text-[#933d18] hover:bg-[#933d18]/15'}`}>
+            {k === 'pending' && <Truck size={15} />} {label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${tab === k ? 'bg-white/25' : 'bg-white/70'}`}>{tabCounts[k]}</span>
+          </button>
+        ))}
+      </div>
 
       <Table>
         <Thead>
@@ -345,7 +363,7 @@ export default function CourierDetails() {
           {loading ? (
             <Tr><Td colSpan={12} className="text-center text-gray-400 py-8">Loading...</Td></Tr>
           ) : filtered.length === 0 ? (
-            <Tr><Td colSpan={12} className="text-center text-gray-400 py-8">No courier entries yet.</Td></Tr>
+            <Tr><Td colSpan={12} className="text-center text-gray-400 py-8">{tab === 'done' ? 'No couriers marked done yet.' : 'No pending couriers.'}</Td></Tr>
           ) : filtered.map((r, i) => (
             <Tr key={r.id}>
               <Td>{i + 1}</Td>
