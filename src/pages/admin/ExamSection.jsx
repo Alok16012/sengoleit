@@ -219,6 +219,7 @@ export default function ExamSection() {
   const [fType, setFType] = useState('all')
   const [fSession, setFSession] = useState([])   // multi-select; [] = all
   const [fPrintCenter, setFPrintCenter] = useState('all')   // Print tab only
+  const [fResCenter, setFResCenter] = useState('all')       // Result tab only
   // Which students still need THIS semester's admit card. After a
   // re-registration is verified the student moves into a new term with no card
   // yet, and the list gave no way to tell who was waiting.
@@ -445,6 +446,7 @@ export default function ExamSection() {
     const tabName = { pending: 'Pending', awaiting: 'Awaiting', done: 'Done', print: 'Print', all: 'All' }[resTab] || resTab
     const m = [`${resultTab === 'special' ? 'Special Result' : 'Student Entry'} · ${tabName}`]
     if (search) m.push(`Search: ${search}`)
+    if (fResCenter !== 'all') m.push(`Center: ${resCenterOptions.find(o => o.id === fResCenter)?.label || ''}`)
     if (fDept && fDept !== 'all') m.push(`Department: ${departments.find(d => d.id === fDept)?.name || ''}`)
     if (fType && fType !== 'all') m.push(`Program Type: ${progTypes.find(t => t.id === fType)?.programme_type_name || ''}`)
     if (Array.isArray(fSession) && fSession.length) {
@@ -792,9 +794,18 @@ export default function ExamSection() {
     const st = resultStateOf(s)
     return st === 'done' && allSentToPrint(s) ? 'print' : st
   }
-  const resultList = byFilters.filter(s =>
-    resultEligible(s) && (resTab === 'all' || resultTabOf(s) === resTab)
-  )
+  // The Result tab's own centre filter — the centres of the students it lists.
+  const resCenterOptions = Object.values(data.filter(resultEligible).reduce((acc, s) => {
+    const c = s.centers
+    if (c?.id && !acc[c.id]) acc[c.id] = { id: c.id, label: c.center_code ? `${c.center_name} (${c.center_code})` : c.center_name }
+    return acc
+  }, {})).sort((a, b) => a.label.localeCompare(b.label))
+  // Everything the Result tab can show, before its Pending / Done / … tabs —
+  // the tab counts are taken from this too, so they follow the centre filter.
+  const resultBase = byFilters.filter(s =>
+    resultEligible(s) && (fResCenter === 'all' || s.centers?.id === fResCenter))
+  const resultList = resultBase.filter(s => resTab === 'all' || resultTabOf(s) === resTab)
+  const resFilterActive = !!search || fDept !== 'all' || fType !== 'all' || fSession.length > 0 || fResCenter !== 'all'
   // The Print column belongs where results are declared: still to send, or sent.
   const showPrintCol = resTab === 'done' || resTab === 'print'
 
@@ -1038,6 +1049,9 @@ export default function ExamSection() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
+        <SearchableSelect label="Center" allLabel="All Centers" minWidth={200}
+          value={fResCenter} onChange={setFResCenter}
+          options={resCenterOptions} />
         <SearchableSelect label="Department" allLabel="All Departments" minWidth={180}
           value={fDept} onChange={setFDept}
           options={departments.map(d => ({ id: d.id, label: d.name }))} />
@@ -1047,8 +1061,8 @@ export default function ExamSection() {
         <MultiSearchSelect label="Session" allLabel="All Sessions" minWidth={160}
           values={fSession} onChange={setFSession}
           options={sessions.map(se => ({ id: se.id, label: se.session_name }))} />
-        {filterActive && (
-          <button onClick={clearFilters}
+        {resFilterActive && (
+          <button onClick={() => { clearFilters(); setFResCenter('all') }}
             className="flex items-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-[#933d18] bg-[#933d18]/8 hover:bg-[#933d18]/15 rounded-xl transition-colors">
             <X size={14} /> Clear
           </button>
@@ -1066,8 +1080,8 @@ export default function ExamSection() {
           { key: 'all',      label: 'All',      on: 'bg-gray-700 text-white',    off: 'bg-gray-100 text-gray-600' },
         ].filter(t => mayTab('exam_section', 'result', t.key)).map(t => {
           const count = t.key === 'all'
-            ? byFilters.filter(s => currentCardDone(s)).length
-            : byFilters.filter(s => currentCardDone(s) && resultTabOf(s) === t.key).length
+            ? resultBase.length
+            : resultBase.filter(s => resultTabOf(s) === t.key).length
           return (
             <button key={t.key} onClick={() => setResTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${resTab === t.key ? t.on : t.off}`}>
